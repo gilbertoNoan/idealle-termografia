@@ -115,7 +115,6 @@
     font-size: 12px; font-weight: 700; color: #1a1a1a;
   }
   .badge.normal { background: #92D050; }
-  .badge.baixo { background: #00B050; color: #fff; }
   .badge.medio { background: #FFFF00; }
   .badge.alto { background: #FFA500; }
   .badge.critico { background: #FF0000; color: #fff; }
@@ -445,7 +444,6 @@
   }
   var NIVEIS_SEVERIDADE = [
     { key: 'normal', label: 'Normal', cor: '#92D050', prioridade: 'Realizar rotina de manutenção.' },
-    { key: 'baixo', label: 'Baixo', cor: '#00B050', prioridade: 'Realizar a intervenção na próxima manutenção programada.' },
     { key: 'medio', label: 'Médio', cor: '#FFFF00', prioridade: 'Realizar a intervenção na próxima manutenção programada.' },
     { key: 'alto', label: 'Alto', cor: '#FFA500', prioridade: 'Realizar a intervenção o mais rápido possível. Verificar integridade física do componente.' },
     { key: 'critico', label: 'Crítico', cor: '#FF0000', prioridade: 'Realizar intervenção imediata. Se necessário, trocar equipamento.' }
@@ -453,11 +451,10 @@
   function classificar(maxima, ambiente) {
     var t = calcularLimiares(ambiente);
     var nivel;
-    if (maxima < t[0]) nivel = NIVEIS_SEVERIDADE[0];
-    else if (maxima < t[1]) nivel = NIVEIS_SEVERIDADE[1];
-    else if (maxima < t[2]) nivel = NIVEIS_SEVERIDADE[2];
-    else if (maxima < t[3]) nivel = NIVEIS_SEVERIDADE[3];
-    else nivel = NIVEIS_SEVERIDADE[4];
+    if (maxima < t[1]) nivel = NIVEIS_SEVERIDADE[0];
+    else if (maxima < t[2]) nivel = NIVEIS_SEVERIDADE[1];
+    else if (maxima < t[3]) nivel = NIVEIS_SEVERIDADE[2];
+    else nivel = NIVEIS_SEVERIDADE[3];
     var r = {}; for (var k in nivel) r[k] = nivel[k];
     r.limiares = t;
     return r;
@@ -1056,7 +1053,7 @@
     y2 += 10;
 
     // color scale row
-    var coresEscala = [[0, 176, 80], [255, 255, 0], [255, 165, 0], [255, 0, 0]];
+    var coresEscala = [[146, 208, 80], [255, 255, 0], [255, 165, 0], [255, 0, 0]];
     var scaleW = colW / limiares.length;
     limiares.forEach(function (lim, i) {
       var cor = coresEscala[Math.min(i, coresEscala.length - 1)];
@@ -1079,7 +1076,7 @@
     y = Math.max(y1, y2) + 6;
 
     // legend — classification / recommended intervention
-    var legendaCores = [[146, 208, 80], [0, 176, 80], [255, 255, 0], [255, 165, 0], [255, 0, 0]];
+    var legendaCores = [[146, 208, 80], [255, 255, 0], [255, 165, 0], [255, 0, 0]];
     doc.setFillColor(azul[0], azul[1], azul[2]);
     doc.rect(margin, y, W, 6, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
@@ -1147,7 +1144,7 @@
   async function renderPreviewHtml(ponto) {
     var classeAtual = classificar(ponto.maxima || 0, ponto.ambiente || 25);
     var limiares = calcularLimiares(ponto.ambiente || 25);
-    var coresEscala = ['#00B050', '#FFFF00', '#FFA500', '#FF0000'];
+    var coresEscala = ['#92D050', '#FFFF00', '#FFA500', '#FF0000'];
     var imgVisual = await obterImagemBase64('fotoVisualDataUrl', 'fotoVisualId', ponto, 'fotoVisualUrl');
     var imgTermica = await obterImagemBase64('fotoTermicaDataUrl', 'fotoTermicaId', ponto, 'fotoTermicaUrl');
 
