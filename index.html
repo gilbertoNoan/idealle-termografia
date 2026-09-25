@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Inspeção Termográfica — IDEALLE</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
+     para permitir que os pontos salvos fiquem visíveis em qualquer aparelho. Se o navegador
+     bloquear este script (como acontece dentro do artifact do Claude), o app cai automaticamente
+     para o armazenamento local do próprio aparelho — nada quebra. -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<style>
+  :root {
+    --azul: #1F3864;
+    --azul-claro: #DCE6F1;
+    --cinza: #F2F2F2;
+    --texto: #1a1a1a;
+    --texto-suave: #595959;
+    --borda: #d9d9d9;
+    --fundo: #ffffff;
+    --cartao: #ffffff;
+    --verde: #92D050;
+    --amarelo: #FFFF00;
+    --laranja: #FFA500;
+    --vermelho: #FF0000;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --fundo: #14181f;
+      --cartao: #1c222c;
+      --texto: #eef1f5;
+      --texto-suave: #a7b0bd;
+      --borda: #313a48;
+      --azul-claro: #223252;
+      --cinza: #232a35;
+    }
+  }
+  :root[data-theme="dark"] {
+    --fundo: #14181f; --cartao: #1c222c; --texto: #eef1f5;
+    --texto-suave: #a7b0bd; --borda: #313a48; --azul-claro: #223252; --cinza: #232a35;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--fundo); color: var(--texto);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--azul); color: #fff;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 14px;
+  }
+  header .h-row { display: flex; align-items: center; gap: 10px; }
+  header .h-logo { background: #fff; border-radius: 6px; padding: 3px 6px; display: inline-flex; align-items: center; flex-shrink: 0; }
+  header .h-logo img { height: 22px; display: block; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 700; }
+  header p { margin: 2px 0 0; font-size: 12px; opacity: 0.85; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px 14px 60px; }
+  .card {
+    background: var(--cartao); border: 1px solid var(--borda);
+    border-radius: 12px; padding: 16px; margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: 15px; margin: 0 0 12px; color: var(--azul);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .subhead {
+    font-size: 12.5px; font-weight: 700; color: var(--azul);
+    margin: 16px 0 8px; text-transform: uppercase; letter-spacing: .02em;
+    border-bottom: 1px solid var(--borda); padding-bottom: 4px;
+  }
+  .subhead:first-child { margin-top: 0; }
+  label {
+    display: block; font-size: 12.5px; font-weight: 600;
+    color: var(--texto-suave); margin: 10px 0 4px;
+  }
+  input[type=text], input[type=number], input[type=datetime-local], textarea, select {
+    width: 100%; padding: 10px 11px; border: 1px solid var(--borda);
+    border-radius: 8px; font-size: 15px; background: var(--fundo);
+    color: var(--texto); font-family: inherit;
+  }
+  select { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23595959'><path d='M7 10l5 5 5-5z'/></svg>"); background-repeat: no-repeat; background-position: right 10px center; background-size: 18px; padding-right: 32px; }
+  textarea { resize: vertical; min-height: 60px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  #isolacao-wrap { margin-top: 10px; }
+  .radio-opt {
+    display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500;
+    color: var(--texto); background: var(--cinza); border-radius: 8px; padding: 9px 10px;
+    margin: 0; cursor: pointer;
+  }
+  .radio-opt input { width: 16px; height: 16px; margin: 0; accent-color: var(--azul); }
+  .foto-wrap {
+    margin-top: 6px; border: 2px dashed var(--borda); border-radius: 10px;
+    padding: 14px; text-align: center; position: relative;
+  }
+  .foto-wrap img { max-width: 100%; max-height: 200px; border-radius: 8px; display: block; margin: 0 auto; }
+  .foto-wrap input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .foto-label { font-size: 13px; color: var(--texto-suave); }
+  .foto-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .foto-cols label { grid-column: 1 / -1; margin-bottom: 0; }
+  .calc-box { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill { flex: 1; min-width: 78px; background: var(--cinza); border-radius: 8px; padding: 8px 6px; text-align: center; }
+  .pill .v { font-size: 15px; font-weight: 700; }
+  .pill .l { font-size: 9.5px; color: var(--texto-suave); text-transform: uppercase; letter-spacing: .02em; }
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 700; color: #1a1a1a;
+  }
+  .badge.normal { background: #92D050; }
+  .badge.baixo { background: #00B050; color: #fff; }
+  .badge.medio { background: #FFFF00; }
+  .badge.alto { background: #FFA500; }
+  .badge.critico { background: #FF0000; color: #fff; }
+  button { font-family: inherit; cursor: pointer; border: none; border-radius: 9px; font-weight: 700; font-size: 15px; }
+  .btn-primary { width: 100%; padding: 13px; background: var(--azul); color: #fff; margin-top: 16px; }
+  .btn-primary:disabled { opacity: .6; }
+  .btn-secondary { background: var(--azul); color: #fff; padding: 8px 12px; font-size: 13px; }
+  .btn-danger { background: transparent; color: #b3261e; padding: 8px 10px; font-size: 13px; }
+  .ponto { border: 1px solid var(--borda); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .ponto-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .ponto-titulo { font-weight: 700; font-size: 14.5px; }
+  .ponto-sub { font-size: 12.5px; color: var(--texto-suave); margin-top: 2px; }
+  .ponto-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .vazio { text-align: center; color: var(--texto-suave); font-size: 13.5px; padding: 20px 0; }
+  .aviso { text-align: center; padding: 40px 20px; color: var(--texto-suave); }
+  .aviso h2 { color: var(--azul); font-size: 17px; margin-bottom: 8px; }
+  .toast {
+    position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); left: 50%;
+    transform: translateX(-50%); background: var(--azul); color: #fff; padding: 10px 18px;
+    border-radius: 999px; font-size: 13.5px; opacity: 0; pointer-events: none;
+    transition: opacity .25s; z-index: 20; white-space: nowrap; max-width: 90vw; overflow: hidden; text-overflow: ellipsis;
+  }
+  .toast.show { opacity: 1; }
+  .contador { font-size: 12px; color: var(--texto-suave); }
+  .dash-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .dash-card { border-radius: 10px; padding: 12px 6px; text-align: center; background: var(--cinza); }
+  .dash-num { font-size: 22px; font-weight: 800; line-height: 1.1; }
+  .dash-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; margin-top: 2px; opacity: .8; }
+  .dash-total { background: var(--azul); color: #fff; }
+  .dash-ok { background: #92D050; color: #14361a; }
+  .dash-atencao { background: #FFA500; color: #3a2600; }
+  .dash-critico { background: #FF0000; color: #fff; }
+  @media (max-width: 420px) { .dash-num { font-size: 18px; } .dash-label { font-size: 9px; } }
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 50;
+    align-items: center; justify-content: center; padding: env(safe-area-inset-top, 10px) 8px env(safe-area-inset-bottom, 10px);
+  }
+  .modal-overlay.show { display: flex; }
+  .confirm-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 60;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .confirm-overlay.show { display: flex; }
+  .confirm-box { background: var(--cartao); border-radius: 12px; padding: 20px; max-width: 320px; width: 100%; text-align: center; }
+  .confirm-box p { margin: 0 0 16px; font-size: 14.5px; color: var(--texto); }
+  .confirm-actions { display: flex; gap: 10px; }
+  .confirm-actions button { flex: 1; padding: 11px; }
+  .btn-danger-solid { background: #b3261e; color: #fff; }
+  .modal-box {
+    background: var(--cartao); width: 100%; max-width: 760px; height: 100%; max-height: 92vh;
+    border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,.4);
+  }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--azul); color: #fff; flex-shrink: 0; }
+  .modal-header span { font-size: 14px; font-weight: 700; }
+  .modal-header button { background: rgba(255,255,255,.15); color: #fff; border-radius: 7px; width: 30px; height: 30px; font-size: 16px; line-height: 1; }
+  .modal-box iframe { flex: 1; border: none; width: 100%; background: #525659; }
+  .modal-preview-wrap { flex: 1; overflow: auto; background: #4a4d50; padding: 14px 8px; -webkit-overflow-scrolling: touch; }
+  .laudo-page {
+    background: #fff; color: #111827; max-width: 760px; margin: 0 auto;
+    border-radius: 4px; overflow: hidden; font-size: 12px; box-shadow: 0 3px 14px rgba(0,0,0,.35);
+  }
+  .lp-header { background: var(--azul); color: #fff; padding: 12px 14px; display: flex; justify-content: space-between; gap: 8px; }
+  .lp-header .lp-h-title { font-weight: 700; font-size: 13.5px; }
+  .lp-header .lp-h-sub { font-size: 10.5px; opacity: .85; margin-top: 2px; }
+  .lp-header .lp-h-right { text-align: right; font-size: 10.5px; opacity: .9; }
+  .lp-idstrip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: #d9d9d9; }
+  .lp-idbox { background: #f2f2f2; padding: 6px 8px; }
+  .lp-idbox .k { font-size: 8.5px; font-weight: 700; color: #595959; text-transform: uppercase; }
+  .lp-idbox .v { font-size: 11px; color: #111; margin-top: 1px; }
+  .lp-photos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 14px 0; }
+  .lp-photobox { border: 1px solid #d9d9d9; border-radius: 6px; overflow: hidden; }
+  .lp-photobox .lp-phototitle { background: var(--azul); color: #fff; text-align: center; font-weight: 700; font-size: 10.5px; padding: 5px; }
+  .lp-photobox .lp-photobody { height: 160px; background: #fafafa; display: flex; align-items: center; justify-content: center; }
+  .lp-photobox .lp-photobody img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .lp-photobox .lp-photobody span { color: #aaa; font-size: 10.5px; font-style: italic; }
+  .lp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px 14px; }
+  .lp-table { border: 1px solid #d9d9d9; border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+  .lp-table-title { background: var(--azul); color: #fff; text-align: center; font-weight: 700; font-size: 10.5px; padding: 5px; }
+  .lp-row { display: flex; border-top: 1px solid #d9d9d9; }
+  .lp-row:first-child { border-top: none; }
+  .lp-row .lp-label { background: #f2f2f2; font-weight: 700; padding: 5px 6px; flex: 0 0 44%; font-size: 10px; color: #111; }
+  .lp-row .lp-value { padding: 5px 6px; flex: 1; font-size: 10.5px; color: #111; }
+  .lp-scale-wrap { border: 1px solid #d9d9d9; border-top: none; border-radius: 0 0 6px 6px; overflow: hidden; margin: -8px 0 8px; }
+  .lp-scale-caption { text-align: center; font-size: 8.5px; color: #595959; padding: 3px; background: #fff; }
+  .lp-scale { display: flex; }
+  .lp-scale div { flex: 1; text-align: center; padding: 5px 2px; font-weight: 700; font-size: 9.5px; border-right: 1px solid #d9d9d9; color: #111; }
+  .lp-scale div:last-child { border-right: none; background: #fff !important; }
+  .lp-legend { margin: 0 14px 10px; border: 1px solid #d9d9d9; border-radius: 6px; overflow: hidden; }
+  .lp-legend-row { display: flex; border-top: 1px solid #d9d9d9; }
+  .lp-legend-row:first-child { border-top: none; }
+  .lp-legend-chip { flex: 0 0 18px; }
+  .lp-legend-label { flex: 0 0 70px; background: #f2f2f2; font-weight: 700; font-size: 9.5px; padding: 5px 6px; display: flex; align-items: center; }
+  .lp-legend-text { flex: 1; font-size: 9.5px; padding: 5px 6px; color: #222; }
+  .lp-diag { padding: 0 14px 12px; }
+  .lp-diag h4 { color: var(--azul); font-size: 11px; margin: 4px 0 5px; }
+  .lp-diag p { margin: 0; font-size: 11px; color: #222; white-space: pre-wrap; }
+  .lp-footer { padding: 8px 14px; border-top: 1px solid #d9d9d9; font-size: 9px; color: #808080; display: flex; justify-content: space-between; }
+  .modal-actions { padding: 10px 14px; flex-shrink: 0; border-top: 1px solid var(--borda); }
+  .modal-actions button { width: 100%; padding: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="h-row">
+    <span class="h-logo"><img id="app-logo-img" alt="IDEALLE"></span>
+    <div>
+      <h1 id="titulo-app">Inspeção Termográfica</h1>
+      <p id="subtitulo-app">Registro de campo — laudo de 1 página por ponto</p>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>📊 Painel <span id="dash-cliente-nome" class="contador"></span></h2>
+    <div class="dash-grid">
+      <div class="dash-card dash-total">
+        <div class="dash-num" id="dash-total">0</div>
+        <div class="dash-label">Quadros</div>
+      </div>
+      <div class="dash-card dash-ok">
+        <div class="dash-num" id="dash-ok">0</div>
+        <div class="dash-label">OK</div>
+      </div>
+      <div class="dash-card dash-atencao">
+        <div class="dash-num" id="dash-atencao">0</div>
+        <div class="dash-label">Atenção</div>
+      </div>
+      <div class="dash-card dash-critico">
+        <div class="dash-num" id="dash-critico">0</div>
+        <div class="dash-label">Críticos</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="card-form">
+    <h2>📋 Novo ponto</h2>
+
+    <div class="subhead">Identificação</div>
+    <label>Cliente</label>
+    <input type="text" id="f-cliente" placeholder="Nome do cliente" />
+    <div class="row2">
+      <div><label>Local / Setor</label><input type="text" id="f-local" placeholder="Ex.: Planta — Linha 2" /></div>
+      <div><label>Quadro</label><input type="text" id="f-quadro" placeholder="Ex.: QF-14" /></div>
+    </div>
+    <label>Data / hora</label>
+    <input type="datetime-local" id="f-data" />
+
+    <div class="subhead">Informações do componente</div>
+    <div class="row3">
+      <div>
+        <label>Tipo</label>
+        <select id="f-tipo">
+          <option value="">Selecione…</option>
+          <option>Entrada</option>
+          <option>Saída</option>
+          <option>Disjuntor</option>
+          <option>Barramento</option>
+          <option>Contator</option>
+          <option>Terminal</option>
+          <option>Cabo</option>
+          <option>Outro</option>
+        </select>
+        <input type="text" id="f-tipo-outro" placeholder="Especifique o tipo" style="display:none; margin-top:6px;" />
+      </div>
+      <div>
+        <label>Parte</label>
+        <select id="f-parte">
+          <option value="">Selecione…</option>
+          <option>R</option>
+          <option>S</option>
+          <option>T</option>
+          <option>Neutro</option>
+          <option>Terra</option>
+          <option>1</option>
+          <option>2</option>
+          <option>3</option>
+          <option>Outro</option>
+        </select>
+        <input type="text" id="f-parte-outro" placeholder="Especifique a parte" style="display:none; margin-top:6px;" />
+      </div>
+      <div>
+        <label>Função</label>
+        <select id="f-funcao">
+          <option value="">Selecione…</option>
+          <option>Conexão</option>
+          <option>Proteção</option>
+          <option>Alimentação</option>
+          <option>Comando</option>
+          <option>Distribuição</option>
+          <option>Seccionamento</option>
+          <option>Outro</option>
+        </select>
+        <input type="text" id="f-funcao-outro" placeholder="Especifique a função" style="display:none; margin-top:6px;" />
+      </div>
+    </div>
+    <div id="isolacao-wrap" style="display:none;">
+      <label>Isolação do cabo</label>
+      <div class="row2">
+        <label class="radio-opt"><input type="radio" name="f-isolacao" value="PVC"> PVC</label>
+        <label class="radio-opt"><input type="radio" name="f-isolacao" value="EPR"> EPR</label>
+      </div>
+    </div>
+
+    <div class="subhead">Temperaturas coletadas (°C)</div>
+    <div class="row3">
+      <div><label>Fase R</label><input type="number" step="0.1" id="f-faser" inputmode="decimal" /></div>
+      <div><label>Fase S</label><input type="number" step="0.1" id="f-fases" inputmode="decimal" /></div>
+      <div><label>Fase T</label><input type="number" step="0.1" id="f-faset" inputmode="decimal" /></div>
+    </div>
+    <div class="row2">
+      <div><label>Temp. ambiente (°C)</label><input type="number" step="0.1" id="f-ambiente" inputmode="decimal" value="28" /></div>
+      <div><label>Emissividade</label><input type="number" step="0.01" id="f-emissividade" inputmode="decimal" value="0.95" /></div>
+    </div>
+
+    <div class="calc-box">
+      <div class="pill"><div class="v" id="calc-max">—</div><div class="l">Máxima</div></div>
+      <div class="pill"><div class="v" id="calc-anomalia">—</div><div class="l">Anomalia</div></div>
+      <div class="pill"><div class="v"><span class="badge" id="calc-badge">—</span></div><div class="l">Severidade</div></div>
+    </div>
+
+    <div class="subhead">Registro fotográfico</div>
+    <div class="foto-cols">
+      <div>
+        <label>Imagem visual</label>
+        <div class="foto-wrap" id="foto-wrap-visual">
+          <div class="foto-label" id="foto-label-visual">Toque p/ foto</div>
+          <input type="file" accept="image/*" capture="environment" id="f-foto-visual" />
+        </div>
+      </div>
+      <div>
+        <label>Imagem termográfica</label>
+        <div class="foto-wrap" id="foto-wrap-termica">
+          <div class="foto-label" id="foto-label-termica">Toque p/ foto</div>
+          <input type="file" accept="image/*" capture="environment" id="f-foto-termica" />
+        </div>
+      </div>
+    </div>
+
+    <div class="subhead">Diagnóstico</div>
+    <label>Observação</label>
+    <textarea id="f-obs" placeholder="Ex.: possível mau contato na conexão, recomenda-se reaperto..."></textarea>
+
+    <button class="btn-primary" id="btn-salvar">Salvar ponto</button>
+  </div>
+
+  <div class="card" id="card-lista">
+    <h2 id="titulo-lista">📑 Pontos registrados <span class="contador" id="contador"></span></h2>
+    <div id="lista"><div class="vazio">Nenhum ponto registrado ainda.</div></div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="pdf-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span id="modal-title">Laudo</span>
+      <button id="modal-close" aria-label="Fechar">✕</button>
+    </div>
+    <div class="modal-preview-wrap"><div class="laudo-page" id="modal-preview"></div></div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="modal-download" style="margin-top:0;">Baixar PDF</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="confirm-modal">
+  <div class="confirm-box">
+    <p id="confirm-msg">Confirma?</p>
+    <div class="confirm-actions">
+      <button class="btn-secondary" id="confirm-cancel">Cancelar</button>
+      <button class="btn-danger-solid" id="confirm-ok">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var LOGO_DATA_URL = "data:image/png;base64,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";
+
+  var db = null, assets = null, downloads = null, fbStorage = null;
+  document.getElementById('app-logo-img').src = LOGO_DATA_URL;
+
+  // ---------- Firebase (banco compartilhado entre aparelhos) ----------
+  // Preencha com os dados do SEU projeto Firebase (Console → Configurações do projeto → Seus apps → SDK setup).
+  // Esses valores NÃO são secretos — são feitos para ficar no código do site; a segurança de verdade
+  // fica nas "regras" do Firestore/Storage que você configura no console.
+  var FIREBASE_CONFIG = {
+    apiKey: "COLE_AQUI_SUA_API_KEY",
+    authDomain: "COLE_AQUI.firebaseapp.com",
+    projectId: "COLE_AQUI",
+    storageBucket: "COLE_AQUI.appspot.com",
+    messagingSenderId: "COLE_AQUI",
+    appId: "COLE_AQUI"
+  };
+  var FIREBASE_CONFIGURADO = FIREBASE_CONFIG.apiKey.indexOf('COLE_AQUI') === -1;
+  var fotoVisualBlob = null, fotoVisualDataUrl = null;
+  var fotoTermicaBlob = null, fotoTermicaDataUrl = null;
+  var pontosCache = [];
+
+  function toast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function () { t.classList.remove('show'); }, 2500);
+  }
+
+  function nowLocalInputValue() {
+    var d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  }
+  document.getElementById('f-data').value = nowLocalInputValue();
+
+  try {
+    var lastClient = localStorage.getItem('term_cliente');
+    if (lastClient) document.getElementById('f-cliente').value = lastClient;
+  } catch (e) {}
+
+  // ---------- MTA severity method: thresholds = ambiente * [1, 1.45, 1.9, 2.35, 2.8] ----------
+  var FATORES = [1, 1.45, 1.9, 2.35, 2.8];
+  function calcularLimiares(ambiente) {
+    return FATORES.map(function (f) { return ambiente * f; });
+  }
+  var NIVEIS_SEVERIDADE = [
+    { key: 'normal', label: 'Normal', cor: '#92D050', prioridade: 'Realizar rotina de manutenção.' },
+    { key: 'baixo', label: 'Baixo', cor: '#00B050', prioridade: 'Realizar a intervenção na próxima manutenção programada.' },
+    { key: 'medio', label: 'Médio', cor: '#FFFF00', prioridade: 'Realizar a intervenção na próxima manutenção programada.' },
+    { key: 'alto', label: 'Alto', cor: '#FFA500', prioridade: 'Realizar a intervenção o mais rápido possível. Verificar integridade física do componente.' },
+    { key: 'critico', label: 'Crítico', cor: '#FF0000', prioridade: 'Realizar intervenção imediata. Se necessário, trocar equipamento.' }
+  ];
+  function classificar(maxima, ambiente) {
+    var t = calcularLimiares(ambiente);
+    var nivel;
+    if (maxima < t[0]) nivel = NIVEIS_SEVERIDADE[0];
+    else if (maxima < t[1]) nivel = NIVEIS_SEVERIDADE[1];
+    else if (maxima < t[2]) nivel = NIVEIS_SEVERIDADE[2];
+    else if (maxima < t[3]) nivel = NIVEIS_SEVERIDADE[3];
+    else nivel = NIVEIS_SEVERIDADE[4];
+    var r = {}; for (var k in nivel) r[k] = nivel[k];
+    r.limiares = t;
+    return r;
+  }
+  function calcularAnomalia(r, s, t) {
+    var vals = [['Fase R', r], ['Fase S', s], ['Fase T', t]].filter(function (v) { return !isNaN(v[1]); });
+    if (!vals.length) return null;
+    vals.sort(function (a, b) { return b[1] - a[1]; });
+    return vals[0];
+  }
+
+  function lerTemps() {
+    var r = parseFloat(document.getElementById('f-faser').value);
+    var s = parseFloat(document.getElementById('f-fases').value);
+    var t = parseFloat(document.getElementById('f-faset').value);
+    var amb = parseFloat(document.getElementById('f-ambiente').value);
+    return { r: r, s: s, t: t, amb: amb };
+  }
+
+  function setupSelectOutro(selectId, outroId) {
+    var sel = document.getElementById(selectId);
+    var outro = document.getElementById(outroId);
+    sel.addEventListener('change', function () {
+      outro.style.display = sel.value === 'Outro' ? 'block' : 'none';
+      if (sel.value !== 'Outro') outro.value = '';
+    });
+  }
+  setupSelectOutro('f-tipo', 'f-tipo-outro');
+  setupSelectOutro('f-parte', 'f-parte-outro');
+  setupSelectOutro('f-funcao', 'f-funcao-outro');
+
+  function lerSelectComOutro(selectId, outroId) {
+    var sel = document.getElementById(selectId);
+    if (sel.value === 'Outro') return document.getElementById(outroId).value.trim();
+    return sel.value;
+  }
+
+  function atualizarCalculo() {
+    var v = lerTemps();
+    var maxEl = document.getElementById('calc-max');
+    var anEl = document.getElementById('calc-anomalia');
+    var badgeEl = document.getElementById('calc-badge');
+    var vals = [v.r, v.s, v.t].filter(function (x) { return !isNaN(x); });
+    if (!vals.length || isNaN(v.amb)) {
+      maxEl.textContent = '—'; anEl.textContent = '—';
+      badgeEl.textContent = '—'; badgeEl.className = 'badge';
+      return null;
+    }
+    var maxima = Math.max.apply(null, vals);
+    var anomalia = calcularAnomalia(v.r, v.s, v.t);
+    var c = classificar(maxima, v.amb);
+    maxEl.textContent = maxima.toFixed(1) + '°';
+    anEl.textContent = anomalia ? anomalia[0].replace('Fase ', '') : '—';
+    badgeEl.textContent = c.label;
+    badgeEl.className = 'badge ' + c.key;
+    return { maxima: maxima, anomalia: anomalia, classe: c };
+  }
+  ['f-faser', 'f-fases', 'f-faset', 'f-ambiente'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', atualizarCalculo);
+  });
+
+  // show the PVC/EPR insulation choice only when "Tipo" mentions a cable
+  function atualizarVisibilidadeIsolacao() {
+    var tipo = lerSelectComOutro('f-tipo', 'f-tipo-outro') || '';
+    var wrap = document.getElementById('isolacao-wrap');
+    var ehCabo = tipo.toLowerCase().indexOf('cabo') !== -1;
+    wrap.style.display = ehCabo ? 'block' : 'none';
+    if (!ehCabo) {
+      var radios = document.getElementsByName('f-isolacao');
+      for (var i = 0; i < radios.length; i++) radios[i].checked = false;
+    }
+  }
+  document.getElementById('f-tipo').addEventListener('change', atualizarVisibilidadeIsolacao);
+  document.getElementById('f-tipo-outro').addEventListener('input', atualizarVisibilidadeIsolacao);
+
+  function lerIsolacao() {
+    var radios = document.getElementsByName('f-isolacao');
+    for (var i = 0; i < radios.length; i++) if (radios[i].checked) return radios[i].value;
+    return null;
+  }
+
+  function setupFotoInput(inputId, wrapId, labelId, onLoaded) {
+    document.getElementById(inputId).addEventListener('change', function (e) {
+      var file = e.target.files && e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        var dataUrl = ev.target.result;
+        var wrap = document.getElementById(wrapId);
+        var label = document.getElementById(labelId);
+        var existingImg = wrap.querySelector('img');
+        if (existingImg) existingImg.remove();
+        var img = document.createElement('img');
+        img.src = dataUrl;
+        wrap.insertBefore(img, wrap.firstChild);
+        label.textContent = 'Toque p/ trocar';
+        onLoaded(file, dataUrl);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  setupFotoInput('f-foto-visual', 'foto-wrap-visual', 'foto-label-visual', function (file, dataUrl) {
+    fotoVisualBlob = file; fotoVisualDataUrl = dataUrl;
+  });
+  setupFotoInput('f-foto-termica', 'foto-wrap-termica', 'foto-label-termica', function (file, dataUrl) {
+    fotoTermicaBlob = file; fotoTermicaDataUrl = dataUrl;
+  });
+
+  function limparFoto(wrapId, labelId, defaultLabel) {
+    var wrap = document.getElementById(wrapId);
+    var existingImg = wrap.querySelector('img');
+    if (existingImg) existingImg.remove();
+    document.getElementById(labelId).textContent = defaultLabel;
+  }
+
+  function limparFormulario() {
+    document.getElementById('f-local').value = '';
+    document.getElementById('f-quadro').value = '';
+    document.getElementById('f-tipo').value = '';
+    document.getElementById('f-tipo-outro').value = ''; document.getElementById('f-tipo-outro').style.display = 'none';
+    document.getElementById('f-parte').value = '';
+    document.getElementById('f-parte-outro').value = ''; document.getElementById('f-parte-outro').style.display = 'none';
+    document.getElementById('f-funcao').value = '';
+    document.getElementById('f-funcao-outro').value = ''; document.getElementById('f-funcao-outro').style.display = 'none';
+    atualizarVisibilidadeIsolacao();
+    document.getElementById('f-data').value = nowLocalInputValue();
+    document.getElementById('f-faser').value = '';
+    document.getElementById('f-fases').value = '';
+    document.getElementById('f-faset').value = '';
+    document.getElementById('f-obs').value = '';
+    document.getElementById('f-foto-visual').value = '';
+    document.getElementById('f-foto-termica').value = '';
+    fotoVisualBlob = null; fotoVisualDataUrl = null;
+    fotoTermicaBlob = null; fotoTermicaDataUrl = null;
+    limparFoto('foto-wrap-visual', 'foto-label-visual', 'Toque p/ foto');
+    limparFoto('foto-wrap-termica', 'foto-label-termica', 'Toque p/ foto');
+    atualizarCalculo();
+  }
+
+  function fmtData(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  var MODO_CLIENTE = false;
+  var CLIENTE_ATUAL = null;
+
+  function classeResumo(key) {
+    if (key === 'normal') return 'ok';
+    if (key === 'critico') return 'critico';
+    return 'atencao'; // baixo, medio, alto
+  }
+
+  function atualizarDashboard() {
+    var total = pontosCache.length;
+    var ok = 0, atencao = 0, critico = 0;
+    pontosCache.forEach(function (p) {
+      var c = classificar(p.maxima || 0, p.ambiente || 25);
+      var r = classeResumo(c.key);
+      if (r === 'ok') ok++; else if (r === 'critico') critico++; else atencao++;
+    });
+    document.getElementById('dash-total').textContent = total;
+    document.getElementById('dash-ok').textContent = ok;
+    document.getElementById('dash-atencao').textContent = atencao;
+    document.getElementById('dash-critico').textContent = critico;
+  }
+
+  function renderLista() {
+    atualizarDashboard();
+    var lista = document.getElementById('lista');
+    var contador = document.getElementById('contador');
+    if (!pontosCache.length) {
+      lista.innerHTML = '<div class="vazio">Nenhum ponto registrado ainda.</div>';
+      contador.textContent = '';
+      return;
+    }
+    contador.textContent = '(' + pontosCache.length + ')';
+    var html = '';
+    pontosCache.forEach(function (p) {
+      var c = classificar(p.maxima || 0, p.ambiente || 25);
+      html += '<div class="ponto" data-id="' + p.id + '">' +
+        '<div class="ponto-top">' +
+          '<div>' +
+            '<div class="ponto-titulo">#' + p.numero + ' — ' + escapeHtml(p.quadro || 'Sem identificação') + '</div>' +
+            '<div class="ponto-sub">' + escapeHtml(p.local || '') + (p.local && p.tipo ? ' · ' : '') + escapeHtml(p.tipo || '') + '</div>' +
+            '<div class="ponto-sub">' + fmtData(p.dataHora) + ' · Máx. ' + (typeof p.maxima === 'number' ? p.maxima.toFixed(1) : '—') + '°C</div>' +
+          '</div>' +
+          '<span class="badge ' + c.key + '">' + c.label + '</span>' +
+        '</div>' +
+        '<div class="ponto-actions">' +
+          '<button class="btn-secondary" data-action="ver" data-id="' + p.id + '">👁 Visualizar</button>' +
+          '<button class="btn-secondary" data-action="pdf" data-id="' + p.id + '">⬇ Baixar</button>' +
+          (MODO_CLIENTE ? '' : '<button class="btn-danger" data-action="del" data-id="' + p.id + '">Excluir</button>') +
+        '</div>' +
+      '</div>';
+    });
+    lista.innerHTML = html;
+  }
+
+  document.getElementById('lista').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    var id = btn.getAttribute('data-id');
+    var ponto = pontosCache.find(function (p) { return p.id === id; });
+    if (!ponto) { console.error('Ponto não encontrado no cache local:', id, pontosCache); toast('Não achei esse ponto — atualize a página.'); return; }
+    var action = btn.getAttribute('data-action');
+    if (action === 'pdf') baixarPdf(ponto);
+    else if (action === 'ver') visualizarPdf(ponto);
+    else if (action === 'del') {
+      confirmarAcao('Excluir o ponto #' + ponto.numero + '?').then(function (ok) { if (ok) excluirPonto(ponto); });
+    }
+  });
+
+  function confirmarAcao(msg) {
+    return new Promise(function (resolve) {
+      var overlay = document.getElementById('confirm-modal');
+      var okBtn = document.getElementById('confirm-ok');
+      var cancelBtn = document.getElementById('confirm-cancel');
+      document.getElementById('confirm-msg').textContent = msg;
+      overlay.classList.add('show');
+      function cleanup(result) {
+        overlay.classList.remove('show');
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        overlay.removeEventListener('click', onBackdrop);
+        resolve(result);
+      }
+      function onOk() { cleanup(true); }
+      function onCancel() { cleanup(false); }
+      function onBackdrop(e) { if (e.target === overlay) cleanup(false); }
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+      overlay.addEventListener('click', onBackdrop);
+    });
+  }
+
+  // ---------- Local fallback storage (IndexedDB) — used when running outside the Claude artifact sandbox (e.g. deployed on Vercel) ----------
+  var LOCAL_DB_NAME = 'termografia_local_db';
+  var LOCAL_STORE = 'pontos';
+  var localDbPromise = null;
+
+  function openLocalDb() {
+    if (localDbPromise) return localDbPromise;
+    localDbPromise = new Promise(function (resolve, reject) {
+      if (typeof indexedDB === 'undefined') { reject(new Error('IndexedDB indisponível neste navegador.')); return; }
+      var req = indexedDB.open(LOCAL_DB_NAME, 1);
+      req.onupgradeneeded = function (e) {
+        var idb = e.target.result;
+        if (!idb.objectStoreNames.contains(LOCAL_STORE)) idb.createObjectStore(LOCAL_STORE, { keyPath: 'id' });
+      };
+      req.onsuccess = function (e) { resolve(e.target.result); };
+      req.onerror = function (e) { reject(e.target.error); };
+    });
+    return localDbPromise;
+  }
+  async function localDbPut(doc) {
+    var idb = await openLocalDb();
+    return new Promise(function (resolve, reject) {
+      var tx = idb.transaction(LOCAL_STORE, 'readwrite');
+      tx.objectStore(LOCAL_STORE).put(doc);
+      tx.oncomplete = function () { resolve(); };
+      tx.onerror = function (e) { reject(e.target.error); };
+    });
+  }
+  async function localDbDelete(id) {
+    var idb = await openLocalDb();
+    return new Promise(function (resolve, reject) {
+      var tx = idb.transaction(LOCAL_STORE, 'readwrite');
+      tx.objectStore(LOCAL_STORE).delete(id);
+      tx.oncomplete = function () { resolve(); };
+      tx.onerror = function (e) { reject(e.target.error); };
+    });
+  }
+  async function localDbGetAll() {
+    var idb = await openLocalDb();
+    return new Promise(function (resolve, reject) {
+      var tx = idb.transaction(LOCAL_STORE, 'readonly');
+      var req = tx.objectStore(LOCAL_STORE).getAll();
+      req.onsuccess = function () { resolve(req.result || []); };
+      req.onerror = function (e) { reject(e.target.error); };
+    });
+  }
+  async function recarregarListaLocal() {
+    var all = await localDbGetAll();
+    all.sort(function (a, b) { return (b.numero || 0) - (a.numero || 0); });
+    pontosCache = all;
+    renderLista();
+  }
+
+  async function excluirPonto(ponto) {
+    if (db) {
+      try {
+        await db.collection('pontos').doc(ponto.id).delete();
+        toast('Ponto excluído.');
+      } catch (err) {
+        toast('Não foi possível excluir.');
+      }
+      return;
+    }
+    try {
+      await localDbDelete(ponto.id);
+      await recarregarListaLocal();
+      toast('Ponto excluído.');
+    } catch (err) {
+      console.error(err);
+      toast('Não foi possível excluir.');
+    }
+  }
+
+  async function uploadFoto(blob) {
+    if (assets) {
+      var up = await assets.upload(blob);
+      return { id: up.id, url: null };
+    }
+    if (fbStorage) {
+      var path = 'fotos/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+      var ref = fbStorage.ref().child(path);
+      await ref.put(blob);
+      var url = await ref.getDownloadURL();
+      return { id: null, url: url };
+    }
+    return { id: null, url: null };
+  }
+
+  async function salvarPonto() {
+    var cliente = document.getElementById('f-cliente').value.trim();
+    var local = document.getElementById('f-local').value.trim();
+    var quadro = document.getElementById('f-quadro').value.trim();
+    var tipo = lerSelectComOutro('f-tipo', 'f-tipo-outro');
+    var parte = lerSelectComOutro('f-parte', 'f-parte-outro');
+    var funcao = lerSelectComOutro('f-funcao', 'f-funcao-outro');
+    var isolacao = lerIsolacao();
+    var dataHora = document.getElementById('f-data').value;
+    var v = lerTemps();
+    var emissividade = parseFloat(document.getElementById('f-emissividade').value);
+    var obs = document.getElementById('f-obs').value.trim();
+
+    if (!quadro) { toast('Informe a identificação do quadro.'); return; }
+    var vals = [v.r, v.s, v.t].filter(function (x) { return !isNaN(x); });
+    if (!vals.length) { toast('Informe ao menos uma temperatura de fase.'); return; }
+    if (isNaN(v.amb)) { toast('Informe a temperatura ambiente.'); return; }
+
+    try { localStorage.setItem('term_cliente', cliente); } catch (e) {}
+
+    var maxima = Math.max.apply(null, vals);
+    var anomalia = calcularAnomalia(v.r, v.s, v.t);
+    var classe = classificar(maxima, v.amb);
+
+    var btn = document.getElementById('btn-salvar');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+
+    var fotoVisualId = null, fotoTermicaId = null, fotoVisualUrl = null, fotoTermicaUrl = null;
+    try {
+      if (fotoVisualBlob) { var r1 = await uploadFoto(fotoVisualBlob); fotoVisualId = r1.id; fotoVisualUrl = r1.url; }
+      if (fotoTermicaBlob) { var r2 = await uploadFoto(fotoTermicaBlob); fotoTermicaId = r2.id; fotoTermicaUrl = r2.url; }
+    } catch (err) {
+      console.error(err);
+      toast('Falha ao salvar alguma foto — ponto será salvo mesmo assim.');
+    }
+
+    var numero = (pontosCache.reduce(function (max, p) { return Math.max(max, p.numero || 0); }, 0)) + 1;
+
+    var doc = {
+      numero: numero, cliente: cliente, local: local, quadro: quadro,
+      tipo: tipo, parte: parte, funcao: funcao, isolacao: isolacao,
+      dataHora: dataHora,
+      faseR: isNaN(v.r) ? null : v.r, faseS: isNaN(v.s) ? null : v.s, faseT: isNaN(v.t) ? null : v.t,
+      ambiente: v.amb, emissividade: isNaN(emissividade) ? 0.95 : emissividade,
+      maxima: maxima, anomalia: anomalia ? anomalia[0] : null,
+      classificacao: classe.label, prioridade: classe.prioridade,
+      observacao: obs,
+      fotoVisualId: fotoVisualId, fotoVisualUrl: fotoVisualUrl,
+      fotoVisualDataUrl: (fotoVisualId || fotoVisualUrl) ? null : (fotoVisualDataUrl || null),
+      fotoTermicaId: fotoTermicaId, fotoTermicaUrl: fotoTermicaUrl,
+      fotoTermicaDataUrl: (fotoTermicaId || fotoTermicaUrl) ? null : (fotoTermicaDataUrl || null),
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      if (db) {
+        await db.collection('pontos').add(doc);
+      } else {
+        doc.id = 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        try {
+          await localDbPut(doc);
+          await recarregarListaLocal();
+        } catch (idbErr) {
+          console.error('IndexedDB indisponível, salvando só na memória desta sessão:', idbErr);
+          pontosCache.unshift(doc);
+          renderLista();
+        }
+      }
+      toast('Ponto #' + numero + ' salvo.');
+      limparFormulario();
+    } catch (err) {
+      console.error(err);
+      toast('Não foi possível salvar. Tente novamente.');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Salvar ponto';
+  }
+  document.getElementById('btn-salvar').addEventListener('click', salvarPonto);
+
+  // ---------- image retrieval ----------
+  async function obterImagemBase64(dataUrlField, idField, ponto, urlField) {
+    if (ponto[dataUrlField]) return ponto[dataUrlField];
+    if (ponto[idField]) {
+      try {
+        var resp = await fetch('/_blob/' + ponto[idField]);
+        var blob = await resp.blob();
+        return await new Promise(function (resolve, reject) {
+          var reader = new FileReader();
+          reader.onload = function () { resolve(reader.result); };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) { return null; }
+    }
+    if (urlField && ponto[urlField]) {
+      try {
+        var resp2 = await fetch(ponto[urlField]);
+        var blob2 = await resp2.blob();
+        return await new Promise(function (resolve, reject) {
+          var reader2 = new FileReader();
+          reader2.onload = function () { resolve(reader2.result); };
+          reader2.onerror = reject;
+          reader2.readAsDataURL(blob2);
+        });
+      } catch (e) { return ponto[urlField]; }
+    }
+    return null;
+  }
+
+  // ---------- PDF ----------
+  function drawImageBox(doc, x, y, w, h, titulo, imgData, azul, cinza) {
+    doc.setFillColor(azul[0], azul[1], azul[2]);
+    doc.roundedRect(x, y, w, 7, 1.5, 1.5, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.text(titulo, x + w / 2, y + 5, { align: 'center' });
+    doc.setDrawColor(191, 191, 191);
+    doc.setFillColor(250, 250, 250);
+    doc.rect(x, y + 7, w, h - 7, 'FD');
+    if (imgData) {
+      try {
+        var props = doc.getImageProperties(imgData);
+        var maxW = w - 4, maxH = (h - 7) - 4;
+        var ratio = Math.min(maxW / props.width, maxH / props.height);
+        var iw = props.width * ratio, ih = props.height * ratio;
+        var ix = x + (w - iw) / 2, iy = (y + 7) + ((h - 7) - ih) / 2;
+        doc.addImage(imgData, ix, iy, iw, ih);
+      } catch (e) {
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor(160, 160, 160);
+        doc.text('Não foi possível carregar a imagem.', x + w / 2, y + 7 + (h - 7) / 2, { align: 'center' });
+      }
+    } else {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor(160, 160, 160);
+      doc.text('Sem foto anexada.', x + w / 2, y + 7 + (h - 7) / 2, { align: 'center' });
+    }
+  }
+
+  function infoTable(doc, x, y, w, titulo, rows, azul, cinza, labelFrac) {
+    var ry = y;
+    if (titulo) {
+      doc.setFillColor(azul[0], azul[1], azul[2]);
+      doc.rect(x, y, w, 6.5, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+      doc.text(titulo, x + w / 2, y + 4.5, { align: 'center' });
+      ry = y + 6.5;
+    }
+    var labelW = w * (labelFrac || 0.38);
+    rows.forEach(function (r) {
+      var labelLines = doc.splitTextToSize(String(r[0]), labelW - 4);
+      var valueLines = doc.splitTextToSize(String(r[1] || '—'), w - labelW - 4);
+      var nLines = Math.max(labelLines.length, valueLines.length);
+      var rh = Math.max(7, nLines * 4.2 + 2.5);
+      doc.setDrawColor(217, 217, 217);
+      doc.setFillColor(cinza[0], cinza[1], cinza[2]);
+      doc.rect(x, ry, labelW, rh, 'FD');
+      doc.rect(x + labelW, ry, w - labelW, rh, 'FD');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.8); doc.setTextColor(20, 20, 20);
+      doc.text(labelLines, x + 2, ry + 4.6);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.3); doc.setTextColor(20, 20, 20);
+      doc.text(valueLines, x + labelW + 2, ry + 4.6);
+      ry += rh;
+    });
+    return ry;
+  }
+
+  async function construirPdf(ponto) {
+    if (!window.jspdf || !window.jspdf.jsPDF) { throw new Error('Biblioteca de PDF ainda carregando, tente novamente em instantes.'); }
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF('p', 'mm', 'a4');
+    var pageW = 210, margin = 12, W = pageW - margin * 2;
+    var azul = [31, 56, 100];
+    var cinza = [242, 242, 242];
+    var y = margin;
+
+    // header bar
+    doc.setFillColor(azul[0], azul[1], azul[2]);
+    doc.rect(0, 0, pageW, 20, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+    doc.text('LAUDO DE INSPEÇÃO TERMOGRÁFICA', margin, 12);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+    doc.text('Ponto nº ' + ponto.numero, margin, 17.5);
+    try {
+      var logoProps = doc.getImageProperties(LOGO_DATA_URL);
+      var logoH = 8.5, logoW = logoH * (logoProps.width / logoProps.height);
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(pageW - margin - logoW - 3, 2.8, logoW + 3, logoH + 2, 1.2, 1.2, 'F');
+      doc.addImage(LOGO_DATA_URL, pageW - margin - logoW - 1.5, 3.8, logoW, logoH);
+    } catch (e) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+      doc.text('IDEALLE Inspeções e Serviços', pageW - margin, 12, { align: 'right' });
+    }
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255);
+    doc.text(fmtData(ponto.dataHora), pageW - margin, 17.5, { align: 'right' });
+    y = 25;
+
+    // identification strip
+    var idColW = W / 4;
+    var idFields = [
+      ['CLIENTE', ponto.cliente || '—'],
+      ['LOCAL / SETOR', ponto.local || '—'],
+      ['QUADRO', ponto.quadro || '—'],
+      ['PONTO', '#' + ponto.numero]
+    ];
+    idFields.forEach(function (f, i) {
+      var x = margin + i * idColW;
+      doc.setDrawColor(217, 217, 217); doc.setFillColor(cinza[0], cinza[1], cinza[2]);
+      doc.rect(x, y, idColW - (i < 3 ? 2 : 0), 12, 'FD');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(89, 89, 89);
+      doc.text(f[0], x + 2, y + 4.5);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(20, 20, 20);
+      var lines = doc.splitTextToSize(String(f[1]), idColW - 4);
+      doc.text(lines[0] || '', x + 2, y + 9.5);
+    });
+    y += 16;
+
+    // two photo boxes
+    var gap = 4;
+    var boxW = (W - gap) / 2;
+    var boxH = 74;
+    var imgVisual = await obterImagemBase64('fotoVisualDataUrl', 'fotoVisualId', ponto, 'fotoVisualUrl');
+    var imgTermica = await obterImagemBase64('fotoTermicaDataUrl', 'fotoTermicaId', ponto, 'fotoTermicaUrl');
+    drawImageBox(doc, margin, y, boxW, boxH, 'IMAGEM VISUAL', imgVisual, azul, cinza);
+    drawImageBox(doc, margin + boxW + gap, y, boxW, boxH, 'IMAGEM TERMOGRÁFICA', imgTermica, azul, cinza);
+    y += boxH + 6;
+
+    // two-column tables
+    var colGap = 4;
+    var colW = (W - colGap) / 2;
+    var leftX = margin, rightX = margin + colW + colGap;
+
+    var infoComponente = [
+      ['Tipo:', ponto.tipo || '—'],
+      ['Parte:', ponto.parte || '—'],
+      ['Função:', ponto.funcao || '—']
+    ];
+    if (ponto.isolacao) infoComponente.push(['Isolação:', ponto.isolacao]);
+    var y1 = infoTable(doc, leftX, y, colW, 'INFORMAÇÕES DO COMPONENTE', infoComponente, azul, cinza);
+    y1 += 3;
+    y1 = infoTable(doc, leftX, y1, colW, 'TEMP. COLETADAS (°C)', [
+      ['Fase R:', ponto.faseR != null ? ponto.faseR.toFixed(1) : '—'],
+      ['Fase S:', ponto.faseS != null ? ponto.faseS.toFixed(1) : '—'],
+      ['Fase T:', ponto.faseT != null ? ponto.faseT.toFixed(1) : '—'],
+      ['Máxima:', ponto.maxima != null ? ponto.maxima.toFixed(1) : '—']
+    ], azul, cinza);
+
+    // right column: analysis info + severity scale
+    var y2 = infoTable(doc, rightX, y, colW, 'INFORMAÇÕES PARA ANÁLISE', [
+      ['Emissividade:', ponto.emissividade != null ? String(ponto.emissividade) : '0,95'],
+      ['Temp. Ambiente (°C):', ponto.ambiente != null ? ponto.ambiente.toFixed(1) : '—']
+    ], azul, cinza);
+
+    // criteria header
+    doc.setFillColor(azul[0], azul[1], azul[2]);
+    doc.rect(rightX, y2, colW, 10, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+    doc.text('CRITÉRIOS PARA CLASSIFICAR SEVERIDADE (°C)', rightX + colW / 2, y2 + 4, { align: 'center', maxWidth: colW - 4 });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+    var limiares = calcularLimiares(ponto.ambiente || 25);
+    doc.text('Método: MTA (múltiplos da temp. ambiente)', rightX + colW / 2, y2 + 8, { align: 'center', maxWidth: colW - 4 });
+    y2 += 10;
+
+    // color scale row
+    var coresEscala = [[0, 176, 80], [255, 255, 0], [255, 165, 0], [255, 0, 0]];
+    var scaleW = colW / limiares.length;
+    limiares.forEach(function (lim, i) {
+      var cor = coresEscala[Math.min(i, coresEscala.length - 1)];
+      doc.setFillColor(cor[0], cor[1], cor[2]);
+      doc.setDrawColor(217, 217, 217);
+      doc.rect(rightX + i * scaleW, y2, scaleW, 8, (i === limiares.length - 1) ? 'D' : 'FD');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+      doc.setTextColor(i === 0 ? 255 : 20, i === 0 ? 255 : 20, i === 0 ? 255 : 20);
+      doc.text(lim.toFixed(1), rightX + i * scaleW + scaleW / 2, y2 + 5.3, { align: 'center' });
+    });
+    y2 += 8;
+
+    var classeAtual = classificar(ponto.maxima || 0, ponto.ambiente || 25);
+    y2 = infoTable(doc, rightX, y2, colW, '', [
+      ['Anomalia:', ponto.anomalia || '—'],
+      ['Severidade da Anomalia:', classeAtual.label],
+      ['Prioridade de Manutenção:', classeAtual.prioridade]
+    ], azul, cinza, 0.5);
+
+    y = Math.max(y1, y2) + 6;
+
+    // legend — classification / recommended intervention
+    var legendaCores = [[146, 208, 80], [0, 176, 80], [255, 255, 0], [255, 165, 0], [255, 0, 0]];
+    doc.setFillColor(azul[0], azul[1], azul[2]);
+    doc.rect(margin, y, W, 6, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    doc.text('LEGENDA — CLASSIFICAÇÃO E INTERVENÇÃO RECOMENDADA', margin + W / 2, y + 4.2, { align: 'center' });
+    y += 6;
+    var chipW = 9, labelW2 = 20;
+    NIVEIS_SEVERIDADE.slice().reverse().forEach(function (niv, idx) {
+      var cor = legendaCores[NIVEIS_SEVERIDADE.length - 1 - idx];
+      var lines = doc.splitTextToSize(niv.prioridade, W - chipW - labelW2 - 4);
+      var rh = Math.max(6, lines.length * 3.6 + 2);
+      doc.setDrawColor(217, 217, 217);
+      doc.setFillColor(cor[0], cor[1], cor[2]);
+      doc.rect(margin, y, chipW, rh, 'FD');
+      doc.setFillColor(cinza[0], cinza[1], cinza[2]);
+      doc.rect(margin + chipW, y, labelW2, rh, 'FD');
+      doc.rect(margin + chipW + labelW2, y, W - chipW - labelW2, rh, 'FD');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(20, 20, 20);
+      doc.text(niv.label.toUpperCase(), margin + chipW + 2, y + rh / 2 + 1.2);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.3);
+      doc.text(lines, margin + chipW + labelW2 + 2, y + (rh - (lines.length - 1) * 3.6) / 2 + 0.8);
+      y += rh;
+    });
+    y += 5;
+
+    // diagnosis
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(31, 56, 100);
+    doc.text('DIAGNÓSTICO / OBSERVAÇÃO', margin, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
+    var obsText = ponto.observacao && ponto.observacao.trim() ? ponto.observacao : 'Sem observações registradas.';
+    var lines2 = doc.splitTextToSize(obsText, W);
+    doc.text(lines2, margin, y);
+
+    // footer
+    doc.setDrawColor(217, 217, 217);
+    doc.line(margin, 283, pageW - margin, 283);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(140, 140, 140);
+    doc.text('Documento gerado em campo — IDEALLE Inspeções e Serviços', margin, 288);
+    doc.text('Página 1 de 1', pageW - margin, 288, { align: 'right' });
+
+    var blob = doc.output('blob');
+    var filename = 'Ponto_' + ponto.numero + '_' + (ponto.quadro || 'quadro').replace(/[^a-zA-Z0-9-_]/g, '') + '.pdf';
+    return { blob: blob, filename: filename };
+  }
+
+  var pontoModalAtual = null;
+
+  function escapeHtmlPreview(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function fotoBoxHtml(titulo, dataUrl) {
+    return '<div class="lp-photobox">' +
+      '<div class="lp-phototitle">' + titulo + '</div>' +
+      '<div class="lp-photobody">' + (dataUrl ? '<img src="' + dataUrl + '">' : '<span>Sem foto anexada.</span>') + '</div>' +
+    '</div>';
+  }
+
+  function linhaHtml(label, valor) {
+    return '<div class="lp-row"><div class="lp-label">' + escapeHtmlPreview(label) + '</div><div class="lp-value">' + escapeHtmlPreview(valor) + '</div></div>';
+  }
+
+  async function renderPreviewHtml(ponto) {
+    var classeAtual = classificar(ponto.maxima || 0, ponto.ambiente || 25);
+    var limiares = calcularLimiares(ponto.ambiente || 25);
+    var coresEscala = ['#00B050', '#FFFF00', '#FFA500', '#FF0000'];
+    var imgVisual = await obterImagemBase64('fotoVisualDataUrl', 'fotoVisualId', ponto, 'fotoVisualUrl');
+    var imgTermica = await obterImagemBase64('fotoTermicaDataUrl', 'fotoTermicaId', ponto, 'fotoTermicaUrl');
+
+    var scaleHtml = limiares.map(function (lim, i) {
+      var isLast = i === limiares.length - 1;
+      var bg = isLast ? '#fff' : coresEscala[Math.min(i, coresEscala.length - 1)];
+      var fg = (i === 0) ? '#fff' : '#111';
+      return '<div style="background:' + bg + ';color:' + fg + '">' + lim.toFixed(1) + '</div>';
+    }).join('');
+
+    var legendaHtml = NIVEIS_SEVERIDADE.slice().reverse().map(function (niv) {
+      return '<div class="lp-legend-row">' +
+        '<div class="lp-legend-chip" style="background:' + niv.cor + '"></div>' +
+        '<div class="lp-legend-label">' + escapeHtmlPreview(niv.label.toUpperCase()) + '</div>' +
+        '<div class="lp-legend-text">' + escapeHtmlPreview(niv.prioridade) + '</div>' +
+      '</div>';
+    }).join('');
+
+    return (
+      '<div class="lp-header">' +
+        '<div><div class="lp-h-title">LAUDO DE INSPEÇÃO TERMOGRÁFICA</div><div class="lp-h-sub">Ponto nº ' + escapeHtmlPreview(ponto.numero) + '</div></div>' +
+        '<div class="lp-h-right"><img src="' + LOGO_DATA_URL + '" alt="IDEALLE" style="height:22px;background:#fff;border-radius:4px;padding:2px 5px;display:block;margin-left:auto;"><div style="margin-top:4px;">' + escapeHtmlPreview(fmtData(ponto.dataHora)) + '</div></div>' +
+      '</div>' +
+      '<div class="lp-idstrip">' +
+        '<div class="lp-idbox"><div class="k">Cliente</div><div class="v">' + escapeHtmlPreview(ponto.cliente || '—') + '</div></div>' +
+        '<div class="lp-idbox"><div class="k">Local / Setor</div><div class="v">' + escapeHtmlPreview(ponto.local || '—') + '</div></div>' +
+        '<div class="lp-idbox"><div class="k">Quadro</div><div class="v">' + escapeHtmlPreview(ponto.quadro || '—') + '</div></div>' +
+        '<div class="lp-idbox"><div class="k">Ponto</div><div class="v">#' + escapeHtmlPreview(ponto.numero) + '</div></div>' +
+      '</div>' +
+      '<div class="lp-photos">' +
+        fotoBoxHtml('IMAGEM VISUAL', imgVisual) +
+        fotoBoxHtml('IMAGEM TERMOGRÁFICA', imgTermica) +
+      '</div>' +
+      '<div class="lp-cols">' +
+        '<div>' +
+          '<div class="lp-table">' +
+            '<div class="lp-table-title">INFORMAÇÕES DO COMPONENTE</div>' +
+            linhaHtml('Tipo:', ponto.tipo || '—') + linhaHtml('Parte:', ponto.parte || '—') + linhaHtml('Função:', ponto.funcao || '—') +
+            (ponto.isolacao ? linhaHtml('Isolação:', ponto.isolacao) : '') +
+          '</div>' +
+          '<div class="lp-table">' +
+            '<div class="lp-table-title">TEMP. COLETADAS (°C)</div>' +
+            linhaHtml('Fase R:', ponto.faseR != null ? ponto.faseR.toFixed(1) : '—') +
+            linhaHtml('Fase S:', ponto.faseS != null ? ponto.faseS.toFixed(1) : '—') +
+            linhaHtml('Fase T:', ponto.faseT != null ? ponto.faseT.toFixed(1) : '—') +
+            linhaHtml('Máxima:', ponto.maxima != null ? ponto.maxima.toFixed(1) : '—') +
+          '</div>' +
+        '</div>' +
+        '<div>' +
+          '<div class="lp-table">' +
+            '<div class="lp-table-title">INFORMAÇÕES PARA ANÁLISE</div>' +
+            linhaHtml('Emissividade:', ponto.emissividade != null ? String(ponto.emissividade) : '0,95') +
+            linhaHtml('Temp. Ambiente (°C):', ponto.ambiente != null ? ponto.ambiente.toFixed(1) : '—') +
+          '</div>' +
+          '<div class="lp-table">' +
+            '<div class="lp-table-title">CRITÉRIOS DE SEVERIDADE</div>' +
+            '<div class="lp-scale-caption">Método: MTA (múltiplos da temp. ambiente)</div>' +
+            '<div class="lp-scale">' + scaleHtml + '</div>' +
+          '</div>' +
+          '<div class="lp-table">' +
+            linhaHtml('Anomalia:', ponto.anomalia || '—') +
+            linhaHtml('Severidade da Anomalia:', classeAtual.label) +
+            linhaHtml('Prioridade de Manutenção:', classeAtual.prioridade) +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="lp-legend">' +
+        '<div class="lp-table-title" style="border-radius:0;">LEGENDA — CLASSIFICAÇÃO E INTERVENÇÃO RECOMENDADA</div>' +
+        legendaHtml +
+      '</div>' +
+      '<div class="lp-diag">' +
+        '<h4>DIAGNÓSTICO / OBSERVAÇÃO</h4>' +
+        '<p>' + escapeHtmlPreview(ponto.observacao && ponto.observacao.trim() ? ponto.observacao : 'Sem observações registradas.') + '</p>' +
+      '</div>' +
+      '<div class="lp-footer"><span>Documento gerado em campo — IDEALLE Inspeções e Serviços</span><span>Página 1 de 1</span></div>'
+    );
+  }
+
+  async function visualizarPdf(ponto) {
+    pontoModalAtual = ponto;
+    document.getElementById('modal-title').textContent = 'Ponto #' + ponto.numero + ' — ' + (ponto.quadro || '');
+    document.getElementById('modal-preview').innerHTML = '<div style="padding:60px 20px;text-align:center;color:#888;font-size:13px;">Carregando pré-visualização...</div>';
+    document.getElementById('pdf-modal').classList.add('show');
+    try {
+      var html = await renderPreviewHtml(ponto);
+      document.getElementById('modal-preview').innerHTML = html;
+    } catch (err) {
+      console.error('Erro ao montar pré-visualização:', err);
+      document.getElementById('modal-preview').innerHTML = '<div style="padding:40px 20px;text-align:center;color:#b3261e;font-size:13px;">Erro ao montar a pré-visualização: ' + escapeHtmlPreview(err && err.message ? err.message : err) + '</div>';
+    }
+  }
+
+  function fecharModal() {
+    document.getElementById('pdf-modal').classList.remove('show');
+    document.getElementById('modal-preview').innerHTML = '';
+    pontoModalAtual = null;
+  }
+  document.getElementById('modal-close').addEventListener('click', fecharModal);
+  document.getElementById('pdf-modal').addEventListener('click', function (e) {
+    if (e.target.id === 'pdf-modal') fecharModal();
+  });
+
+  async function salvarBlobComoArquivo(blob, filename) {
+    if (downloads) {
+      try { await downloads.save({ filename: filename, data: blob }); toast('PDF gerado.'); return; }
+      catch (err) { toast('Download não confirmado.'); return; }
+    }
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('PDF gerado.');
+  }
+  document.getElementById('modal-download').addEventListener('click', function () {
+    if (pontoModalAtual) baixarPdf(pontoModalAtual);
+  });
+
+  async function baixarPdf(ponto) {
+    try {
+      var built = await construirPdf(ponto);
+      await salvarBlobComoArquivo(built.blob, built.filename);
+    } catch (fatalErr) {
+      console.error('Erro ao gerar PDF:', fatalErr);
+      toast('Erro ao gerar PDF: ' + (fatalErr && fatalErr.message ? fatalErr.message : fatalErr));
+    }
+  }
+
+  // ---------- capability bootstrap ----------
+  async function init() {
+    var params = new URLSearchParams(window.location.search);
+    var clienteParam = (params.get('cliente') || '').trim();
+    if (clienteParam) {
+      MODO_CLIENTE = true;
+      CLIENTE_ATUAL = clienteParam;
+      document.getElementById('card-form').style.display = 'none';
+      document.getElementById('titulo-app').textContent = 'Portal do Cliente';
+      document.getElementById('subtitulo-app').textContent = clienteParam;
+      document.getElementById('dash-cliente-nome').textContent = '— ' + clienteParam;
+      document.getElementById('titulo-lista').innerHTML = '📑 Laudos disponíveis <span class="contador" id="contador"></span>';
+    } else {
+      atualizarCalculo();
+    }
+
+    try {
+      if (window.claude && typeof window.claude.use === 'function') {
+        db = await window.claude.use('db');
+        if (!MODO_CLIENTE) {
+          assets = await window.claude.use('assets');
+          downloads = await window.claude.use('downloads');
+        }
+      }
+    } catch (e) {}
+
+    if (!db && FIREBASE_CONFIGURADO && typeof firebase !== 'undefined') {
+      try {
+        firebase.initializeApp(FIREBASE_CONFIG);
+        db = firebase.firestore();
+        fbStorage = firebase.storage();
+      } catch (e) {
+        console.error('Falha ao iniciar Firebase:', e);
+        db = null; fbStorage = null;
+      }
+    }
+
+    if (db) {
+      try {
+        var query = db.collection('pontos');
+        query = MODO_CLIENTE ? query.where('cliente', '==', CLIENTE_ATUAL).orderBy('numero', 'desc') : query.orderBy('numero', 'desc');
+        query.onSnapshot(function (snap) {
+          try {
+            pontosCache = snap.docs.map(function (d) {
+              var data = (d.data ? d.data() : d) || {};
+              var copy = {};
+              for (var k in data) { if (Object.prototype.hasOwnProperty.call(data, k)) copy[k] = data[k]; }
+              copy.id = d.id;
+              return copy;
+            });
+            renderLista();
+          } catch (innerErr) {
+            console.error('Erro processando pontos:', innerErr);
+            toast('Erro ao carregar pontos: ' + (innerErr && innerErr.message ? innerErr.message : innerErr));
+          }
+        }, function (err) {
+          console.error('Erro de sincronização:', err);
+          toast(MODO_CLIENTE ? 'Não foi possível carregar os laudos agora.' : 'Sincronização indisponível.');
+        });
+      } catch (e) {
+        console.error(e);
+        toast('Sincronização indisponível.');
+      }
+    } else if (MODO_CLIENTE) {
+      document.getElementById('card-lista').innerHTML = '<div class="aviso"><h2>Portal ainda não configurado</h2><p>O banco de dados compartilhado ainda não foi configurado. Fale com a IDEALLE.</p></div>';
+    } else {
+      try {
+        await recarregarListaLocal();
+      } catch (e) {
+        console.error('Armazenamento local indisponível — dados só durarão nesta aba:', e);
+        renderLista();
+      }
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+  if (document.readyState !== 'loading') init();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>Redirecionando…</title>
+<script>
+  // O portal do cliente foi unificado ao app principal (index.html?cliente=NOME).
+  // Este arquivo existe só para não quebrar links antigos que apontavam pra /cliente.html.
+  var params = window.location.search;
+  window.location.replace('index.html' + params);
+</script>
+</head>
+<body>
+<p>Redirecionando para o portal atualizado…</p>
+</body>
+</html>

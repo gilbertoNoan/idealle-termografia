@@ -1,0 +1,37 @@
+COMO SUBIR NA SUA CONTA VERCEL
+================================
+
+Este é um site estático de 1 arquivo (index.html) — não precisa de build,
+Node, nem configuração. Duas formas de publicar:
+
+OPÇÃO 1 — Linha de comando (mais rápido, ~2 min)
+--------------------------------------------------
+1. Instale a CLI da Vercel (uma vez só):
+   npm i -g vercel
+
+2. Dentro desta pasta, rode:
+   vercel --prod
+
+3. Faça login quando pedir (abre o navegador) e confirme as perguntas
+   padrão (pode aceitar tudo com Enter). Ao final ele te dá a URL final,
+   algo como: https://termografia-idealle.vercel.app
+
+OPÇÃO 2 — Painel da Vercel (arrastar e soltar)
+--------------------------------------------------
+1. Acesse https://vercel.com/new
+2. Escolha "Deploy" > arraste esta pasta (ou o index.html) na área indicada
+3. Clique em Deploy — pronto, sem precisar configurar nada
+
+IMPORTANTE SOBRE OS DADOS
+--------------------------------------------------
+Dentro do Claude, os pontos salvos ficavam num banco de dados hospedado
+pela própria Claude. Fora daqui (no seu domínio Vercel), o app passa a
+guardar os pontos direto no navegador do celular/notebook que você usar
+(IndexedDB) — funciona offline e não depende de mim, mas os dados ficam
+só naquele aparelho/navegador específico. Se limpar os dados do navegador
+(ou usar outro aparelho), a lista de pontos não acompanha.
+
+Se no futuro você quiser os pontos sincronizados entre aparelhos (ex.:
+você em campo e alguém revisando no escritório), aí sim vale montar um
+backend de verdade (ex.: banco de dados na própria Vercel/Postgres, ou
+Firebase) — me chame que eu ajusto o código para isso.
