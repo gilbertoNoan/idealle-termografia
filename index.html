@@ -467,6 +467,7 @@
     <label>Observação</label>
     <textarea id="f-obs" placeholder="Ex.: possível mau contato na conexão, recomenda-se reaperto..."></textarea>
 
+    <button class="btn-secondary" id="btn-ver-previa" style="width:100%; margin-top:6px;">👁 Ver prévia do relatório</button>
     <button class="btn-primary" id="btn-salvar">Salvar ponto</button>
     <button class="btn-secondary" id="btn-cancelar-edicao" style="display:none; width:100%; margin-top:8px;">Cancelar edição</button>
   </div>
@@ -1458,6 +1459,49 @@
     }
     return { id: null, url: null };
   }
+
+  function montarPontoPreview() {
+    var osId = document.getElementById('f-os').value;
+    var osSelecionada = ordensCache.find(function (o) { return o.id === osId; });
+    var v = lerTemps();
+    var vals = [v.r, v.s, v.t].filter(function (x) { return !isNaN(x); });
+    var maxima = vals.length ? Math.max.apply(null, vals) : 0;
+    var anomalia = calcularAnomalia(v.r, v.s, v.t);
+    var classe = classificar(maxima, isNaN(v.amb) ? 25 : v.amb);
+    var emissividade = parseFloat(document.getElementById('f-emissividade').value);
+    var numeroPreview = editandoPontoId ? editandoPontoOriginal.numero :
+      (pontosCache.reduce(function (max, p) { return Math.max(max, p.numero || 0); }, 0)) + 1;
+    return {
+      numero: numeroPreview,
+      cliente: osSelecionada ? osSelecionada.empresaNome : '(selecione uma OS)',
+      osId: osId, osNumero: osSelecionada ? osSelecionada.numero : null,
+      local: document.getElementById('f-local').value.trim(),
+      quadro: document.getElementById('f-quadro').value.trim(),
+      tipo: lerSelectComOutro('f-tipo', 'f-tipo-outro'),
+      parte: lerSelectComOutro('f-parte', 'f-parte-outro'),
+      funcao: lerSelectComOutro('f-funcao', 'f-funcao-outro'),
+      isolacao: lerIsolacao(),
+      dataHora: document.getElementById('f-data').value,
+      faseR: isNaN(v.r) ? null : v.r, faseS: isNaN(v.s) ? null : v.s, faseT: isNaN(v.t) ? null : v.t,
+      ambiente: isNaN(v.amb) ? null : v.amb, emissividade: isNaN(emissividade) ? 0.95 : emissividade,
+      maxima: maxima, anomalia: anomalia ? anomalia[0] : null,
+      classificacao: classe.label, prioridade: classe.prioridade,
+      observacao: document.getElementById('f-obs').value.trim(),
+      fotosExtras: fotosExtrasExistentes.concat(fotosExtrasNovas.map(function (f) { return { dataUrl: f.dataUrl }; })),
+      detalhesAdicionais: document.getElementById('f-detalhes-extras').value.trim(),
+      fotoVisualDataUrl: fotoVisualDataUrl || (editandoPontoOriginal ? (editandoPontoOriginal.fotoVisualDataUrl || null) : null),
+      fotoVisualId: fotoVisualDataUrl ? null : (editandoPontoOriginal ? editandoPontoOriginal.fotoVisualId : null),
+      fotoVisualUrl: fotoVisualDataUrl ? null : (editandoPontoOriginal ? editandoPontoOriginal.fotoVisualUrl : null),
+      fotoTermicaDataUrl: fotoTermicaDataUrl || (editandoPontoOriginal ? (editandoPontoOriginal.fotoTermicaDataUrl || null) : null),
+      fotoTermicaId: fotoTermicaDataUrl ? null : (editandoPontoOriginal ? editandoPontoOriginal.fotoTermicaId : null),
+      fotoTermicaUrl: fotoTermicaDataUrl ? null : (editandoPontoOriginal ? editandoPontoOriginal.fotoTermicaUrl : null)
+    };
+  }
+  document.getElementById('btn-ver-previa').addEventListener('click', function () {
+    var quadro = document.getElementById('f-quadro').value.trim();
+    if (!quadro) { toast('Preencha ao menos a identificação do quadro para ver a prévia.'); return; }
+    visualizarPdf(montarPontoPreview());
+  });
 
   async function salvarPonto() {
     var osId = document.getElementById('f-os').value;
