@@ -456,6 +456,10 @@
   </section>
 
   <section class="view" id="view-ordens" style="display:none;">
+  <div class="card" id="card-ordens-filtro" style="display:none;">
+    <button class="btn-secondary" id="btn-voltar-empresas">← Voltar para Empresas</button>
+    <h2 style="margin-top:10px;">🗂 OS de <span id="ordens-filtro-nome"></span></h2>
+  </div>
   <div class="card">
     <h2>🗂 Nova ordem de serviço</h2>
     <label>Empresa</label>
@@ -468,7 +472,7 @@
     <button class="btn-primary" id="btn-salvar-os">Salvar OS</button>
   </div>
   <div class="card">
-    <h2>📑 Ordens de serviço <span class="contador" id="contador-ordens"></span></h2>
+    <h2 id="titulo-lista-ordens">📑 Ordens de serviço <span class="contador" id="contador-ordens"></span></h2>
     <div id="lista-ordens"><div class="vazio">Nenhuma OS cadastrada ainda.</div></div>
   </div>
   </section>
@@ -515,6 +519,7 @@
   document.getElementById('app-logo-img2').src = LOGO_DATA_URL;
 
   // ---------- navigation ----------
+  var filtroEmpresaOrdens = null;
   function mostrarView(nome) {
     ['dashboard', 'novo', 'ordens', 'empresas'].forEach(function (v) {
       document.getElementById('view-' + v).style.display = (v === nome) ? '' : 'none';
@@ -522,11 +527,18 @@
     document.querySelectorAll('.nav-item').forEach(function (btn) {
       btn.classList.toggle('active', btn.getAttribute('data-view') === nome);
     });
+    if (nome === 'ordens') {
+      renderOrdens();
+      if (filtroEmpresaOrdens) document.getElementById('os-empresa').value = filtroEmpresaOrdens.id;
+    }
     fecharSidebar();
     window.scrollTo(0, 0);
   }
   document.querySelectorAll('.nav-item').forEach(function (btn) {
-    btn.addEventListener('click', function () { mostrarView(btn.getAttribute('data-view')); });
+    btn.addEventListener('click', function () {
+      if (btn.getAttribute('data-view') === 'ordens') filtroEmpresaOrdens = null;
+      mostrarView(btn.getAttribute('data-view'));
+    });
   });
   function abrirSidebar() {
     document.getElementById('sidebar').classList.add('open');
@@ -918,10 +930,14 @@
     } else {
       contador.textContent = '(' + empresasCache.length + ')';
       lista.innerHTML = empresasCache.map(function (e) {
+        var qtdOs = ordensCache.filter(function (o) { return o.empresaId === e.id; }).length;
         return '<div class="empresa-item" data-id="' + e.id + '">' +
           '<div class="nome">' + escapeHtml(e.nome) + '</div>' +
           '<div class="sub">' + escapeHtml([e.contato, e.telefone, e.email].filter(Boolean).join(' · ')) + '</div>' +
-          '<div class="ponto-actions"><button class="btn-danger" data-action="del-empresa" data-id="' + e.id + '">Excluir</button></div>' +
+          '<div class="ponto-actions">' +
+            '<button class="btn-secondary" data-action="ver-os-empresa" data-id="' + e.id + '">🗂 Ver OS (' + qtdOs + ')</button>' +
+            '<button class="btn-danger" data-action="del-empresa" data-id="' + e.id + '">Excluir</button>' +
+          '</div>' +
         '</div>';
       }).join('');
     }
@@ -961,6 +977,15 @@
   });
 
   document.getElementById('lista-empresas').addEventListener('click', function (e) {
+    var btnVer = e.target.closest('button[data-action="ver-os-empresa"]');
+    if (btnVer) {
+      var empId = btnVer.getAttribute('data-id');
+      var emp = empresasCache.find(function (x) { return x.id === empId; });
+      if (!emp) return;
+      filtroEmpresaOrdens = emp;
+      mostrarView('ordens');
+      return;
+    }
     var btn = e.target.closest('button[data-action="del-empresa"]');
     if (!btn) return;
     var id = btn.getAttribute('data-id');
@@ -984,12 +1009,25 @@
   function renderOrdens() {
     var lista = document.getElementById('lista-ordens');
     var contador = document.getElementById('contador-ordens');
-    if (!ordensCache.length) {
-      lista.innerHTML = '<div class="vazio">Nenhuma OS cadastrada ainda.</div>';
+    var filtroCard = document.getElementById('card-ordens-filtro');
+    var tituloLista = document.getElementById('titulo-lista-ordens');
+    var ordensFiltradas = ordensCache;
+    if (filtroEmpresaOrdens) {
+      filtroCard.style.display = 'block';
+      document.getElementById('ordens-filtro-nome').textContent = filtroEmpresaOrdens.nome;
+      tituloLista.innerHTML = '📑 OS de ' + escapeHtml(filtroEmpresaOrdens.nome) + ' <span class="contador" id="contador-ordens"></span>';
+      ordensFiltradas = ordensCache.filter(function (o) { return o.empresaId === filtroEmpresaOrdens.id; });
+    } else {
+      filtroCard.style.display = 'none';
+      tituloLista.innerHTML = '📑 Ordens de serviço <span class="contador" id="contador-ordens"></span>';
+    }
+    contador = document.getElementById('contador-ordens');
+    if (!ordensFiltradas.length) {
+      lista.innerHTML = '<div class="vazio">' + (filtroEmpresaOrdens ? 'Nenhuma OS cadastrada para esta empresa ainda.' : 'Nenhuma OS cadastrada ainda.') + '</div>';
       contador.textContent = '';
     } else {
-      contador.textContent = '(' + ordensCache.length + ')';
-      lista.innerHTML = ordensCache.map(function (o) {
+      contador.textContent = '(' + ordensFiltradas.length + ')';
+      lista.innerHTML = ordensFiltradas.map(function (o) {
         var laudos = pontosCache.filter(function (p) { return p.osId === o.id; });
         var laudosHtml;
         if (!laudos.length) {
@@ -1025,6 +1063,11 @@
     if (atualF) selF.value = atualF;
     document.getElementById('aviso-sem-os').style.display = ordensCache.length ? 'none' : 'block';
   }
+
+  document.getElementById('btn-voltar-empresas').addEventListener('click', function () {
+    filtroEmpresaOrdens = null;
+    mostrarView('empresas');
+  });
 
   document.getElementById('btn-salvar-os').addEventListener('click', async function () {
     var empresaId = document.getElementById('os-empresa').value;
@@ -1654,6 +1697,7 @@
             copy.id = d.id; return copy;
           });
           renderOrdens();
+          renderEmpresas();
         }, function (err) { console.error('Erro ao carregar ordens:', err); });
       } catch (e) { console.error(e); }
     } else if (!MODO_CLIENTE) {
