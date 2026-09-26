@@ -91,6 +91,13 @@
   .empresa-item .nome, .os-item .nome { font-weight: 700; font-size: 14.5px; }
   .empresa-item .sub, .os-item .sub { font-size: 12.5px; color: var(--texto-suave); margin-top: 2px; }
   .os-status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--azul-claro); color: var(--azul); }
+  .os-laudos { margin-top: 10px; border-top: 1px dashed var(--borda); padding-top: 8px; }
+  .os-laudos-titulo { font-size: 11.5px; font-weight: 700; color: var(--texto-suave); text-transform: uppercase; letter-spacing: .02em; margin-bottom: 6px; }
+  .os-laudos-vazio { font-size: 12.5px; color: var(--texto-suave); }
+  .os-laudo-item { background: var(--cinza); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
+  .os-laudo-info { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .os-laudo-titulo { font-size: 13px; font-weight: 600; }
+  .os-laudo-item .ponto-actions { margin-top: 6px; }
 
   @media (max-width: 860px) {
     .btn-hamburger { display: inline-flex; align-items: center; justify-content: center; }
@@ -758,6 +765,7 @@
 
   function renderLista() {
     atualizarDashboard();
+    if (!MODO_CLIENTE) renderOrdens();
     var lista = document.getElementById('lista');
     var contador = document.getElementById('contador');
     if (!pontosCache.length) {
@@ -982,10 +990,31 @@
     } else {
       contador.textContent = '(' + ordensCache.length + ')';
       lista.innerHTML = ordensCache.map(function (o) {
+        var laudos = pontosCache.filter(function (p) { return p.osId === o.id; });
+        var laudosHtml;
+        if (!laudos.length) {
+          laudosHtml = '<div class="os-laudos-vazio">Nenhum laudo lançado nesta OS ainda.</div>';
+        } else {
+          laudosHtml = laudos.map(function (p) {
+            var c = classificar(p.maxima || 0, p.ambiente || 25);
+            return '<div class="os-laudo-item" data-ponto-id="' + p.id + '">' +
+              '<div class="os-laudo-info">' +
+                '<span class="os-laudo-titulo">#' + p.numero + ' — ' + escapeHtml(p.quadro || 'Sem identificação') + '</span>' +
+                '<span class="badge ' + c.key + '">' + c.label + '</span>' +
+              '</div>' +
+              '<div class="ponto-actions">' +
+                '<button class="btn-secondary" data-action="ver-ponto" data-ponto-id="' + p.id + '">👁 Ver</button>' +
+                '<button class="btn-secondary" data-action="pdf-ponto" data-ponto-id="' + p.id + '">⬇ Baixar</button>' +
+                '<button class="btn-danger" data-action="del-ponto" data-ponto-id="' + p.id + '">Excluir</button>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+        }
         return '<div class="os-item" data-id="' + o.id + '">' +
           '<div class="nome">OS #' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">Aberta</span></div>' +
           '<div class="sub">' + escapeHtml(o.descricao || 'Sem descrição') + (o.dataAbertura ? ' · ' + o.dataAbertura : '') + '</div>' +
-          '<div class="ponto-actions"><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir</button></div>' +
+          '<div class="os-laudos"><div class="os-laudos-titulo">Laudos desta OS (' + laudos.length + ')</div>' + laudosHtml + '</div>' +
+          '<div class="ponto-actions"><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir OS</button></div>' +
         '</div>';
       }).join('');
     }
@@ -1027,21 +1056,34 @@
   });
 
   document.getElementById('lista-ordens').addEventListener('click', function (e) {
-    var btn = e.target.closest('button[data-action="del-os"]');
-    if (!btn) return;
-    var id = btn.getAttribute('data-id');
-    var os = ordensCache.find(function (x) { return x.id === id; });
-    if (!os) return;
-    confirmarAcao('Excluir a OS #' + os.numero + '?').then(function (ok) {
-      if (!ok) return;
-      if (db) {
-        db.collection('ordens').doc(id).delete().then(function () { toast('OS excluída.'); }).catch(function () { toast('Não foi possível excluir.'); });
-      } else {
-        ordensCache = ordensCache.filter(function (x) { return x.id !== id; });
-        renderOrdens();
-        toast('OS excluída.');
-      }
-    });
+    var btnOs = e.target.closest('button[data-action="del-os"]');
+    if (btnOs) {
+      var id = btnOs.getAttribute('data-id');
+      var os = ordensCache.find(function (x) { return x.id === id; });
+      if (!os) return;
+      confirmarAcao('Excluir a OS #' + os.numero + '? Os laudos já lançados nela não serão apagados.').then(function (ok) {
+        if (!ok) return;
+        if (db) {
+          db.collection('ordens').doc(id).delete().then(function () { toast('OS excluída.'); }).catch(function () { toast('Não foi possível excluir.'); });
+        } else {
+          ordensCache = ordensCache.filter(function (x) { return x.id !== id; });
+          renderOrdens();
+          toast('OS excluída.');
+        }
+      });
+      return;
+    }
+    var btnPonto = e.target.closest('button[data-ponto-id]');
+    if (!btnPonto) return;
+    var pontoId = btnPonto.getAttribute('data-ponto-id');
+    var ponto = pontosCache.find(function (p) { return p.id === pontoId; });
+    if (!ponto) return;
+    var action = btnPonto.getAttribute('data-action');
+    if (action === 'pdf-ponto') baixarPdf(ponto);
+    else if (action === 'ver-ponto') visualizarPdf(ponto);
+    else if (action === 'del-ponto') {
+      confirmarAcao('Excluir o laudo #' + ponto.numero + '?').then(function (ok) { if (ok) excluirPonto(ponto); });
+    }
   });
 
   async function uploadFoto(blob) {
