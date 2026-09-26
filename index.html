@@ -62,7 +62,47 @@
   header .h-logo img { height: 22px; display: block; }
   header h1 { margin: 0; font-size: 17px; font-weight: 700; }
   header p { margin: 2px 0 0; font-size: 12px; opacity: 0.85; }
+  .btn-hamburger { background: rgba(255,255,255,.15); color: #fff; border-radius: 8px; width: 34px; height: 34px; font-size: 18px; flex-shrink: 0; display: none; }
+
+  .app-shell { display: flex; min-height: 100%; }
+  .app-content { flex: 1; min-width: 0; }
+  .sidebar {
+    width: 220px; flex-shrink: 0; background: #12213f; color: #cbd5e6;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 0 14px;
+    display: flex; flex-direction: column; gap: 2px;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 0 16px 16px; }
+  .sidebar-brand .h-logo img { height: 20px; }
+  .sidebar-brand-text { font-weight: 800; letter-spacing: .04em; color: #fff; font-size: 14px; }
+  .nav-item {
+    background: transparent; color: #cbd5e6; text-align: left; padding: 12px 16px;
+    font-size: 14px; font-weight: 600; border-radius: 0; width: 100%;
+  }
+  .nav-item:hover { background: rgba(255,255,255,.06); }
+  .nav-item.active { background: var(--azul); color: #fff; }
+  .sidebar-overlay { display: none; }
+
   main { max-width: 760px; margin: 0 auto; padding: 16px 14px 60px; }
+  .ajuda-campo { font-size: 12.5px; color: #b3261e; margin: 6px 0 0; }
+  .empresa-item, .os-item {
+    border: 1px solid var(--borda); border-radius: 10px; padding: 12px; margin-bottom: 10px;
+  }
+  .empresa-item .nome, .os-item .nome { font-weight: 700; font-size: 14.5px; }
+  .empresa-item .sub, .os-item .sub { font-size: 12.5px; color: var(--texto-suave); margin-top: 2px; }
+  .os-status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--azul-claro); color: var(--azul); }
+
+  @media (max-width: 860px) {
+    .btn-hamburger { display: inline-flex; align-items: center; justify-content: center; }
+    .sidebar {
+      position: fixed; left: 0; top: 0; z-index: 40; height: 100%;
+      transform: translateX(-100%); transition: transform .25s ease; box-shadow: 4px 0 20px rgba(0,0,0,.3);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-overlay.show {
+      display: block; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 35;
+    }
+  }
   .card {
     background: var(--cartao); border: 1px solid var(--borda);
     border-radius: 12px; padding: 16px; margin-bottom: 16px;
@@ -218,8 +258,23 @@
 </style>
 </head>
 <body>
+<div class="app-shell">
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <span class="h-logo"><img id="app-logo-img2" alt="IDEALLE"></span>
+    <span class="sidebar-brand-text">IDEALLE</span>
+  </div>
+  <button class="nav-item active" data-view="dashboard">📊 Dashboard</button>
+  <button class="nav-item" data-view="novo">📋 Novo Laudo</button>
+  <button class="nav-item" data-view="ordens">🗂 Ordens de Serviço</button>
+  <button class="nav-item" data-view="empresas">🏢 Empresas</button>
+</nav>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<div class="app-content">
 <header>
   <div class="h-row">
+    <button class="btn-hamburger" id="btn-hamburger" aria-label="Menu">☰</button>
     <span class="h-logo"><img id="app-logo-img" alt="IDEALLE"></span>
     <div>
       <h1 id="titulo-app">Inspeção Termográfica</h1>
@@ -229,6 +284,8 @@
 </header>
 
 <main>
+
+  <section class="view" id="view-dashboard">
   <div class="card">
     <h2>📊 Painel <span id="dash-cliente-nome" class="contador"></span></h2>
     <div class="dash-grid">
@@ -251,17 +308,26 @@
     </div>
   </div>
 
+  <div class="card" id="card-lista">
+    <h2 id="titulo-lista">📑 Pontos registrados <span class="contador" id="contador"></span></h2>
+    <div id="lista"><div class="vazio">Nenhum ponto registrado ainda.</div></div>
+  </div>
+  </section>
+
+  <section class="view" id="view-novo" style="display:none;">
   <div class="card" id="card-form">
     <h2>📋 Novo ponto</h2>
 
     <div class="subhead">Identificação</div>
-    <label>Cliente</label>
-    <input type="text" id="f-cliente" placeholder="Nome do cliente" />
+    <label>Ordem de Serviço</label>
+    <select id="f-os"><option value="">Selecione uma OS…</option></select>
+    <p class="ajuda-campo" id="aviso-sem-os" style="display:none;">Nenhuma OS aberta. Cadastre uma em "Ordens de Serviço" antes de iniciar um laudo.</p>
     <div class="row2">
       <div><label>Local / Setor</label><input type="text" id="f-local" placeholder="Ex.: Planta — Linha 2" /></div>
       <div><label>Quadro</label><input type="text" id="f-quadro" placeholder="Ex.: QF-14" /></div>
     </div>
     <label>Data / hora</label>
+
     <input type="datetime-local" id="f-data" />
 
     <div class="subhead">Informações do componente</div>
@@ -361,12 +427,48 @@
 
     <button class="btn-primary" id="btn-salvar">Salvar ponto</button>
   </div>
+  </section>
 
-  <div class="card" id="card-lista">
-    <h2 id="titulo-lista">📑 Pontos registrados <span class="contador" id="contador"></span></h2>
-    <div id="lista"><div class="vazio">Nenhum ponto registrado ainda.</div></div>
+  <section class="view" id="view-empresas" style="display:none;">
+  <div class="card">
+    <h2>🏢 Nova empresa</h2>
+    <label>Nome da empresa</label>
+    <input type="text" id="emp-nome" placeholder="Ex.: Fábrica ABC Ltda" />
+    <div class="row2">
+      <div><label>Contato</label><input type="text" id="emp-contato" placeholder="Nome do responsável" /></div>
+      <div><label>Telefone</label><input type="text" id="emp-telefone" placeholder="(11) 90000-0000" /></div>
+    </div>
+    <label>E-mail</label>
+    <input type="text" id="emp-email" placeholder="contato@empresa.com" />
+    <button class="btn-primary" id="btn-salvar-empresa">Salvar empresa</button>
   </div>
+  <div class="card">
+    <h2>📇 Empresas cadastradas <span class="contador" id="contador-empresas"></span></h2>
+    <div id="lista-empresas"><div class="vazio">Nenhuma empresa cadastrada ainda.</div></div>
+  </div>
+  </section>
+
+  <section class="view" id="view-ordens" style="display:none;">
+  <div class="card">
+    <h2>🗂 Nova ordem de serviço</h2>
+    <label>Empresa</label>
+    <select id="os-empresa"><option value="">Selecione a empresa…</option></select>
+    <p class="ajuda-campo" id="aviso-sem-empresa" style="display:none;">Cadastre uma empresa primeiro na aba "Empresas".</p>
+    <label>Descrição / Escopo</label>
+    <input type="text" id="os-descricao" placeholder="Ex.: Inspeção termográfica trimestral" />
+    <label>Data de abertura</label>
+    <input type="date" id="os-data" />
+    <button class="btn-primary" id="btn-salvar-os">Salvar OS</button>
+  </div>
+  <div class="card">
+    <h2>📑 Ordens de serviço <span class="contador" id="contador-ordens"></span></h2>
+    <div id="lista-ordens"><div class="vazio">Nenhuma OS cadastrada ainda.</div></div>
+  </div>
+  </section>
+
 </main>
+</div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -403,6 +505,32 @@
 
   var db = null, assets = null, downloads = null, fbStorage = null;
   document.getElementById('app-logo-img').src = LOGO_DATA_URL;
+  document.getElementById('app-logo-img2').src = LOGO_DATA_URL;
+
+  // ---------- navigation ----------
+  function mostrarView(nome) {
+    ['dashboard', 'novo', 'ordens', 'empresas'].forEach(function (v) {
+      document.getElementById('view-' + v).style.display = (v === nome) ? '' : 'none';
+    });
+    document.querySelectorAll('.nav-item').forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-view') === nome);
+    });
+    fecharSidebar();
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll('.nav-item').forEach(function (btn) {
+    btn.addEventListener('click', function () { mostrarView(btn.getAttribute('data-view')); });
+  });
+  function abrirSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sidebar-overlay').classList.add('show');
+  }
+  function fecharSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('show');
+  }
+  document.getElementById('btn-hamburger').addEventListener('click', abrirSidebar);
+  document.getElementById('sidebar-overlay').addEventListener('click', fecharSidebar);
 
   // ---------- Firebase (banco compartilhado entre aparelhos) ----------
   // Preencha com os dados do SEU projeto Firebase (Console → Configurações do projeto → Seus apps → SDK setup).
@@ -434,11 +562,6 @@
     return d.toISOString().slice(0, 16);
   }
   document.getElementById('f-data').value = nowLocalInputValue();
-
-  try {
-    var lastClient = localStorage.getItem('term_cliente');
-    if (lastClient) document.getElementById('f-cliente').value = lastClient;
-  } catch (e) {}
 
   // ---------- MTA severity method: thresholds = ambiente * [1, 1.45, 1.9, 2.35, 2.8] ----------
   var FATORES = [1, 1.45, 1.9, 2.35, 2.8];
@@ -775,6 +898,152 @@
     }
   }
 
+  // ---------- Empresas ----------
+  var empresasCache = [];
+
+  function renderEmpresas() {
+    var lista = document.getElementById('lista-empresas');
+    var contador = document.getElementById('contador-empresas');
+    if (!empresasCache.length) {
+      lista.innerHTML = '<div class="vazio">Nenhuma empresa cadastrada ainda.</div>';
+      contador.textContent = '';
+    } else {
+      contador.textContent = '(' + empresasCache.length + ')';
+      lista.innerHTML = empresasCache.map(function (e) {
+        return '<div class="empresa-item" data-id="' + e.id + '">' +
+          '<div class="nome">' + escapeHtml(e.nome) + '</div>' +
+          '<div class="sub">' + escapeHtml([e.contato, e.telefone, e.email].filter(Boolean).join(' · ')) + '</div>' +
+          '<div class="ponto-actions"><button class="btn-danger" data-action="del-empresa" data-id="' + e.id + '">Excluir</button></div>' +
+        '</div>';
+      }).join('');
+    }
+    // refresh dependent selects
+    var selOs = document.getElementById('os-empresa');
+    var atualOs = selOs.value;
+    selOs.innerHTML = '<option value="">Selecione a empresa…</option>' +
+      empresasCache.map(function (e) { return '<option value="' + e.id + '">' + escapeHtml(e.nome) + '</option>'; }).join('');
+    if (atualOs) selOs.value = atualOs;
+    document.getElementById('aviso-sem-empresa').style.display = empresasCache.length ? 'none' : 'block';
+  }
+
+  document.getElementById('btn-salvar-empresa').addEventListener('click', async function () {
+    var nome = document.getElementById('emp-nome').value.trim();
+    var contato = document.getElementById('emp-contato').value.trim();
+    var telefone = document.getElementById('emp-telefone').value.trim();
+    var email = document.getElementById('emp-email').value.trim();
+    if (!nome) { toast('Informe o nome da empresa.'); return; }
+    var doc = { nome: nome, contato: contato, telefone: telefone, email: email, createdAt: new Date().toISOString() };
+    try {
+      if (db) {
+        await db.collection('empresas').add(doc);
+      } else {
+        doc.id = 'local-emp-' + Date.now();
+        empresasCache.unshift(doc);
+        renderEmpresas();
+      }
+      toast('Empresa salva.');
+      document.getElementById('emp-nome').value = '';
+      document.getElementById('emp-contato').value = '';
+      document.getElementById('emp-telefone').value = '';
+      document.getElementById('emp-email').value = '';
+    } catch (err) {
+      console.error(err);
+      toast('Não foi possível salvar a empresa.');
+    }
+  });
+
+  document.getElementById('lista-empresas').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-action="del-empresa"]');
+    if (!btn) return;
+    var id = btn.getAttribute('data-id');
+    var emp = empresasCache.find(function (x) { return x.id === id; });
+    if (!emp) return;
+    confirmarAcao('Excluir a empresa "' + emp.nome + '"?').then(function (ok) {
+      if (!ok) return;
+      if (db) {
+        db.collection('empresas').doc(id).delete().then(function () { toast('Empresa excluída.'); }).catch(function () { toast('Não foi possível excluir.'); });
+      } else {
+        empresasCache = empresasCache.filter(function (x) { return x.id !== id; });
+        renderEmpresas();
+        toast('Empresa excluída.');
+      }
+    });
+  });
+
+  // ---------- Ordens de Serviço ----------
+  var ordensCache = [];
+
+  function renderOrdens() {
+    var lista = document.getElementById('lista-ordens');
+    var contador = document.getElementById('contador-ordens');
+    if (!ordensCache.length) {
+      lista.innerHTML = '<div class="vazio">Nenhuma OS cadastrada ainda.</div>';
+      contador.textContent = '';
+    } else {
+      contador.textContent = '(' + ordensCache.length + ')';
+      lista.innerHTML = ordensCache.map(function (o) {
+        return '<div class="os-item" data-id="' + o.id + '">' +
+          '<div class="nome">OS #' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">Aberta</span></div>' +
+          '<div class="sub">' + escapeHtml(o.descricao || 'Sem descrição') + (o.dataAbertura ? ' · ' + o.dataAbertura : '') + '</div>' +
+          '<div class="ponto-actions"><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir</button></div>' +
+        '</div>';
+      }).join('');
+    }
+    var selF = document.getElementById('f-os');
+    var atualF = selF.value;
+    selF.innerHTML = '<option value="">Selecione uma OS…</option>' +
+      ordensCache.map(function (o) { return '<option value="' + o.id + '">OS #' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + '</option>'; }).join('');
+    if (atualF) selF.value = atualF;
+    document.getElementById('aviso-sem-os').style.display = ordensCache.length ? 'none' : 'block';
+  }
+
+  document.getElementById('btn-salvar-os').addEventListener('click', async function () {
+    var empresaId = document.getElementById('os-empresa').value;
+    var empresa = empresasCache.find(function (e) { return e.id === empresaId; });
+    if (!empresa) { toast('Selecione a empresa.'); return; }
+    var descricao = document.getElementById('os-descricao').value.trim();
+    var dataAbertura = document.getElementById('os-data').value;
+    var numero = (ordensCache.reduce(function (max, o) { return Math.max(max, o.numero || 0); }, 0)) + 1;
+    var doc = {
+      numero: numero, empresaId: empresaId, empresaNome: empresa.nome,
+      descricao: descricao, dataAbertura: dataAbertura, createdAt: new Date().toISOString()
+    };
+    try {
+      if (db) {
+        await db.collection('ordens').add(doc);
+      } else {
+        doc.id = 'local-os-' + Date.now();
+        ordensCache.unshift(doc);
+        renderOrdens();
+      }
+      toast('OS #' + numero + ' salva.');
+      document.getElementById('os-empresa').value = '';
+      document.getElementById('os-descricao').value = '';
+      document.getElementById('os-data').value = '';
+    } catch (err) {
+      console.error(err);
+      toast('Não foi possível salvar a OS.');
+    }
+  });
+
+  document.getElementById('lista-ordens').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-action="del-os"]');
+    if (!btn) return;
+    var id = btn.getAttribute('data-id');
+    var os = ordensCache.find(function (x) { return x.id === id; });
+    if (!os) return;
+    confirmarAcao('Excluir a OS #' + os.numero + '?').then(function (ok) {
+      if (!ok) return;
+      if (db) {
+        db.collection('ordens').doc(id).delete().then(function () { toast('OS excluída.'); }).catch(function () { toast('Não foi possível excluir.'); });
+      } else {
+        ordensCache = ordensCache.filter(function (x) { return x.id !== id; });
+        renderOrdens();
+        toast('OS excluída.');
+      }
+    });
+  });
+
   async function uploadFoto(blob) {
     if (assets) {
       var up = await assets.upload(blob);
@@ -791,7 +1060,10 @@
   }
 
   async function salvarPonto() {
-    var cliente = document.getElementById('f-cliente').value.trim();
+    var osId = document.getElementById('f-os').value;
+    var osSelecionada = ordensCache.find(function (o) { return o.id === osId; });
+    if (!osSelecionada) { toast('Selecione uma Ordem de Serviço.'); return; }
+    var cliente = osSelecionada.empresaNome || '';
     var local = document.getElementById('f-local').value.trim();
     var quadro = document.getElementById('f-quadro').value.trim();
     var tipo = lerSelectComOutro('f-tipo', 'f-tipo-outro');
@@ -807,8 +1079,6 @@
     var vals = [v.r, v.s, v.t].filter(function (x) { return !isNaN(x); });
     if (!vals.length) { toast('Informe ao menos uma temperatura de fase.'); return; }
     if (isNaN(v.amb)) { toast('Informe a temperatura ambiente.'); return; }
-
-    try { localStorage.setItem('term_cliente', cliente); } catch (e) {}
 
     var maxima = Math.max.apply(null, vals);
     var anomalia = calcularAnomalia(v.r, v.s, v.t);
@@ -830,7 +1100,7 @@
     var numero = (pontosCache.reduce(function (max, p) { return Math.max(max, p.numero || 0); }, 0)) + 1;
 
     var doc = {
-      numero: numero, cliente: cliente, local: local, quadro: quadro,
+      numero: numero, cliente: cliente, osId: osId, osNumero: osSelecionada.numero, local: local, quadro: quadro,
       tipo: tipo, parte: parte, funcao: funcao, isolacao: isolacao,
       dataHora: dataHora,
       faseR: isNaN(v.r) ? null : v.r, faseS: isNaN(v.s) ? null : v.s, faseT: isNaN(v.t) ? null : v.t,
@@ -1296,6 +1566,8 @@
       document.getElementById('subtitulo-app').textContent = clienteParam;
       document.getElementById('dash-cliente-nome').textContent = '— ' + clienteParam;
       document.getElementById('titulo-lista').innerHTML = '📑 Laudos disponíveis <span class="contador" id="contador"></span>';
+      document.getElementById('sidebar').style.display = 'none';
+      document.getElementById('btn-hamburger').style.display = 'none';
     } else {
       atualizarCalculo();
     }
@@ -1319,6 +1591,32 @@
         console.error('Falha ao iniciar Firebase:', e);
         db = null; fbStorage = null;
       }
+    }
+
+    if (db && !MODO_CLIENTE) {
+      try {
+        db.collection('empresas').orderBy('nome').onSnapshot(function (snap) {
+          empresasCache = snap.docs.map(function (d) {
+            var data = (d.data ? d.data() : d) || {};
+            var copy = {}; for (var k in data) if (Object.prototype.hasOwnProperty.call(data, k)) copy[k] = data[k];
+            copy.id = d.id; return copy;
+          });
+          renderEmpresas();
+        }, function (err) { console.error('Erro ao carregar empresas:', err); });
+      } catch (e) { console.error(e); }
+      try {
+        db.collection('ordens').orderBy('numero', 'desc').onSnapshot(function (snap) {
+          ordensCache = snap.docs.map(function (d) {
+            var data = (d.data ? d.data() : d) || {};
+            var copy = {}; for (var k in data) if (Object.prototype.hasOwnProperty.call(data, k)) copy[k] = data[k];
+            copy.id = d.id; return copy;
+          });
+          renderOrdens();
+        }, function (err) { console.error('Erro ao carregar ordens:', err); });
+      } catch (e) { console.error(e); }
+    } else if (!MODO_CLIENTE) {
+      renderEmpresas();
+      renderOrdens();
     }
 
     if (db) {
