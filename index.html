@@ -12,6 +12,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root {
     --azul: #1F3864;
@@ -96,6 +97,15 @@
   .os-laudos-vazio { font-size: 12.5px; color: var(--texto-suave); }
   .os-laudo-item { background: var(--cinza); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
   .os-laudo-info { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .laudo-check { display: inline-flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; }
+  .laudo-check input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--azul); cursor: pointer; margin: 0; }
+  .os-laudo-info .os-laudo-titulo { flex: 1; }
+  .os-laudos-toolbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--cinza); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-size: 12.5px;
+  }
+  .laudo-check-all { font-weight: 600; }
+  .os-laudos-toolbar button { font-size: 12px; padding: 6px 10px; }
   .os-laudo-titulo { font-size: 13px; font-weight: 600; }
   .os-laudo-item .ponto-actions { margin-top: 6px; }
 
@@ -1418,6 +1428,7 @@
             var c = classificar(p.maxima || 0, p.ambiente || 25);
             return '<div class="os-laudo-item" data-ponto-id="' + p.id + '">' +
               '<div class="os-laudo-info">' +
+                '<label class="laudo-check"><input type="checkbox" class="laudo-select-check" data-os-id="' + o.id + '" data-ponto-id="' + p.id + '"></label>' +
                 '<span class="os-laudo-titulo">#' + p.numero + ' — ' + escapeHtml(p.quadro || 'Sem identificação') + '</span>' +
                 '<span class="badge ' + c.key + '">' + c.label + '</span>' +
               '</div>' +
@@ -1430,10 +1441,16 @@
             '</div>';
           }).join('');
         }
+        var toolbarHtml = laudos.length ?
+          '<div class="os-laudos-toolbar">' +
+            '<label class="laudo-check laudo-check-all"><input type="checkbox" class="os-check-all" data-os-id="' + o.id + '"> Selecionar todos</label>' +
+            '<button class="btn-secondary" data-action="baixar-selecionados" data-os-id="' + o.id + '">⬇ Baixar selecionados</button>' +
+            '<button class="btn-secondary" data-action="baixar-todos-os" data-os-id="' + o.id + '">⬇ Baixar toda a OS (' + laudos.length + ')</button>' +
+          '</div>' : '';
         return '<div class="os-item" data-id="' + o.id + '">' +
           '<div class="nome">OS-' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">Aberta</span></div>' +
           '<div class="sub">' + escapeHtml(o.descricao || 'Sem descrição') + (o.dataAbertura ? ' · ' + o.dataAbertura : '') + '</div>' +
-          '<div class="os-laudos"><div class="os-laudos-titulo">Laudos' + (filtroSeveridade ? ' ' + SEVERIDADE_LABEL[filtroSeveridade] : '') + ' desta OS (' + laudos.length + ')</div>' + laudosHtml + '</div>' +
+          '<div class="os-laudos"><div class="os-laudos-titulo">Laudos' + (filtroSeveridade ? ' ' + SEVERIDADE_LABEL[filtroSeveridade] : '') + ' desta OS (' + laudos.length + ')</div>' + toolbarHtml + laudosHtml + '</div>' +
           (filtroSeveridade ? '' : '<div class="ponto-actions"><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir OS</button></div>') +
         '</div>';
       }).join('');
@@ -1498,6 +1515,31 @@
           toast('OS excluída.');
         }
       });
+      return;
+    }
+    var btnTodos = e.target.closest('button[data-action="baixar-todos-os"]');
+    if (btnTodos) {
+      var osIdTodos = btnTodos.getAttribute('data-os-id');
+      var osRef = ordensCache.find(function (o) { return o.id === osIdTodos; });
+      var pontosDaOs = aplicarFiltroSeveridade(pontosCache.filter(function (p) { return p.osId === osIdTodos; }));
+      baixarVariosPdfs(pontosDaOs, 'OS-' + (osRef ? osRef.numero : osIdTodos) + '_laudos.zip');
+      return;
+    }
+    var btnSel = e.target.closest('button[data-action="baixar-selecionados"]');
+    if (btnSel) {
+      var osIdSel = btnSel.getAttribute('data-os-id');
+      var checks = document.querySelectorAll('.laudo-select-check[data-os-id="' + osIdSel + '"]:checked');
+      var idsSelecionados = Array.prototype.map.call(checks, function (c) { return c.getAttribute('data-ponto-id'); });
+      var pontosSelecionados = pontosCache.filter(function (p) { return idsSelecionados.indexOf(p.id) !== -1; });
+      var osRefSel = ordensCache.find(function (o) { return o.id === osIdSel; });
+      baixarVariosPdfs(pontosSelecionados, 'OS-' + (osRefSel ? osRefSel.numero : osIdSel) + '_selecionados.zip');
+      return;
+    }
+    var checkAll = e.target.closest('input.os-check-all');
+    if (checkAll) {
+      var osIdAll = checkAll.getAttribute('data-os-id');
+      var todosChecks = document.querySelectorAll('.laudo-select-check[data-os-id="' + osIdAll + '"]');
+      Array.prototype.forEach.call(todosChecks, function (c) { c.checked = checkAll.checked; });
       return;
     }
     var btnPonto = e.target.closest('button[data-ponto-id]');
@@ -2243,16 +2285,17 @@
     if (e.target.id === 'pdf-modal') fecharModal();
   });
 
-  async function salvarBlobComoArquivo(blob, filename) {
+  async function salvarBlobComoArquivo(blob, filename, mensagem) {
+    mensagem = mensagem || 'PDF gerado.';
     if (downloads) {
-      try { await downloads.save({ filename: filename, data: blob }); toast('PDF gerado.'); return; }
+      try { await downloads.save({ filename: filename, data: blob }); toast(mensagem); return; }
       catch (err) { toast('Download não confirmado.'); return; }
     }
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
-    toast('PDF gerado.');
+    toast(mensagem);
   }
   document.getElementById('modal-download').addEventListener('click', function () {
     if (pontoModalAtual) baixarPdf(pontoModalAtual);
@@ -2265,6 +2308,25 @@
     } catch (fatalErr) {
       console.error('Erro ao gerar PDF:', fatalErr);
       toast('Erro ao gerar PDF: ' + (fatalErr && fatalErr.message ? fatalErr.message : fatalErr));
+    }
+  }
+
+  async function baixarVariosPdfs(pontos, nomeZip) {
+    if (!pontos.length) { toast('Nenhum laudo para baixar.'); return; }
+    if (pontos.length === 1) { await baixarPdf(pontos[0]); return; }
+    if (typeof JSZip === 'undefined') { toast('Biblioteca de ZIP ainda carregando, tente novamente em instantes.'); return; }
+    toast('Gerando ' + pontos.length + ' laudo(s)...');
+    try {
+      var zip = new JSZip();
+      for (var i = 0; i < pontos.length; i++) {
+        var built = await construirPdf(pontos[i]);
+        zip.file(built.filename, built.blob);
+      }
+      var zipBlob = await zip.generateAsync({ type: 'blob' });
+      await salvarBlobComoArquivo(zipBlob, nomeZip, 'Arquivo ZIP com ' + pontos.length + ' laudo(s) gerado.');
+    } catch (err) {
+      console.error('Erro ao gerar ZIP:', err);
+      toast('Erro ao gerar o arquivo ZIP.');
     }
   }
 
