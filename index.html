@@ -345,6 +345,27 @@
 
   .vazio { animation: fadeIn .3s ease both; }
   #bloco-critico { animation: fadeInUp .3s ease both; }
+
+  #fab-novo-laudo {
+    position: fixed;
+    right: calc(18px + env(safe-area-inset-right, 0px));
+    bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    width: 58px; height: 58px; border-radius: 50%;
+    background: linear-gradient(135deg, #2E7CFF, #1657D6);
+    color: #fff; font-size: 30px; font-weight: 400; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 20px rgba(23,87,214,.45), 0 2px 6px rgba(0,0,0,.2);
+    z-index: 25; border: none; cursor: pointer;
+    transition: transform .2s ease, box-shadow .2s ease;
+    animation: fabPulse 2.4s ease-in-out infinite;
+  }
+  #fab-novo-laudo:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 10px 26px rgba(23,87,214,.55), 0 3px 8px rgba(0,0,0,.25); }
+  #fab-novo-laudo:active { transform: scale(.92); }
+  @keyframes fabPulse {
+    0%, 100% { box-shadow: 0 6px 20px rgba(23,87,214,.45), 0 2px 6px rgba(0,0,0,.2), 0 0 0 0 rgba(46,124,255,.5); }
+    50% { box-shadow: 0 6px 20px rgba(23,87,214,.45), 0 2px 6px rgba(0,0,0,.2), 0 0 0 8px rgba(46,124,255,0); }
+  }
+  @media (min-width: 861px) { #fab-novo-laudo { right: calc(30px + env(safe-area-inset-right, 0px)); bottom: 30px; } }
 </style>
 </head>
 <body>
@@ -596,6 +617,8 @@
 
 <div class="toast" id="toast"></div>
 
+<button id="fab-novo-laudo" aria-label="Novo laudo" title="Novo laudo">+</button>
+
 <div class="modal-overlay" id="pdf-modal">
   <div class="modal-box">
     <div class="modal-header">
@@ -675,9 +698,14 @@
       renderOrdens();
       if (filtroEmpresaOrdens) document.getElementById('os-empresa').value = filtroEmpresaOrdens.id;
     }
+    var fab = document.getElementById('fab-novo-laudo');
+    fab.style.display = (MODO_CLIENTE || nome === 'novo') ? 'none' : 'flex';
     fecharSidebar();
     window.scrollTo(0, 0);
   }
+  document.getElementById('fab-novo-laudo').addEventListener('click', function () {
+    mostrarView('novo');
+  });
   document.querySelectorAll('.nav-item').forEach(function (btn) {
     btn.addEventListener('click', function () {
       if (btn.getAttribute('data-view') === 'ordens') filtroEmpresaOrdens = null;
@@ -2344,6 +2372,7 @@
       document.getElementById('titulo-lista').innerHTML = '📑 Laudos disponíveis <span class="contador" id="contador"></span>';
       document.getElementById('sidebar').style.display = 'none';
       document.getElementById('btn-hamburger').style.display = 'none';
+      document.getElementById('fab-novo-laudo').style.display = 'none';
     } else {
       atualizarCalculo();
     }
