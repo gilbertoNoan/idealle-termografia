@@ -750,6 +750,32 @@
     setTimeout(function () { t.classList.remove('show'); }, 2500);
   }
 
+  function copiarParaAreaDeTransferencia(texto, mensagemSucesso) {
+    function fallback() {
+      try {
+        var temp = document.createElement('textarea');
+        temp.value = texto;
+        temp.style.position = 'fixed';
+        temp.style.opacity = '0';
+        document.body.appendChild(temp);
+        temp.focus(); temp.select();
+        var ok = document.execCommand('copy');
+        document.body.removeChild(temp);
+        if (ok) { toast(mensagemSucesso); return; }
+      } catch (e) {}
+      mostrarLinkModal(texto);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(function () { toast(mensagemSucesso); }).catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  function mostrarLinkModal(link) {
+    window.prompt('Não consegui copiar automaticamente. Copie o link abaixo:', link);
+  }
+
   function nowLocalInputValue() {
     var d = new Date();
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -1034,6 +1060,7 @@
 
   var MODO_CLIENTE = false;
   var CLIENTE_ATUAL = null;
+  var OS_ATUAL = null;
 
   function classeResumo(key) {
     if (key === 'normal') return 'ok';
@@ -1479,7 +1506,7 @@
           '<div class="nome">OS-' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">Aberta</span></div>' +
           '<div class="sub">' + escapeHtml(o.descricao || 'Sem descrição') + (o.dataAbertura ? ' · ' + o.dataAbertura : '') + '</div>' +
           '<div class="os-laudos"><div class="os-laudos-titulo">Laudos' + (filtroSeveridade ? ' ' + SEVERIDADE_LABEL[filtroSeveridade] : '') + ' desta OS (' + laudos.length + ')</div>' + toolbarHtml + laudosHtml + '</div>' +
-          (filtroSeveridade ? '' : '<div class="ponto-actions"><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir OS</button></div>') +
+          (filtroSeveridade ? '' : '<div class="ponto-actions"><button class="btn-secondary" data-action="link-cliente-os" data-id="' + o.id + '">🔗 Link do cliente</button><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir OS</button></div>') +
         '</div>';
       }).join('');
     }
@@ -1528,6 +1555,16 @@
   });
 
   document.getElementById('lista-ordens').addEventListener('click', function (e) {
+    var btnLink = e.target.closest('button[data-action="link-cliente-os"]');
+    if (btnLink) {
+      var idLink = btnLink.getAttribute('data-id');
+      var osLink = ordensCache.find(function (x) { return x.id === idLink; });
+      if (!osLink) return;
+      var base = window.location.origin + window.location.pathname;
+      var link = base + '?cliente=' + encodeURIComponent(osLink.empresaNome || '') + '&os=' + encodeURIComponent(osLink.id);
+      copiarParaAreaDeTransferencia(link, 'Link da OS-' + osLink.numero + ' copiado!');
+      return;
+    }
     var btnOs = e.target.closest('button[data-action="del-os"]');
     if (btnOs) {
       var id = btnOs.getAttribute('data-id');
@@ -2362,13 +2399,15 @@
   async function init() {
     var params = new URLSearchParams(window.location.search);
     var clienteParam = (params.get('cliente') || '').trim();
+    var osParam = (params.get('os') || '').trim();
     if (clienteParam) {
       MODO_CLIENTE = true;
       CLIENTE_ATUAL = clienteParam;
+      OS_ATUAL = osParam || null;
       document.getElementById('card-form').style.display = 'none';
       document.getElementById('titulo-app').textContent = 'Portal do Cliente';
-      document.getElementById('subtitulo-app').textContent = clienteParam;
-      document.getElementById('dash-cliente-nome').textContent = '— ' + clienteParam;
+      document.getElementById('subtitulo-app').textContent = clienteParam + (osParam ? ' — acesso restrito a uma OS' : '');
+      document.getElementById('dash-cliente-nome').textContent = '— ' + clienteParam + (osParam ? ' (OS específica)' : '');
       document.getElementById('titulo-lista').innerHTML = '📑 Laudos disponíveis <span class="contador" id="contador"></span>';
       document.getElementById('sidebar').style.display = 'none';
       document.getElementById('btn-hamburger').style.display = 'none';
@@ -2428,7 +2467,13 @@
     if (db) {
       try {
         var query = db.collection('pontos');
-        query = MODO_CLIENTE ? query.where('cliente', '==', CLIENTE_ATUAL).orderBy('numero', 'desc') : query.orderBy('numero', 'desc');
+        if (MODO_CLIENTE) {
+          query = query.where('cliente', '==', CLIENTE_ATUAL);
+          if (OS_ATUAL) query = query.where('osId', '==', OS_ATUAL);
+          query = query.orderBy('numero', 'desc');
+        } else {
+          query = query.orderBy('numero', 'desc');
+        }
         query.onSnapshot(function (snap) {
           try {
             pontosCache = snap.docs.map(function (d) {
