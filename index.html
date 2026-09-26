@@ -1067,7 +1067,7 @@
           }).join('');
         }
         return '<div class="os-item" data-id="' + o.id + '">' +
-          '<div class="nome">OS #' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">Aberta</span></div>' +
+          '<div class="nome">OS-' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">Aberta</span></div>' +
           '<div class="sub">' + escapeHtml(o.descricao || 'Sem descrição') + (o.dataAbertura ? ' · ' + o.dataAbertura : '') + '</div>' +
           '<div class="os-laudos"><div class="os-laudos-titulo">Laudos desta OS (' + laudos.length + ')</div>' + laudosHtml + '</div>' +
           '<div class="ponto-actions"><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir OS</button></div>' +
@@ -1077,7 +1077,7 @@
     var selF = document.getElementById('f-os');
     var atualF = selF.value;
     selF.innerHTML = '<option value="">Selecione uma OS…</option>' +
-      ordensCache.map(function (o) { return '<option value="' + o.id + '">OS #' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + '</option>'; }).join('');
+      ordensCache.map(function (o) { return '<option value="' + o.id + '">OS-' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + '</option>'; }).join('');
     if (atualF) selF.value = atualF;
     document.getElementById('aviso-sem-os').style.display = ordensCache.length ? 'none' : 'block';
     sugerirProximoNumeroOS();
@@ -1111,7 +1111,7 @@
         ordensCache.unshift(doc);
         renderOrdens();
       }
-      toast('OS #' + numero + ' salva.');
+      toast('OS-' + numero + ' salva.');
       document.getElementById('os-empresa').value = '';
       document.getElementById('os-descricao').value = '';
       document.getElementById('os-data').value = '';
@@ -1128,7 +1128,7 @@
       var id = btnOs.getAttribute('data-id');
       var os = ordensCache.find(function (x) { return x.id === id; });
       if (!os) return;
-      confirmarAcao('Excluir a OS #' + os.numero + '? Os laudos já lançados nela não serão apagados.').then(function (ok) {
+      confirmarAcao('Excluir a OS-' + os.numero + '? Os laudos já lançados nela não serão apagados.').then(function (ok) {
         if (!ok) return;
         if (db) {
           db.collection('ordens').doc(id).delete().then(function () { toast('OS excluída.'); }).catch(function () { toast('Não foi possível excluir.'); });
