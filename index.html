@@ -2514,10 +2514,11 @@
     if (db) {
       try {
         var query = db.collection('pontos');
+        var ordenarLocal = false;
         if (MODO_CLIENTE) {
           query = query.where('cliente', '==', CLIENTE_ATUAL);
           if (OS_ATUAL) query = query.where('osId', '==', OS_ATUAL);
-          query = query.orderBy('numero', 'desc');
+          ordenarLocal = true; // evita exigir índice composto no Firestore
         } else {
           query = query.orderBy('numero', 'desc');
         }
@@ -2530,6 +2531,7 @@
               copy.id = d.id;
               return copy;
             });
+            if (ordenarLocal) pontosCache.sort(function (a, b) { return (b.numero || 0) - (a.numero || 0); });
             renderLista();
           } catch (innerErr) {
             console.error('Erro processando pontos:', innerErr);
@@ -2537,7 +2539,10 @@
           }
         }, function (err) {
           console.error('Erro de sincronização:', err);
-          toast(MODO_CLIENTE ? 'Não foi possível carregar os laudos agora.' : 'Sincronização indisponível.');
+          toast(MODO_CLIENTE ? ('Não foi possível carregar os laudos agora' + (err && err.message ? (': ' + err.message) : '') + '.') : 'Sincronização indisponível.');
+          if (MODO_CLIENTE) {
+            document.getElementById('card-lista').innerHTML = '<div class="aviso"><h2>Erro ao carregar</h2><p>' + escapeHtml((err && err.message) || 'Não foi possível carregar os laudos agora.') + '</p></div>';
+          }
         });
       } catch (e) {
         console.error(e);
