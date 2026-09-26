@@ -1343,23 +1343,22 @@
     // header bar
     doc.setFillColor(azul[0], azul[1], azul[2]);
     doc.rect(0, 0, pageW, 20, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
-    doc.text('LAUDO DE INSPEÇÃO TERMOGRÁFICA', margin, 12);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-    doc.text('Ponto nº ' + ponto.numero, margin, 17.5);
     try {
       var logoProps = doc.getImageProperties(LOGO_DATA_URL);
       var logoH = 8.5, logoW = logoH * (logoProps.width / logoProps.height);
       doc.setFillColor(255, 255, 255);
-      doc.roundedRect(pageW - margin - logoW - 3, 2.8, logoW + 3, logoH + 2, 1.2, 1.2, 'F');
-      doc.addImage(LOGO_DATA_URL, pageW - margin - logoW - 1.5, 3.8, logoW, logoH);
+      doc.roundedRect(margin, 2.8, logoW + 3, logoH + 2, 1.2, 1.2, 'F');
+      doc.addImage(LOGO_DATA_URL, margin + 1.5, 3.8, logoW, logoH);
     } catch (e) {
+      doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-      doc.text('IDEALLE Inspeções e Serviços', pageW - margin, 12, { align: 'right' });
+      doc.text('IDEALLE Inspeções e Serviços', margin, 12);
     }
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255);
-    doc.text(fmtData(ponto.dataHora), pageW - margin, 17.5, { align: 'right' });
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+    doc.text('LAUDO DE INSPEÇÃO TERMOGRÁFICA', pageW - margin, 12, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+    doc.text('Ponto nº ' + ponto.numero + '  ·  ' + fmtData(ponto.dataHora), pageW - margin, 17.5, { align: 'right' });
     y = 25;
 
     // identification strip
@@ -1550,8 +1549,8 @@
 
     return (
       '<div class="lp-header">' +
-        '<div><div class="lp-h-title">LAUDO DE INSPEÇÃO TERMOGRÁFICA</div><div class="lp-h-sub">Ponto nº ' + escapeHtmlPreview(ponto.numero) + '</div></div>' +
-        '<div class="lp-h-right"><img src="' + LOGO_DATA_URL + '" alt="IDEALLE" style="height:22px;background:#fff;border-radius:4px;padding:2px 5px;display:block;margin-left:auto;"><div style="margin-top:4px;">' + escapeHtmlPreview(fmtData(ponto.dataHora)) + '</div></div>' +
+        '<div><img src="' + LOGO_DATA_URL + '" alt="IDEALLE" style="height:22px;background:#fff;border-radius:4px;padding:2px 5px;display:block;"></div>' +
+        '<div class="lp-h-right"><div class="lp-h-title">LAUDO DE INSPEÇÃO TERMOGRÁFICA</div><div class="lp-h-sub">Ponto nº ' + escapeHtmlPreview(ponto.numero) + ' · ' + escapeHtmlPreview(fmtData(ponto.dataHora)) + '</div></div>' +
       '</div>' +
       '<div class="lp-idstrip">' +
         '<div class="lp-idbox"><div class="k">Cliente</div><div class="v">' + escapeHtmlPreview(ponto.cliente || '—') + '</div></div>' +
