@@ -465,6 +465,8 @@
     <label>Empresa</label>
     <select id="os-empresa"><option value="">Selecione a empresa…</option></select>
     <p class="ajuda-campo" id="aviso-sem-empresa" style="display:none;">Cadastre uma empresa primeiro na aba "Empresas".</p>
+    <label>Número da OS</label>
+    <input type="text" id="os-numero" placeholder="Ex.: 1024" />
     <label>Descrição / Escopo</label>
     <input type="text" id="os-descricao" placeholder="Ex.: Inspeção termográfica trimestral" />
     <label>Data de abertura</label>
@@ -1006,6 +1008,16 @@
   // ---------- Ordens de Serviço ----------
   var ordensCache = [];
 
+  function sugerirProximoNumeroOS() {
+    var campo = document.getElementById('os-numero');
+    if (campo.value.trim()) return;
+    var proximo = (ordensCache.reduce(function (max, o) {
+      var n = parseInt(o.numero, 10);
+      return isNaN(n) ? max : Math.max(max, n);
+    }, 0)) + 1;
+    campo.value = proximo;
+  }
+
   function renderOrdens() {
     var lista = document.getElementById('lista-ordens');
     var contador = document.getElementById('contador-ordens');
@@ -1062,6 +1074,7 @@
       ordensCache.map(function (o) { return '<option value="' + o.id + '">OS #' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + '</option>'; }).join('');
     if (atualF) selF.value = atualF;
     document.getElementById('aviso-sem-os').style.display = ordensCache.length ? 'none' : 'block';
+    sugerirProximoNumeroOS();
   }
 
   document.getElementById('btn-voltar-empresas').addEventListener('click', function () {
@@ -1073,9 +1086,13 @@
     var empresaId = document.getElementById('os-empresa').value;
     var empresa = empresasCache.find(function (e) { return e.id === empresaId; });
     if (!empresa) { toast('Selecione a empresa.'); return; }
+    var numeroTxt = document.getElementById('os-numero').value.trim();
+    if (!numeroTxt) { toast('Informe o número da OS.'); return; }
+    var jaExiste = ordensCache.some(function (o) { return String(o.numero) === numeroTxt; });
+    if (jaExiste) { toast('Já existe uma OS com esse número.'); return; }
+    var numero = /^\d+$/.test(numeroTxt) ? parseInt(numeroTxt, 10) : numeroTxt;
     var descricao = document.getElementById('os-descricao').value.trim();
     var dataAbertura = document.getElementById('os-data').value;
-    var numero = (ordensCache.reduce(function (max, o) { return Math.max(max, o.numero || 0); }, 0)) + 1;
     var doc = {
       numero: numero, empresaId: empresaId, empresaNome: empresa.nome,
       descricao: descricao, dataAbertura: dataAbertura, createdAt: new Date().toISOString()
@@ -1092,6 +1109,7 @@
       document.getElementById('os-empresa').value = '';
       document.getElementById('os-descricao').value = '';
       document.getElementById('os-data').value = '';
+      sugerirProximoNumeroOS();
     } catch (err) {
       console.error(err);
       toast('Não foi possível salvar a OS.');
