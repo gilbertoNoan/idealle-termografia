@@ -2460,25 +2460,28 @@
     }
 
     try {
-      if (window.claude && typeof window.claude.use === 'function') {
-        db = await window.claude.use('db');
-        if (!MODO_CLIENTE) {
-          assets = await window.claude.use('assets');
-          downloads = await window.claude.use('downloads');
-        }
-      }
-    } catch (e) {}
-
-    if (!db && FIREBASE_CONFIGURADO && typeof firebase !== 'undefined') {
-      try {
+      if (FIREBASE_CONFIGURADO && typeof firebase !== 'undefined') {
         firebase.initializeApp(FIREBASE_CONFIG);
         db = firebase.firestore();
         // Storage não é usado (exige plano pago) — fotos são comprimidas e salvas
         // como documentos na coleção "fotos" do próprio Firestore, sem custo.
-      } catch (e) {
-        console.error('Falha ao iniciar Firebase:', e);
-        db = null;
+        // O Firebase é a fonte única de dados sempre que estiver configurado,
+        // seja aqui dentro do Claude ou no site publicado — assim os dois
+        // lugares mostram exatamente as mesmas empresas, OS e laudos.
       }
+    } catch (e) {
+      console.error('Falha ao iniciar Firebase:', e);
+      db = null;
+    }
+
+    if (!db && window.claude && typeof window.claude.use === 'function') {
+      try {
+        db = await window.claude.use('db');
+        if (!MODO_CLIENTE) assets = await window.claude.use('assets');
+      } catch (e) {}
+    }
+    if (window.claude && typeof window.claude.use === 'function' && !MODO_CLIENTE) {
+      try { downloads = await window.claude.use('downloads'); } catch (e) {}
     }
 
     if (db && !MODO_CLIENTE) {
