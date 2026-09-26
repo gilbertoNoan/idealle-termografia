@@ -282,6 +282,59 @@
   .lp-footer .lp-crea { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); height: 26px; }
   .modal-actions { padding: 10px 14px; flex-shrink: 0; border-top: 1px solid var(--borda); }
   .modal-actions button { width: 100%; padding: 12px; }
+
+  /* ---------- modern touches: transitions & micro-animations ---------- */
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes scaleIn { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
+  @keyframes pulseCritico { 0% { box-shadow: 0 0 0 0 rgba(255,0,0,.45); } 70% { box-shadow: 0 0 0 7px rgba(255,0,0,0); } 100% { box-shadow: 0 0 0 0 rgba(255,0,0,0); } }
+  @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: calc(200px + 100%) 0; } }
+
+  header { background: linear-gradient(135deg, var(--azul) 0%, #16294d 100%); }
+  .sidebar { background: linear-gradient(180deg, #14213f 0%, #0d1730 100%); }
+  .modal-header { background: linear-gradient(135deg, var(--azul) 0%, #16294d 100%); }
+
+  button { transition: transform .15s ease, box-shadow .2s ease, background-color .2s ease, opacity .2s ease; }
+  button:active { transform: scale(.96); }
+  .btn-primary { box-shadow: 0 2px 8px rgba(31,56,100,.25); }
+  .btn-primary:hover { box-shadow: 0 4px 14px rgba(31,56,100,.35); transform: translateY(-1px); }
+  .btn-secondary:hover { filter: brightness(0.97); }
+  .btn-hamburger, .modal-header button { transition: transform .15s ease, background-color .2s ease; }
+  .btn-hamburger:active, .modal-header button:active { transform: scale(.9) rotate(-4deg); }
+
+  .card, .dash-card, .ponto, .empresa-item, .os-item, .os-laudo-item {
+    animation: fadeInUp .35s ease both;
+    transition: box-shadow .2s ease, transform .15s ease;
+  }
+  .card:hover { box-shadow: 0 4px 18px rgba(20,30,60,.08); }
+  .dash-card { transition: transform .15s ease, box-shadow .2s ease; }
+  .dash-card:active { transform: scale(.95); }
+  .dash-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.12); }
+
+  .nav-item { transition: background-color .2s ease, padding-left .2s ease, color .2s ease; border-left: 3px solid transparent; }
+  .nav-item.active { border-left: 3px solid #fff; }
+  .nav-item:hover:not(.active) { padding-left: 20px; }
+
+  .badge.critico { animation: pulseCritico 1.8s infinite; }
+
+  input[type=text], input[type=number], input[type=datetime-local], textarea, select {
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  input[type=text]:focus, input[type=number]:focus, input[type=datetime-local]:focus, textarea:focus, select:focus {
+    outline: none; border-color: var(--azul); box-shadow: 0 0 0 3px rgba(31,56,100,.12);
+  }
+
+  .toast { transition: opacity .3s ease, transform .3s ease; transform: translate(-50%, 8px); }
+  .toast.show { transform: translate(-50%, 0); }
+
+  .modal-overlay .modal-box { animation: scaleIn .25s ease both; }
+  .view { animation: fadeIn .25s ease both; }
+
+  .foto-wrap, .radio-opt, .dash-card, .empresa-item, .os-item, .ponto { transition: border-color .2s ease, background-color .2s ease; }
+  .foto-wrap:hover { border-color: var(--azul); }
+
+  .vazio { animation: fadeIn .3s ease both; }
+  #bloco-critico { animation: fadeInUp .3s ease both; }
 </style>
 </head>
 <body>
@@ -950,6 +1003,22 @@
     return 'atencao'; // baixo, medio, alto
   }
 
+  function animarNumero(el, valorFinal) {
+    var valorAtual = parseInt(el.getAttribute('data-val') || '0', 10);
+    if (valorAtual === valorFinal) return;
+    el.setAttribute('data-val', valorFinal);
+    var duracao = 450, inicio = null, valorInicial = valorAtual;
+    function passo(ts) {
+      if (!inicio) inicio = ts;
+      var progresso = Math.min((ts - inicio) / duracao, 1);
+      var atual = Math.round(valorInicial + (valorFinal - valorInicial) * (1 - Math.pow(1 - progresso, 3)));
+      el.textContent = atual;
+      if (progresso < 1) requestAnimationFrame(passo);
+      else el.textContent = valorFinal;
+    }
+    requestAnimationFrame(passo);
+  }
+
   function atualizarDashboard() {
     var total = pontosCache.length;
     var ok = 0, atencao = 0, critico = 0;
@@ -958,10 +1027,10 @@
       var r = classeResumo(c.key);
       if (r === 'ok') ok++; else if (r === 'critico') critico++; else atencao++;
     });
-    document.getElementById('dash-total').textContent = total;
-    document.getElementById('dash-ok').textContent = ok;
-    document.getElementById('dash-atencao').textContent = atencao;
-    document.getElementById('dash-critico').textContent = critico;
+    animarNumero(document.getElementById('dash-total'), total);
+    animarNumero(document.getElementById('dash-ok'), ok);
+    animarNumero(document.getElementById('dash-atencao'), atencao);
+    animarNumero(document.getElementById('dash-critico'), critico);
   }
 
   function renderLista() {
