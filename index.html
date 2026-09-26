@@ -439,6 +439,7 @@
     <textarea id="f-obs" placeholder="Ex.: possível mau contato na conexão, recomenda-se reaperto..."></textarea>
 
     <button class="btn-primary" id="btn-salvar">Salvar ponto</button>
+    <button class="btn-secondary" id="btn-cancelar-edicao" style="display:none; width:100%; margin-top:8px;">Cancelar edição</button>
   </div>
   </section>
 
@@ -616,6 +617,8 @@
   var fotoVisualBlob = null, fotoVisualDataUrl = null;
   var fotoTermicaBlob = null, fotoTermicaDataUrl = null;
   var pontosCache = [];
+  var editandoPontoId = null;
+  var editandoPontoOriginal = null;
 
   function toast(msg) {
     var t = document.getElementById('toast');
@@ -684,6 +687,19 @@
     var sel = document.getElementById(selectId);
     if (sel.value === 'Outro') return document.getElementById(outroId).value.trim();
     return sel.value;
+  }
+  function setSelectComOutro(selectId, outroId, valor) {
+    var sel = document.getElementById(selectId);
+    var outro = document.getElementById(outroId);
+    valor = valor || '';
+    var temOpcao = Array.prototype.some.call(sel.options, function (o) { return o.value === valor; });
+    if (!valor) {
+      sel.value = ''; outro.value = ''; outro.style.display = 'none';
+    } else if (temOpcao) {
+      sel.value = valor; outro.value = ''; outro.style.display = 'none';
+    } else {
+      sel.value = 'Outro'; outro.value = valor; outro.style.display = 'block';
+    }
   }
 
   function atualizarCalculo() {
@@ -786,6 +802,11 @@
     limparFoto('foto-wrap-visual', 'foto-label-visual', 'Toque p/ foto');
     limparFoto('foto-wrap-termica', 'foto-label-termica', 'Toque p/ foto');
     atualizarCalculo();
+    editandoPontoId = null;
+    editandoPontoOriginal = null;
+    document.getElementById('f-os').disabled = false;
+    document.getElementById('btn-salvar').textContent = 'Salvar ponto';
+    document.getElementById('btn-cancelar-edicao').style.display = 'none';
   }
 
   function fmtData(iso) {
@@ -856,6 +877,7 @@
         '<div class="ponto-actions">' +
           '<button class="btn-secondary" data-action="ver" data-id="' + p.id + '">👁 Visualizar</button>' +
           '<button class="btn-secondary" data-action="pdf" data-id="' + p.id + '">⬇ Baixar</button>' +
+          (MODO_CLIENTE ? '' : '<button class="btn-secondary" data-action="editar" data-id="' + p.id + '">✏️ Editar</button>') +
           (MODO_CLIENTE ? '' : '<button class="btn-danger" data-action="del" data-id="' + p.id + '">Excluir</button>') +
         '</div>' +
       '</div>';
@@ -872,6 +894,7 @@
     var action = btn.getAttribute('data-action');
     if (action === 'pdf') baixarPdf(ponto);
     else if (action === 'ver') visualizarPdf(ponto);
+    else if (action === 'editar') editarPonto(ponto);
     else if (action === 'del') {
       confirmarAcao('Excluir o ponto #' + ponto.numero + '?').then(function (ok) { if (ok) excluirPonto(ponto); });
     }
@@ -1165,6 +1188,7 @@
               '<div class="ponto-actions">' +
                 '<button class="btn-secondary" data-action="ver-ponto" data-ponto-id="' + p.id + '">👁 Ver</button>' +
                 '<button class="btn-secondary" data-action="pdf-ponto" data-ponto-id="' + p.id + '">⬇ Baixar</button>' +
+                (filtroSeveridade ? '' : '<button class="btn-secondary" data-action="editar-ponto" data-ponto-id="' + p.id + '">✏️ Editar</button>') +
                 (filtroSeveridade ? '' : '<button class="btn-danger" data-action="del-ponto" data-ponto-id="' + p.id + '">Excluir</button>') +
               '</div>' +
             '</div>';
@@ -1252,6 +1276,7 @@
     var action = btnPonto.getAttribute('data-action');
     if (action === 'pdf-ponto') baixarPdf(ponto);
     else if (action === 'ver-ponto') visualizarPdf(ponto);
+    else if (action === 'editar-ponto') editarPonto(ponto);
     else if (action === 'del-ponto') {
       confirmarAcao('Excluir o laudo #' + ponto.numero + '?').then(function (ok) { if (ok) excluirPonto(ponto); });
     }
@@ -1302,15 +1327,30 @@
     btn.textContent = 'Salvando...';
 
     var fotoVisualId = null, fotoTermicaId = null, fotoVisualUrl = null, fotoTermicaUrl = null;
+    var fotoVisualDataUrlFinal = fotoVisualDataUrl || null;
+    var fotoTermicaDataUrlFinal = fotoTermicaDataUrl || null;
     try {
-      if (fotoVisualBlob) { var r1 = await uploadFoto(fotoVisualBlob); fotoVisualId = r1.id; fotoVisualUrl = r1.url; }
-      if (fotoTermicaBlob) { var r2 = await uploadFoto(fotoTermicaBlob); fotoTermicaId = r2.id; fotoTermicaUrl = r2.url; }
+      if (fotoVisualBlob) {
+        var r1 = await uploadFoto(fotoVisualBlob); fotoVisualId = r1.id; fotoVisualUrl = r1.url;
+      } else if (editandoPontoOriginal) {
+        fotoVisualId = editandoPontoOriginal.fotoVisualId || null;
+        fotoVisualUrl = editandoPontoOriginal.fotoVisualUrl || null;
+        fotoVisualDataUrlFinal = editandoPontoOriginal.fotoVisualDataUrl || null;
+      }
+      if (fotoTermicaBlob) {
+        var r2 = await uploadFoto(fotoTermicaBlob); fotoTermicaId = r2.id; fotoTermicaUrl = r2.url;
+      } else if (editandoPontoOriginal) {
+        fotoTermicaId = editandoPontoOriginal.fotoTermicaId || null;
+        fotoTermicaUrl = editandoPontoOriginal.fotoTermicaUrl || null;
+        fotoTermicaDataUrlFinal = editandoPontoOriginal.fotoTermicaDataUrl || null;
+      }
     } catch (err) {
       console.error(err);
       toast('Falha ao salvar alguma foto — ponto será salvo mesmo assim.');
     }
 
-    var numero = (pontosCache.reduce(function (max, p) { return Math.max(max, p.numero || 0); }, 0)) + 1;
+    var editando = !!editandoPontoId;
+    var numero = editando ? editandoPontoOriginal.numero : (pontosCache.reduce(function (max, p) { return Math.max(max, p.numero || 0); }, 0)) + 1;
 
     var doc = {
       numero: numero, cliente: cliente, osId: osId, osNumero: osSelecionada.numero, local: local, quadro: quadro,
@@ -1322,15 +1362,33 @@
       classificacao: classe.label, prioridade: classe.prioridade,
       observacao: obs,
       fotoVisualId: fotoVisualId, fotoVisualUrl: fotoVisualUrl,
-      fotoVisualDataUrl: (fotoVisualId || fotoVisualUrl) ? null : (fotoVisualDataUrl || null),
+      fotoVisualDataUrl: (fotoVisualId || fotoVisualUrl) ? null : fotoVisualDataUrlFinal,
       fotoTermicaId: fotoTermicaId, fotoTermicaUrl: fotoTermicaUrl,
-      fotoTermicaDataUrl: (fotoTermicaId || fotoTermicaUrl) ? null : (fotoTermicaDataUrl || null),
-      createdAt: new Date().toISOString()
+      fotoTermicaDataUrl: (fotoTermicaId || fotoTermicaUrl) ? null : fotoTermicaDataUrlFinal,
+      createdAt: editando ? (editandoPontoOriginal.createdAt || new Date().toISOString()) : new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     try {
-      if (db) {
+      if (editando) {
+        if (db) {
+          await db.collection('pontos').doc(editandoPontoId).set(doc);
+        } else {
+          doc.id = editandoPontoId;
+          try {
+            await localDbPut(doc);
+            await recarregarListaLocal();
+          } catch (idbErr) {
+            console.error('IndexedDB indisponível:', idbErr);
+            var idx = pontosCache.findIndex(function (p) { return p.id === editandoPontoId; });
+            if (idx !== -1) pontosCache[idx] = doc;
+            renderLista();
+          }
+        }
+        toast('Ponto #' + numero + ' atualizado.');
+      } else if (db) {
         await db.collection('pontos').add(doc);
+        toast('Ponto #' + numero + ' salvo.');
       } else {
         doc.id = 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
         try {
@@ -1341,8 +1399,8 @@
           pontosCache.unshift(doc);
           renderLista();
         }
+        toast('Ponto #' + numero + ' salvo.');
       }
-      toast('Ponto #' + numero + ' salvo.');
       limparFormulario();
     } catch (err) {
       console.error(err);
@@ -1352,6 +1410,65 @@
     btn.textContent = 'Salvar ponto';
   }
   document.getElementById('btn-salvar').addEventListener('click', salvarPonto);
+
+  async function editarPonto(ponto) {
+    editandoPontoId = ponto.id;
+    editandoPontoOriginal = ponto;
+    mostrarView('novo');
+    document.getElementById('f-os').value = ponto.osId || '';
+    document.getElementById('f-os').disabled = true;
+    document.getElementById('f-local').value = ponto.local || '';
+    document.getElementById('f-quadro').value = ponto.quadro || '';
+    setSelectComOutro('f-tipo', 'f-tipo-outro', ponto.tipo);
+    setSelectComOutro('f-parte', 'f-parte-outro', ponto.parte);
+    setSelectComOutro('f-funcao', 'f-funcao-outro', ponto.funcao);
+    atualizarVisibilidadeIsolacao();
+    if (ponto.isolacao) {
+      var radios = document.getElementsByName('f-isolacao');
+      for (var i = 0; i < radios.length; i++) radios[i].checked = (radios[i].value === ponto.isolacao);
+    }
+    document.getElementById('f-data').value = ponto.dataHora || nowLocalInputValue();
+    document.getElementById('f-faser').value = ponto.faseR != null ? ponto.faseR : '';
+    document.getElementById('f-fases').value = ponto.faseS != null ? ponto.faseS : '';
+    document.getElementById('f-faset').value = ponto.faseT != null ? ponto.faseT : '';
+    document.getElementById('f-ambiente').value = ponto.ambiente != null ? ponto.ambiente : 28;
+    document.getElementById('f-emissividade').value = ponto.emissividade != null ? ponto.emissividade : 0.95;
+    document.getElementById('f-obs').value = ponto.observacao || '';
+    fotoVisualBlob = null; fotoTermicaBlob = null;
+    fotoVisualDataUrl = null; fotoTermicaDataUrl = null;
+    document.getElementById('f-foto-visual').value = '';
+    document.getElementById('f-foto-termica').value = '';
+    atualizarCalculo();
+    document.getElementById('btn-salvar').textContent = 'Salvar alterações';
+    document.getElementById('btn-cancelar-edicao').style.display = 'block';
+    toast('Editando ponto #' + ponto.numero + '.');
+
+    try {
+      var imgV = await obterImagemBase64('fotoVisualDataUrl', 'fotoVisualId', ponto, 'fotoVisualUrl');
+      var wrapV = document.getElementById('foto-wrap-visual');
+      var oldV = wrapV.querySelector('img'); if (oldV) oldV.remove();
+      if (imgV) {
+        var iv = document.createElement('img'); iv.src = imgV; wrapV.insertBefore(iv, wrapV.firstChild);
+        document.getElementById('foto-label-visual').textContent = 'Toque p/ trocar';
+      } else {
+        document.getElementById('foto-label-visual').textContent = 'Toque p/ foto';
+      }
+      var imgT = await obterImagemBase64('fotoTermicaDataUrl', 'fotoTermicaId', ponto, 'fotoTermicaUrl');
+      var wrapT = document.getElementById('foto-wrap-termica');
+      var oldT = wrapT.querySelector('img'); if (oldT) oldT.remove();
+      if (imgT) {
+        var it = document.createElement('img'); it.src = imgT; wrapT.insertBefore(it, wrapT.firstChild);
+        document.getElementById('foto-label-termica').textContent = 'Toque p/ trocar';
+      } else {
+        document.getElementById('foto-label-termica').textContent = 'Toque p/ foto';
+      }
+    } catch (e) { console.error('Erro ao carregar fotos existentes:', e); }
+  }
+
+  document.getElementById('btn-cancelar-edicao').addEventListener('click', function () {
+    limparFormulario();
+    mostrarView('dashboard');
+  });
 
   // ---------- image retrieval ----------
   async function obterImagemBase64(dataUrlField, idField, ponto, urlField) {
