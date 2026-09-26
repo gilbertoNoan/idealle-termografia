@@ -451,7 +451,7 @@
     </div>
   </div>
   <div class="card" id="card-nova-empresa">
-    <h2>🏢 Nova empresa</h2>
+    <h2 id="titulo-form-empresa">🏢 Nova empresa</h2>
     <label>Nome da empresa</label>
     <input type="text" id="emp-nome" placeholder="Ex.: Fábrica ABC Ltda" />
     <div class="row2">
@@ -461,6 +461,7 @@
     <label>E-mail</label>
     <input type="text" id="emp-email" placeholder="contato@empresa.com" />
     <button class="btn-primary" id="btn-salvar-empresa">Salvar empresa</button>
+    <button class="btn-secondary" id="btn-cancelar-edicao-empresa" style="display:none; width:100%; margin-top:8px;">Cancelar edição</button>
   </div>
   <div class="card">
     <h2 id="titulo-lista-empresas">📇 Empresas cadastradas <span class="contador" id="contador-empresas"></span></h2>
@@ -618,6 +619,7 @@
   var fotoTermicaBlob = null, fotoTermicaDataUrl = null;
   var pontosCache = [];
   var editandoPontoId = null;
+  var editandoEmpresaId = null;
   var editandoPontoOriginal = null;
 
   function toast(msg) {
@@ -1053,6 +1055,7 @@
           '<div class="sub">' + escapeHtml([e.contato, e.telefone, e.email].filter(Boolean).join(' · ')) + '</div>' +
           '<div class="ponto-actions">' +
             '<button class="btn-secondary" data-action="ver-os-empresa" data-id="' + e.id + '">🗂 Ver OS (' + qtdOs + ')</button>' +
+            '<button class="btn-secondary" data-action="editar-empresa" data-id="' + e.id + '">✏️ Editar</button>' +
             '<button class="btn-danger" data-action="del-empresa" data-id="' + e.id + '">Excluir</button>' +
           '</div>' +
         '</div>';
@@ -1067,26 +1070,64 @@
     document.getElementById('aviso-sem-empresa').style.display = empresasCache.length ? 'none' : 'block';
   }
 
+  function limparFormEmpresa() {
+    document.getElementById('emp-nome').value = '';
+    document.getElementById('emp-contato').value = '';
+    document.getElementById('emp-telefone').value = '';
+    document.getElementById('emp-email').value = '';
+    editandoEmpresaId = null;
+    document.getElementById('titulo-form-empresa').textContent = '🏢 Nova empresa';
+    document.getElementById('btn-salvar-empresa').textContent = 'Salvar empresa';
+    document.getElementById('btn-cancelar-edicao-empresa').style.display = 'none';
+  }
+
+  function editarEmpresa(emp) {
+    editandoEmpresaId = emp.id;
+    document.getElementById('emp-nome').value = emp.nome || '';
+    document.getElementById('emp-contato').value = emp.contato || '';
+    document.getElementById('emp-telefone').value = emp.telefone || '';
+    document.getElementById('emp-email').value = emp.email || '';
+    document.getElementById('titulo-form-empresa').textContent = '🏢 Editar empresa';
+    document.getElementById('btn-salvar-empresa').textContent = 'Salvar alterações';
+    document.getElementById('btn-cancelar-edicao-empresa').style.display = 'block';
+    window.scrollTo(0, 0);
+  }
+  document.getElementById('btn-cancelar-edicao-empresa').addEventListener('click', limparFormEmpresa);
+
   document.getElementById('btn-salvar-empresa').addEventListener('click', async function () {
     var nome = document.getElementById('emp-nome').value.trim();
     var contato = document.getElementById('emp-contato').value.trim();
     var telefone = document.getElementById('emp-telefone').value.trim();
     var email = document.getElementById('emp-email').value.trim();
     if (!nome) { toast('Informe o nome da empresa.'); return; }
-    var doc = { nome: nome, contato: contato, telefone: telefone, email: email, createdAt: new Date().toISOString() };
+    var editando = !!editandoEmpresaId;
+    var doc = {
+      nome: nome, contato: contato, telefone: telefone, email: email,
+      createdAt: editando ? (empresasCache.find(function (x) { return x.id === editandoEmpresaId; }) || {}).createdAt || new Date().toISOString() : new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
     try {
-      if (db) {
-        await db.collection('empresas').add(doc);
+      if (editando) {
+        if (db) {
+          await db.collection('empresas').doc(editandoEmpresaId).set(doc);
+        } else {
+          doc.id = editandoEmpresaId;
+          var idx = empresasCache.findIndex(function (x) { return x.id === editandoEmpresaId; });
+          if (idx !== -1) empresasCache[idx] = doc;
+          renderEmpresas();
+        }
+        toast('Empresa atualizada.');
       } else {
-        doc.id = 'local-emp-' + Date.now();
-        empresasCache.unshift(doc);
-        renderEmpresas();
+        if (db) {
+          await db.collection('empresas').add(doc);
+        } else {
+          doc.id = 'local-emp-' + Date.now();
+          empresasCache.unshift(doc);
+          renderEmpresas();
+        }
+        toast('Empresa salva.');
       }
-      toast('Empresa salva.');
-      document.getElementById('emp-nome').value = '';
-      document.getElementById('emp-contato').value = '';
-      document.getElementById('emp-telefone').value = '';
-      document.getElementById('emp-email').value = '';
+      limparFormEmpresa();
     } catch (err) {
       console.error(err);
       toast('Não foi possível salvar a empresa.');
@@ -1101,6 +1142,14 @@
       if (!emp) return;
       filtroEmpresaOrdens = emp;
       mostrarView('ordens');
+      return;
+    }
+    var btnEditar = e.target.closest('button[data-action="editar-empresa"]');
+    if (btnEditar) {
+      var empIdEd = btnEditar.getAttribute('data-id');
+      var empEd = empresasCache.find(function (x) { return x.id === empIdEd; });
+      if (!empEd) return;
+      editarEmpresa(empEd);
       return;
     }
     var btn = e.target.closest('button[data-action="del-empresa"]');
