@@ -332,9 +332,12 @@
     <h2>📋 Novo ponto</h2>
 
     <div class="subhead">Identificação</div>
+    <label>Empresa</label>
+    <select id="novo-empresa"><option value="">Selecione a empresa…</option></select>
+    <p class="ajuda-campo" id="aviso-sem-empresa-novo" style="display:none;">Nenhuma empresa cadastrada. Cadastre uma em "Empresas" antes de iniciar um laudo.</p>
     <label>Ordem de Serviço</label>
-    <select id="f-os"><option value="">Selecione uma OS…</option></select>
-    <p class="ajuda-campo" id="aviso-sem-os" style="display:none;">Nenhuma OS aberta. Cadastre uma em "Ordens de Serviço" antes de iniciar um laudo.</p>
+    <select id="f-os" disabled><option value="">Selecione a empresa primeiro…</option></select>
+    <p class="ajuda-campo" id="aviso-sem-os" style="display:none;">Nenhuma OS aberta para essa empresa. Cadastre uma em "Ordens de Serviço" antes de iniciar um laudo.</p>
     <div class="row2">
       <div><label>Local / Setor</label><input type="text" id="f-local" placeholder="Ex.: Planta — Linha 2" /></div>
       <div><label>Quadro</label><input type="text" id="f-quadro" placeholder="Ex.: QF-14" /></div>
@@ -685,6 +688,31 @@
   setupSelectOutro('f-parte', 'f-parte-outro');
   setupSelectOutro('f-funcao', 'f-funcao-outro');
 
+  function atualizarSelectOsNovo(empresaId, manterSelecao) {
+    var selOs = document.getElementById('f-os');
+    var atual = manterSelecao ? selOs.value : '';
+    if (!empresaId) {
+      selOs.innerHTML = '<option value="">Selecione a empresa primeiro…</option>';
+      selOs.disabled = true;
+      document.getElementById('aviso-sem-os').style.display = 'none';
+      return;
+    }
+    var osDaEmpresa = ordensCache.filter(function (o) { return o.empresaId === empresaId; });
+    selOs.disabled = false;
+    if (!osDaEmpresa.length) {
+      selOs.innerHTML = '<option value="">Nenhuma OS para essa empresa…</option>';
+      document.getElementById('aviso-sem-os').style.display = 'block';
+      return;
+    }
+    document.getElementById('aviso-sem-os').style.display = 'none';
+    selOs.innerHTML = '<option value="">Selecione uma OS…</option>' +
+      osDaEmpresa.map(function (o) { return '<option value="' + o.id + '">OS-' + o.numero + (o.descricao ? ' — ' + escapeHtml(o.descricao) : '') + '</option>'; }).join('');
+    if (atual) selOs.value = atual;
+  }
+  document.getElementById('novo-empresa').addEventListener('change', function () {
+    atualizarSelectOsNovo(this.value, false);
+  });
+
   function lerSelectComOutro(selectId, outroId) {
     var sel = document.getElementById(selectId);
     if (sel.value === 'Outro') return document.getElementById(outroId).value.trim();
@@ -806,7 +834,9 @@
     atualizarCalculo();
     editandoPontoId = null;
     editandoPontoOriginal = null;
-    document.getElementById('f-os').disabled = false;
+    document.getElementById('novo-empresa').value = '';
+    document.getElementById('novo-empresa').disabled = false;
+    atualizarSelectOsNovo('', false);
     document.getElementById('btn-salvar').textContent = 'Salvar ponto';
     document.getElementById('btn-cancelar-edicao').style.display = 'none';
   }
@@ -1068,6 +1098,13 @@
       empresasCache.map(function (e) { return '<option value="' + e.id + '">' + escapeHtml(e.nome) + '</option>'; }).join('');
     if (atualOs) selOs.value = atualOs;
     document.getElementById('aviso-sem-empresa').style.display = empresasCache.length ? 'none' : 'block';
+
+    var selNovoEmp = document.getElementById('novo-empresa');
+    var atualNovoEmp = selNovoEmp.value;
+    selNovoEmp.innerHTML = '<option value="">Selecione a empresa…</option>' +
+      empresasCache.map(function (e) { return '<option value="' + e.id + '">' + escapeHtml(e.nome) + '</option>'; }).join('');
+    if (atualNovoEmp) selNovoEmp.value = atualNovoEmp;
+    document.getElementById('aviso-sem-empresa-novo').style.display = empresasCache.length ? 'none' : 'block';
   }
 
   function limparFormEmpresa() {
@@ -1251,12 +1288,8 @@
         '</div>';
       }).join('');
     }
-    var selF = document.getElementById('f-os');
-    var atualF = selF.value;
-    selF.innerHTML = '<option value="">Selecione uma OS…</option>' +
-      ordensCache.map(function (o) { return '<option value="' + o.id + '">OS-' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + '</option>'; }).join('');
-    if (atualF) selF.value = atualF;
-    document.getElementById('aviso-sem-os').style.display = ordensCache.length ? 'none' : 'block';
+    var empresaSelecionadaNovo = document.getElementById('novo-empresa').value;
+    if (empresaSelecionadaNovo && !document.getElementById('f-os').disabled) atualizarSelectOsNovo(empresaSelecionadaNovo, true);
     sugerirProximoNumeroOS();
   }
 
@@ -1464,6 +1497,10 @@
     editandoPontoId = ponto.id;
     editandoPontoOriginal = ponto;
     mostrarView('novo');
+    var osDoPonto = ordensCache.find(function (o) { return o.id === ponto.osId; });
+    document.getElementById('novo-empresa').value = osDoPonto ? osDoPonto.empresaId : '';
+    document.getElementById('novo-empresa').disabled = true;
+    atualizarSelectOsNovo(osDoPonto ? osDoPonto.empresaId : '', false);
     document.getElementById('f-os').value = ponto.osId || '';
     document.getElementById('f-os').disabled = true;
     document.getElementById('f-local').value = ponto.local || '';
