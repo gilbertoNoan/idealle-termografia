@@ -365,6 +365,9 @@
     50% { box-shadow: 0 6px 20px rgba(23,87,214,.45), 0 2px 6px rgba(0,0,0,.2), 0 0 0 8px rgba(46,124,255,0); }
   }
   @media (min-width: 861px) { #fab-novo-laudo { right: calc(30px + env(safe-area-inset-right, 0px)); bottom: 30px; } }
+  .modo-cliente .dash-card { cursor: default; }
+  .modo-cliente .dash-card:hover { transform: none; box-shadow: none; }
+  .modo-cliente .dash-card:active { transform: none; }
 </style>
 </head>
 <body>
@@ -672,6 +675,7 @@
   }
   document.querySelectorAll('.dash-card').forEach(function (card) {
     card.addEventListener('click', function () {
+      if (MODO_CLIENTE) return;
       var sev = card.getAttribute('data-severidade');
       filtroSeveridade = sev || null;
       filtroEmpresaOrdens = null;
@@ -2447,6 +2451,7 @@
       MODO_CLIENTE = true;
       CLIENTE_ATUAL = clienteParam;
       OS_ATUAL = osParam || null;
+      document.body.classList.add('modo-cliente');
       document.getElementById('card-form').style.display = 'none';
       document.getElementById('titulo-app').textContent = 'Portal do Cliente';
       document.getElementById('subtitulo-app').textContent = clienteParam + (osParam ? ' — acesso restrito a uma OS' : '');
