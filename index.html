@@ -11,7 +11,6 @@
      para o armazenamento local do próprio aparelho — nada quebra. -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root {
@@ -1621,19 +1620,44 @@
     }
   });
 
+  function comprimirParaBase64(blob, maxLado, qualidade) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      var url = URL.createObjectURL(blob);
+      img.onload = function () {
+        var escala = Math.min(1, maxLado / Math.max(img.width, img.height));
+        var w = Math.max(1, Math.round(img.width * escala));
+        var h = Math.max(1, Math.round(img.height * escala));
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/jpeg', qualidade));
+      };
+      img.onerror = function (e) { URL.revokeObjectURL(url); reject(e); };
+      img.src = url;
+    });
+  }
+
   async function uploadFoto(blob) {
     if (assets) {
       var up = await assets.upload(blob);
-      return { id: up.id, url: null };
+      return { id: up.id, url: null, fsId: null };
     }
-    if (fbStorage) {
-      var path = 'fotos/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
-      var ref = fbStorage.ref().child(path);
-      await ref.put(blob);
-      var url = await ref.getDownloadURL();
-      return { id: null, url: url };
+    if (db) {
+      try {
+        var base64 = await comprimirParaBase64(blob, 1000, 0.6);
+        // se ainda ficar grande demais para um documento do Firestore (limite 1MB), comprime mais
+        if (base64.length > 700000) base64 = await comprimirParaBase64(blob, 700, 0.5);
+        var ref = await db.collection('fotos').add({ data: base64, createdAt: new Date().toISOString() });
+        return { id: null, url: null, fsId: ref.id };
+      } catch (e) {
+        console.error('Erro ao salvar foto no Firestore:', e);
+        return { id: null, url: null, fsId: null };
+      }
     }
-    return { id: null, url: null };
+    return { id: null, url: null, fsId: null };
   }
 
   function montarPontoPreview() {
@@ -1668,9 +1692,11 @@
       fotoVisualDataUrl: fotoVisualDataUrl || (editandoPontoOriginal ? (editandoPontoOriginal.fotoVisualDataUrl || null) : null),
       fotoVisualId: fotoVisualDataUrl ? null : (editandoPontoOriginal ? editandoPontoOriginal.fotoVisualId : null),
       fotoVisualUrl: fotoVisualDataUrl ? null : (editandoPontoOriginal ? editandoPontoOriginal.fotoVisualUrl : null),
+      fotoVisualFsId: fotoVisualDataUrl ? null : (editandoPontoOriginal ? editandoPontoOriginal.fotoVisualFsId : null),
       fotoTermicaDataUrl: fotoTermicaDataUrl || (editandoPontoOriginal ? (editandoPontoOriginal.fotoTermicaDataUrl || null) : null),
       fotoTermicaId: fotoTermicaDataUrl ? null : (editandoPontoOriginal ? editandoPontoOriginal.fotoTermicaId : null),
-      fotoTermicaUrl: fotoTermicaDataUrl ? null : (editandoPontoOriginal ? editandoPontoOriginal.fotoTermicaUrl : null)
+      fotoTermicaUrl: fotoTermicaDataUrl ? null : (editandoPontoOriginal ? editandoPontoOriginal.fotoTermicaUrl : null),
+      fotoTermicaFsId: fotoTermicaDataUrl ? null : (editandoPontoOriginal ? editandoPontoOriginal.fotoTermicaFsId : null)
     };
   }
   document.getElementById('btn-ver-previa').addEventListener('click', function () {
@@ -1709,21 +1735,24 @@
     btn.textContent = 'Salvando...';
 
     var fotoVisualId = null, fotoTermicaId = null, fotoVisualUrl = null, fotoTermicaUrl = null;
+    var fotoVisualFsId = null, fotoTermicaFsId = null;
     var fotoVisualDataUrlFinal = fotoVisualDataUrl || null;
     var fotoTermicaDataUrlFinal = fotoTermicaDataUrl || null;
     try {
       if (fotoVisualBlob) {
-        var r1 = await uploadFoto(fotoVisualBlob); fotoVisualId = r1.id; fotoVisualUrl = r1.url;
+        var r1 = await uploadFoto(fotoVisualBlob); fotoVisualId = r1.id; fotoVisualUrl = r1.url; fotoVisualFsId = r1.fsId;
       } else if (editandoPontoOriginal) {
         fotoVisualId = editandoPontoOriginal.fotoVisualId || null;
         fotoVisualUrl = editandoPontoOriginal.fotoVisualUrl || null;
+        fotoVisualFsId = editandoPontoOriginal.fotoVisualFsId || null;
         fotoVisualDataUrlFinal = editandoPontoOriginal.fotoVisualDataUrl || null;
       }
       if (fotoTermicaBlob) {
-        var r2 = await uploadFoto(fotoTermicaBlob); fotoTermicaId = r2.id; fotoTermicaUrl = r2.url;
+        var r2 = await uploadFoto(fotoTermicaBlob); fotoTermicaId = r2.id; fotoTermicaUrl = r2.url; fotoTermicaFsId = r2.fsId;
       } else if (editandoPontoOriginal) {
         fotoTermicaId = editandoPontoOriginal.fotoTermicaId || null;
         fotoTermicaUrl = editandoPontoOriginal.fotoTermicaUrl || null;
+        fotoTermicaFsId = editandoPontoOriginal.fotoTermicaFsId || null;
         fotoTermicaDataUrlFinal = editandoPontoOriginal.fotoTermicaDataUrl || null;
       }
     } catch (err) {
@@ -1735,7 +1764,7 @@
     try {
       for (var i = 0; i < fotosExtrasNovas.length; i++) {
         var rx = await uploadFoto(fotosExtrasNovas[i].blob);
-        if (rx.id || rx.url) fotosExtrasFinal.push({ id: rx.id, url: rx.url });
+        if (rx.id || rx.url || rx.fsId) fotosExtrasFinal.push({ id: rx.id, url: rx.url, fsId: rx.fsId });
         else fotosExtrasFinal.push({ dataUrl: fotosExtrasNovas[i].dataUrl });
       }
     } catch (err) {
@@ -1756,10 +1785,10 @@
       maxima: maxima, anomalia: anomalia ? anomalia[0] : null,
       classificacao: classe.label, prioridade: classe.prioridade,
       observacao: obs, fotosExtras: fotosExtrasFinal, detalhesAdicionais: detalhesAdicionais,
-      fotoVisualId: fotoVisualId, fotoVisualUrl: fotoVisualUrl,
-      fotoVisualDataUrl: (fotoVisualId || fotoVisualUrl) ? null : fotoVisualDataUrlFinal,
-      fotoTermicaId: fotoTermicaId, fotoTermicaUrl: fotoTermicaUrl,
-      fotoTermicaDataUrl: (fotoTermicaId || fotoTermicaUrl) ? null : fotoTermicaDataUrlFinal,
+      fotoVisualId: fotoVisualId, fotoVisualUrl: fotoVisualUrl, fotoVisualFsId: fotoVisualFsId,
+      fotoVisualDataUrl: (fotoVisualId || fotoVisualUrl || fotoVisualFsId) ? null : fotoVisualDataUrlFinal,
+      fotoTermicaId: fotoTermicaId, fotoTermicaUrl: fotoTermicaUrl, fotoTermicaFsId: fotoTermicaFsId,
+      fotoTermicaDataUrl: (fotoTermicaId || fotoTermicaUrl || fotoTermicaFsId) ? null : fotoTermicaDataUrlFinal,
       createdAt: editando ? (editandoPontoOriginal.createdAt || new Date().toISOString()) : new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -1848,7 +1877,7 @@
     toast('Editando ponto #' + ponto.numero + '.');
 
     try {
-      var imgV = await obterImagemBase64('fotoVisualDataUrl', 'fotoVisualId', ponto, 'fotoVisualUrl');
+      var imgV = await obterImagemBase64('fotoVisualDataUrl', 'fotoVisualId', ponto, 'fotoVisualUrl', 'fotoVisualFsId');
       var wrapV = document.getElementById('foto-wrap-visual');
       var oldV = wrapV.querySelector('img'); if (oldV) oldV.remove();
       if (imgV) {
@@ -1857,7 +1886,7 @@
       } else {
         document.getElementById('foto-label-visual').textContent = 'Toque p/ foto';
       }
-      var imgT = await obterImagemBase64('fotoTermicaDataUrl', 'fotoTermicaId', ponto, 'fotoTermicaUrl');
+      var imgT = await obterImagemBase64('fotoTermicaDataUrl', 'fotoTermicaId', ponto, 'fotoTermicaUrl', 'fotoTermicaFsId');
       var wrapT = document.getElementById('foto-wrap-termica');
       var oldT = wrapT.querySelector('img'); if (oldT) oldT.remove();
       if (imgT) {
@@ -1875,7 +1904,7 @@
   });
 
   // ---------- image retrieval ----------
-  async function obterImagemBase64(dataUrlField, idField, ponto, urlField) {
+  async function obterImagemBase64(dataUrlField, idField, ponto, urlField, fsIdField) {
     if (ponto[dataUrlField]) return ponto[dataUrlField];
     if (ponto[idField]) {
       try {
@@ -1887,6 +1916,13 @@
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
+      } catch (e) { return null; }
+    }
+    if (fsIdField && ponto[fsIdField] && db) {
+      try {
+        var doc = await db.collection('fotos').doc(ponto[fsIdField]).get();
+        var dados = doc.data ? doc.data() : doc;
+        return (dados && dados.data) || null;
       } catch (e) { return null; }
     }
     if (urlField && ponto[urlField]) {
@@ -1917,6 +1953,13 @@
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
+      } catch (e) { return null; }
+    }
+    if (f.fsId && db) {
+      try {
+        var doc = await db.collection('fotos').doc(f.fsId).get();
+        var dados = doc.data ? doc.data() : doc;
+        return (dados && dados.data) || null;
       } catch (e) { return null; }
     }
     if (f.url) {
@@ -2046,8 +2089,8 @@
     var gap = 4;
     var boxW = (W - gap) / 2;
     var boxH = 74;
-    var imgVisual = await obterImagemBase64('fotoVisualDataUrl', 'fotoVisualId', ponto, 'fotoVisualUrl');
-    var imgTermica = await obterImagemBase64('fotoTermicaDataUrl', 'fotoTermicaId', ponto, 'fotoTermicaUrl');
+    var imgVisual = await obterImagemBase64('fotoVisualDataUrl', 'fotoVisualId', ponto, 'fotoVisualUrl', 'fotoVisualFsId');
+    var imgTermica = await obterImagemBase64('fotoTermicaDataUrl', 'fotoTermicaId', ponto, 'fotoTermicaUrl', 'fotoTermicaFsId');
     drawImageBox(doc, margin, y, boxW, boxH, 'IMAGEM VISUAL', imgVisual, azul, cinza);
     drawImageBox(doc, margin + boxW + gap, y, boxW, boxH, 'IMAGEM TERMOGRÁFICA', imgTermica, azul, cinza);
     y += boxH + 6;
@@ -2234,8 +2277,8 @@
     var classeAtual = classificar(ponto.maxima || 0, ponto.ambiente || 25);
     var limiares = calcularLimiares(ponto.ambiente || 25);
     var coresEscala = ['#92D050', '#FFFF00', '#FFA500', '#FF0000'];
-    var imgVisual = await obterImagemBase64('fotoVisualDataUrl', 'fotoVisualId', ponto, 'fotoVisualUrl');
-    var imgTermica = await obterImagemBase64('fotoTermicaDataUrl', 'fotoTermicaId', ponto, 'fotoTermicaUrl');
+    var imgVisual = await obterImagemBase64('fotoVisualDataUrl', 'fotoVisualId', ponto, 'fotoVisualUrl', 'fotoVisualFsId');
+    var imgTermica = await obterImagemBase64('fotoTermicaDataUrl', 'fotoTermicaId', ponto, 'fotoTermicaUrl', 'fotoTermicaFsId');
     var extrasImgs = [];
     if (ponto.fotosExtras && ponto.fotosExtras.length) {
       for (var xi = 0; xi < ponto.fotosExtras.length; xi++) {
@@ -2430,10 +2473,11 @@
       try {
         firebase.initializeApp(FIREBASE_CONFIG);
         db = firebase.firestore();
-        fbStorage = firebase.storage();
+        // Storage não é usado (exige plano pago) — fotos são comprimidas e salvas
+        // como documentos na coleção "fotos" do próprio Firestore, sem custo.
       } catch (e) {
         console.error('Falha ao iniciar Firebase:', e);
-        db = null; fbStorage = null;
+        db = null;
       }
     }
 

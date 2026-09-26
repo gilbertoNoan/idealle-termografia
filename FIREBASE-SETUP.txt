@@ -1,11 +1,12 @@
 CONFIGURAR O BANCO COMPARTILHADO (FIREBASE) — PASSO A PASSO
 ==============================================================
+(100% no plano gratuito — sem cartão de crédito, sem Storage)
 
 1) CRIAR O PROJETO
    - console.firebase.google.com → "Adicionar projeto"
    - Dê um nome (ex.: idealle-termografia) → pode desmarcar o Google Analytics → Criar projeto
 
-2) ATIVAR O FIRESTORE (onde ficam os dados dos pontos)
+2) ATIVAR O FIRESTORE (onde ficam os pontos, empresas, OS e também as fotos)
    - Menu lateral → Compilação → Firestore Database → "Criar banco de dados"
    - Modo: "Produção"
    - Região: southamerica-east1 (São Paulo)
@@ -22,23 +23,12 @@ CONFIGURAR O BANCO COMPARTILHADO (FIREBASE) — PASSO A PASSO
 
    - Clique em "Publicar"
 
-3) ATIVAR O STORAGE (onde ficam as fotos)
-   - Menu lateral → Compilação → Storage → "Vamos começar"
-   - Mesma região (southamerica-east1)
-   - Na aba "Regras", substitua por:
+   OBS: o Firebase Storage NÃO é usado neste projeto (ele exige o plano pago
+   Blaze). As fotos são comprimidas no próprio navegador e salvas como
+   documentos comuns na coleção "fotos" do Firestore — sem custo, dentro do
+   plano gratuito (Spark).
 
-     rules_version = '2';
-     service firebase.storage {
-       match /b/{bucket}/o {
-         match /{allPaths=**} {
-           allow read, write: if true;
-         }
-       }
-     }
-
-   - Publicar
-
-4) PEGAR AS CHAVES DE CONFIGURAÇÃO
+3) PEGAR AS CHAVES DE CONFIGURAÇÃO
    - Vá em Configurações do projeto (ícone de engrenagem, topo do menu lateral)
    - Na aba "Geral", desça até "Seus apps" → clique no ícone "</>" (Web)
    - Dê um apelido (ex.: termografia-web) → "Registrar app"
@@ -48,44 +38,42 @@ CONFIGURAR O BANCO COMPARTILHADO (FIREBASE) — PASSO A PASSO
        apiKey: "AIzaSy...",
        authDomain: "idealle-termografia.firebaseapp.com",
        projectId: "idealle-termografia",
-       storageBucket: "idealle-termografia.appspot.com",
+       storageBucket: "idealle-termografia.firebasestorage.app",
        messagingSenderId: "123456789",
        appId: "1:123456789:web:abcdef"
      };
 
    - Copie esse bloco inteiro
 
-5) COLAR NO ARQUIVO index.html
+4) COLAR NO ARQUIVO index.html
    - No GitHub, abra o repositório idealle-termografia
    - Clique em index.html → ícone de lápis (Edit) no canto superior direito
-   - Use Ctrl+F (ou Cmd+F) e procure por: COLE_AQUI
-   - Vai aparecer um bloco assim, perto do topo do arquivo:
-
-     var FIREBASE_CONFIG = {
-       apiKey: "COLE_AQUI_SUA_API_KEY",
-       authDomain: "COLE_AQUI.firebaseapp.com",
-       projectId: "COLE_AQUI",
-       storageBucket: "COLE_AQUI.appspot.com",
-       messagingSenderId: "COLE_AQUI",
-       appId: "COLE_AQUI"
-     };
-
-   - Substitua os 6 valores pelos que você copiou no passo 4 (mantendo as aspas)
+   - Use Ctrl+F (ou Cmd+F) e procure por: FIREBASE_CONFIG
+   - Substitua os 6 valores pelos que você copiou no passo 3 (mantendo as aspas)
    - Role até o final da página → "Commit changes"
-   - REPITA O MESMO no arquivo cliente.html (ele tem o mesmo bloco, precisa das mesmas 6 chaves)
    - A Vercel redeploya sozinha em ~1 minuto
 
 PRONTO. A partir daí:
    - Qualquer aparelho que abrir o link principal (index.html) e salvar um ponto,
-     esse ponto aparece pra todo mundo que abrir o mesmo link.
+     esse ponto (e as fotos) aparece pra todo mundo que abrir o mesmo link.
    - Para dar acesso a um cliente, mande o link assim:
-     https://SEUSITE.vercel.app/cliente.html?cliente=Nome Exato Do Cliente
+     https://SEUSITE.vercel.app/?cliente=Nome Exato Do Cliente
      (o "Nome Exato Do Cliente" tem que ser IGUAL ao que você digita no campo
      "Cliente" quando cria os pontos daquela empresa)
+   - Ou gere o link de uma OS específica direto pelo botão "🔗 Link do cliente"
+     dentro da própria OS, na aba "Ordens de Serviço".
+
+LIMITE A SABER (fotos no Firestore em vez de Storage)
+--------------------------------------------------------------
+Cada documento do Firestore tem um limite de 1 MB. As fotos são comprimidas
+automaticamente antes de salvar (redimensionadas e convertidas pra JPEG de
+qualidade reduzida) para ficarem bem abaixo desse limite — na prática isso
+significa fotos de boa qualidade pra visualização e para o PDF, mas não os
+arquivos originais em resolução máxima da câmera.
 
 SOBRE SEGURANÇA (leia antes de usar com clientes de verdade)
 --------------------------------------------------------------
-As regras acima ("allow read, write: if true") deixam o banco aberto: qualquer
+A regra acima ("allow read, write: if true") deixa o banco aberto: qualquer
 pessoa com o link — ou até sem o link, se souber o endereço técnico do banco —
 consegue ler e, tecnicamente, também escrever nele. Isso é aceitável para
 começar e testar, mas não é uma proteção de verdade.
