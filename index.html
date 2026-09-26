@@ -187,7 +187,13 @@
   .toast.show { opacity: 1; }
   .contador { font-size: 12px; color: var(--texto-suave); }
   .dash-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-  .dash-card { border-radius: 10px; padding: 12px 6px; text-align: center; background: var(--cinza); }
+  .dash-card { border-radius: 10px; padding: 12px 6px; text-align: center; background: var(--cinza); cursor: pointer; }
+  .dash-card:active { opacity: .8; }
+  .filtro-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .filtro-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; padding: 5px 10px; border-radius: 999px; }
+  .filtro-badge.ok { background: #92D050; }
+  .filtro-badge.atencao { background: #FFA500; }
+  .filtro-badge.critico { background: #FF0000; color: #fff; }
   .dash-num { font-size: 22px; font-weight: 800; line-height: 1.1; }
   .dash-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; margin-top: 2px; opacity: .8; }
   .dash-total { background: var(--azul); color: #fff; }
@@ -296,19 +302,19 @@
   <div class="card">
     <h2>📊 Painel <span id="dash-cliente-nome" class="contador"></span></h2>
     <div class="dash-grid">
-      <div class="dash-card dash-total">
+      <div class="dash-card dash-total" data-severidade="">
         <div class="dash-num" id="dash-total">0</div>
         <div class="dash-label">Quadros</div>
       </div>
-      <div class="dash-card dash-ok">
+      <div class="dash-card dash-ok" data-severidade="ok">
         <div class="dash-num" id="dash-ok">0</div>
         <div class="dash-label">OK</div>
       </div>
-      <div class="dash-card dash-atencao">
+      <div class="dash-card dash-atencao" data-severidade="atencao">
         <div class="dash-num" id="dash-atencao">0</div>
         <div class="dash-label">Atenção</div>
       </div>
-      <div class="dash-card dash-critico">
+      <div class="dash-card dash-critico" data-severidade="critico">
         <div class="dash-num" id="dash-critico">0</div>
         <div class="dash-label">Críticos</div>
       </div>
@@ -437,7 +443,13 @@
   </section>
 
   <section class="view" id="view-empresas" style="display:none;">
-  <div class="card">
+  <div class="card" id="card-empresas-filtro" style="display:none;">
+    <div class="filtro-bar">
+      <span>Mostrando empresas com quadros: <span class="filtro-badge" id="filtro-empresas-badge"></span></span>
+      <button class="btn-secondary" id="btn-limpar-filtro-empresas">✕ Limpar filtro</button>
+    </div>
+  </div>
+  <div class="card" id="card-nova-empresa">
     <h2>🏢 Nova empresa</h2>
     <label>Nome da empresa</label>
     <input type="text" id="emp-nome" placeholder="Ex.: Fábrica ABC Ltda" />
@@ -450,7 +462,7 @@
     <button class="btn-primary" id="btn-salvar-empresa">Salvar empresa</button>
   </div>
   <div class="card">
-    <h2>📇 Empresas cadastradas <span class="contador" id="contador-empresas"></span></h2>
+    <h2 id="titulo-lista-empresas">📇 Empresas cadastradas <span class="contador" id="contador-empresas"></span></h2>
     <div id="lista-empresas"><div class="vazio">Nenhuma empresa cadastrada ainda.</div></div>
   </div>
   </section>
@@ -459,8 +471,12 @@
   <div class="card" id="card-ordens-filtro" style="display:none;">
     <button class="btn-secondary" id="btn-voltar-empresas">← Voltar para Empresas</button>
     <h2 style="margin-top:10px;">🗂 OS de <span id="ordens-filtro-nome"></span></h2>
+    <div class="filtro-bar" id="ordens-filtro-severidade-bar" style="display:none;">
+      <span>Mostrando só quadros: <span class="filtro-badge" id="filtro-ordens-badge"></span></span>
+      <button class="btn-secondary" id="btn-limpar-filtro-ordens">✕ Limpar filtro</button>
+    </div>
   </div>
-  <div class="card">
+  <div class="card" id="card-nova-os">
     <h2>🗂 Nova ordem de serviço</h2>
     <label>Empresa</label>
     <select id="os-empresa"><option value="">Selecione a empresa…</option></select>
@@ -522,6 +538,37 @@
 
   // ---------- navigation ----------
   var filtroEmpresaOrdens = null;
+  var filtroSeveridade = null;
+  var SEVERIDADE_LABEL = { ok: 'OK', atencao: 'Atenção', critico: 'Crítico' };
+  function pontosDaEmpresa(empId) {
+    return pontosCache.filter(function (p) {
+      var os = ordensCache.find(function (o) { return o.id === p.osId; });
+      return os && os.empresaId === empId;
+    });
+  }
+  function aplicarFiltroSeveridade(lista) {
+    if (!filtroSeveridade) return lista;
+    return lista.filter(function (p) {
+      var c = classificar(p.maxima || 0, p.ambiente || 25);
+      return classeResumo(c.key) === filtroSeveridade;
+    });
+  }
+  document.querySelectorAll('.dash-card').forEach(function (card) {
+    card.addEventListener('click', function () {
+      var sev = card.getAttribute('data-severidade');
+      filtroSeveridade = sev || null;
+      filtroEmpresaOrdens = null;
+      mostrarView('empresas');
+    });
+  });
+  document.getElementById('btn-limpar-filtro-empresas').addEventListener('click', function () {
+    filtroSeveridade = null;
+    renderEmpresas();
+  });
+  document.getElementById('btn-limpar-filtro-ordens').addEventListener('click', function () {
+    filtroSeveridade = null;
+    renderOrdens();
+  });
   function mostrarView(nome) {
     ['dashboard', 'novo', 'ordens', 'empresas'].forEach(function (v) {
       document.getElementById('view-' + v).style.display = (v === nome) ? '' : 'none';
@@ -932,6 +979,45 @@
   function renderEmpresas() {
     var lista = document.getElementById('lista-empresas');
     var contador = document.getElementById('contador-empresas');
+    var filtroCard = document.getElementById('card-empresas-filtro');
+    var formCard = document.getElementById('card-nova-empresa');
+    var tituloLista = document.getElementById('titulo-lista-empresas');
+
+    if (filtroSeveridade) {
+      filtroCard.style.display = 'block';
+      formCard.style.display = 'none';
+      var badge = document.getElementById('filtro-empresas-badge');
+      badge.textContent = SEVERIDADE_LABEL[filtroSeveridade] || filtroSeveridade;
+      badge.className = 'filtro-badge ' + filtroSeveridade;
+      tituloLista.innerHTML = '📇 Empresas com quadros ' + escapeHtml(SEVERIDADE_LABEL[filtroSeveridade] || '') + ' <span class="contador" id="contador-empresas"></span>';
+
+      var empresasComMatch = empresasCache.filter(function (e) {
+        return aplicarFiltroSeveridade(pontosDaEmpresa(e.id)).length > 0;
+      });
+      contador = document.getElementById('contador-empresas');
+      if (!empresasComMatch.length) {
+        lista.innerHTML = '<div class="vazio">Nenhuma empresa com quadros nesse status.</div>';
+        contador.textContent = '';
+      } else {
+        contador.textContent = '(' + empresasComMatch.length + ')';
+        lista.innerHTML = empresasComMatch.map(function (e) {
+          var qtd = aplicarFiltroSeveridade(pontosDaEmpresa(e.id)).length;
+          return '<div class="empresa-item" data-id="' + e.id + '">' +
+            '<div class="nome">' + escapeHtml(e.nome) + '</div>' +
+            '<div class="sub">' + qtd + ' quadro(s) ' + escapeHtml(SEVERIDADE_LABEL[filtroSeveridade] || '') + '</div>' +
+            '<div class="ponto-actions">' +
+              '<button class="btn-secondary" data-action="ver-os-empresa" data-id="' + e.id + '">🗂 Ver OS</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      }
+      return;
+    }
+
+    filtroCard.style.display = 'none';
+    formCard.style.display = '';
+    tituloLista.innerHTML = '📇 Empresas cadastradas <span class="contador" id="contador-empresas"></span>';
+
     if (!empresasCache.length) {
       lista.innerHTML = '<div class="vazio">Nenhuma empresa cadastrada ainda.</div>';
       contador.textContent = '';
@@ -1029,27 +1115,45 @@
     var contador = document.getElementById('contador-ordens');
     var filtroCard = document.getElementById('card-ordens-filtro');
     var tituloLista = document.getElementById('titulo-lista-ordens');
+    var formCard = document.getElementById('card-nova-os');
+    var sevBar = document.getElementById('ordens-filtro-severidade-bar');
     var ordensFiltradas = ordensCache;
     if (filtroEmpresaOrdens) {
       filtroCard.style.display = 'block';
       document.getElementById('ordens-filtro-nome').textContent = filtroEmpresaOrdens.nome;
-      tituloLista.innerHTML = '📑 OS de ' + escapeHtml(filtroEmpresaOrdens.nome) + ' <span class="contador" id="contador-ordens"></span>';
       ordensFiltradas = ordensCache.filter(function (o) { return o.empresaId === filtroEmpresaOrdens.id; });
     } else {
-      filtroCard.style.display = 'none';
-      tituloLista.innerHTML = '📑 Ordens de serviço <span class="contador" id="contador-ordens"></span>';
+      filtroCard.style.display = filtroSeveridade ? 'block' : 'none';
+      document.getElementById('ordens-filtro-nome').textContent = 'todas as empresas';
     }
+
+    if (filtroSeveridade) {
+      formCard.style.display = 'none';
+      sevBar.style.display = 'flex';
+      var badge = document.getElementById('filtro-ordens-badge');
+      badge.textContent = SEVERIDADE_LABEL[filtroSeveridade] || filtroSeveridade;
+      badge.className = 'filtro-badge ' + filtroSeveridade;
+      tituloLista.innerHTML = '📑 OS com quadros ' + escapeHtml(SEVERIDADE_LABEL[filtroSeveridade] || '') + ' <span class="contador" id="contador-ordens"></span>';
+      ordensFiltradas = ordensFiltradas.filter(function (o) {
+        return aplicarFiltroSeveridade(pontosCache.filter(function (p) { return p.osId === o.id; })).length > 0;
+      });
+    } else {
+      formCard.style.display = '';
+      sevBar.style.display = 'none';
+      tituloLista.innerHTML = (filtroEmpresaOrdens ? '📑 OS de ' + escapeHtml(filtroEmpresaOrdens.nome) : '📑 Ordens de serviço') + ' <span class="contador" id="contador-ordens"></span>';
+    }
+
     contador = document.getElementById('contador-ordens');
     if (!ordensFiltradas.length) {
-      lista.innerHTML = '<div class="vazio">' + (filtroEmpresaOrdens ? 'Nenhuma OS cadastrada para esta empresa ainda.' : 'Nenhuma OS cadastrada ainda.') + '</div>';
+      lista.innerHTML = '<div class="vazio">' + (filtroSeveridade ? 'Nenhuma OS com quadros nesse status.' : (filtroEmpresaOrdens ? 'Nenhuma OS cadastrada para esta empresa ainda.' : 'Nenhuma OS cadastrada ainda.')) + '</div>';
       contador.textContent = '';
     } else {
       contador.textContent = '(' + ordensFiltradas.length + ')';
       lista.innerHTML = ordensFiltradas.map(function (o) {
-        var laudos = pontosCache.filter(function (p) { return p.osId === o.id; });
+        var laudos = aplicarFiltroSeveridade(pontosCache.filter(function (p) { return p.osId === o.id; }));
         var laudosHtml;
         if (!laudos.length) {
-          laudosHtml = '<div class="os-laudos-vazio">Nenhum laudo lançado nesta OS ainda.</div>';
+          laudosHtml = '<div class="os-laudos-vazio">Nenhum laudo ' + (filtroSeveridade ? 'nesse status ' : '') + 'lançado nesta OS ainda.</div>';
         } else {
           laudosHtml = laudos.map(function (p) {
             var c = classificar(p.maxima || 0, p.ambiente || 25);
@@ -1061,7 +1165,7 @@
               '<div class="ponto-actions">' +
                 '<button class="btn-secondary" data-action="ver-ponto" data-ponto-id="' + p.id + '">👁 Ver</button>' +
                 '<button class="btn-secondary" data-action="pdf-ponto" data-ponto-id="' + p.id + '">⬇ Baixar</button>' +
-                '<button class="btn-danger" data-action="del-ponto" data-ponto-id="' + p.id + '">Excluir</button>' +
+                (filtroSeveridade ? '' : '<button class="btn-danger" data-action="del-ponto" data-ponto-id="' + p.id + '">Excluir</button>') +
               '</div>' +
             '</div>';
           }).join('');
@@ -1069,8 +1173,8 @@
         return '<div class="os-item" data-id="' + o.id + '">' +
           '<div class="nome">OS-' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">Aberta</span></div>' +
           '<div class="sub">' + escapeHtml(o.descricao || 'Sem descrição') + (o.dataAbertura ? ' · ' + o.dataAbertura : '') + '</div>' +
-          '<div class="os-laudos"><div class="os-laudos-titulo">Laudos desta OS (' + laudos.length + ')</div>' + laudosHtml + '</div>' +
-          '<div class="ponto-actions"><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir OS</button></div>' +
+          '<div class="os-laudos"><div class="os-laudos-titulo">Laudos' + (filtroSeveridade ? ' ' + SEVERIDADE_LABEL[filtroSeveridade] : '') + ' desta OS (' + laudos.length + ')</div>' + laudosHtml + '</div>' +
+          (filtroSeveridade ? '' : '<div class="ponto-actions"><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir OS</button></div>') +
         '</div>';
       }).join('');
     }
