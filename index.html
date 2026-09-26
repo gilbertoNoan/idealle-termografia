@@ -152,6 +152,14 @@
   .foto-wrap input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
   .foto-label { font-size: 13px; color: var(--texto-suave); }
   .foto-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #bloco-critico { border: 1.5px solid #FF9999; border-radius: 10px; padding: 10px 12px; margin-top: 14px; background: rgba(255,0,0,0.04); }
+  .extras-preview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+  .extras-preview-grid .extra-item { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--borda); }
+  .extras-preview-grid img { width: 100%; height: 72px; object-fit: cover; display: block; }
+  .extras-preview-grid .extra-remove {
+    position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,.6); color: #fff;
+    border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 1; padding: 0;
+  }
   .foto-cols label { grid-column: 1 / -1; margin-bottom: 0; }
   .calc-box { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
   .pill { flex: 1; min-width: 78px; background: var(--cinza); border-radius: 8px; padding: 8px 6px; text-align: center; }
@@ -263,6 +271,12 @@
   .lp-legend-text { flex: 1; font-size: 9.5px; padding: 5px 6px; color: #222; }
   .lp-diag { padding: 0 14px 12px; }
   .lp-diag h4 { color: var(--azul); font-size: 11px; margin: 4px 0 5px; }
+  .lp-extras { margin: 0 14px 12px; border: 1.5px solid #FF9999; border-radius: 6px; padding: 8px 10px; background: rgba(255,0,0,0.04); }
+  .lp-extras-title { font-weight: 700; font-size: 10.5px; color: #b3261e; margin-bottom: 6px; }
+  .lp-extras-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 6px; }
+  .lp-extras-grid img { width: 100%; height: 60px; object-fit: cover; border-radius: 5px; border: 1px solid #d9d9d9; }
+  .lp-extras-vazio { height: 60px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #999; background: #fafafa; border-radius: 5px; }
+  .lp-extras-texto { font-size: 10.5px; color: #222; margin: 4px 0 0; }
   .lp-diag p { margin: 0; font-size: 11px; color: #222; white-space: pre-wrap; }
   .lp-footer { padding: 8px 14px; border-top: 1px solid #d9d9d9; font-size: 9px; color: #808080; position: relative; text-align: center; }
   .lp-footer .lp-crea { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); height: 26px; }
@@ -435,6 +449,18 @@
           <input type="file" accept="image/*" capture="environment" id="f-foto-termica" />
         </div>
       </div>
+    </div>
+
+    <div id="bloco-critico" style="display:none;">
+      <div class="subhead">⚠️ Detalhamento adicional (item crítico)</div>
+      <label>Fotos extras</label>
+      <div class="foto-wrap" id="foto-wrap-extras">
+        <div class="foto-label" id="foto-label-extras">Toque para adicionar uma ou mais fotos</div>
+        <input type="file" accept="image/*" multiple id="f-fotos-extras" />
+      </div>
+      <div class="extras-preview-grid" id="extras-preview"></div>
+      <label>Detalhes adicionais</label>
+      <textarea id="f-detalhes-extras" placeholder="Descreva o risco, ações já tomadas, recomendação de intervenção imediata..."></textarea>
     </div>
 
     <div class="subhead">Diagnóstico</div>
@@ -741,6 +767,7 @@
     if (!vals.length || isNaN(v.amb)) {
       maxEl.textContent = '—'; anEl.textContent = '—';
       badgeEl.textContent = '—'; badgeEl.className = 'badge';
+      document.getElementById('bloco-critico').style.display = 'none';
       return null;
     }
     var maxima = Math.max.apply(null, vals);
@@ -750,6 +777,7 @@
     anEl.textContent = anomalia ? anomalia[0].replace('Fase ', '') : '—';
     badgeEl.textContent = c.label;
     badgeEl.className = 'badge ' + c.key;
+    document.getElementById('bloco-critico').style.display = (c.key === 'critico') ? 'block' : 'none';
     return { maxima: maxima, anomalia: anomalia, classe: c };
   }
   ['f-faser', 'f-fases', 'f-faset', 'f-ambiente'].forEach(function (id) {
@@ -803,6 +831,57 @@
     fotoTermicaBlob = file; fotoTermicaDataUrl = dataUrl;
   });
 
+  // ---------- extra photos (critical items) ----------
+  var fotosExtrasNovas = []; // { blob, dataUrl }
+  var fotosExtrasExistentes = []; // { id?, url?, dataUrl? } already saved (edit mode)
+
+  function renderExtrasPreview() {
+    var grid = document.getElementById('extras-preview');
+    var html = '';
+    fotosExtrasExistentes.forEach(function (f, i) {
+      var src = f.dataUrl || f.url || (f.id ? ('/_blob/' + f.id) : '');
+      html += '<div class="extra-item"><img src="' + src + '"><button type="button" class="extra-remove" data-tipo="existente" data-idx="' + i + '">✕</button></div>';
+    });
+    fotosExtrasNovas.forEach(function (f, i) {
+      html += '<div class="extra-item"><img src="' + f.dataUrl + '"><button type="button" class="extra-remove" data-tipo="nova" data-idx="' + i + '">✕</button></div>';
+    });
+    grid.innerHTML = html;
+    var total = fotosExtrasExistentes.length + fotosExtrasNovas.length;
+    document.getElementById('foto-label-extras').textContent = total ? (total + ' foto(s) adicionada(s) — toque para adicionar mais') : 'Toque para adicionar uma ou mais fotos';
+  }
+
+  document.getElementById('f-fotos-extras').addEventListener('change', function (e) {
+    var files = Array.prototype.slice.call(e.target.files || []);
+    var pendentes = files.length;
+    if (!pendentes) return;
+    files.forEach(function (file) {
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        fotosExtrasNovas.push({ blob: file, dataUrl: ev.target.result });
+        renderExtrasPreview();
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  });
+
+  document.getElementById('extras-preview').addEventListener('click', function (e) {
+    var btn = e.target.closest('button.extra-remove');
+    if (!btn) return;
+    var idx = parseInt(btn.getAttribute('data-idx'), 10);
+    if (btn.getAttribute('data-tipo') === 'existente') fotosExtrasExistentes.splice(idx, 1);
+    else fotosExtrasNovas.splice(idx, 1);
+    renderExtrasPreview();
+  });
+
+  function limparFotosExtras() {
+    fotosExtrasNovas = [];
+    fotosExtrasExistentes = [];
+    document.getElementById('f-detalhes-extras').value = '';
+    document.getElementById('f-fotos-extras').value = '';
+    renderExtrasPreview();
+  }
+
   function limparFoto(wrapId, labelId, defaultLabel) {
     var wrap = document.getElementById(wrapId);
     var existingImg = wrap.querySelector('img');
@@ -831,6 +910,7 @@
     fotoTermicaBlob = null; fotoTermicaDataUrl = null;
     limparFoto('foto-wrap-visual', 'foto-label-visual', 'Toque p/ foto');
     limparFoto('foto-wrap-termica', 'foto-label-termica', 'Toque p/ foto');
+    limparFotosExtras();
     atualizarCalculo();
     editandoPontoId = null;
     editandoPontoOriginal = null;
@@ -1431,6 +1511,19 @@
       toast('Falha ao salvar alguma foto — ponto será salvo mesmo assim.');
     }
 
+    var fotosExtrasFinal = fotosExtrasExistentes.slice();
+    try {
+      for (var i = 0; i < fotosExtrasNovas.length; i++) {
+        var rx = await uploadFoto(fotosExtrasNovas[i].blob);
+        if (rx.id || rx.url) fotosExtrasFinal.push({ id: rx.id, url: rx.url });
+        else fotosExtrasFinal.push({ dataUrl: fotosExtrasNovas[i].dataUrl });
+      }
+    } catch (err) {
+      console.error(err);
+      toast('Falha ao salvar alguma foto extra.');
+    }
+    var detalhesAdicionais = document.getElementById('f-detalhes-extras').value.trim();
+
     var editando = !!editandoPontoId;
     var numero = editando ? editandoPontoOriginal.numero : (pontosCache.reduce(function (max, p) { return Math.max(max, p.numero || 0); }, 0)) + 1;
 
@@ -1442,7 +1535,7 @@
       ambiente: v.amb, emissividade: isNaN(emissividade) ? 0.95 : emissividade,
       maxima: maxima, anomalia: anomalia ? anomalia[0] : null,
       classificacao: classe.label, prioridade: classe.prioridade,
-      observacao: obs,
+      observacao: obs, fotosExtras: fotosExtrasFinal, detalhesAdicionais: detalhesAdicionais,
       fotoVisualId: fotoVisualId, fotoVisualUrl: fotoVisualUrl,
       fotoVisualDataUrl: (fotoVisualId || fotoVisualUrl) ? null : fotoVisualDataUrlFinal,
       fotoTermicaId: fotoTermicaId, fotoTermicaUrl: fotoTermicaUrl,
@@ -1524,6 +1617,11 @@
     fotoVisualDataUrl = null; fotoTermicaDataUrl = null;
     document.getElementById('f-foto-visual').value = '';
     document.getElementById('f-foto-termica').value = '';
+    fotosExtrasNovas = [];
+    fotosExtrasExistentes = (ponto.fotosExtras || []).slice();
+    document.getElementById('f-detalhes-extras').value = ponto.detalhesAdicionais || '';
+    document.getElementById('f-fotos-extras').value = '';
+    renderExtrasPreview();
     atualizarCalculo();
     document.getElementById('btn-salvar').textContent = 'Salvar alterações';
     document.getElementById('btn-cancelar-edicao').style.display = 'block';
@@ -1582,6 +1680,36 @@
           reader2.readAsDataURL(blob2);
         });
       } catch (e) { return ponto[urlField]; }
+    }
+    return null;
+  }
+
+  async function obterImagemExtra(f) {
+    if (!f) return null;
+    if (f.dataUrl) return f.dataUrl;
+    if (f.id) {
+      try {
+        var resp = await fetch('/_blob/' + f.id);
+        var blob = await resp.blob();
+        return await new Promise(function (resolve, reject) {
+          var reader = new FileReader();
+          reader.onload = function () { resolve(reader.result); };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) { return null; }
+    }
+    if (f.url) {
+      try {
+        var resp2 = await fetch(f.url);
+        var blob2 = await resp2.blob();
+        return await new Promise(function (resolve, reject) {
+          var reader2 = new FileReader();
+          reader2.onload = function () { resolve(reader2.result); };
+          reader2.onerror = reject;
+          reader2.readAsDataURL(blob2);
+        });
+      } catch (e) { return f.url; }
     }
     return null;
   }
@@ -1797,6 +1925,50 @@
     var obsText = ponto.observacao && ponto.observacao.trim() ? ponto.observacao : 'Sem observações registradas.';
     var lines2 = doc.splitTextToSize(obsText, W);
     doc.text(lines2, margin, y);
+    y += lines2.length * 4.5 + 4;
+
+    // extra section for critical items
+    var temExtras = (ponto.fotosExtras && ponto.fotosExtras.length) || (ponto.detalhesAdicionais && ponto.detalhesAdicionais.trim());
+    if (temExtras) {
+      var alturaEstimativa = 14 + (ponto.fotosExtras && ponto.fotosExtras.length ? 50 : 0) + (ponto.detalhesAdicionais ? 20 : 0);
+      if (y + alturaEstimativa > 275) { doc.addPage(); y = margin; }
+      doc.setFillColor(255, 153, 153);
+      doc.rect(margin, y, W, 7, 'F');
+      doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+      doc.text('⚠ REGISTRO ADICIONAL — SITUAÇÃO CRÍTICA', margin + 3, y + 5);
+      y += 11;
+      if (ponto.fotosExtras && ponto.fotosExtras.length) {
+        var cols = 3, gap = 4, thumbW = (W - gap * (cols - 1)) / cols, thumbH = 40;
+        for (var fi = 0; fi < ponto.fotosExtras.length; fi++) {
+          var col = fi % cols;
+          if (col === 0 && fi > 0) y += thumbH + gap;
+          if (y + thumbH > 283) { doc.addPage(); y = margin; }
+          var fx = margin + col * (thumbW + gap);
+          doc.setDrawColor(217, 217, 217); doc.setFillColor(250, 250, 250);
+          doc.rect(fx, y, thumbW, thumbH, 'FD');
+          try {
+            var extraImg = await obterImagemExtra(ponto.fotosExtras[fi]);
+            if (extraImg) {
+              var eProps = doc.getImageProperties(extraImg);
+              var eRatio = Math.min((thumbW - 2) / eProps.width, (thumbH - 2) / eProps.height);
+              var ew = eProps.width * eRatio, eh = eProps.height * eRatio;
+              doc.addImage(extraImg, fx + (thumbW - ew) / 2, y + (thumbH - eh) / 2, ew, eh);
+            }
+          } catch (e) {}
+        }
+        y += thumbH + 6;
+      }
+      if (ponto.detalhesAdicionais && ponto.detalhesAdicionais.trim()) {
+        if (y + 16 > 283) { doc.addPage(); y = margin; }
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(31, 56, 100);
+        doc.text('Detalhes adicionais:', margin, y);
+        y += 4.5;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
+        var linesExtra = doc.splitTextToSize(ponto.detalhesAdicionais, W);
+        doc.text(linesExtra, margin, y);
+        y += linesExtra.length * 4.5;
+      }
+    }
 
     // footer
     doc.setDrawColor(217, 217, 217);
@@ -1844,6 +2016,12 @@
     var coresEscala = ['#92D050', '#FFFF00', '#FFA500', '#FF0000'];
     var imgVisual = await obterImagemBase64('fotoVisualDataUrl', 'fotoVisualId', ponto, 'fotoVisualUrl');
     var imgTermica = await obterImagemBase64('fotoTermicaDataUrl', 'fotoTermicaId', ponto, 'fotoTermicaUrl');
+    var extrasImgs = [];
+    if (ponto.fotosExtras && ponto.fotosExtras.length) {
+      for (var xi = 0; xi < ponto.fotosExtras.length; xi++) {
+        extrasImgs.push(await obterImagemExtra(ponto.fotosExtras[xi]));
+      }
+    }
 
     var scaleHtml = limiares.map(function (lim, i) {
       var isLast = i === limiares.length - 1;
@@ -1916,6 +2094,14 @@
         '<h4>DIAGNÓSTICO / OBSERVAÇÃO</h4>' +
         '<p>' + escapeHtmlPreview(ponto.observacao && ponto.observacao.trim() ? ponto.observacao : 'Sem observações registradas.') + '</p>' +
       '</div>' +
+      ((extrasImgs.length || (ponto.detalhesAdicionais && ponto.detalhesAdicionais.trim())) ?
+        '<div class="lp-extras">' +
+          '<div class="lp-extras-title">⚠ REGISTRO ADICIONAL — SITUAÇÃO CRÍTICA</div>' +
+          (extrasImgs.length ? '<div class="lp-extras-grid">' + extrasImgs.map(function (src) {
+            return src ? '<img src="' + src + '">' : '<div class="lp-extras-vazio">Sem imagem</div>';
+          }).join('') + '</div>' : '') +
+          (ponto.detalhesAdicionais && ponto.detalhesAdicionais.trim() ? '<p class="lp-extras-texto"><strong>Detalhes adicionais:</strong> ' + escapeHtmlPreview(ponto.detalhesAdicionais) + '</p>' : '') +
+        '</div>' : '') +
       '<div class="lp-footer"><img class="lp-crea" src="' + CREA_BADGE_DATA_URL + '" alt="CREA-SP"><img src="' + FOOTER_DATA_URL + '" alt="IDEALLE" style="max-width:280px;width:100%;height:auto;display:inline-block;"></div>'
     );
   }
