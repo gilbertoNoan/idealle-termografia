@@ -146,7 +146,10 @@
   textarea { resize: vertical; min-height: 60px; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-  #isolacao-wrap { margin-top: 10px; }
+  .temp-admissivel-box {
+    margin-top: 10px; background: var(--azul-claro); color: var(--azul);
+    border-radius: 8px; padding: 9px 12px; font-size: 13.5px;
+  }
   .radio-opt {
     display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500;
     color: var(--texto); background: var(--cinza); border-radius: 8px; padding: 9px 10px;
@@ -461,54 +464,31 @@
         <label>Tipo</label>
         <select id="f-tipo">
           <option value="">Selecione…</option>
-          <option>Entrada</option>
-          <option>Saída</option>
-          <option>Disjuntor</option>
+          <option>Quadro</option>
           <option>Barramento</option>
-          <option>Contator</option>
-          <option>Terminal</option>
           <option>Cabo</option>
+          <option>Equipamento</option>
           <option>Outro</option>
         </select>
         <input type="text" id="f-tipo-outro" placeholder="Especifique o tipo" style="display:none; margin-top:6px;" />
       </div>
       <div>
         <label>Parte</label>
-        <select id="f-parte">
-          <option value="">Selecione…</option>
-          <option>R</option>
-          <option>S</option>
-          <option>T</option>
-          <option>Neutro</option>
-          <option>Terra</option>
-          <option>1</option>
-          <option>2</option>
-          <option>3</option>
-          <option>Outro</option>
+        <select id="f-parte" disabled>
+          <option value="">Selecione o Tipo primeiro…</option>
         </select>
         <input type="text" id="f-parte-outro" placeholder="Especifique a parte" style="display:none; margin-top:6px;" />
       </div>
       <div>
         <label>Função</label>
-        <select id="f-funcao">
-          <option value="">Selecione…</option>
-          <option>Conexão</option>
-          <option>Proteção</option>
-          <option>Alimentação</option>
-          <option>Comando</option>
-          <option>Distribuição</option>
-          <option>Seccionamento</option>
-          <option>Outro</option>
+        <select id="f-funcao" disabled>
+          <option value="">Selecione a Parte primeiro…</option>
         </select>
         <input type="text" id="f-funcao-outro" placeholder="Especifique a função" style="display:none; margin-top:6px;" />
       </div>
     </div>
-    <div id="isolacao-wrap" style="display:none;">
-      <label>Isolação do cabo</label>
-      <div class="row2">
-        <label class="radio-opt"><input type="radio" name="f-isolacao" value="PVC"> PVC</label>
-        <label class="radio-opt"><input type="radio" name="f-isolacao" value="EPR"> EPR</label>
-      </div>
+    <div class="temp-admissivel-box" id="temp-admissivel-box" style="display:none;">
+      🌡 <strong>Temperatura admissível de referência:</strong> <span id="valor-temp-admissivel">—</span>
     </div>
 
     <div class="subhead">Temperaturas coletadas (°C)</div>
@@ -970,25 +950,93 @@
     document.getElementById(id).addEventListener('input', atualizarCalculo);
   });
 
-  // show the PVC/EPR insulation choice only when "Tipo" mentions a cable
-  function atualizarVisibilidadeIsolacao() {
-    var tipo = lerSelectComOutro('f-tipo', 'f-tipo-outro') || '';
-    var wrap = document.getElementById('isolacao-wrap');
-    var ehCabo = tipo.toLowerCase().indexOf('cabo') !== -1;
-    wrap.style.display = ehCabo ? 'block' : 'none';
-    if (!ehCabo) {
-      var radios = document.getElementsByName('f-isolacao');
-      for (var i = 0; i < radios.length; i++) radios[i].checked = false;
+  // ---------- Tipo → Parte → Função em cascata + Temperatura Admissível de referência ----------
+  var TABELA_TEMP_ADMISSIVEL = {
+    'Quadro': {
+      'Quadro elétrico': { 'Disjuntor': '<90°C', 'Chave Seccionadora': '<90°C', 'Base de fusível': '<90°C', 'Conexão': '<90°C' },
+      'Quadro de comando': { 'Disjuntor': '<90°C', 'Chave Seccionadora': '<90°C', 'Base de fusível': '<90°C', 'Conexão': '<90°C' }
+    },
+    'Barramento': {
+      'Cobre Nu': { 'Conexão': '<80°C' },
+      'Blindado (Al)': { 'Cofre de derivação (plug-in)': '<120°C' },
+      'Blindado (Cu)': { 'Cofre de derivação (plug-in)': '<105°C' },
+      'Cobre Isolado': { 'Conexão': '<80°C' },
+      'Cobre Pintado': { 'Conexão': '<80°C' }
+    },
+    'Cabo': {
+      'EPR/XLPE': { 'Conexão': '<90°C' },
+      'PVC': { 'Conexão': '<70°C' },
+      'Cobre Nu': { 'Conexão': '<80°C' }
+    },
+    'Equipamento': {
+      'Motor': {
+        'Delta T 80°C': 'ΔT ≤ 80°C (relacionado diretamente à temp. ambiente)',
+        'Delta T 105°C': 'ΔT ≤ 105°C (relacionado diretamente à temp. ambiente)',
+        'Delta T 125°C': 'ΔT ≤ 125°C (relacionado diretamente à temp. ambiente)'
+      },
+      'Inversor/soft starter': { 'Conexão': '<90°C' },
+      'Compressor': { 'Conexão': '<90°C' },
+      'Transformador': { 'Conexão': '<120°C' }
     }
-  }
-  document.getElementById('f-tipo').addEventListener('change', atualizarVisibilidadeIsolacao);
-  document.getElementById('f-tipo-outro').addEventListener('input', atualizarVisibilidadeIsolacao);
+  };
 
-  function lerIsolacao() {
-    var radios = document.getElementsByName('f-isolacao');
-    for (var i = 0; i < radios.length; i++) if (radios[i].checked) return radios[i].value;
+  function popularParte() {
+    var tipo = document.getElementById('f-tipo').value;
+    var selParte = document.getElementById('f-parte');
+    var partes = (tipo && TABELA_TEMP_ADMISSIVEL[tipo]) ? Object.keys(TABELA_TEMP_ADMISSIVEL[tipo]) : [];
+    if (!tipo) {
+      selParte.innerHTML = '<option value="">Selecione o Tipo primeiro…</option>';
+      selParte.disabled = true;
+    } else {
+      selParte.innerHTML = '<option value="">Selecione…</option>' +
+        partes.map(function (p) { return '<option>' + p + '</option>'; }).join('') + '<option>Outro</option>';
+      selParte.disabled = false;
+    }
+    document.getElementById('f-parte-outro').style.display = 'none';
+    document.getElementById('f-parte-outro').value = '';
+    popularFuncao();
+  }
+  function popularFuncao() {
+    var tipo = document.getElementById('f-tipo').value;
+    var parte = document.getElementById('f-parte').value;
+    var selFuncao = document.getElementById('f-funcao');
+    var funcoes = (tipo && parte && TABELA_TEMP_ADMISSIVEL[tipo] && TABELA_TEMP_ADMISSIVEL[tipo][parte]) ?
+      Object.keys(TABELA_TEMP_ADMISSIVEL[tipo][parte]) : [];
+    if (!parte) {
+      selFuncao.innerHTML = '<option value="">Selecione a Parte primeiro…</option>';
+      selFuncao.disabled = true;
+    } else {
+      selFuncao.innerHTML = '<option value="">Selecione…</option>' +
+        funcoes.map(function (f) { return '<option>' + f + '</option>'; }).join('') + '<option>Outro</option>';
+      selFuncao.disabled = false;
+    }
+    document.getElementById('f-funcao-outro').style.display = 'none';
+    document.getElementById('f-funcao-outro').value = '';
+    atualizarTempAdmissivel();
+  }
+  function obterTempAdmissivel() {
+    var tipo = document.getElementById('f-tipo').value;
+    var parte = document.getElementById('f-parte').value;
+    var funcao = document.getElementById('f-funcao').value;
+    if (tipo && parte && funcao && TABELA_TEMP_ADMISSIVEL[tipo] && TABELA_TEMP_ADMISSIVEL[tipo][parte] && TABELA_TEMP_ADMISSIVEL[tipo][parte][funcao]) {
+      return TABELA_TEMP_ADMISSIVEL[tipo][parte][funcao];
+    }
     return null;
   }
+  function atualizarTempAdmissivel() {
+    var valor = obterTempAdmissivel();
+    var box = document.getElementById('temp-admissivel-box');
+    if (valor) {
+      document.getElementById('valor-temp-admissivel').textContent = valor;
+      box.style.display = 'block';
+    } else {
+      box.style.display = 'none';
+    }
+    return valor;
+  }
+  document.getElementById('f-tipo').addEventListener('change', popularParte);
+  document.getElementById('f-parte').addEventListener('change', popularFuncao);
+  document.getElementById('f-funcao').addEventListener('change', atualizarTempAdmissivel);
 
   function setupFotoInput(inputId, wrapId, labelId, onLoaded) {
     document.getElementById(inputId).addEventListener('change', function (e) {
@@ -1080,11 +1128,10 @@
     document.getElementById('f-quadro').value = '';
     document.getElementById('f-tipo').value = '';
     document.getElementById('f-tipo-outro').value = ''; document.getElementById('f-tipo-outro').style.display = 'none';
-    document.getElementById('f-parte').value = '';
+    popularParte();
     document.getElementById('f-parte-outro').value = ''; document.getElementById('f-parte-outro').style.display = 'none';
-    document.getElementById('f-funcao').value = '';
     document.getElementById('f-funcao-outro').value = ''; document.getElementById('f-funcao-outro').style.display = 'none';
-    atualizarVisibilidadeIsolacao();
+    atualizarTempAdmissivel();
     document.getElementById('f-data').value = nowLocalInputValue();
     document.getElementById('f-faser').value = '';
     document.getElementById('f-fases').value = '';
@@ -1755,7 +1802,7 @@
       tipo: lerSelectComOutro('f-tipo', 'f-tipo-outro'),
       parte: lerSelectComOutro('f-parte', 'f-parte-outro'),
       funcao: lerSelectComOutro('f-funcao', 'f-funcao-outro'),
-      isolacao: lerIsolacao(),
+      tempAdmissivel: obterTempAdmissivel(),
       dataHora: document.getElementById('f-data').value,
       faseR: isNaN(v.r) ? null : v.r, faseS: isNaN(v.s) ? null : v.s, faseT: isNaN(v.t) ? null : v.t,
       ambiente: isNaN(v.amb) ? null : v.amb, emissividade: isNaN(emissividade) ? 0.95 : emissividade,
@@ -1794,7 +1841,7 @@
     var tipo = lerSelectComOutro('f-tipo', 'f-tipo-outro');
     var parte = lerSelectComOutro('f-parte', 'f-parte-outro');
     var funcao = lerSelectComOutro('f-funcao', 'f-funcao-outro');
-    var isolacao = lerIsolacao();
+    var tempAdmissivel = obterTempAdmissivel();
     var dataHora = document.getElementById('f-data').value;
     var v = lerTemps();
     var emissividade = parseFloat(document.getElementById('f-emissividade').value);
@@ -1859,7 +1906,7 @@
     var bx1Calc = atualizarCalculoBx1();
     var doc = {
       numero: numero, cliente: cliente, osId: osId, osNumero: osSelecionada.numero, local: local, quadro: quadro,
-      tipo: tipo, parte: parte, funcao: funcao, isolacao: isolacao,
+      tipo: tipo, parte: parte, funcao: funcao, tempAdmissivel: tempAdmissivel,
       dataHora: dataHora,
       faseR: isNaN(v.r) ? null : v.r, faseS: isNaN(v.s) ? null : v.s, faseT: isNaN(v.t) ? null : v.t,
       ambiente: v.amb, emissividade: isNaN(emissividade) ? 0.95 : emissividade,
@@ -1933,13 +1980,11 @@
     document.getElementById('f-local').value = ponto.local || '';
     document.getElementById('f-quadro').value = ponto.quadro || '';
     setSelectComOutro('f-tipo', 'f-tipo-outro', ponto.tipo);
+    popularParte();
     setSelectComOutro('f-parte', 'f-parte-outro', ponto.parte);
+    popularFuncao();
     setSelectComOutro('f-funcao', 'f-funcao-outro', ponto.funcao);
-    atualizarVisibilidadeIsolacao();
-    if (ponto.isolacao) {
-      var radios = document.getElementsByName('f-isolacao');
-      for (var i = 0; i < radios.length; i++) radios[i].checked = (radios[i].value === ponto.isolacao);
-    }
+    atualizarTempAdmissivel();
     document.getElementById('f-data').value = ponto.dataHora || nowLocalInputValue();
     document.getElementById('f-faser').value = ponto.faseR != null ? ponto.faseR : '';
     document.getElementById('f-fases').value = ponto.faseS != null ? ponto.faseS : '';
@@ -2194,7 +2239,7 @@
       ['Parte:', ponto.parte || '—'],
       ['Função:', ponto.funcao || '—']
     ];
-    if (ponto.isolacao) infoComponente.push(['Isolação:', ponto.isolacao]);
+    if (ponto.tempAdmissivel) infoComponente.push(['Temp. Admissível:', ponto.tempAdmissivel]);
     var y1 = infoTable(doc, leftX, y, colW, 'INFORMAÇÕES DO COMPONENTE', infoComponente, azul, cinza);
     y1 += 3;
     y1 = infoTable(doc, leftX, y1, colW, 'TEMP. COLETADAS (°C)', [
@@ -2424,7 +2469,7 @@
           '<div class="lp-table">' +
             '<div class="lp-table-title">INFORMAÇÕES DO COMPONENTE</div>' +
             linhaHtml('Tipo:', ponto.tipo || '—') + linhaHtml('Parte:', ponto.parte || '—') + linhaHtml('Função:', ponto.funcao || '—') +
-            (ponto.isolacao ? linhaHtml('Isolação:', ponto.isolacao) : '') +
+            (ponto.tempAdmissivel ? linhaHtml('Temp. Admissível:', ponto.tempAdmissivel) : '') +
           '</div>' +
           '<div class="lp-table">' +
             '<div class="lp-table-title">TEMP. COLETADAS (°C)</div>' +
