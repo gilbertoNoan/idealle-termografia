@@ -552,6 +552,9 @@
     <label>Observação</label>
     <textarea id="f-obs" placeholder="Ex.: possível mau contato na conexão, recomenda-se reaperto..."></textarea>
 
+    <label>Conclusão <span id="conclusao-aviso" class="ajuda-campo" style="display:none;">Preenchimento manual obrigatório para este nível de severidade.</span></label>
+    <textarea id="f-conclusao" placeholder="Conclusão técnica do laudo para este ponto..."></textarea>
+
     <button class="btn-secondary" id="btn-ver-previa" style="width:100%; margin-top:6px;">👁 Ver prévia do relatório</button>
     <button class="btn-primary" id="btn-salvar">Salvar ponto</button>
     <button class="btn-secondary" id="btn-cancelar-edicao" style="display:none; width:100%; margin-top:8px;">Cancelar edição</button>
@@ -922,6 +925,26 @@
     }
   }
 
+  // ---------- Conclusão automática (Normal/Médio) ou manual (Alto/Crítico) ----------
+  var TEXTO_CONCLUSAO_AUTO = {
+    normal: 'Ponto inspecionado apresentando comportamento térmico dentro dos parâmetros aceitáveis de operação, não sendo constatada anomalia térmica relevante no momento da inspeção.',
+    medio: 'Ponto inspecionado apresentando elevação de temperatura compatível com a condição de carga observada, sem caracterizar risco imediato. Recomenda-se acompanhamento na próxima inspeção periódica.'
+  };
+  var conclusaoManual = false;
+  document.getElementById('f-conclusao').addEventListener('input', function () { conclusaoManual = true; });
+  function atualizarConclusao(classeKey) {
+    var campo = document.getElementById('f-conclusao');
+    var aviso = document.getElementById('conclusao-aviso');
+    var exigeManual = (classeKey === 'alto' || classeKey === 'critico');
+    aviso.style.display = exigeManual ? 'inline' : 'none';
+    if (conclusaoManual) return;
+    if (classeKey === 'normal' || classeKey === 'medio') {
+      campo.value = TEXTO_CONCLUSAO_AUTO[classeKey];
+    } else {
+      campo.value = '';
+    }
+  }
+
   function atualizarCalculo() {
     var v = lerTemps();
     var maxEl = document.getElementById('calc-max');
@@ -932,6 +955,7 @@
       maxEl.textContent = '—'; anEl.textContent = '—';
       badgeEl.textContent = '—'; badgeEl.className = 'badge';
       document.getElementById('bloco-critico').style.display = 'none';
+      document.getElementById('conclusao-aviso').style.display = 'none';
       return null;
     }
     var maxima = Math.max.apply(null, vals);
@@ -942,6 +966,7 @@
     badgeEl.textContent = c.label;
     badgeEl.className = 'badge ' + c.key;
     document.getElementById('bloco-critico').style.display = (c.key === 'critico') ? 'block' : 'none';
+    atualizarConclusao(c.key);
     return { maxima: maxima, anomalia: anomalia, classe: c };
   }
   ['f-faser', 'f-fases', 'f-ambiente'].forEach(function (id) {
@@ -1138,6 +1163,8 @@
     document.getElementById('f-bx1-min').value = '';
     atualizarCalculoBx1();
     document.getElementById('f-obs').value = '';
+    document.getElementById('f-conclusao').value = '';
+    conclusaoManual = false;
     document.getElementById('f-foto-visual').value = '';
     document.getElementById('f-foto-termica').value = '';
     fotoVisualBlob = null; fotoVisualDataUrl = null;
@@ -1810,6 +1837,7 @@
       bx1Classificacao: bx1Calc ? bx1Calc.classe.label : null,
       bx1Acao: bx1Calc ? bx1Calc.classe.acao : null,
       observacao: document.getElementById('f-obs').value.trim(),
+      conclusao: document.getElementById('f-conclusao').value.trim(),
       fotosExtras: fotosExtrasExistentes.concat(fotosExtrasNovas.map(function (f) { return { dataUrl: f.dataUrl }; })),
       detalhesAdicionais: document.getElementById('f-detalhes-extras').value.trim(),
       fotoVisualDataUrl: fotoVisualDataUrl || (editandoPontoOriginal ? (editandoPontoOriginal.fotoVisualDataUrl || null) : null),
@@ -1843,6 +1871,7 @@
     var v = lerTemps();
     var emissividade = parseFloat(document.getElementById('f-emissividade').value);
     var obs = document.getElementById('f-obs').value.trim();
+    var conclusao = document.getElementById('f-conclusao').value.trim();
 
     if (!quadro) { toast('Informe a identificação do quadro.'); return; }
     var vals = [v.r, v.s].filter(function (x) { return !isNaN(x); });
@@ -1913,7 +1942,7 @@
       bx1DeltaT: bx1Calc ? bx1Calc.deltaT : null,
       bx1Classificacao: bx1Calc ? bx1Calc.classe.label : null,
       bx1Acao: bx1Calc ? bx1Calc.classe.acao : null,
-      observacao: obs, fotosExtras: fotosExtrasFinal, detalhesAdicionais: detalhesAdicionais,
+      observacao: obs, conclusao: conclusao, fotosExtras: fotosExtrasFinal, detalhesAdicionais: detalhesAdicionais,
       fotoVisualId: fotoVisualId, fotoVisualUrl: fotoVisualUrl, fotoVisualFsId: fotoVisualFsId,
       fotoVisualDataUrl: (fotoVisualId || fotoVisualUrl || fotoVisualFsId) ? null : fotoVisualDataUrlFinal,
       fotoTermicaId: fotoTermicaId, fotoTermicaUrl: fotoTermicaUrl, fotoTermicaFsId: fotoTermicaFsId,
@@ -1992,6 +2021,8 @@
     document.getElementById('f-bx1-min').value = ponto.bx1Min != null ? ponto.bx1Min : '';
     atualizarCalculoBx1();
     document.getElementById('f-obs').value = ponto.observacao || '';
+    document.getElementById('f-conclusao').value = ponto.conclusao || '';
+    conclusaoManual = !!(ponto.conclusao && ponto.conclusao.trim());
     fotoVisualBlob = null; fotoTermicaBlob = null;
     fotoVisualDataUrl = null; fotoTermicaDataUrl = null;
     document.getElementById('f-foto-visual').value = '';
@@ -2331,7 +2362,17 @@
     var obsText = ponto.observacao && ponto.observacao.trim() ? ponto.observacao : 'Sem observações registradas.';
     var lines2 = doc.splitTextToSize(obsText, W);
     doc.text(lines2, margin, y);
-    y += lines2.length * 4.5 + 4;
+    y += lines2.length * 4.5 + 6;
+
+    // conclusão
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(31, 56, 100);
+    doc.text('CONCLUSÃO', margin, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
+    var conclusaoText = ponto.conclusao && ponto.conclusao.trim() ? ponto.conclusao : 'Conclusão não preenchida.';
+    var linesConclusao = doc.splitTextToSize(conclusaoText, W);
+    doc.text(linesConclusao, margin, y);
+    y += linesConclusao.length * 4.5 + 4;
 
     // extra section for critical items
     var temExtras = (ponto.fotosExtras && ponto.fotosExtras.length) || (ponto.detalhesAdicionais && ponto.detalhesAdicionais.trim());
@@ -2508,6 +2549,10 @@
       '<div class="lp-diag">' +
         '<h4>DIAGNÓSTICO / OBSERVAÇÃO</h4>' +
         '<p>' + escapeHtmlPreview(ponto.observacao && ponto.observacao.trim() ? ponto.observacao : 'Sem observações registradas.') + '</p>' +
+      '</div>' +
+      '<div class="lp-diag">' +
+        '<h4>CONCLUSÃO</h4>' +
+        '<p>' + escapeHtmlPreview(ponto.conclusao && ponto.conclusao.trim() ? ponto.conclusao : 'Conclusão não preenchida.') + '</p>' +
       '</div>' +
       ((extrasImgs.length || (ponto.detalhesAdicionais && ponto.detalhesAdicionais.trim())) ?
         '<div class="lp-extras">' +
