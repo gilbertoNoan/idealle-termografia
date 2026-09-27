@@ -182,6 +182,14 @@
   .badge.medio { background: #FFFF00; }
   .badge.alto { background: #FFA500; }
   .badge.critico { background: #FF0000; color: #fff; }
+  .badge-deltat {
+    display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #1a1a1a;
+  }
+  .badge-deltat.normal { background: #92D050; }
+  .badge-deltat.observar { background: #FFFF00; }
+  .badge-deltat.programar { background: #FFA500; }
+  .badge-deltat.urgencia { background: #FF6600; color: #fff; }
+  .badge-deltat.emergencia { background: #C00000; color: #fff; }
   button { font-family: inherit; cursor: pointer; border: none; border-radius: 9px; font-weight: 700; font-size: 15px; }
   .btn-primary { width: 100%; padding: 13px; background: var(--azul); color: #fff; margin-top: 16px; }
   .btn-primary:disabled { opacity: .6; }
@@ -325,6 +333,7 @@
   .nav-item:hover:not(.active) { padding-left: 20px; }
 
   .badge.critico { animation: pulseCritico 1.8s infinite; }
+  .badge-deltat.emergencia { animation: pulseCritico 1.8s infinite; }
 
   input[type=text], input[type=number], input[type=datetime-local], textarea, select {
     transition: border-color .2s ease, box-shadow .2s ease;
@@ -517,6 +526,17 @@
       <div class="pill"><div class="v" id="calc-max">—</div><div class="l">Máxima</div></div>
       <div class="pill"><div class="v" id="calc-anomalia">—</div><div class="l">Anomalia</div></div>
       <div class="pill"><div class="v"><span class="badge" id="calc-badge">—</span></div><div class="l">Severidade</div></div>
+    </div>
+
+    <div class="subhead">Bx1 — Classificação por ΔT (opcional)</div>
+    <div class="row3">
+      <div><label>Bx1 Máx (°C)</label><input type="number" step="0.1" id="f-bx1-max" inputmode="decimal" /></div>
+      <div><label>Bx1 Méd (°C)</label><input type="number" step="0.1" id="f-bx1-med" inputmode="decimal" /></div>
+      <div><label>Bx1 Mín (°C)</label><input type="number" step="0.1" id="f-bx1-min" inputmode="decimal" /></div>
+    </div>
+    <div class="calc-box">
+      <div class="pill"><div class="v" id="calc-bx1-deltat">—</div><div class="l">ΔT Bx1</div></div>
+      <div class="pill"><div class="v"><span class="badge-deltat" id="calc-bx1-badge">—</span></div><div class="l">Classificação ΔT</div></div>
     </div>
 
     <div class="subhead">Registro fotográfico</div>
@@ -815,6 +835,51 @@
     return vals[0];
   }
 
+  // ---------- Bx1: classificação por ΔT (Máx - Mín) ----------
+  var LIMIARES_DELTAT = [15, 20, 25, 30];
+  var NIVEIS_DELTAT = [
+    { key: 'normal', label: 'Normal', cor: '#92D050', acao: 'Nenhuma ação necessária.' },
+    { key: 'observar', label: 'Observar', cor: '#FFFF00', acao: 'Observar e reinspecionar no próximo período.' },
+    { key: 'programar', label: 'Programar', cor: '#FFA500', acao: 'Programar reparo na próxima manutenção.' },
+    { key: 'urgencia', label: 'Urgência', cor: '#FF6600', acao: 'Providenciar reparo com urgência.' },
+    { key: 'emergencia', label: 'Emergência', cor: '#C00000', acao: 'Intervenção imediata / emergencial.' }
+  ];
+  function classificarDeltaT(deltaT) {
+    var d = Math.abs(deltaT);
+    var nivel;
+    if (d < LIMIARES_DELTAT[0]) nivel = NIVEIS_DELTAT[0];
+    else if (d < LIMIARES_DELTAT[1]) nivel = NIVEIS_DELTAT[1];
+    else if (d < LIMIARES_DELTAT[2]) nivel = NIVEIS_DELTAT[2];
+    else if (d < LIMIARES_DELTAT[3]) nivel = NIVEIS_DELTAT[3];
+    else nivel = NIVEIS_DELTAT[4];
+    var r = {}; for (var k in nivel) r[k] = nivel[k];
+    return r;
+  }
+  function lerBx1() {
+    var max = parseFloat(document.getElementById('f-bx1-max').value);
+    var med = parseFloat(document.getElementById('f-bx1-med').value);
+    var min = parseFloat(document.getElementById('f-bx1-min').value);
+    return { max: max, med: med, min: min };
+  }
+  function atualizarCalculoBx1() {
+    var b = lerBx1();
+    var elDelta = document.getElementById('calc-bx1-deltat');
+    var elBadge = document.getElementById('calc-bx1-badge');
+    if (isNaN(b.max) || isNaN(b.min)) {
+      elDelta.textContent = '—';
+      elBadge.textContent = '—'; elBadge.className = 'badge-deltat';
+      return null;
+    }
+    var deltaT = b.max - b.min;
+    var c = classificarDeltaT(deltaT);
+    elDelta.textContent = deltaT.toFixed(1) + '°';
+    elBadge.textContent = c.label; elBadge.className = 'badge-deltat ' + c.key;
+    return { deltaT: deltaT, classe: c };
+  }
+  ['f-bx1-max', 'f-bx1-med', 'f-bx1-min'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', atualizarCalculoBx1);
+  });
+
   function lerTemps() {
     var r = parseFloat(document.getElementById('f-faser').value);
     var s = parseFloat(document.getElementById('f-fases').value);
@@ -1024,6 +1089,10 @@
     document.getElementById('f-faser').value = '';
     document.getElementById('f-fases').value = '';
     document.getElementById('f-faset').value = '';
+    document.getElementById('f-bx1-max').value = '';
+    document.getElementById('f-bx1-med').value = '';
+    document.getElementById('f-bx1-min').value = '';
+    atualizarCalculoBx1();
     document.getElementById('f-obs').value = '';
     document.getElementById('f-foto-visual').value = '';
     document.getElementById('f-foto-termica').value = '';
@@ -1673,6 +1742,8 @@
     var anomalia = calcularAnomalia(v.r, v.s, v.t);
     var classe = classificar(maxima, isNaN(v.amb) ? 25 : v.amb);
     var emissividade = parseFloat(document.getElementById('f-emissividade').value);
+    var bx1 = lerBx1();
+    var bx1Calc = (isNaN(bx1.max) || isNaN(bx1.min)) ? null : { deltaT: bx1.max - bx1.min, classe: classificarDeltaT(bx1.max - bx1.min) };
     var numeroPreview = editandoPontoId ? editandoPontoOriginal.numero :
       (pontosCache.reduce(function (max, p) { return Math.max(max, p.numero || 0); }, 0)) + 1;
     return {
@@ -1690,6 +1761,10 @@
       ambiente: isNaN(v.amb) ? null : v.amb, emissividade: isNaN(emissividade) ? 0.95 : emissividade,
       maxima: maxima, anomalia: anomalia ? anomalia[0] : null,
       classificacao: classe.label, prioridade: classe.prioridade,
+      bx1Max: isNaN(bx1.max) ? null : bx1.max, bx1Med: isNaN(bx1.med) ? null : bx1.med, bx1Min: isNaN(bx1.min) ? null : bx1.min,
+      bx1DeltaT: bx1Calc ? bx1Calc.deltaT : null,
+      bx1Classificacao: bx1Calc ? bx1Calc.classe.label : null,
+      bx1Acao: bx1Calc ? bx1Calc.classe.acao : null,
       observacao: document.getElementById('f-obs').value.trim(),
       fotosExtras: fotosExtrasExistentes.concat(fotosExtrasNovas.map(function (f) { return { dataUrl: f.dataUrl }; })),
       detalhesAdicionais: document.getElementById('f-detalhes-extras').value.trim(),
@@ -1780,6 +1855,8 @@
     var editando = !!editandoPontoId;
     var numero = editando ? editandoPontoOriginal.numero : (pontosCache.reduce(function (max, p) { return Math.max(max, p.numero || 0); }, 0)) + 1;
 
+    var bx1 = lerBx1();
+    var bx1Calc = atualizarCalculoBx1();
     var doc = {
       numero: numero, cliente: cliente, osId: osId, osNumero: osSelecionada.numero, local: local, quadro: quadro,
       tipo: tipo, parte: parte, funcao: funcao, isolacao: isolacao,
@@ -1788,6 +1865,10 @@
       ambiente: v.amb, emissividade: isNaN(emissividade) ? 0.95 : emissividade,
       maxima: maxima, anomalia: anomalia ? anomalia[0] : null,
       classificacao: classe.label, prioridade: classe.prioridade,
+      bx1Max: isNaN(bx1.max) ? null : bx1.max, bx1Med: isNaN(bx1.med) ? null : bx1.med, bx1Min: isNaN(bx1.min) ? null : bx1.min,
+      bx1DeltaT: bx1Calc ? bx1Calc.deltaT : null,
+      bx1Classificacao: bx1Calc ? bx1Calc.classe.label : null,
+      bx1Acao: bx1Calc ? bx1Calc.classe.acao : null,
       observacao: obs, fotosExtras: fotosExtrasFinal, detalhesAdicionais: detalhesAdicionais,
       fotoVisualId: fotoVisualId, fotoVisualUrl: fotoVisualUrl, fotoVisualFsId: fotoVisualFsId,
       fotoVisualDataUrl: (fotoVisualId || fotoVisualUrl || fotoVisualFsId) ? null : fotoVisualDataUrlFinal,
@@ -1865,6 +1946,10 @@
     document.getElementById('f-faset').value = ponto.faseT != null ? ponto.faseT : '';
     document.getElementById('f-ambiente').value = ponto.ambiente != null ? ponto.ambiente : 28;
     document.getElementById('f-emissividade').value = ponto.emissividade != null ? ponto.emissividade : 0.95;
+    document.getElementById('f-bx1-max').value = ponto.bx1Max != null ? ponto.bx1Max : '';
+    document.getElementById('f-bx1-med').value = ponto.bx1Med != null ? ponto.bx1Med : '';
+    document.getElementById('f-bx1-min').value = ponto.bx1Min != null ? ponto.bx1Min : '';
+    atualizarCalculoBx1();
     document.getElementById('f-obs').value = ponto.observacao || '';
     fotoVisualBlob = null; fotoTermicaBlob = null;
     fotoVisualDataUrl = null; fotoTermicaDataUrl = null;
@@ -2119,6 +2204,20 @@
       ['Máxima:', ponto.maxima != null ? ponto.maxima.toFixed(1) : '—']
     ], azul, cinza);
 
+    var temBx1 = ponto.bx1Max != null || ponto.bx1Min != null;
+    if (temBx1) {
+      y1 += 3;
+      var bx1Classe = classificarDeltaT(ponto.bx1DeltaT || 0);
+      y1 = infoTable(doc, leftX, y1, colW, 'BX1 — CLASSIFICAÇÃO POR ΔT', [
+        ['Bx1 Máx (°C):', ponto.bx1Max != null ? ponto.bx1Max.toFixed(1) : '—'],
+        ['Bx1 Méd (°C):', ponto.bx1Med != null ? ponto.bx1Med.toFixed(1) : '—'],
+        ['Bx1 Mín (°C):', ponto.bx1Min != null ? ponto.bx1Min.toFixed(1) : '—'],
+        ['ΔT (Máx − Mín):', ponto.bx1DeltaT != null ? ponto.bx1DeltaT.toFixed(1) + ' °C' : '—'],
+        ['Classificação:', ponto.bx1Classificacao || bx1Classe.label],
+        ['Ação recomendada:', ponto.bx1Acao || bx1Classe.acao]
+      ], azul, cinza, 0.48);
+    }
+
     // right column: analysis info + severity scale
     var y2 = infoTable(doc, rightX, y, colW, 'INFORMAÇÕES PARA ANÁLISE', [
       ['Emissividade:', ponto.emissividade != null ? String(ponto.emissividade) : '0,95'],
@@ -2334,6 +2433,16 @@
             linhaHtml('Fase T:', ponto.faseT != null ? ponto.faseT.toFixed(1) : '—') +
             linhaHtml('Máxima:', ponto.maxima != null ? ponto.maxima.toFixed(1) : '—') +
           '</div>' +
+          ((ponto.bx1Max != null || ponto.bx1Min != null) ?
+            '<div class="lp-table">' +
+              '<div class="lp-table-title">BX1 — CLASSIFICAÇÃO POR ΔT</div>' +
+              linhaHtml('Bx1 Máx (°C):', ponto.bx1Max != null ? ponto.bx1Max.toFixed(1) : '—') +
+              linhaHtml('Bx1 Méd (°C):', ponto.bx1Med != null ? ponto.bx1Med.toFixed(1) : '—') +
+              linhaHtml('Bx1 Mín (°C):', ponto.bx1Min != null ? ponto.bx1Min.toFixed(1) : '—') +
+              linhaHtml('ΔT (Máx − Mín):', ponto.bx1DeltaT != null ? ponto.bx1DeltaT.toFixed(1) + ' °C' : '—') +
+              linhaHtml('Classificação:', ponto.bx1Classificacao || '—') +
+              linhaHtml('Ação recomendada:', ponto.bx1Acao || '—') +
+            '</div>' : '') +
         '</div>' +
         '<div>' +
           '<div class="lp-table">' +
