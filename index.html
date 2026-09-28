@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.09.28-7" />
+<meta name="app-version" content="2026.09.28-8" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -406,6 +406,7 @@
   <button class="nav-item" data-view="novo">📋 Novo Laudo</button>
   <button class="nav-item" data-view="ordens">🗂 Ordens de Serviço</button>
   <button class="nav-item" data-view="empresas">🏢 Empresas</button>
+  <button class="nav-item" data-view="laudos">📁 Laudos Salvos</button>
   <div class="sidebar-versao">Versão <span id="versao-app"></span></div>
 </nav>
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
@@ -636,6 +637,32 @@
   </div>
   </section>
 
+  <section class="view" id="view-laudos" style="display:none;">
+  <div class="card">
+    <h2>📁 Laudos salvos <span class="contador" id="contador-laudos-salvos"></span></h2>
+    <input type="text" id="ls-busca" placeholder="🔎 Buscar por quadro, local, empresa, OS, tipo..." autocomplete="off" />
+    <div class="row3">
+      <div><label>Empresa</label><select id="ls-empresa"><option value="">Todas</option></select></div>
+      <div><label>OS</label><select id="ls-os"><option value="">Todas</option></select></div>
+      <div><label>Severidade</label>
+        <select id="ls-sev">
+          <option value="">Todas</option>
+          <option value="normal">Baixo</option>
+          <option value="medio">Médio</option>
+          <option value="alto">Alto</option>
+          <option value="critico">Crítico</option>
+        </select>
+      </div>
+    </div>
+    <div class="os-laudos-toolbar" style="margin-top:12px;">
+      <label class="laudo-check laudo-check-all"><input type="checkbox" id="ls-check-all"> Selecionar todos</label>
+      <button class="btn-secondary" id="ls-baixar-sel" type="button">⬇ Baixar selecionados</button>
+      <button class="btn-secondary" id="ls-limpar" type="button">✕ Limpar filtros</button>
+    </div>
+    <div id="lista-laudos-salvos"><div class="vazio">Nenhum laudo salvo ainda.</div></div>
+  </div>
+  </section>
+
 </main>
 </div>
 </div>
@@ -714,7 +741,7 @@
     renderOrdens();
   });
   function mostrarView(nome) {
-    ['dashboard', 'novo', 'ordens', 'empresas'].forEach(function (v) {
+    ['dashboard', 'novo', 'ordens', 'empresas', 'laudos'].forEach(function (v) {
       document.getElementById('view-' + v).style.display = (v === nome) ? '' : 'none';
     });
     document.querySelectorAll('.nav-item').forEach(function (btn) {
@@ -724,6 +751,7 @@
       renderOrdens();
       if (filtroEmpresaOrdens) document.getElementById('os-empresa').value = filtroEmpresaOrdens.id;
     }
+    if (nome === 'laudos') renderLaudosSalvos();
     var fab = document.getElementById('fab-novo-laudo');
     fab.style.display = (MODO_CLIENTE || nome === 'novo') ? 'none' : 'flex';
     fecharSidebar();
@@ -1338,9 +1366,138 @@
     animarNumero(document.getElementById('dash-critico'), critico);
   }
 
+  // ---------- Laudos salvos: lista geral com busca, filtros e seleção ----------
+  var lsSelecionados = {};   // ids marcados (sobrevive a novas buscas/atualizações)
+
+  function empresaIdDoPonto(p) {
+    var os = ordensCache.find(function (o) { return o.id === p.osId; });
+    if (os && os.empresaId) return os.empresaId;
+    var emp = empresasCache.find(function (e) { return e.nome === p.cliente; });
+    return emp ? emp.id : '';
+  }
+
+  function laudosFiltrados() {
+    var termo = document.getElementById('ls-busca').value.trim().toLowerCase();
+    var empId = document.getElementById('ls-empresa').value;
+    var osId = document.getElementById('ls-os').value;
+    var sev = document.getElementById('ls-sev').value;
+    return pontosCache.filter(function (p) {
+      if (empId && empresaIdDoPonto(p) !== empId) return false;
+      if (osId && p.osId !== osId) return false;
+      if (sev && classificar(p.maxima || 0, p.ambiente || 25).key !== sev) return false;
+      if (termo) {
+        var alvo = [p.quadro, p.local, p.cliente, p.tipo, p.parte, p.funcao, p.classificacao,
+          '#' + p.numero, p.osNumero != null ? ('os-' + p.osNumero) : ''].join(' ').toLowerCase();
+        if (alvo.indexOf(termo) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderLaudosSalvos() {
+    var selEmp = document.getElementById('ls-empresa');
+    var selOs = document.getElementById('ls-os');
+    var lista = document.getElementById('lista-laudos-salvos');
+
+    // filtros de empresa e OS (mantêm a escolha atual quando ela ainda existe)
+    var atualEmp = selEmp.value;
+    selEmp.innerHTML = '<option value="">Todas</option>' +
+      empresasCache.map(function (e) { return '<option value="' + e.id + '">' + escapeHtml(e.nome) + '</option>'; }).join('');
+    selEmp.value = empresasCache.some(function (e) { return e.id === atualEmp; }) ? atualEmp : '';
+    var atualOs = selOs.value;
+    var osDisponiveis = ordensCache.filter(function (o) { return !selEmp.value || o.empresaId === selEmp.value; });
+    selOs.innerHTML = '<option value="">Todas</option>' +
+      osDisponiveis.map(function (o) { return '<option value="' + o.id + '">OS-' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + '</option>'; }).join('');
+    selOs.value = osDisponiveis.some(function (o) { return o.id === atualOs; }) ? atualOs : '';
+
+    var filtrados = laudosFiltrados();
+    var contador = document.getElementById('contador-laudos-salvos');
+    contador.textContent = pontosCache.length ? ('(' + (filtrados.length === pontosCache.length ? pontosCache.length : filtrados.length + ' de ' + pontosCache.length) + ')') : '';
+
+    // some da seleção quem foi excluído
+    Object.keys(lsSelecionados).forEach(function (id) {
+      if (!pontosCache.some(function (p) { return p.id === id; })) delete lsSelecionados[id];
+    });
+    var qtdSel = Object.keys(lsSelecionados).length;
+    document.getElementById('ls-baixar-sel').textContent = '⬇ Baixar selecionados' + (qtdSel ? ' (' + qtdSel + ')' : '');
+    document.getElementById('ls-check-all').checked = filtrados.length > 0 && filtrados.every(function (p) { return lsSelecionados[p.id]; });
+
+    if (!pontosCache.length) { lista.innerHTML = '<div class="vazio">Nenhum laudo salvo ainda.</div>'; return; }
+    if (!filtrados.length) { lista.innerHTML = '<div class="vazio">Nenhum laudo encontrado com esses filtros.</div>'; return; }
+
+    lista.innerHTML = filtrados.map(function (p) {
+      var c = classificar(p.maxima || 0, p.ambiente || 25);
+      return '<div class="ponto" data-id="' + p.id + '">' +
+        '<div class="ponto-top">' +
+          '<div>' +
+            '<div class="ponto-titulo" style="display:flex;align-items:center;gap:8px;">' +
+              '<label class="laudo-check"><input type="checkbox" class="ls-check" data-id="' + p.id + '"' + (lsSelecionados[p.id] ? ' checked' : '') + '></label>' +
+              '<span>#' + p.numero + ' — ' + escapeHtml(p.quadro || 'Sem identificação') + '</span>' +
+            '</div>' +
+            '<div class="ponto-sub">' + escapeHtml(p.cliente || '') + (p.osNumero != null ? ' · OS-' + escapeHtml(p.osNumero) : '') + '</div>' +
+            '<div class="ponto-sub">' + escapeHtml(p.local || '') + (p.local && p.tipo ? ' · ' : '') + escapeHtml(p.tipo || '') + '</div>' +
+            '<div class="ponto-sub">' + fmtData(p.dataHora) + ' · Máx. ' + (typeof p.maxima === 'number' ? p.maxima.toFixed(1) : '—') + '°C</div>' +
+          '</div>' +
+          '<span class="badge ' + c.key + '">' + c.label + '</span>' +
+        '</div>' +
+        '<div class="ponto-actions">' +
+          '<button class="btn-secondary" data-action="ver" data-id="' + p.id + '">👁 Visualizar</button>' +
+          '<button class="btn-secondary" data-action="pdf" data-id="' + p.id + '">⬇ Baixar</button>' +
+          '<button class="btn-secondary" data-action="editar" data-id="' + p.id + '">✏️ Editar</button>' +
+          '<button class="btn-danger" data-action="del" data-id="' + p.id + '">Excluir</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  document.getElementById('ls-busca').addEventListener('input', renderLaudosSalvos);
+  document.getElementById('ls-empresa').addEventListener('change', function () {
+    document.getElementById('ls-os').value = '';   // a lista de OS depende da empresa
+    renderLaudosSalvos();
+  });
+  document.getElementById('ls-os').addEventListener('change', renderLaudosSalvos);
+  document.getElementById('ls-sev').addEventListener('change', renderLaudosSalvos);
+  document.getElementById('ls-limpar').addEventListener('click', function () {
+    document.getElementById('ls-busca').value = '';
+    document.getElementById('ls-empresa').value = '';
+    document.getElementById('ls-os').value = '';
+    document.getElementById('ls-sev').value = '';
+    renderLaudosSalvos();
+  });
+  document.getElementById('ls-check-all').addEventListener('change', function () {
+    var marcar = this.checked;
+    laudosFiltrados().forEach(function (p) { if (marcar) lsSelecionados[p.id] = true; else delete lsSelecionados[p.id]; });
+    renderLaudosSalvos();
+  });
+  document.getElementById('ls-baixar-sel').addEventListener('click', function () {
+    var pts = pontosCache.filter(function (p) { return lsSelecionados[p.id]; });
+    if (!pts.length) { toast('Marque ao menos um laudo para baixar.'); return; }
+    baixarVariosPdfs(pts, 'Laudos_selecionados.zip');
+  });
+  document.getElementById('lista-laudos-salvos').addEventListener('change', function (e) {
+    var chk = e.target.closest('input.ls-check');
+    if (!chk) return;
+    var id = chk.getAttribute('data-id');
+    if (chk.checked) lsSelecionados[id] = true; else delete lsSelecionados[id];
+    renderLaudosSalvos();
+  });
+  document.getElementById('lista-laudos-salvos').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    var ponto = pontosCache.find(function (p) { return p.id === btn.getAttribute('data-id'); });
+    if (!ponto) { toast('Não achei esse laudo — atualize a página.'); return; }
+    var action = btn.getAttribute('data-action');
+    if (action === 'pdf') baixarPdf(ponto);
+    else if (action === 'ver') visualizarPdf(ponto);
+    else if (action === 'editar') editarPonto(ponto);
+    else if (action === 'del') {
+      confirmarAcao('Excluir o laudo #' + ponto.numero + '?').then(function (ok) { if (ok) excluirPonto(ponto); });
+    }
+  });
+
   function renderLista() {
     atualizarDashboard();
-    if (!MODO_CLIENTE) renderOrdens();
+    if (!MODO_CLIENTE) { renderOrdens(); renderLaudosSalvos(); }
     var lista = document.getElementById('lista');
     var contador = document.getElementById('contador');
     if (!pontosCache.length) {
