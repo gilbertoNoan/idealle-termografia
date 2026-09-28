@@ -2234,6 +2234,30 @@
     }
   }
 
+  // ---------- texto seguro para o PDF (a fonte padrão não tem alguns símbolos) ----------
+  var WINANSI_EXTRA = [0x20AC, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x017D, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x017E, 0x0178];
+  var PDF_SUBST = { 'Δ': 'Delta ', 'δ': 'delta ', '≤': '<=', '≥': '>=', '−': '-', '→': '->', '←': '<-', '✓': 'OK', '✔': 'OK', '✕': 'x', '⚠': '', '\u00A0': ' ' };
+  function pdfTxt(s) {
+    s = String(s == null ? '' : s);
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i), code = s.charCodeAt(i);
+      if (Object.prototype.hasOwnProperty.call(PDF_SUBST, ch)) out += PDF_SUBST[ch];
+      else if (code <= 255 || WINANSI_EXTRA.indexOf(code) !== -1) out += ch;
+      // qualquer outro caractere (emoji etc.) não existe na fonte do PDF e é descartado
+    }
+    return out;
+  }
+  function quebrarLongas(s, max) {
+    max = max || 40;
+    return String(s == null ? '' : s).split(/(\s+)/).map(function (tok) {
+      if (tok.length <= max || /^\s+$/.test(tok)) return tok;
+      var partes = [];
+      for (var i = 0; i < tok.length; i += max) partes.push(tok.slice(i, i + max));
+      return partes.join(' ');
+    }).join('');
+  }
+
   function infoTable(doc, x, y, w, titulo, rows, azul, cinza, labelFrac) {
     var ry = y;
     if (titulo) {
@@ -2246,18 +2270,20 @@
     }
     var labelW = w * (labelFrac || 0.38);
     rows.forEach(function (r) {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.8);
       var labelLines = doc.splitTextToSize(String(r[0]), labelW - 4);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.3);
       var valueLines = doc.splitTextToSize(String(r[1] || '—'), w - labelW - 4);
       var nLines = Math.max(labelLines.length, valueLines.length);
-      var rh = Math.max(7, nLines * 4.2 + 2.5);
+      var rh = Math.max(6, nLines * 4.1 + 2);
       doc.setDrawColor(217, 217, 217);
       doc.setFillColor(cinza[0], cinza[1], cinza[2]);
       doc.rect(x, ry, labelW, rh, 'FD');
       doc.rect(x + labelW, ry, w - labelW, rh, 'FD');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(7.8); doc.setTextColor(20, 20, 20);
-      doc.text(labelLines, x + 2, ry + 4.6);
+      doc.text(labelLines, x + 2, ry + 4.1);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8.3); doc.setTextColor(20, 20, 20);
-      doc.text(valueLines, x + labelW + 2, ry + 4.6);
+      doc.text(valueLines, x + labelW + 2, ry + 4.1);
       ry += rh;
     });
     return ry;
@@ -2267,33 +2293,80 @@
     if (!window.jspdf || !window.jspdf.jsPDF) { throw new Error('Biblioteca de PDF ainda carregando, tente novamente em instantes.'); }
     var jsPDF = window.jspdf.jsPDF;
     var doc = new jsPDF('p', 'mm', 'a4');
-    var pageW = 210, margin = 12, W = pageW - margin * 2;
+
+    // todo texto passa por um filtro: símbolos sem suporte na fonte (Δ, ≤, ⚠...) viram equivalentes
+    var _split = doc.splitTextToSize.bind(doc);
+    doc.splitTextToSize = function (t, w, o) { return _split(quebrarLongas(pdfTxt(t), 40), w, o); };
+    var _text = doc.text.bind(doc);
+    doc.text = function (t, x, yy, o) { return _text(Array.isArray(t) ? t.map(pdfTxt) : pdfTxt(t), x, yy, o); };
+
+    // ---- medidas (em mm) — respeitam a área que a impressora consegue imprimir ----
+    var pageW = 210, pageH = 297, margin = 12, W = pageW - margin * 2;
+    var topSafe = 10;                          // margem superior segura
+    var rodapeH = 9;                           // altura da imagem do rodapé
+    var rodapeTop = pageH - 10 - rodapeH;      // rodapé termina a 10 mm da borda de baixo
+    var limiteConteudo = rodapeTop - 6;        // conteúdo nunca passa daqui
     var azul = [31, 56, 100];
     var cinza = [242, 242, 242];
-    var y = margin;
+    var y = topSafe;
+    var tituloCurto = 'Ponto nº ' + ponto.numero + (ponto.quadro ? '  ·  ' + ponto.quadro : '');
 
-    // header bar
+    function cabecalhoContinuacao() {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(azul[0], azul[1], azul[2]);
+      doc.text('LAUDO DE INSPEÇÃO TERMOGRÁFICA  —  ' + tituloCurto + '  (continuação)', margin, topSafe + 4);
+      doc.setDrawColor(azul[0], azul[1], azul[2]); doc.setLineWidth(0.4);
+      doc.line(margin, topSafe + 6, pageW - margin, topSafe + 6);
+      doc.setLineWidth(0.2);
+    }
+    function novaPagina() { doc.addPage(); cabecalhoContinuacao(); y = topSafe + 12; }
+    function garantir(h) { if (y + h > limiteConteudo) novaPagina(); }
+    function tituloSecao(txt, alturaBloco) {
+      // bloco curto fica inteiro na mesma folha; bloco longo só exige espaço para começar
+      garantir(Math.min(alturaBloco || 16, 30));
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(31, 56, 100);
+      doc.text(txt, margin, y);
+      y += 5;
+    }
+    function quebrarTexto(txt) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+      return doc.splitTextToSize(txt, W);
+    }
+    function escreverLinhas(linhas, lineH) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
+      linhas.forEach(function (ln) {
+        if (y + 1 > limiteConteudo) {
+          novaPagina();
+          // o cabeçalho de continuação troca a fonte: volta ao estilo do texto
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
+        }
+        doc.text(ln, margin, y);
+        y += lineH;
+      });
+    }
+
+    // ---- cabeçalho (não encosta nas bordas da folha) ----
+    var barH = 16;
     doc.setFillColor(azul[0], azul[1], azul[2]);
-    doc.rect(0, 0, pageW, 20, 'F');
+    doc.roundedRect(margin, topSafe, W, barH, 2, 2, 'F');
     try {
       var logoProps = doc.getImageProperties(LOGO_DATA_URL);
-      var logoH = 13, logoW = logoH * (logoProps.width / logoProps.height);
+      var logoH = 11, logoW = logoH * (logoProps.width / logoProps.height);
       doc.setFillColor(255, 255, 255);
-      doc.roundedRect(margin, (20 - logoH - 2) / 2, logoW + 3, logoH + 2, 1.2, 1.2, 'F');
-      doc.addImage(LOGO_DATA_URL, margin + 1.5, (20 - logoH) / 2, logoW, logoH);
+      doc.roundedRect(margin + 3, topSafe + (barH - logoH - 2) / 2, logoW + 3, logoH + 2, 1.2, 1.2, 'F');
+      doc.addImage(LOGO_DATA_URL, margin + 4.5, topSafe + (barH - logoH) / 2, logoW, logoH);
     } catch (e) {
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-      doc.text('IDEALLE Inspeções e Serviços', margin, 12);
+      doc.text('IDEALLE Inspeções e Serviços', margin + 4, topSafe + 10);
     }
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
-    doc.text('LAUDO DE INSPEÇÃO TERMOGRÁFICA', pageW - margin, 12, { align: 'right' });
+    doc.text('LAUDO DE INSPEÇÃO TERMOGRÁFICA', pageW - margin - 4, topSafe + 7, { align: 'right' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-    doc.text('Ponto nº ' + ponto.numero + '  ·  ' + fmtDataSemHora(ponto.dataHora), pageW - margin, 17.5, { align: 'right' });
-    y = 25;
+    doc.text('Ponto nº ' + ponto.numero + '  ·  ' + fmtDataSemHora(ponto.dataHora), pageW - margin - 4, topSafe + 12, { align: 'right' });
+    y = topSafe + barH + 4;
 
-    // identification strip
+    // ---- faixa de identificação ----
     var idColW = W / 4;
     var idFields = [
       ['CLIENTE', ponto.cliente || '—'],
@@ -2304,26 +2377,26 @@
     idFields.forEach(function (f, i) {
       var x = margin + i * idColW;
       doc.setDrawColor(217, 217, 217); doc.setFillColor(cinza[0], cinza[1], cinza[2]);
-      doc.rect(x, y, idColW - (i < 3 ? 2 : 0), 12, 'FD');
+      doc.rect(x, y, idColW - (i < 3 ? 2 : 0), 11, 'FD');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(89, 89, 89);
-      doc.text(f[0], x + 2, y + 4.5);
+      doc.text(f[0], x + 2, y + 4.2);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(20, 20, 20);
       var lines = doc.splitTextToSize(String(f[1]), idColW - 4);
-      doc.text(lines[0] || '', x + 2, y + 9.5);
+      doc.text(lines[0] || '', x + 2, y + 8.8);
     });
-    y += 16;
+    y += 14.5;
 
-    // two photo boxes
+    // ---- fotos ----
     var gap = 4;
     var boxW = (W - gap) / 2;
-    var boxH = 74;
+    var boxH = 56;
     var imgVisual = await obterImagemBase64('fotoVisualDataUrl', 'fotoVisualId', ponto, 'fotoVisualUrl', 'fotoVisualFsId');
     var imgTermica = await obterImagemBase64('fotoTermicaDataUrl', 'fotoTermicaId', ponto, 'fotoTermicaUrl', 'fotoTermicaFsId');
     drawImageBox(doc, margin, y, boxW, boxH, 'IMAGEM VISUAL', imgVisual, azul, cinza);
     drawImageBox(doc, margin + boxW + gap, y, boxW, boxH, 'IMAGEM TERMOGRÁFICA', imgTermica, azul, cinza);
-    y += boxH + 6;
+    y += boxH + 4;
 
-    // two-column tables
+    // ---- tabelas em duas colunas ----
     var colGap = 4;
     var colW = (W - colGap) / 2;
     var leftX = margin, rightX = margin + colW + colGap;
@@ -2346,24 +2419,31 @@
     if (temBx1) {
       y1 += 3;
       var bx1Classe = classificarDeltaT(ponto.bx1DeltaT || 0);
-      var bx1TituloOrigem = ponto.bx1Origem === 'manual' ? 'BX1 — CLASSIFICAÇÃO POR ΔT (LEITURA MANUAL)' : 'CLASSIFICAÇÃO POR ΔT (MÁXIMA − AMBIENTE)';
-      y1 = infoTable(doc, leftX, y1, colW, bx1TituloOrigem, [
-        [ponto.bx1Origem === 'manual' ? 'Bx1 Máx (°C):' : 'Máxima (°C):', ponto.bx1Max != null ? ponto.bx1Max.toFixed(1) : '—'],
-        [ponto.bx1Origem === 'manual' ? 'Bx1 Méd (°C):' : '', ponto.bx1Origem === 'manual' ? (ponto.bx1Med != null ? ponto.bx1Med.toFixed(1) : '—') : ''],
-        [ponto.bx1Origem === 'manual' ? 'Bx1 Mín (°C):' : 'Ambiente (°C):', ponto.bx1Min != null ? ponto.bx1Min.toFixed(1) : '—'],
-        ['ΔT:', ponto.bx1DeltaT != null ? ponto.bx1DeltaT.toFixed(1) + ' °C' : '—'],
-        ['Classificação:', ponto.bx1Classificacao || bx1Classe.label],
-        ['Ação recomendada:', ponto.bx1Acao || bx1Classe.acao]
-      ].filter(function (row) { return row[0]; }), azul, cinza, 0.48);
+      if (ponto.bx1Origem === 'manual') {
+        y1 = infoTable(doc, leftX, y1, colW, 'BX1 — CLASSIFICAÇÃO POR ΔT (LEITURA MANUAL)', [
+          ['Bx1 Máx (°C):', ponto.bx1Max != null ? ponto.bx1Max.toFixed(1) : '—'],
+          ['Bx1 Méd (°C):', ponto.bx1Med != null ? ponto.bx1Med.toFixed(1) : '—'],
+          ['Bx1 Mín (°C):', ponto.bx1Min != null ? ponto.bx1Min.toFixed(1) : '—'],
+          ['ΔT (Máx − Mín):', ponto.bx1DeltaT != null ? ponto.bx1DeltaT.toFixed(1) + ' °C' : '—'],
+          ['Classificação:', ponto.bx1Classificacao || bx1Classe.label],
+          ['Ação recomendada:', ponto.bx1Acao || bx1Classe.acao]
+        ], azul, cinza, 0.42);
+      } else {
+        // automático: Máxima e Ambiente já aparecem nas outras tabelas, então só o resultado
+        y1 = infoTable(doc, leftX, y1, colW, 'CLASSIFICAÇÃO POR ΔT (MÁXIMA − AMBIENTE)', [
+          ['ΔT:', ponto.bx1DeltaT != null ? ponto.bx1DeltaT.toFixed(1) + ' °C' : '—'],
+          ['Classificação:', ponto.bx1Classificacao || bx1Classe.label],
+          ['Ação recomendada:', ponto.bx1Acao || bx1Classe.acao]
+        ], azul, cinza, 0.42);
+      }
     }
 
-    // right column: analysis info + severity scale
+    // coluna direita: análise + escala de severidade
     var y2 = infoTable(doc, rightX, y, colW, 'INFORMAÇÕES PARA ANÁLISE', [
       ['Emissividade:', ponto.emissividade != null ? String(ponto.emissividade) : '0,95'],
       ['Temp. Ambiente (°C):', ponto.ambiente != null ? ponto.ambiente.toFixed(1) : '—']
     ], azul, cinza);
 
-    // criteria header
     doc.setFillColor(azul[0], azul[1], azul[2]);
     doc.rect(rightX, y2, colW, 10, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
@@ -2373,7 +2453,6 @@
     doc.text('Método: MTA (múltiplos da temp. ambiente)', rightX + colW / 2, y2 + 8, { align: 'center', maxWidth: colW - 4 });
     y2 += 10;
 
-    // color scale row
     var coresEscala = [[146, 208, 80], [255, 255, 0], [255, 165, 0], [255, 0, 0]];
     var scaleW = colW / limiares.length;
     limiares.forEach(function (lim, i) {
@@ -2394,71 +2473,71 @@
       ['Prioridade de Manutenção:', classeAtual.prioridade]
     ], azul, cinza, 0.5);
 
-    y = Math.max(y1, y2) + 6;
+    y = Math.max(y1, y2) + 4;
 
-    // legend — classification / recommended intervention
+    // ---- legenda (não é dividida entre páginas) ----
     var legendaCores = [[146, 208, 80], [255, 255, 0], [255, 165, 0], [255, 0, 0]];
+    var chipW = 9, labelW2 = 20;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.3);
+    var linhasLegenda = NIVEIS_SEVERIDADE.slice().reverse().map(function (niv, idx) {
+      var lines = doc.splitTextToSize(niv.prioridade, W - chipW - labelW2 - 4);
+      return { niv: niv, cor: legendaCores[NIVEIS_SEVERIDADE.length - 1 - idx], lines: lines, rh: Math.max(5.2, lines.length * 3.5 + 1.8) };
+    });
+    var alturaLegenda = 6 + linhasLegenda.reduce(function (s, l) { return s + l.rh; }, 0);
+    garantir(alturaLegenda);
     doc.setFillColor(azul[0], azul[1], azul[2]);
     doc.rect(margin, y, W, 6, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
     doc.text('LEGENDA — CLASSIFICAÇÃO E INTERVENÇÃO RECOMENDADA', margin + W / 2, y + 4.2, { align: 'center' });
     y += 6;
-    var chipW = 9, labelW2 = 20;
-    NIVEIS_SEVERIDADE.slice().reverse().forEach(function (niv, idx) {
-      var cor = legendaCores[NIVEIS_SEVERIDADE.length - 1 - idx];
-      var lines = doc.splitTextToSize(niv.prioridade, W - chipW - labelW2 - 4);
-      var rh = Math.max(6, lines.length * 3.6 + 2);
+    linhasLegenda.forEach(function (l) {
       doc.setDrawColor(217, 217, 217);
-      doc.setFillColor(cor[0], cor[1], cor[2]);
-      doc.rect(margin, y, chipW, rh, 'FD');
+      doc.setFillColor(l.cor[0], l.cor[1], l.cor[2]);
+      doc.rect(margin, y, chipW, l.rh, 'FD');
       doc.setFillColor(cinza[0], cinza[1], cinza[2]);
-      doc.rect(margin + chipW, y, labelW2, rh, 'FD');
-      doc.rect(margin + chipW + labelW2, y, W - chipW - labelW2, rh, 'FD');
+      doc.rect(margin + chipW, y, labelW2, l.rh, 'FD');
+      doc.rect(margin + chipW + labelW2, y, W - chipW - labelW2, l.rh, 'FD');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(20, 20, 20);
-      doc.text(niv.label.toUpperCase(), margin + chipW + 2, y + rh / 2 + 1.2);
+      doc.text(l.niv.label.toUpperCase(), margin + chipW + 2, y + l.rh / 2 + 1.2);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7.3);
-      doc.text(lines, margin + chipW + labelW2 + 2, y + (rh - (lines.length - 1) * 3.6) / 2 + 0.8);
-      y += rh;
+      doc.text(l.lines, margin + chipW + labelW2 + 2, y + (l.rh - (l.lines.length - 1) * 3.5) / 2 + 0.8);
+      y += l.rh;
     });
-    y += 5;
+    y += 4;
 
-    // diagnosis
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(31, 56, 100);
-    doc.text('DIAGNÓSTICO / OBSERVAÇÃO', margin, y);
-    y += 5;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
+    // ---- diagnóstico e conclusão (quebram de página se preciso) ----
     var obsText = ponto.observacao && ponto.observacao.trim() ? ponto.observacao : 'Sem observações registradas.';
-    var lines2 = doc.splitTextToSize(obsText, W);
-    doc.text(lines2, margin, y);
-    y += lines2.length * 4.5 + 6;
+    var linhasObs = quebrarTexto(obsText);
+    tituloSecao('DIAGNÓSTICO / OBSERVAÇÃO', 5 + linhasObs.length * 4.5);
+    escreverLinhas(linhasObs, 4.5);
+    y += 3;
 
-    // conclusão
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(31, 56, 100);
-    doc.text('CONCLUSÃO', margin, y);
-    y += 5;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
     var conclusaoText = ponto.conclusao && ponto.conclusao.trim() ? ponto.conclusao : 'Conclusão não preenchida.';
-    var linesConclusao = doc.splitTextToSize(conclusaoText, W);
-    doc.text(linesConclusao, margin, y);
-    y += linesConclusao.length * 4.5 + 4;
+    var linhasConclusao = quebrarTexto(conclusaoText);
+    tituloSecao('CONCLUSÃO', 5 + linhasConclusao.length * 4.5);
+    escreverLinhas(linhasConclusao, 4.5);
+    y += 3;
 
-    // extra section for critical items
-    var temExtras = (ponto.fotosExtras && ponto.fotosExtras.length) || (ponto.detalhesAdicionais && ponto.detalhesAdicionais.trim());
-    if (temExtras) {
-      var alturaEstimativa = 14 + (ponto.fotosExtras && ponto.fotosExtras.length ? 50 : 0) + (ponto.detalhesAdicionais ? 20 : 0);
-      if (y + alturaEstimativa > 275) { doc.addPage(); y = margin; }
-      doc.setFillColor(255, 153, 153);
+    // ---- registro adicional (itens críticos) ----
+    var temFotosExtras = ponto.fotosExtras && ponto.fotosExtras.length;
+    var temDetalhes = ponto.detalhesAdicionais && ponto.detalhesAdicionais.trim();
+    if (temFotosExtras || temDetalhes) {
+      var thumbH = 40;
+      garantir(11 + (temFotosExtras ? thumbH : 14));
+      doc.setFillColor(192, 57, 43);
       doc.rect(margin, y, W, 7, 'F');
       doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
-      doc.text('⚠ REGISTRO ADICIONAL — SITUAÇÃO CRÍTICA', margin + 3, y + 5);
+      doc.text('REGISTRO ADICIONAL — SITUAÇÃO CRÍTICA', margin + 3, y + 5);
       y += 11;
-      if (ponto.fotosExtras && ponto.fotosExtras.length) {
-        var cols = 3, gap = 4, thumbW = (W - gap * (cols - 1)) / cols, thumbH = 40;
+      if (temFotosExtras) {
+        var cols = 3, gapE = 4, thumbW = (W - gapE * (cols - 1)) / cols;
         for (var fi = 0; fi < ponto.fotosExtras.length; fi++) {
           var col = fi % cols;
-          if (col === 0 && fi > 0) y += thumbH + gap;
-          if (y + thumbH > 283) { doc.addPage(); y = margin; }
-          var fx = margin + col * (thumbW + gap);
+          if (col === 0) {
+            if (fi > 0) y += thumbH + gapE;
+            garantir(thumbH);
+          }
+          var fx = margin + col * (thumbW + gapE);
           doc.setDrawColor(217, 217, 217); doc.setFillColor(250, 250, 250);
           doc.rect(fx, y, thumbW, thumbH, 'FD');
           try {
@@ -2473,32 +2552,35 @@
         }
         y += thumbH + 6;
       }
-      if (ponto.detalhesAdicionais && ponto.detalhesAdicionais.trim()) {
-        if (y + 16 > 283) { doc.addPage(); y = margin; }
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(31, 56, 100);
-        doc.text('Detalhes adicionais:', margin, y);
-        y += 4.5;
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
-        var linesExtra = doc.splitTextToSize(ponto.detalhesAdicionais, W);
-        doc.text(linesExtra, margin, y);
-        y += linesExtra.length * 4.5;
+      if (temDetalhes) {
+        var linhasDet = quebrarTexto(ponto.detalhesAdicionais);
+        tituloSecao('Detalhes adicionais:', 5 + linhasDet.length * 4.5);
+        escreverLinhas(linhasDet, 4.5);
       }
     }
 
-    // footer
-    doc.setDrawColor(217, 217, 217);
-    doc.line(margin, 281, pageW - margin, 281);
-    try {
-      var footerProps = doc.getImageProperties(FOOTER_DATA_URL);
-      var footerH = 10, footerW = footerH * (footerProps.width / footerProps.height);
-      if (footerW > W) { footerW = W; footerH = footerW * (footerProps.height / footerProps.width); }
-      doc.addImage(FOOTER_DATA_URL, (pageW - footerW) / 2, 283, footerW, footerH);
-      var creaProps = doc.getImageProperties(CREA_BADGE_DATA_URL);
-      var creaH = 8, creaW = creaH * (creaProps.width / creaProps.height);
-      doc.addImage(CREA_BADGE_DATA_URL, margin, 283 + (footerH - creaH) / 2, creaW, creaH);
-    } catch (e) {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(140, 140, 140);
-      doc.text('IDEALLE Inspeções e Serviços', margin, 288);
+    // ---- rodapé em TODAS as folhas + numeração ----
+    var totalPaginas = doc.internal.getNumberOfPages();
+    for (var pg = 1; pg <= totalPaginas; pg++) {
+      doc.setPage(pg);
+      doc.setDrawColor(217, 217, 217); doc.setLineWidth(0.2);
+      doc.line(margin, rodapeTop - 2.5, pageW - margin, rodapeTop - 2.5);
+      try {
+        var footerProps = doc.getImageProperties(FOOTER_DATA_URL);
+        var footerH = rodapeH, footerW = footerH * (footerProps.width / footerProps.height);
+        if (footerW > W - 70) { footerW = W - 70; footerH = footerW * (footerProps.height / footerProps.width); }
+        doc.addImage(FOOTER_DATA_URL, (pageW - footerW) / 2, rodapeTop, footerW, footerH);
+        var creaProps = doc.getImageProperties(CREA_BADGE_DATA_URL);
+        var creaH = 7.5, creaW = creaH * (creaProps.width / creaProps.height);
+        doc.addImage(CREA_BADGE_DATA_URL, margin, rodapeTop + (rodapeH - creaH) / 2, creaW, creaH);
+      } catch (e) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(140, 140, 140);
+        doc.text('IDEALLE Inspeções e Serviços', margin, rodapeTop + 5);
+      }
+      if (totalPaginas > 1) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(120, 120, 120);
+        doc.text('Página ' + pg + ' de ' + totalPaginas, pageW - margin, rodapeTop + rodapeH / 2 + 1, { align: 'right' });
+      }
     }
 
     var blob = doc.output('blob');
