@@ -146,6 +146,12 @@
   textarea { resize: vertical; min-height: 60px; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .status-banco {
+    background: #fdecea; color: #8a1c14; border-bottom: 1px solid #f5c2be;
+    padding: 10px 14px; font-size: 13px; line-height: 1.45;
+  }
+  .status-banco strong { display: block; margin-bottom: 2px; }
+  .status-banco code { background: rgba(0,0,0,.07); padding: 1px 5px; border-radius: 4px; font-size: 12px; word-break: break-all; }
   .temp-admissivel-box {
     margin-top: 10px; background: var(--azul-claro); color: var(--azul);
     border-radius: 8px; padding: 9px 12px; font-size: 13.5px;
@@ -407,6 +413,7 @@
     </div>
   </div>
 </header>
+<div id="status-banco" class="status-banco" style="display:none;"></div>
 
 <main>
 
@@ -757,6 +764,42 @@
     setTimeout(function () { t.classList.remove('show'); }, 2500);
   }
 
+  function comTimeout(promessa, ms, rotulo) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () {
+        var e = new Error('Sem resposta do Firestore em ' + Math.round(ms / 1000) + 's (' + (rotulo || 'operação') + '). O banco pode não estar criado, estar com regras bloqueando, ou o aparelho está sem internet.');
+        e.code = 'timeout';
+        reject(e);
+      }, ms);
+      promessa.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
+    });
+  }
+
+  function mostrarErroBanco(err, contexto) {
+    var codigo = (err && err.code) ? String(err.code) : '';
+    var mensagem = (err && err.message) ? String(err.message) : String(err || 'erro desconhecido');
+    var dica = '';
+    if (codigo === 'timeout') {
+      dica = 'O Firestore <b>não respondeu</b>. Causas mais comuns: (1) o banco <b>ainda não foi criado</b> — no console do Firebase vá em <b>Compilação → Firestore Database → Criar banco de dados</b>; (2) as <b>Regras</b> não foram publicadas com <code>allow read, write: if true;</code>; (3) o aparelho está sem internet.';
+    } else if (codigo.indexOf('permission-denied') !== -1 || /permission|insufficient/i.test(mensagem)) {
+      dica = 'O Firestore está <b>bloqueando o acesso</b>. No console do Firebase: <b>Firestore Database → aba Regras</b> → cole <code>allow read, write: if true;</code> dentro de <code>match /{document=**}</code> e clique em <b>Publicar</b>.';
+    } else if (codigo.indexOf('failed-precondition') !== -1 || codigo.indexOf('not-found') !== -1 || codigo.indexOf('unavailable') !== -1 || /offline|database.*not.*exist|NOT_FOUND/i.test(mensagem)) {
+      dica = 'O banco Firestore parece <b>não ter sido criado</b> (ou está indisponível). No console do Firebase: <b>Compilação → Firestore Database → Criar banco de dados</b> (modo Produção, região São Paulo) e depois publique as regras abertas.';
+    } else if (codigo.indexOf('resource-exhausted') !== -1 || /quota/i.test(mensagem)) {
+      dica = 'A cota gratuita diária do Firestore foi atingida. Ela renova sozinha em algumas horas.';
+    } else {
+      dica = 'Confira no console do Firebase se o <b>Firestore Database</b> foi criado e se as <b>Regras</b> estão publicadas.';
+    }
+    var banner = document.getElementById('status-banco');
+    banner.innerHTML = '<strong>⚠ Problema com o banco de dados' + (contexto ? ' (' + escapeHtml(contexto) + ')' : '') + '</strong>' +
+      dica + '<br><span style="opacity:.8">Detalhe técnico: <code>' + escapeHtml(codigo ? (codigo + ' — ' + mensagem) : mensagem) + '</code></span>';
+    banner.style.display = 'block';
+    console.error('Erro do banco (' + (contexto || '') + '):', err);
+  }
+  function limparErroBanco() {
+    document.getElementById('status-banco').style.display = 'none';
+  }
+
   function copiarParaAreaDeTransferencia(texto, mensagemSucesso) {
     function fallback() {
       try {
@@ -850,13 +893,15 @@
   function calcularBx1Final() {
     var b = lerBx1();
     if (!isNaN(b.max) && !isNaN(b.min)) {
-      return { max: b.max, med: isNaN(b.med) ? null : b.med, min: b.min, deltaT: b.max - b.min, origem: 'manual' };
+      var dM = b.max - b.min;
+      return { max: b.max, med: isNaN(b.med) ? null : b.med, min: b.min, deltaT: dM, classe: classificarDeltaT(dM), origem: 'manual' };
     }
     var v = lerTemps();
     var vals = [v.r, v.s].filter(function (x) { return !isNaN(x); });
     if (vals.length && !isNaN(v.amb)) {
       var maxAuto = Math.max.apply(null, vals);
-      return { max: maxAuto, med: null, min: v.amb, deltaT: maxAuto - v.amb, origem: 'auto' };
+      var dA = maxAuto - v.amb;
+      return { max: maxAuto, med: null, min: v.amb, deltaT: dA, classe: classificarDeltaT(dA), origem: 'auto' };
     }
     return null;
   }
@@ -1526,7 +1571,7 @@
     try {
       if (editando) {
         if (db) {
-          await db.collection('empresas').doc(editandoEmpresaId).set(doc);
+          await comTimeout(db.collection('empresas').doc(editandoEmpresaId).set(doc), 15000, 'atualizar empresa');
         } else {
           doc.id = editandoEmpresaId;
           var idx = empresasCache.findIndex(function (x) { return x.id === editandoEmpresaId; });
@@ -1536,7 +1581,7 @@
         toast('Empresa atualizada.');
       } else {
         if (db) {
-          await db.collection('empresas').add(doc);
+          await comTimeout(db.collection('empresas').add(doc), 15000, 'salvar empresa');
         } else {
           doc.id = 'local-emp-' + Date.now();
           empresasCache.unshift(doc);
@@ -1547,7 +1592,7 @@
       limparFormEmpresa();
     } catch (err) {
       console.error(err);
-      toast('Não foi possível salvar a empresa.');
+      mostrarErroBanco(err, 'salvar empresa'); toast('Não foi possível salvar a empresa.');
     }
   });
 
@@ -1702,7 +1747,7 @@
     };
     try {
       if (db) {
-        await db.collection('ordens').add(doc);
+        await comTimeout(db.collection('ordens').add(doc), 15000, 'salvar OS');
       } else {
         doc.id = 'local-os-' + Date.now();
         ordensCache.unshift(doc);
@@ -1715,7 +1760,7 @@
       sugerirProximoNumeroOS();
     } catch (err) {
       console.error(err);
-      toast('Não foi possível salvar a OS.');
+      mostrarErroBanco(err, 'salvar OS'); toast('Não foi possível salvar a OS.');
     }
   });
 
@@ -1812,16 +1857,11 @@
       return { id: up.id, url: null, fsId: null };
     }
     if (db) {
-      try {
-        var base64 = await comprimirParaBase64(blob, 1000, 0.6);
-        // se ainda ficar grande demais para um documento do Firestore (limite 1MB), comprime mais
-        if (base64.length > 700000) base64 = await comprimirParaBase64(blob, 700, 0.5);
-        var ref = await db.collection('fotos').add({ data: base64, createdAt: new Date().toISOString() });
-        return { id: null, url: null, fsId: ref.id };
-      } catch (e) {
-        console.error('Erro ao salvar foto no Firestore:', e);
-        return { id: null, url: null, fsId: null };
-      }
+      var base64 = await comprimirParaBase64(blob, 1000, 0.6);
+      // se ainda ficar grande demais para um documento do Firestore (limite 1MB), comprime mais
+      if (base64.length > 700000) base64 = await comprimirParaBase64(blob, 700, 0.5);
+      var ref = await comTimeout(db.collection('fotos').add({ data: base64, createdAt: new Date().toISOString() }), 20000, 'salvar foto');
+      return { id: null, url: null, fsId: ref.id };
     }
     return { id: null, url: null, fsId: null };
   }
@@ -1930,8 +1970,10 @@
         fotoTermicaDataUrlFinal = editandoPontoOriginal.fotoTermicaDataUrl || null;
       }
     } catch (err) {
-      console.error(err);
-      toast('Falha ao salvar alguma foto — ponto será salvo mesmo assim.');
+      mostrarErroBanco(err, 'salvar foto');
+      toast('Não foi possível salvar a foto: ' + ((err && (err.code || err.message)) || 'erro desconhecido'));
+      btn.disabled = false; btn.textContent = editandoPontoId ? 'Salvar alterações' : 'Salvar ponto';
+      return;
     }
 
     var fotosExtrasFinal = fotosExtrasExistentes.slice();
@@ -1942,8 +1984,10 @@
         else fotosExtrasFinal.push({ dataUrl: fotosExtrasNovas[i].dataUrl });
       }
     } catch (err) {
-      console.error(err);
-      toast('Falha ao salvar alguma foto extra.');
+      mostrarErroBanco(err, 'salvar foto extra');
+      toast('Não foi possível salvar uma foto extra: ' + ((err && (err.code || err.message)) || 'erro desconhecido'));
+      btn.disabled = false; btn.textContent = editandoPontoId ? 'Salvar alterações' : 'Salvar ponto';
+      return;
     }
     var detalhesAdicionais = document.getElementById('f-detalhes-extras').value.trim();
 
@@ -1976,7 +2020,7 @@
     try {
       if (editando) {
         if (db) {
-          await db.collection('pontos').doc(editandoPontoId).set(doc);
+          await comTimeout(db.collection('pontos').doc(editandoPontoId).set(doc), 20000, 'atualizar laudo');
         } else {
           doc.id = editandoPontoId;
           try {
@@ -1991,7 +2035,7 @@
         }
         toast('Ponto #' + numero + ' atualizado.');
       } else if (db) {
-        await db.collection('pontos').add(doc);
+        await comTimeout(db.collection('pontos').add(doc), 20000, 'salvar laudo');
         toast('Ponto #' + numero + ' salvo.');
       } else {
         doc.id = 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
@@ -2008,7 +2052,7 @@
       limparFormulario();
     } catch (err) {
       console.error(err);
-      toast('Não foi possível salvar. Tente novamente.');
+      mostrarErroBanco(err, 'salvar laudo'); toast('Não foi possível salvar: ' + ((err && (err.code || err.message)) || 'erro desconhecido'));
     }
     btn.disabled = false;
     btn.textContent = 'Salvar ponto';
@@ -2706,6 +2750,13 @@
       try { downloads = await window.claude.use('downloads'); } catch (e) {}
     }
 
+    // teste rápido de conexão com o Firestore (mostra um aviso claro se algo estiver errado)
+    if (db && !MODO_CLIENTE && FIREBASE_CONFIGURADO && typeof firebase !== 'undefined') {
+      comTimeout(db.collection('empresas').limit(1).get(), 12000, 'testar conexão com o banco')
+        .then(function () { limparErroBanco(); })
+        .catch(function (err) { mostrarErroBanco(err, 'testar conexão'); });
+    }
+
     if (db && !MODO_CLIENTE) {
       try {
         db.collection('empresas').orderBy('nome').onSnapshot(function (snap) {
@@ -2715,7 +2766,7 @@
             copy.id = d.id; return copy;
           });
           renderEmpresas();
-        }, function (err) { console.error('Erro ao carregar empresas:', err); });
+        }, function (err) { mostrarErroBanco(err, 'carregar empresas'); });
       } catch (e) { console.error(e); }
       try {
         db.collection('ordens').orderBy('numero', 'desc').onSnapshot(function (snap) {
@@ -2726,7 +2777,7 @@
           });
           renderOrdens();
           renderEmpresas();
-        }, function (err) { console.error('Erro ao carregar ordens:', err); });
+        }, function (err) { mostrarErroBanco(err, 'carregar OS'); });
       } catch (e) { console.error(e); }
     } else if (!MODO_CLIENTE) {
       renderEmpresas();
@@ -2754,6 +2805,7 @@
               return copy;
             });
             if (ordenarLocal) pontosCache.sort(function (a, b) { return (b.numero || 0) - (a.numero || 0); });
+            limparErroBanco();
             renderLista();
           } catch (innerErr) {
             console.error('Erro processando pontos:', innerErr);
@@ -2761,6 +2813,7 @@
           }
         }, function (err) {
           console.error('Erro de sincronização:', err);
+          mostrarErroBanco(err, 'carregar laudos');
           toast(MODO_CLIENTE ? ('Não foi possível carregar os laudos agora' + (err && err.message ? (': ' + err.message) : '') + '.') : 'Sincronização indisponível.');
           if (MODO_CLIENTE) {
             document.getElementById('card-lista').innerHTML = '<div class="aviso"><h2>Erro ao carregar</h2><p>' + escapeHtml((err && err.message) || 'Não foi possível carregar os laudos agora.') + '</p></div>';
