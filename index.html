@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="app-version" content="2026.09.28-6" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -146,6 +147,12 @@
   textarea { resize: vertical; min-height: 60px; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .aviso-atualizacao {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    background: #1657D6; color: #fff; padding: 9px 14px; font-size: 13px;
+  }
+  .aviso-atualizacao button { background: #fff; color: #1657D6; padding: 6px 12px; font-size: 12.5px; border-radius: 8px; }
+  .sidebar-versao { margin-top: auto; padding: 10px 16px 4px; font-size: 11px; color: #8fa2c4; }
   .status-banco {
     background: #fdecea; color: #8a1c14; border-bottom: 1px solid #f5c2be;
     padding: 10px 14px; font-size: 13px; line-height: 1.45;
@@ -399,6 +406,7 @@
   <button class="nav-item" data-view="novo">📋 Novo Laudo</button>
   <button class="nav-item" data-view="ordens">🗂 Ordens de Serviço</button>
   <button class="nav-item" data-view="empresas">🏢 Empresas</button>
+  <div class="sidebar-versao">Versão <span id="versao-app"></span></div>
 </nav>
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
@@ -413,6 +421,10 @@
     </div>
   </div>
 </header>
+<div id="aviso-atualizacao" class="aviso-atualizacao" style="display:none;">
+  <span>🔄 Há uma <b>versão nova</b> do sistema disponível.</span>
+  <button id="btn-atualizar-app" type="button">Atualizar agora</button>
+</div>
 <div id="status-banco" class="status-banco" style="display:none;"></div>
 
 <main>
@@ -774,6 +786,24 @@
       promessa.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
     });
   }
+
+  // ---------- versão do sistema + aviso quando sair uma versão nova ----------
+  var APP_VERSION = (document.querySelector('meta[name="app-version"]') || {}).content || '';
+  document.getElementById('versao-app').textContent = APP_VERSION || '—';
+  function verificarAtualizacao() {
+    if (!APP_VERSION || typeof fetch !== 'function') return;
+    fetch(window.location.pathname + '?_v=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r && r.ok ? r.text() : ''; })
+      .then(function (txt) {
+        var m = txt && txt.match(/<meta name="app-version" content="([^"]+)"/);
+        if (m && m[1] !== APP_VERSION) document.getElementById('aviso-atualizacao').style.display = 'flex';
+      })
+      .catch(function () {});
+  }
+  document.getElementById('btn-atualizar-app').addEventListener('click', function () { window.location.reload(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) verificarAtualizacao(); });
+  setInterval(verificarAtualizacao, 5 * 60 * 1000);
+  setTimeout(verificarAtualizacao, 4000);
 
   function mostrarErroBanco(err, contexto) {
     var codigo = (err && err.code) ? String(err.code) : '';
