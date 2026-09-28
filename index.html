@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.09.28-8" />
+<meta name="app-version" content="2026.09.28-9" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -366,6 +366,22 @@
 
   .foto-wrap, .radio-opt, .dash-card, .empresa-item, .os-item, .ponto { transition: border-color .2s ease, background-color .2s ease; }
   .foto-wrap:hover { border-color: var(--azul); }
+  .foto-editor-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.72); z-index: 70;
+    align-items: center; justify-content: center; padding: 16px;
+  }
+  .foto-editor-overlay.show { display: flex; }
+  .foto-editor-box { background: #fff; border-radius: 14px; padding: 16px; width: 100%; max-width: 380px; animation: scaleIn .2s ease both; }
+  .foto-editor-titulo { font-weight: 700; font-size: 15px; margin-bottom: 10px; text-align: center; }
+  .foto-editor-canvas-wrap { width: 100%; aspect-ratio: 1 / 1; background: #eee; border-radius: 10px; overflow: hidden; touch-action: none; }
+  .foto-editor-canvas-wrap canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+  .foto-editor-canvas-wrap canvas:active { cursor: grabbing; }
+  .foto-editor-controles { display: flex; gap: 8px; margin-top: 12px; }
+  .foto-editor-controles button { flex: 1; }
+  .foto-editor-zoom { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 16px; }
+  .foto-editor-zoom input[type=range] { flex: 1; }
+  .foto-editor-acoes { display: flex; gap: 8px; margin-top: 14px; }
+  .foto-editor-acoes button { flex: 1; }
 
   .vazio { animation: fadeIn .3s ease both; }
   #bloco-critico { animation: fadeInUp .3s ease both; }
@@ -665,6 +681,26 @@
 
 </main>
 </div>
+</div>
+
+<div class="foto-editor-overlay" id="foto-editor-modal">
+  <div class="foto-editor-box">
+    <div class="foto-editor-titulo">Ajustar foto</div>
+    <div class="foto-editor-canvas-wrap"><canvas id="foto-editor-canvas" width="600" height="600"></canvas></div>
+    <div class="foto-editor-controles">
+      <button type="button" class="btn-secondary" id="fe-girar-esq" title="Girar à esquerda">⟲ Girar</button>
+      <button type="button" class="btn-secondary" id="fe-girar-dir" title="Girar à direita">⟳ Girar</button>
+    </div>
+    <div class="foto-editor-zoom">
+      <span>🔍−</span>
+      <input type="range" id="fe-zoom" min="0.7" max="3" step="0.01" value="1">
+      <span>🔍+</span>
+    </div>
+    <div class="foto-editor-acoes">
+      <button type="button" class="btn-secondary" id="fe-cancelar">Cancelar</button>
+      <button type="button" class="btn-primary" id="fe-usar">Usar foto</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1186,24 +1222,151 @@
   document.getElementById('f-parte').addEventListener('change', popularFuncao);
   document.getElementById('f-funcao').addEventListener('change', atualizarTempAdmissivel);
 
-  function setupFotoInput(inputId, wrapId, labelId, onLoaded) {
-    document.getElementById(inputId).addEventListener('change', function (e) {
-      var file = e.target.files && e.target.files[0];
-      if (!file) return;
-      var reader = new FileReader();
-      reader.onload = function (ev) {
-        var dataUrl = ev.target.result;
-        var wrap = document.getElementById(wrapId);
-        var label = document.getElementById(labelId);
-        var existingImg = wrap.querySelector('img');
-        if (existingImg) existingImg.remove();
-        var img = document.createElement('img');
-        img.src = dataUrl;
-        wrap.insertBefore(img, wrap.firstChild);
-        label.textContent = 'Toque p/ trocar';
-        onLoaded(file, dataUrl);
+
+  // ---------- editor de foto: girar, aumentar/diminuir e arrastar antes de anexar ----------
+  var feCanvas = document.getElementById('foto-editor-canvas');
+  var feCtx = feCanvas.getContext('2d');
+  var feEstado = null; // { img, rotacao, zoom, offX, offY, naturalW, naturalH }
+  var feResolverAtual = null;
+  var feArquivoAtual = null;
+
+  function feRedesenhar() {
+    if (!feEstado) return;
+    var S = feCanvas.width; // 600 — canvas é sempre quadrado
+    feCtx.save();
+    feCtx.fillStyle = '#eeeeee';
+    feCtx.fillRect(0, 0, S, S);
+    feCtx.translate(S / 2 + feEstado.offX, S / 2 + feEstado.offY);
+    feCtx.rotate(feEstado.rotacao * Math.PI / 180);
+    var escalaCover = Math.max(S / feEstado.naturalW, S / feEstado.naturalH);
+    var escala = escalaCover * feEstado.zoom;
+    var w = feEstado.naturalW * escala, h = feEstado.naturalH * escala;
+    feCtx.drawImage(feEstado.img, -w / 2, -h / 2, w, h);
+    feCtx.restore();
+  }
+
+  function feLimitarOffset() {
+    // não deixa arrastar a ponto de sobrar fundo cinza visível
+    var S = feCanvas.width;
+    var escalaCover = Math.max(S / feEstado.naturalW, S / feEstado.naturalH);
+    var escala = escalaCover * feEstado.zoom;
+    var w = feEstado.naturalW * escala, h = feEstado.naturalH * escala;
+    var rot = ((feEstado.rotacao % 360) + 360) % 360;
+    var wRot = (rot === 90 || rot === 270) ? h : w;
+    var hRot = (rot === 90 || rot === 270) ? w : h;
+    var limX = Math.max(0, (wRot - S) / 2), limY = Math.max(0, (hRot - S) / 2);
+    feEstado.offX = Math.max(-limX, Math.min(limX, feEstado.offX));
+    feEstado.offY = Math.max(-limY, Math.min(limY, feEstado.offY));
+  }
+
+  function abrirEditorFoto(file) {
+    return new Promise(function (resolve) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        feEstado = { img: img, rotacao: 0, zoom: 1, offX: 0, offY: 0, naturalW: img.naturalWidth, naturalH: img.naturalHeight };
+        document.getElementById('fe-zoom').value = '1';
+        feRedesenhar();
+        document.getElementById('foto-editor-modal').classList.add('show');
+        feResolverAtual = resolve;
+        feArquivoAtual = file;
       };
-      reader.readAsDataURL(file);
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(null); };
+      img.src = url;
+    });
+  }
+
+  function feFechar(resultado) {
+    document.getElementById('foto-editor-modal').classList.remove('show');
+    if (feEstado && feEstado.img && feEstado.img.src) URL.revokeObjectURL(feEstado.img.src);
+    feEstado = null;
+    var resolver = feResolverAtual;
+    feResolverAtual = null;
+    if (resolver) resolver(resultado);
+  }
+
+  document.getElementById('fe-girar-esq').addEventListener('click', function () {
+    if (!feEstado) return;
+    feEstado.rotacao -= 90; feEstado.offX = 0; feEstado.offY = 0; feRedesenhar();
+  });
+  document.getElementById('fe-girar-dir').addEventListener('click', function () {
+    if (!feEstado) return;
+    feEstado.rotacao += 90; feEstado.offX = 0; feEstado.offY = 0; feRedesenhar();
+  });
+  document.getElementById('fe-zoom').addEventListener('input', function () {
+    if (!feEstado) return;
+    feEstado.zoom = parseFloat(this.value) || 1;
+    feLimitarOffset(); feRedesenhar();
+  });
+  document.getElementById('fe-cancelar').addEventListener('click', function () { feFechar(null); });
+  document.getElementById('fe-usar').addEventListener('click', function () {
+    if (!feEstado) { feFechar(null); return; }
+    var out = document.createElement('canvas');
+    out.width = 1000; out.height = 1000;
+    var octx = out.getContext('2d');
+    var esc = out.width / feCanvas.width;
+    octx.save();
+    octx.fillStyle = '#eeeeee'; octx.fillRect(0, 0, out.width, out.height);
+    octx.translate(out.width / 2 + feEstado.offX * esc, out.height / 2 + feEstado.offY * esc);
+    octx.rotate(feEstado.rotacao * Math.PI / 180);
+    var escalaCover = Math.max(out.width / feEstado.naturalW, out.height / feEstado.naturalH);
+    var escala = escalaCover * feEstado.zoom;
+    var w = feEstado.naturalW * escala, h = feEstado.naturalH * escala;
+    octx.drawImage(feEstado.img, -w / 2, -h / 2, w, h);
+    octx.restore();
+    out.toBlob(function (blob) {
+      if (!blob) { feFechar(null); return; }
+      var arquivoFinal = new File([blob], (feArquivoAtual && feArquivoAtual.name) || 'foto.jpg', { type: 'image/jpeg' });
+      var reader = new FileReader();
+      reader.onload = function (ev) { feFechar({ blob: arquivoFinal, dataUrl: ev.target.result }); };
+      reader.readAsDataURL(blob);
+    }, 'image/jpeg', 0.85);
+  });
+
+  // arrastar para reposicionar (mouse e toque)
+  (function () {
+    var arrastando = false, inicioX = 0, inicioY = 0, offInicialX = 0, offInicialY = 0;
+    function pos(e) { return e.touches ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : { x: e.clientX, y: e.clientY }; }
+    function iniciar(e) {
+      if (!feEstado) return;
+      arrastando = true;
+      var p = pos(e); inicioX = p.x; inicioY = p.y;
+      offInicialX = feEstado.offX; offInicialY = feEstado.offY;
+    }
+    function mover(e) {
+      if (!arrastando || !feEstado) return;
+      e.preventDefault();
+      var p = pos(e);
+      var escalaTela = feCanvas.width / feCanvas.getBoundingClientRect().width;
+      feEstado.offX = offInicialX + (p.x - inicioX) * escalaTela;
+      feEstado.offY = offInicialY + (p.y - inicioY) * escalaTela;
+      feLimitarOffset(); feRedesenhar();
+    }
+    function soltar() { arrastando = false; }
+    feCanvas.addEventListener('mousedown', iniciar);
+    window.addEventListener('mousemove', mover);
+    window.addEventListener('mouseup', soltar);
+    feCanvas.addEventListener('touchstart', iniciar, { passive: true });
+    window.addEventListener('touchmove', mover, { passive: false });
+    window.addEventListener('touchend', soltar);
+  })();
+
+  function setupFotoInput(inputId, wrapId, labelId, onLoaded) {
+    document.getElementById(inputId).addEventListener('change', async function (e) {
+      var file = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      var editado = await abrirEditorFoto(file);
+      if (!editado) return; // usuário cancelou
+      var wrap = document.getElementById(wrapId);
+      var label = document.getElementById(labelId);
+      var existingImg = wrap.querySelector('img');
+      if (existingImg) existingImg.remove();
+      var img = document.createElement('img');
+      img.src = editado.dataUrl;
+      wrap.insertBefore(img, wrap.firstChild);
+      label.textContent = 'Toque p/ trocar';
+      onLoaded(editado.blob, editado.dataUrl);
     });
   }
   setupFotoInput('f-foto-visual', 'foto-wrap-visual', 'foto-label-visual', function (file, dataUrl) {
@@ -1232,19 +1395,16 @@
     document.getElementById('foto-label-extras').textContent = total ? (total + ' foto(s) adicionada(s) — toque para adicionar mais') : 'Toque para adicionar uma ou mais fotos';
   }
 
-  document.getElementById('f-fotos-extras').addEventListener('change', function (e) {
+  document.getElementById('f-fotos-extras').addEventListener('change', async function (e) {
     var files = Array.prototype.slice.call(e.target.files || []);
-    var pendentes = files.length;
-    if (!pendentes) return;
-    files.forEach(function (file) {
-      var reader = new FileReader();
-      reader.onload = function (ev) {
-        fotosExtrasNovas.push({ blob: file, dataUrl: ev.target.result });
-        renderExtrasPreview();
-      };
-      reader.readAsDataURL(file);
-    });
     e.target.value = '';
+    for (var i = 0; i < files.length; i++) {
+      var editado = await abrirEditorFoto(files[i]);
+      if (editado) {
+        fotosExtrasNovas.push({ blob: editado.blob, dataUrl: editado.dataUrl });
+        renderExtrasPreview();
+      }
+    }
   });
 
   document.getElementById('extras-preview').addEventListener('click', function (e) {
