@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.09.28-6" />
+<meta name="app-version" content="2026.09.28-7" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -274,10 +274,10 @@
   .lp-header .lp-h-title { font-weight: 700; font-size: 13.5px; }
   .lp-header .lp-h-sub { font-size: 10.5px; opacity: .85; margin-top: 2px; }
   .lp-header .lp-h-right { text-align: right; font-size: 10.5px; opacity: .9; }
-  .lp-idstrip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: #d9d9d9; }
-  .lp-idbox { background: #f2f2f2; padding: 6px 8px; }
+  .lp-idstrip { display: grid; grid-template-columns: 5.3fr 2.8fr 2.1fr minmax(46px, 1fr); gap: 1px; background: #d9d9d9; }
+  .lp-idbox { background: #f2f2f2; padding: 6px 8px; min-width: 0; }
   .lp-idbox .k { font-size: 8.5px; font-weight: 700; color: #595959; text-transform: uppercase; }
-  .lp-idbox .v { font-size: 11px; color: #111; margin-top: 1px; }
+  .lp-idbox .v { font-size: 11px; color: #111; margin-top: 1px; overflow-wrap: anywhere; }
   .lp-photos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 14px 0; }
   .lp-photobox { border: 1px solid #d9d9d9; border-radius: 6px; overflow: hidden; }
   .lp-photobox .lp-phototitle { background: var(--azul); color: #fff; text-align: center; font-weight: 700; font-size: 10.5px; padding: 5px; }
@@ -2397,24 +2397,30 @@
     y = topSafe + barH + 4;
 
     // ---- faixa de identificação ----
-    var idColW = W / 4;
+    var idGap = 2;
+    var idLarg = [0, 44.5, 34, 16];                       // Local, Quadro e Ponto (mm)
+    idLarg[0] = W - idLarg[1] - idLarg[2] - idLarg[3] - idGap * 3;   // Cliente fica com o resto (maior)
     var idFields = [
       ['CLIENTE', ponto.cliente || '—'],
       ['LOCAL / SETOR', ponto.local || '—'],
       ['QUADRO', ponto.quadro || '—'],
       ['PONTO', '#' + ponto.numero]
     ];
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    var idLinhas = idFields.map(function (f, i) { return doc.splitTextToSize(String(f[1]), idLarg[i] - 4).slice(0, 3); });
+    var idMaxLinhas = Math.max.apply(null, idLinhas.map(function (l) { return l.length; }));
+    var idAltura = 11 + (idMaxLinhas - 1) * 3.8;   // cresce só se algum nome não couber em uma linha
+    var idX = margin;
     idFields.forEach(function (f, i) {
-      var x = margin + i * idColW;
       doc.setDrawColor(217, 217, 217); doc.setFillColor(cinza[0], cinza[1], cinza[2]);
-      doc.rect(x, y, idColW - (i < 3 ? 2 : 0), 11, 'FD');
+      doc.rect(idX, y, idLarg[i], idAltura, 'FD');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(89, 89, 89);
-      doc.text(f[0], x + 2, y + 4.2);
+      doc.text(f[0], idX + 2, y + 4.2);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(20, 20, 20);
-      var lines = doc.splitTextToSize(String(f[1]), idColW - 4);
-      doc.text(lines[0] || '', x + 2, y + 8.8);
+      doc.text(idLinhas[i], idX + 2, y + 8.8);
+      idX += idLarg[i] + idGap;
     });
-    y += 14.5;
+    y += idAltura + 3.5;
 
     // ---- fotos ----
     var gap = 4;
