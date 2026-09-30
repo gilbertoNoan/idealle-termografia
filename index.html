@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.09.28-9" />
+<meta name="app-version" content="2026.09.29-1" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -198,6 +198,11 @@
   .badge.medio { background: #FFFF00; }
   .badge.alto { background: #FFA500; }
   .badge.critico { background: #FF0000; color: #fff; }
+  /* níveis do método ΔT (padrão do sistema) */
+  .badge.observar { background: #FFFF00; }
+  .badge.programar { background: #FFA500; }
+  .badge.urgencia { background: #FF6600; color: #fff; }
+  .badge.emergencia { background: #C00000; color: #fff; }
   .badge-deltat {
     display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #1a1a1a;
   }
@@ -349,6 +354,7 @@
   .nav-item:hover:not(.active) { padding-left: 20px; }
 
   .badge.critico { animation: pulseCritico 1.8s infinite; }
+  .badge.emergencia { animation: pulseCritico 1.8s infinite; }
   .badge-deltat.emergencia { animation: pulseCritico 1.8s infinite; }
 
   input[type=text], input[type=number], input[type=datetime-local], textarea, select {
@@ -540,21 +546,18 @@
     <div class="calc-box">
       <div class="pill"><div class="v" id="calc-max">—</div><div class="l">Máxima</div></div>
       <div class="pill"><div class="v" id="calc-anomalia">—</div><div class="l">Anomalia</div></div>
-      <div class="pill"><div class="v"><span class="badge" id="calc-badge">—</span></div><div class="l">Severidade</div></div>
+      <div class="pill"><div class="v" id="calc-bx1-deltat">—</div><div class="l">ΔT</div></div>
+      <div class="pill"><div class="v"><span class="badge" id="calc-badge">—</span></div><div class="l">Severidade (ΔT)</div></div>
     </div>
+    <div id="calc-bx1-origem" style="font-size:12px; color: var(--texto-suave); margin-top:4px;"></div>
 
-    <div class="subhead">Bx1 — Classificação por ΔT (automática)</div>
-    <p class="ajuda-campo" style="color: var(--texto-suave);">Preenche sozinha usando a Máxima (Ponto 1/Ponto 2) e a Ambiente. Só preencha os campos abaixo se tiver a leitura da caixa de estatística da câmera (Bx1) para um componente específico.</p>
+    <div class="subhead">ΔT — leitura manual do componente (opcional)</div>
+    <p class="ajuda-campo" style="color: var(--texto-suave);">A severidade acima já é calculada sozinha usando a Máxima (Ponto 1/Ponto 2) e a Ambiente. Só preencha os campos abaixo se tiver a leitura da caixa de estatística da câmera (Bx1) para um componente específico — isso substitui o cálculo automático.</p>
     <div class="row3">
       <div><label>Bx1 Máx (°C)</label><input type="number" step="0.1" id="f-bx1-max" inputmode="decimal" /></div>
       <div><label>Bx1 Méd (°C)</label><input type="number" step="0.1" id="f-bx1-med" inputmode="decimal" /></div>
       <div><label>Bx1 Mín (°C)</label><input type="number" step="0.1" id="f-bx1-min" inputmode="decimal" /></div>
     </div>
-    <div class="calc-box">
-      <div class="pill"><div class="v" id="calc-bx1-deltat">—</div><div class="l">ΔT Bx1</div></div>
-      <div class="pill"><div class="v"><span class="badge-deltat" id="calc-bx1-badge">—</span></div><div class="l">Classificação ΔT</div></div>
-    </div>
-    <div id="calc-bx1-origem" style="font-size:12px; color: var(--texto-suave); margin-top:4px;"></div>
 
     <div class="subhead">Registro fotográfico</div>
     <div class="foto-cols">
@@ -663,10 +666,11 @@
       <div><label>Severidade</label>
         <select id="ls-sev">
           <option value="">Todas</option>
-          <option value="normal">Baixo</option>
-          <option value="medio">Médio</option>
-          <option value="alto">Alto</option>
-          <option value="critico">Crítico</option>
+          <option value="normal">Normal</option>
+          <option value="observar">Observar</option>
+          <option value="programar">Programar</option>
+          <option value="urgencia">Urgência</option>
+          <option value="emergencia">Emergência</option>
         </select>
       </div>
     </div>
@@ -755,7 +759,7 @@
   function aplicarFiltroSeveridade(lista) {
     if (!filtroSeveridade) return lista;
     return lista.filter(function (p) {
-      var c = classificar(p.maxima || 0, p.ambiente || 25);
+      var c = classificarPrincipal(p);
       return classeResumo(c.key) === filtroSeveridade;
     });
   }
@@ -959,12 +963,18 @@
   // ---------- Bx1: classificação por ΔT (Máx - Mín) ----------
   var LIMIARES_DELTAT = [15, 20, 25, 30];
   var NIVEIS_DELTAT = [
-    { key: 'normal', label: 'Normal', cor: '#92D050', acao: 'Nenhuma ação necessária.' },
-    { key: 'observar', label: 'Observar', cor: '#FFFF00', acao: 'Observar e reinspecionar no próximo período.' },
-    { key: 'programar', label: 'Programar', cor: '#FFA500', acao: 'Programar reparo na próxima manutenção.' },
-    { key: 'urgencia', label: 'Urgência', cor: '#FF6600', acao: 'Providenciar reparo com urgência.' },
-    { key: 'emergencia', label: 'Emergência', cor: '#C00000', acao: 'Intervenção imediata / emergencial.' }
+    { key: 'normal', label: 'Normal', cor: '#92D050', acao: 'Nenhuma ação necessária.', prioridade: 'Nenhuma ação necessária.' },
+    { key: 'observar', label: 'Observar', cor: '#FFFF00', acao: 'Observar e reinspecionar no próximo período.', prioridade: 'Observar e reinspecionar no próximo período.' },
+    { key: 'programar', label: 'Programar', cor: '#FFA500', acao: 'Programar reparo na próxima manutenção.', prioridade: 'Programar reparo na próxima manutenção.' },
+    { key: 'urgencia', label: 'Urgência', cor: '#FF6600', acao: 'Providenciar reparo com urgência.', prioridade: 'Providenciar reparo com urgência.' },
+    { key: 'emergencia', label: 'Emergência', cor: '#C00000', acao: 'Intervenção imediata / emergencial.', prioridade: 'Intervenção imediata / emergencial.' }
   ];
+  // ΔT é o método PADRÃO do sistema: toda severidade exibida (painel, listas, filtros, PDF) vem daqui.
+  function classificarPrincipal(p) {
+    var dt = (p && p.bx1DeltaT != null) ? p.bx1DeltaT :
+      ((p && typeof p.maxima === 'number' && typeof p.ambiente === 'number') ? (p.maxima - p.ambiente) : 0);
+    return classificarDeltaT(dt);
+  }
   function classificarDeltaT(deltaT) {
     var d = Math.abs(deltaT);
     var nivel;
@@ -1002,18 +1012,22 @@
   function atualizarCalculoBx1() {
     var r = calcularBx1Final();
     var elDelta = document.getElementById('calc-bx1-deltat');
-    var elBadge = document.getElementById('calc-bx1-badge');
     var elOrigem = document.getElementById('calc-bx1-origem');
+    var elBadgePrincipal = document.getElementById('calc-badge');
     if (!r) {
       elDelta.textContent = '—';
-      elBadge.textContent = '—'; elBadge.className = 'badge-deltat';
       elOrigem.textContent = '';
+      elBadgePrincipal.textContent = '—'; elBadgePrincipal.className = 'badge';
+      document.getElementById('bloco-critico').style.display = 'none';
+      document.getElementById('conclusao-aviso').style.display = 'none';
       return null;
     }
     var c = classificarDeltaT(r.deltaT);
     elDelta.textContent = r.deltaT.toFixed(1) + '°';
-    elBadge.textContent = c.label; elBadge.className = 'badge-deltat ' + c.key;
-    elOrigem.textContent = r.origem === 'auto' ? '(calculado automaticamente: Máxima − Ambiente)' : '(valores Bx1 informados manualmente)';
+    elOrigem.textContent = r.origem === 'auto' ? '(ΔT calculado automaticamente: Máxima − Ambiente)' : '(ΔT a partir dos valores Bx1 informados manualmente)';
+    elBadgePrincipal.textContent = c.label; elBadgePrincipal.className = 'badge ' + c.key;
+    document.getElementById('bloco-critico').style.display = (c.key === 'emergencia') ? 'block' : 'none';
+    atualizarConclusao(c.key);
     return { deltaT: r.deltaT, classe: c, max: r.max, med: r.med, min: r.min, origem: r.origem };
   }
   ['f-bx1-max', 'f-bx1-med', 'f-bx1-min'].forEach(function (id) {
@@ -1083,20 +1097,21 @@
     }
   }
 
-  // ---------- Conclusão automática (Normal/Médio) ou manual (Alto/Crítico) ----------
+  // ---------- Conclusão automática (Normal/Observar) ou manual (Programar/Urgência/Emergência) ----------
+  // A severidade usada aqui é a PRINCIPAL do sistema (ΔT), não a MTA.
   var TEXTO_CONCLUSAO_AUTO = {
     normal: 'Ponto inspecionado apresentando comportamento térmico dentro dos parâmetros aceitáveis de operação, não sendo constatada anomalia térmica relevante no momento da inspeção. Manter em rotina de acompanhamento e monitoramento preventivo.',
-    medio: 'Ponto inspecionado apresentando elevação de temperatura compatível com a condição de carga observada, sem caracterizar risco imediato. Realizar a intervenção na próxima manutenção programada.'
+    observar: 'Ponto inspecionado apresentando elevação de temperatura compatível com a condição observada, sem caracterizar risco imediato. Observar e reinspecionar no próximo período.'
   };
   var conclusaoManual = false;
   document.getElementById('f-conclusao').addEventListener('input', function () { conclusaoManual = true; });
   function atualizarConclusao(classeKey) {
     var campo = document.getElementById('f-conclusao');
     var aviso = document.getElementById('conclusao-aviso');
-    var exigeManual = (classeKey === 'alto' || classeKey === 'critico');
+    var exigeManual = (classeKey === 'programar' || classeKey === 'urgencia' || classeKey === 'emergencia');
     aviso.style.display = exigeManual ? 'inline' : 'none';
     if (conclusaoManual) return;
-    if (classeKey === 'normal' || classeKey === 'medio') {
+    if (classeKey === 'normal' || classeKey === 'observar') {
       campo.value = TEXTO_CONCLUSAO_AUTO[classeKey];
     } else {
       campo.value = '';
@@ -1107,25 +1122,16 @@
     var v = lerTemps();
     var maxEl = document.getElementById('calc-max');
     var anEl = document.getElementById('calc-anomalia');
-    var badgeEl = document.getElementById('calc-badge');
     var vals = [v.r, v.s].filter(function (x) { return !isNaN(x); });
     if (!vals.length || isNaN(v.amb)) {
       maxEl.textContent = '—'; anEl.textContent = '—';
-      badgeEl.textContent = '—'; badgeEl.className = 'badge';
-      document.getElementById('bloco-critico').style.display = 'none';
-      document.getElementById('conclusao-aviso').style.display = 'none';
       return null;
     }
     var maxima = Math.max.apply(null, vals);
     var anomalia = calcularAnomalia(v.r, v.s);
-    var c = classificar(maxima, v.amb);
     maxEl.textContent = maxima.toFixed(1) + '°';
     anEl.textContent = anomalia ? anomalia[0] : '—';
-    badgeEl.textContent = c.label;
-    badgeEl.className = 'badge ' + c.key;
-    document.getElementById('bloco-critico').style.display = (c.key === 'critico') ? 'block' : 'none';
-    atualizarConclusao(c.key);
-    return { maxima: maxima, anomalia: anomalia, classe: c };
+    return { maxima: maxima, anomalia: anomalia };
   }
   ['f-faser', 'f-fases', 'f-ambiente'].forEach(function (id) {
     document.getElementById(id).addEventListener('input', function () {
@@ -1446,7 +1452,6 @@
     document.getElementById('f-bx1-max').value = '';
     document.getElementById('f-bx1-med').value = '';
     document.getElementById('f-bx1-min').value = '';
-    atualizarCalculoBx1();
     document.getElementById('f-obs').value = '';
     document.getElementById('f-conclusao').value = '';
     conclusaoManual = false;
@@ -1458,6 +1463,7 @@
     limparFoto('foto-wrap-termica', 'foto-label-termica', 'Toque p/ foto');
     limparFotosExtras();
     atualizarCalculo();
+    atualizarCalculoBx1();
     editandoPontoId = null;
     editandoPontoOriginal = null;
     document.getElementById('novo-empresa').value = '';
@@ -1492,8 +1498,8 @@
 
   function classeResumo(key) {
     if (key === 'normal') return 'ok';
-    if (key === 'critico') return 'critico';
-    return 'atencao'; // baixo, medio, alto
+    if (key === 'urgencia' || key === 'emergencia') return 'critico';
+    return 'atencao'; // observar, programar
   }
 
   function animarNumero(el, valorFinal) {
@@ -1516,7 +1522,7 @@
     var total = pontosCache.length;
     var ok = 0, atencao = 0, critico = 0;
     pontosCache.forEach(function (p) {
-      var c = classificar(p.maxima || 0, p.ambiente || 25);
+      var c = classificarPrincipal(p);
       var r = classeResumo(c.key);
       if (r === 'ok') ok++; else if (r === 'critico') critico++; else atencao++;
     });
@@ -1544,7 +1550,7 @@
     return pontosCache.filter(function (p) {
       if (empId && empresaIdDoPonto(p) !== empId) return false;
       if (osId && p.osId !== osId) return false;
-      if (sev && classificar(p.maxima || 0, p.ambiente || 25).key !== sev) return false;
+      if (sev && classificarPrincipal(p).key !== sev) return false;
       if (termo) {
         var alvo = [p.quadro, p.local, p.cliente, p.tipo, p.parte, p.funcao, p.classificacao,
           '#' + p.numero, p.osNumero != null ? ('os-' + p.osNumero) : ''].join(' ').toLowerCase();
@@ -1586,7 +1592,7 @@
     if (!filtrados.length) { lista.innerHTML = '<div class="vazio">Nenhum laudo encontrado com esses filtros.</div>'; return; }
 
     lista.innerHTML = filtrados.map(function (p) {
-      var c = classificar(p.maxima || 0, p.ambiente || 25);
+      var c = classificarPrincipal(p);
       return '<div class="ponto" data-id="' + p.id + '">' +
         '<div class="ponto-top">' +
           '<div>' +
@@ -1668,7 +1674,7 @@
     contador.textContent = '(' + pontosCache.length + ')';
     var html = '';
     pontosCache.forEach(function (p) {
-      var c = classificar(p.maxima || 0, p.ambiente || 25);
+      var c = classificarPrincipal(p);
       html += '<div class="ponto" data-id="' + p.id + '">' +
         '<div class="ponto-top">' +
           '<div>' +
@@ -2037,7 +2043,7 @@
           laudosHtml = '<div class="os-laudos-vazio">Nenhum laudo ' + (filtroSeveridade ? 'nesse status ' : '') + 'lançado nesta OS ainda.</div>';
         } else {
           laudosHtml = laudos.map(function (p) {
-            var c = classificar(p.maxima || 0, p.ambiente || 25);
+            var c = classificarPrincipal(p);
             return '<div class="os-laudo-item" data-ponto-id="' + p.id + '">' +
               '<div class="os-laudo-info">' +
                 '<label class="laudo-check"><input type="checkbox" class="laudo-select-check" data-os-id="' + o.id + '" data-ponto-id="' + p.id + '"></label>' +
@@ -2220,9 +2226,9 @@
     var vals = [v.r, v.s].filter(function (x) { return !isNaN(x); });
     var maxima = vals.length ? Math.max.apply(null, vals) : 0;
     var anomalia = calcularAnomalia(v.r, v.s);
-    var classe = classificar(maxima, isNaN(v.amb) ? 25 : v.amb);
-    var emissividade = parseFloat(document.getElementById('f-emissividade').value);
     var bx1Calc = calcularBx1Final();
+    var classe = bx1Calc ? bx1Calc.classe : classificarDeltaT(0);
+    var emissividade = parseFloat(document.getElementById('f-emissividade').value);
     var numeroPreview = editandoPontoId ? editandoPontoOriginal.numero :
       (pontosCache.reduce(function (max, p) { return Math.max(max, p.numero || 0); }, 0)) + 1;
     return {
@@ -2289,7 +2295,8 @@
 
     var maxima = Math.max.apply(null, vals);
     var anomalia = calcularAnomalia(v.r, v.s);
-    var classe = classificar(maxima, v.amb);
+    var bx1Calc = calcularBx1Final();
+    var classe = bx1Calc ? bx1Calc.classe : classificarDeltaT(0);
 
     var btn = document.getElementById('btn-salvar');
     btn.disabled = true;
@@ -2341,7 +2348,6 @@
     var editando = !!editandoPontoId;
     var numero = editando ? editandoPontoOriginal.numero : (pontosCache.reduce(function (max, p) { return Math.max(max, p.numero || 0); }, 0)) + 1;
 
-    var bx1Calc = calcularBx1Final();
     var doc = {
       numero: numero, cliente: cliente, osId: osId, osNumero: osSelecionada.numero, local: local, quadro: quadro,
       tipo: tipo, parte: parte, funcao: funcao, tempAdmissivel: tempAdmissivel,
@@ -2433,7 +2439,6 @@
     document.getElementById('f-bx1-max').value = bx1EraManual && ponto.bx1Max != null ? ponto.bx1Max : '';
     document.getElementById('f-bx1-med').value = bx1EraManual && ponto.bx1Med != null ? ponto.bx1Med : '';
     document.getElementById('f-bx1-min').value = bx1EraManual && ponto.bx1Min != null ? ponto.bx1Min : '';
-    atualizarCalculoBx1();
     document.getElementById('f-obs').value = ponto.observacao || '';
     document.getElementById('f-conclusao').value = ponto.conclusao || '';
     conclusaoManual = !!(ponto.conclusao && ponto.conclusao.trim());
@@ -2447,6 +2452,7 @@
     document.getElementById('f-fotos-extras').value = '';
     renderExtrasPreview();
     atualizarCalculo();
+    atualizarCalculoBx1();
     document.getElementById('btn-salvar').textContent = 'Salvar alterações';
     document.getElementById('btn-cancelar-edicao').style.display = 'block';
     toast('Editando ponto #' + ponto.numero + '.');
@@ -2800,13 +2806,13 @@
     doc.setFillColor(azul[0], azul[1], azul[2]);
     doc.rect(rightX, y2, colW, 10, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
-    doc.text('CRITÉRIOS PARA CLASSIFICAR SEVERIDADE (°C)', rightX + colW / 2, y2 + 4, { align: 'center', maxWidth: colW - 4 });
+    doc.text('CRITÉRIOS PARA CLASSIFICAR SEVERIDADE (ΔT °C)', rightX + colW / 2, y2 + 4, { align: 'center', maxWidth: colW - 4 });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
-    var limiares = calcularLimiares(ponto.ambiente || 25);
-    doc.text('Método: MTA (múltiplos da temp. ambiente)', rightX + colW / 2, y2 + 8, { align: 'center', maxWidth: colW - 4 });
+    var limiares = LIMIARES_DELTAT;
+    doc.text('Método: ΔT — padrão do sistema (limiares fixos)', rightX + colW / 2, y2 + 8, { align: 'center', maxWidth: colW - 4 });
     y2 += 10;
 
-    var coresEscala = [[146, 208, 80], [255, 255, 0], [255, 165, 0], [255, 0, 0]];
+    var coresEscala = [[146, 208, 80], [255, 255, 0], [255, 165, 0], [255, 102, 0]];
     var scaleW = colW / limiares.length;
     limiares.forEach(function (lim, i) {
       var cor = coresEscala[Math.min(i, coresEscala.length - 1)];
@@ -2819,7 +2825,7 @@
     });
     y2 += 8;
 
-    var classeAtual = classificar(ponto.maxima || 0, ponto.ambiente || 25);
+    var classeAtual = classificarPrincipal(ponto);
     y2 = infoTable(doc, rightX, y2, colW, '', [
       ['Anomalia:', ponto.anomalia || '—'],
       ['Severidade da Anomalia:', classeAtual.label],
@@ -2828,13 +2834,13 @@
 
     y = Math.max(y1, y2) + 4;
 
-    // ---- legenda (não é dividida entre páginas) ----
-    var legendaCores = [[146, 208, 80], [255, 255, 0], [255, 165, 0], [255, 0, 0]];
+    // ---- legenda (não é dividida entre páginas) — níveis do ΔT, padrão do sistema ----
+    var legendaCoresHex = { normal: [146, 208, 80], observar: [255, 255, 0], programar: [255, 165, 0], urgencia: [255, 102, 0], emergencia: [192, 0, 0] };
     var chipW = 9, labelW2 = 20;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.3);
-    var linhasLegenda = NIVEIS_SEVERIDADE.slice().reverse().map(function (niv, idx) {
+    var linhasLegenda = NIVEIS_DELTAT.slice().reverse().map(function (niv) {
       var lines = doc.splitTextToSize(niv.prioridade, W - chipW - labelW2 - 4);
-      return { niv: niv, cor: legendaCores[NIVEIS_SEVERIDADE.length - 1 - idx], lines: lines, rh: Math.max(5.2, lines.length * 3.5 + 1.8) };
+      return { niv: niv, cor: legendaCoresHex[niv.key], lines: lines, rh: Math.max(5.2, lines.length * 3.5 + 1.8) };
     });
     var alturaLegenda = 6 + linhasLegenda.reduce(function (s, l) { return s + l.rh; }, 0);
     garantir(alturaLegenda);
@@ -2961,9 +2967,9 @@
   }
 
   async function renderPreviewHtml(ponto) {
-    var classeAtual = classificar(ponto.maxima || 0, ponto.ambiente || 25);
-    var limiares = calcularLimiares(ponto.ambiente || 25);
-    var coresEscala = ['#92D050', '#FFFF00', '#FFA500', '#FF0000'];
+    var classeAtual = classificarPrincipal(ponto);
+    var limiares = LIMIARES_DELTAT;
+    var coresEscala = ['#92D050', '#FFFF00', '#FFA500', '#FF6600'];
     var imgVisual = await obterImagemBase64('fotoVisualDataUrl', 'fotoVisualId', ponto, 'fotoVisualUrl', 'fotoVisualFsId');
     var imgTermica = await obterImagemBase64('fotoTermicaDataUrl', 'fotoTermicaId', ponto, 'fotoTermicaUrl', 'fotoTermicaFsId');
     var extrasImgs = [];
@@ -2980,7 +2986,7 @@
       return '<div style="background:' + bg + ';color:' + fg + '">' + lim.toFixed(1) + '</div>';
     }).join('');
 
-    var legendaHtml = NIVEIS_SEVERIDADE.slice().reverse().map(function (niv) {
+    var legendaHtml = NIVEIS_DELTAT.slice().reverse().map(function (niv) {
       return '<div class="lp-legend-row">' +
         '<div class="lp-legend-chip" style="background:' + niv.cor + '"></div>' +
         '<div class="lp-legend-label">' + escapeHtmlPreview(niv.label.toUpperCase()) + '</div>' +
@@ -3034,8 +3040,8 @@
             linhaHtml('Temp. Ambiente (°C):', ponto.ambiente != null ? ponto.ambiente.toFixed(1) : '—') +
           '</div>' +
           '<div class="lp-table">' +
-            '<div class="lp-table-title">CRITÉRIOS DE SEVERIDADE</div>' +
-            '<div class="lp-scale-caption">Método: MTA (múltiplos da temp. ambiente)</div>' +
+            '<div class="lp-table-title">CRITÉRIOS DE SEVERIDADE (ΔT)</div>' +
+            '<div class="lp-scale-caption">Método: ΔT — padrão do sistema (limiares fixos)</div>' +
             '<div class="lp-scale">' + scaleHtml + '</div>' +
           '</div>' +
           '<div class="lp-table">' +
@@ -3158,6 +3164,7 @@
       document.getElementById('fab-novo-laudo').style.display = 'none';
     } else {
       atualizarCalculo();
+      atualizarCalculoBx1();
     }
 
     try {
