@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.14-6" />
+<meta name="app-version" content="2026.10.14-7" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -245,6 +245,7 @@
   .dash-num { font-size: 22px; font-weight: 800; line-height: 1.1; }
   .dash-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; margin-top: 2px; opacity: .8; }
   .dash-total { background: var(--azul); color: #fff; grid-column: 1 / -1; }
+  .voltar-bar { margin-bottom: 12px; }
   .dash-grid + .dash-grid { margin-top: 8px; }
   .dash-grid5 { grid-template-columns: repeat(5, 1fr); }
   .dash-grid5 .dash-label { font-size: 9px; letter-spacing: 0; overflow-wrap: anywhere; }
@@ -499,6 +500,7 @@
   </section>
 
   <section class="view" id="view-novo" style="display:none;">
+  <div class="voltar-bar"><button class="btn-secondary btn-voltar-dashboard" type="button">← Voltar para o Dashboard</button></div>
   <div class="card" id="card-form">
     <h2>📋 Novo ponto</h2>
 
@@ -620,8 +622,8 @@
   </section>
 
   <section class="view" id="view-empresas" style="display:none;">
+  <div class="voltar-bar"><button class="btn-secondary btn-voltar-dashboard" type="button">← Voltar para o Dashboard</button></div>
   <div class="card" id="card-empresas-filtro" style="display:none;">
-    <button class="btn-secondary btn-voltar-dashboard" type="button" style="margin-bottom:10px;">← Voltar para o Dashboard</button>
     <div class="filtro-bar">
       <span>Mostrando empresas com quadros: <span class="filtro-badge" id="filtro-empresas-badge"></span></span>
       <button class="btn-secondary" id="btn-limpar-filtro-empresas">✕ Limpar filtro</button>
@@ -647,8 +649,8 @@
   </section>
 
   <section class="view" id="view-ordens" style="display:none;">
+  <div class="voltar-bar"><button class="btn-secondary btn-voltar-dashboard" type="button">← Voltar para o Dashboard</button></div>
   <div class="card" id="card-ordens-filtro" style="display:none;">
-    <button class="btn-secondary btn-voltar-dashboard" type="button">← Dashboard</button>
     <button class="btn-secondary" id="btn-voltar-empresas">← Voltar para Empresas</button>
     <h2 style="margin-top:10px;">🗂 OS de <span id="ordens-filtro-nome"></span></h2>
     <div class="filtro-bar" id="ordens-filtro-severidade-bar" style="display:none;">
@@ -676,6 +678,7 @@
   </section>
 
   <section class="view" id="view-laudos" style="display:none;">
+  <div class="voltar-bar"><button class="btn-secondary btn-voltar-dashboard" type="button">← Voltar para o Dashboard</button></div>
   <div class="card">
     <h2>📁 Laudos salvos <span class="contador" id="contador-laudos-salvos"></span></h2>
     <input type="text" id="ls-busca" placeholder="🔎 Buscar por quadro, local, empresa, OS, tipo..." autocomplete="off" />
