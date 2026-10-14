@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.09.29-2" />
+<meta name="app-version" content="2026.10.14-5" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -237,15 +237,22 @@
   .dash-card:active { opacity: .8; }
   .filtro-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
   .filtro-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; padding: 5px 10px; border-radius: 999px; }
-  .filtro-badge.ok { background: #92D050; }
-  .filtro-badge.atencao { background: #FFA500; }
-  .filtro-badge.critico { background: #FF0000; color: #fff; }
+  .filtro-badge.normal { background: #92D050; }
+  .filtro-badge.observar { background: #FFFF00; }
+  .filtro-badge.programar { background: #FFA500; }
+  .filtro-badge.urgencia { background: #FF6600; color: #fff; }
+  .filtro-badge.emergencia { background: #C00000; color: #fff; }
   .dash-num { font-size: 22px; font-weight: 800; line-height: 1.1; }
   .dash-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; margin-top: 2px; opacity: .8; }
-  .dash-total { background: var(--azul); color: #fff; }
-  .dash-ok { background: #92D050; color: #14361a; }
-  .dash-atencao { background: #FFA500; color: #3a2600; }
-  .dash-critico { background: #FF0000; color: #fff; }
+  .dash-total { background: var(--azul); color: #fff; grid-column: 1 / -1; }
+  .dash-grid + .dash-grid { margin-top: 8px; }
+  .dash-grid5 { grid-template-columns: repeat(5, 1fr); }
+  .dash-grid5 .dash-label { font-size: 9px; letter-spacing: 0; overflow-wrap: anywhere; }
+  .dash-emergencia { background: #C00000; color: #fff; }
+  .dash-urgencia { background: #FF6600; color: #fff; }
+  .dash-programar { background: #FFA500; color: #3a2600; }
+  .dash-observar { background: #FFFF00; color: #3a3a00; }
+  .dash-normal { background: #92D050; color: #14361a; }
   @media (max-width: 420px) { .dash-num { font-size: 18px; } .dash-label { font-size: 9px; } }
   .modal-overlay {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 50;
@@ -460,17 +467,27 @@
         <div class="dash-num" id="dash-total">0</div>
         <div class="dash-label">Quadros</div>
       </div>
-      <div class="dash-card dash-ok" data-severidade="ok">
-        <div class="dash-num" id="dash-ok">0</div>
-        <div class="dash-label">OK</div>
+    </div>
+    <div class="dash-grid dash-grid5">
+      <div class="dash-card dash-normal" data-severidade="normal">
+        <div class="dash-num" id="dash-normal">0</div>
+        <div class="dash-label">Normal</div>
       </div>
-      <div class="dash-card dash-atencao" data-severidade="atencao">
-        <div class="dash-num" id="dash-atencao">0</div>
-        <div class="dash-label">Atenção</div>
+      <div class="dash-card dash-observar" data-severidade="observar">
+        <div class="dash-num" id="dash-observar">0</div>
+        <div class="dash-label">Observar</div>
       </div>
-      <div class="dash-card dash-critico" data-severidade="critico">
-        <div class="dash-num" id="dash-critico">0</div>
-        <div class="dash-label">Críticos</div>
+      <div class="dash-card dash-programar" data-severidade="programar">
+        <div class="dash-num" id="dash-programar">0</div>
+        <div class="dash-label">Programar</div>
+      </div>
+      <div class="dash-card dash-urgencia" data-severidade="urgencia">
+        <div class="dash-num" id="dash-urgencia">0</div>
+        <div class="dash-label">Urgência</div>
+      </div>
+      <div class="dash-card dash-emergencia" data-severidade="emergencia">
+        <div class="dash-num" id="dash-emergencia">0</div>
+        <div class="dash-label">Emergência</div>
       </div>
     </div>
   </div>
@@ -749,7 +766,7 @@
   // ---------- navigation ----------
   var filtroEmpresaOrdens = null;
   var filtroSeveridade = null;
-  var SEVERIDADE_LABEL = { ok: 'OK', atencao: 'Atenção', critico: 'Crítico' };
+  var SEVERIDADE_LABEL = { normal: 'Normal', observar: 'Observar', programar: 'Programar', urgencia: 'Urgência', emergencia: 'Emergência' };
   function pontosDaEmpresa(empId) {
     return pontosCache.filter(function (p) {
       var os = ordensCache.find(function (o) { return o.id === p.osId; });
@@ -760,7 +777,7 @@
     if (!filtroSeveridade) return lista;
     return lista.filter(function (p) {
       var c = classificarPrincipal(p);
-      return classeResumo(c.key) === filtroSeveridade;
+      return c.key === filtroSeveridade;
     });
   }
   document.querySelectorAll('.dash-card').forEach(function (card) {
@@ -1503,33 +1520,47 @@
   }
 
   function animarNumero(el, valorFinal) {
-    var valorAtual = parseInt(el.getAttribute('data-val') || '0', 10);
-    if (valorAtual === valorFinal) return;
+    if (!el) return;
+    if (el._anim) { el._anim.cancelado = true; el._anim = null; }
     el.setAttribute('data-val', valorFinal);
-    var duracao = 450, inicio = null, valorInicial = valorAtual;
+    var atualTxt = parseInt(el.textContent || '0', 10);
+    if (isNaN(atualTxt)) atualTxt = 0;
+    if (atualTxt === valorFinal) return;
+    var estado = { cancelado: false };
+    el._anim = estado;
+    var duracao = 450, inicio = null, valorInicial = atualTxt;
     function passo(ts) {
+      if (estado.cancelado) return;
       if (!inicio) inicio = ts;
       var progresso = Math.min((ts - inicio) / duracao, 1);
-      var atual = Math.round(valorInicial + (valorFinal - valorInicial) * (1 - Math.pow(1 - progresso, 3)));
-      el.textContent = atual;
+      el.textContent = Math.round(valorInicial + (valorFinal - valorInicial) * (1 - Math.pow(1 - progresso, 3)));
       if (progresso < 1) requestAnimationFrame(passo);
-      else el.textContent = valorFinal;
+      else { el.textContent = valorFinal; el._anim = null; }
     }
     requestAnimationFrame(passo);
+    // garantia: mesmo com a aba em segundo plano (sem animação), o valor final aparece
+    setTimeout(function () { if (!estado.cancelado) { el.textContent = valorFinal; el._anim = null; } }, duracao + 150);
+  }
+
+  // Laudos que contam no painel: ignora os de OS que já foi excluída
+  var ordensCarregadas = false;
+  function pontosAtivos() {
+    if (MODO_CLIENTE || !ordensCarregadas) return pontosCache;
+    return pontosCache.filter(function (p) {
+      return !p.osId || ordensCache.some(function (o) { return o.id === p.osId; });
+    });
   }
 
   function atualizarDashboard() {
-    var total = pontosCache.length;
-    var ok = 0, atencao = 0, critico = 0;
-    pontosCache.forEach(function (p) {
-      var c = classificarPrincipal(p);
-      var r = classeResumo(c.key);
-      if (r === 'ok') ok++; else if (r === 'critico') critico++; else atencao++;
+    var lista = pontosAtivos();
+    var cont = { emergencia: 0, urgencia: 0, programar: 0, observar: 0, normal: 0 };
+    lista.forEach(function (p) {
+      var k = classificarPrincipal(p).key;
+      if (cont[k] === undefined) k = 'normal';
+      cont[k]++;
     });
-    animarNumero(document.getElementById('dash-total'), total);
-    animarNumero(document.getElementById('dash-ok'), ok);
-    animarNumero(document.getElementById('dash-atencao'), atencao);
-    animarNumero(document.getElementById('dash-critico'), critico);
+    animarNumero(document.getElementById('dash-total'), lista.length);
+    Object.keys(cont).forEach(function (k) { animarNumero(document.getElementById('dash-' + k), cont[k]); });
   }
 
   // ---------- Laudos salvos: lista geral com busca, filtros e seleção ----------
@@ -3216,8 +3247,10 @@
             var copy = {}; for (var k in data) if (Object.prototype.hasOwnProperty.call(data, k)) copy[k] = data[k];
             copy.id = d.id; return copy;
           });
+          ordensCarregadas = true;
           renderOrdens();
           renderEmpresas();
+          atualizarDashboard();
         }, function (err) { mostrarErroBanco(err, 'carregar OS'); });
       } catch (e) { console.error(e); }
     } else if (!MODO_CLIENTE) {
