@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.14-9" />
+<meta name="app-version" content="2026.10.14-10" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -2208,7 +2208,9 @@
       var idLink = btnLink.getAttribute('data-id');
       var osLink = ordensCache.find(function (x) { return x.id === idLink; });
       if (!osLink) return;
-      var base = window.location.origin + window.location.pathname;
+      // O link do cliente sempre aponta para o site público (Vercel), nunca para o artefato do Claude (que exige login).
+      var PORTAL_URL = 'https://idealle-termografia.vercel.app/';
+      var base = /\.vercel\.app$/i.test(window.location.hostname) ? (window.location.origin + window.location.pathname) : PORTAL_URL;
       var link = base + '?cliente=' + encodeURIComponent(osLink.empresaNome || '') + '&os=' + encodeURIComponent(osLink.id);
       copiarParaAreaDeTransferencia(link, 'Link da OS-' + osLink.numero + ' copiado!');
       return;
