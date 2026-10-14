@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.14-8" />
+<meta name="app-version" content="2026.10.14-9" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -2219,6 +2219,12 @@
       var os = ordensCache.find(function (x) { return x.id === id; });
       if (!os) return;
       confirmarAcao('Excluir a OS-' + os.numero + '? Os laudos já lançados nela não serão apagados.').then(function (ok) {
+        if (!ok) return;
+        return confirmarAcao('⚠️ Tem certeza? Esta ação não pode ser desfeita.').then(function (ok2) {
+          if (!ok2) return;
+          return confirmarAcao('Última confirmação: excluir DEFINITIVAMENTE a OS-' + os.numero + '?');
+        });
+      }).then(function (ok) {
         if (!ok) return;
         if (db) {
           db.collection('ordens').doc(id).delete().then(function () { toast('OS excluída.'); }).catch(function () { toast('Não foi possível excluir.'); });
