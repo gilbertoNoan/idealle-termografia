@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.14-7" />
+<meta name="app-version" content="2026.10.14-8" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -246,6 +246,8 @@
   .dash-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; margin-top: 2px; opacity: .8; }
   .dash-total { background: var(--azul); color: #fff; grid-column: 1 / -1; }
   .voltar-bar { margin-bottom: 12px; }
+  .dash-empresa-bar { margin: 0 0 12px; }
+  .dash-empresa-bar label { margin: 0 0 4px; }
   .dash-grid + .dash-grid { margin-top: 8px; }
   .dash-grid5 { grid-template-columns: repeat(5, 1fr); }
   .dash-grid5 .dash-label { font-size: 9px; letter-spacing: 0; overflow-wrap: anywhere; }
@@ -463,6 +465,10 @@
   <section class="view" id="view-dashboard">
   <div class="card">
     <h2>📊 Painel <span id="dash-cliente-nome" class="contador"></span></h2>
+    <div class="dash-empresa-bar" id="dash-empresa-bar">
+      <label for="dash-empresa">🏢 Empresa</label>
+      <select id="dash-empresa"><option value="">Todas as empresas</option></select>
+    </div>
     <div class="dash-grid">
       <div class="dash-card dash-total" data-severidade="">
         <div class="dash-num" id="dash-total">0</div>
@@ -791,6 +797,10 @@
       var sev = card.getAttribute('data-severidade');
       filtroSeveridade = sev || null;
       filtroEmpresaOrdens = null;
+      if (dashEmpresaId) {
+        var empSel = empresasCache.find(function (e) { return e.id === dashEmpresaId; });
+        if (empSel) { filtroEmpresaOrdens = empSel; mostrarView('ordens'); return; }
+      }
       mostrarView('empresas');
     });
   });
@@ -1557,14 +1567,44 @@
 
   // Laudos que contam no painel: ignora os de OS que já foi excluída
   var ordensCarregadas = false;
+  var dashEmpresaId = '';
   function pontosAtivos() {
-    if (MODO_CLIENTE || !ordensCarregadas) return pontosCache;
-    return pontosCache.filter(function (p) {
-      return !p.osId || ordensCache.some(function (o) { return o.id === p.osId; });
-    });
+    if (MODO_CLIENTE) return pontosCache;
+    var lista = pontosCache;
+    if (ordensCarregadas) {
+      lista = lista.filter(function (p) {
+        return !p.osId || ordensCache.some(function (o) { return o.id === p.osId; });
+      });
+    }
+    if (dashEmpresaId) {
+      lista = lista.filter(function (p) { return empresaIdDoPonto(p) === dashEmpresaId; });
+    }
+    return lista;
   }
+  var dashEmpresasAssinatura = null;
+  function popularSelectDashEmpresa() {
+    var sel = document.getElementById('dash-empresa');
+    var bar = document.getElementById('dash-empresa-bar');
+    if (!sel) return;
+    if (MODO_CLIENTE) { if (bar) bar.style.display = 'none'; return; }
+    var assinatura = empresasCache.map(function (e) { return e.id + '|' + e.nome; }).join(';');
+    if (assinatura === dashEmpresasAssinatura) return;
+    dashEmpresasAssinatura = assinatura;
+    var html = '<option value="">Todas as empresas</option>';
+    empresasCache.slice().sort(function (a, b) { return (a.nome || '').localeCompare(b.nome || ''); }).forEach(function (e) {
+      html += '<option value="' + escapeHtml(e.id) + '">' + escapeHtml(e.nome || '') + '</option>';
+    });
+    sel.innerHTML = html;
+    if (dashEmpresaId && !empresasCache.some(function (e) { return e.id === dashEmpresaId; })) dashEmpresaId = '';
+    sel.value = dashEmpresaId;
+  }
+  document.getElementById('dash-empresa').addEventListener('change', function () {
+    dashEmpresaId = this.value || '';
+    renderLista();
+  });
 
   function atualizarDashboard() {
+    popularSelectDashEmpresa();
     var lista = pontosAtivos();
     var cont = { emergencia: 0, urgencia: 0, programar: 0, observar: 0, normal: 0 };
     lista.forEach(function (p) {
@@ -1708,16 +1748,17 @@
   function renderLista() {
     atualizarDashboard();
     if (!MODO_CLIENTE) { renderOrdens(); renderLaudosSalvos(); }
+    var visiveis = pontosAtivos();
     var lista = document.getElementById('lista');
     var contador = document.getElementById('contador');
-    if (!pontosCache.length) {
+    if (!visiveis.length) {
       lista.innerHTML = '<div class="vazio">Nenhum ponto registrado ainda.</div>';
       contador.textContent = '';
       return;
     }
-    contador.textContent = '(' + pontosCache.length + ')';
+    contador.textContent = '(' + visiveis.length + ')';
     var html = '';
-    pontosCache.forEach(function (p) {
+    visiveis.forEach(function (p) {
       var c = classificarPrincipal(p);
       html += '<div class="ponto" data-id="' + p.id + '">' +
         '<div class="ponto-top">' +
@@ -3251,6 +3292,7 @@
             copy.id = d.id; return copy;
           });
           renderEmpresas();
+          popularSelectDashEmpresa();
         }, function (err) { mostrarErroBanco(err, 'carregar empresas'); });
       } catch (e) { console.error(e); }
       try {
