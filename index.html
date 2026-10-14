@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.14-10" />
+<meta name="app-version" content="2026.10.14-11" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -422,9 +422,7 @@
     50% { box-shadow: 0 6px 20px rgba(23,87,214,.45), 0 2px 6px rgba(0,0,0,.2), 0 0 0 8px rgba(46,124,255,0); }
   }
   @media (min-width: 861px) { #fab-novo-laudo { right: calc(30px + env(safe-area-inset-right, 0px)); bottom: 30px; } }
-  .modo-cliente .dash-card { cursor: default; }
-  .modo-cliente .dash-card:hover { transform: none; box-shadow: none; }
-  .modo-cliente .dash-card:active { transform: none; }
+  .dash-card.dash-ativo { outline: 3px solid var(--azul); outline-offset: 2px; transform: translateY(-2px); }
 </style>
 </head>
 <body>
@@ -777,6 +775,7 @@
   // ---------- navigation ----------
   var filtroEmpresaOrdens = null;
   var filtroSeveridade = null;
+  var filtroCliente = null;   // filtro de criticidade no portal do cliente
   var SEVERIDADE_LABEL = { normal: 'Normal', observar: 'Observar', programar: 'Programar', urgencia: 'Urgência', emergencia: 'Emergência' };
   function pontosDaEmpresa(empId) {
     return pontosCache.filter(function (p) {
@@ -793,8 +792,15 @@
   }
   document.querySelectorAll('.dash-card').forEach(function (card) {
     card.addEventListener('click', function () {
-      if (MODO_CLIENTE) return;
       var sev = card.getAttribute('data-severidade');
+      if (MODO_CLIENTE) {
+        // portal do cliente: filtra a lista de laudos aqui mesmo (clicar de novo no mesmo cartão limpa o filtro)
+        filtroCliente = (sev && filtroCliente !== sev) ? sev : null;
+        renderLista();
+        var alvo = document.getElementById('card-lista');
+        if (alvo && alvo.scrollIntoView) alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
       filtroSeveridade = sev || null;
       filtroEmpresaOrdens = null;
       if (dashEmpresaId) {
@@ -1749,10 +1755,21 @@
     atualizarDashboard();
     if (!MODO_CLIENTE) { renderOrdens(); renderLaudosSalvos(); }
     var visiveis = pontosAtivos();
+    if (MODO_CLIENTE && filtroCliente) {
+      visiveis = visiveis.filter(function (p) { return classificarPrincipal(p).key === filtroCliente; });
+    }
+    document.querySelectorAll('.dash-card').forEach(function (c) {
+      var sv = c.getAttribute('data-severidade');
+      c.classList.toggle('dash-ativo', !!(MODO_CLIENTE && filtroCliente && sv === filtroCliente));
+    });
+    var tituloEl = document.getElementById('titulo-lista');
+    if (tituloEl && MODO_CLIENTE) {
+      tituloEl.innerHTML = '📑 Laudos disponíveis' + (filtroCliente ? ' — ' + escapeHtml(SEVERIDADE_LABEL[filtroCliente] || '') + ' <button class="btn-secondary" id="btn-limpar-filtro-cliente" type="button" style="margin-left:6px;">✕ Mostrar todos</button>' : '') + ' <span class="contador" id="contador"></span>';
+    }
     var lista = document.getElementById('lista');
     var contador = document.getElementById('contador');
     if (!visiveis.length) {
-      lista.innerHTML = '<div class="vazio">Nenhum ponto registrado ainda.</div>';
+      lista.innerHTML = '<div class="vazio">' + (MODO_CLIENTE && filtroCliente ? 'Nenhum laudo neste nível.' : 'Nenhum ponto registrado ainda.') + '</div>';
       contador.textContent = '';
       return;
     }
@@ -1780,6 +1797,9 @@
     lista.innerHTML = html;
   }
 
+  document.addEventListener('click', function (e) {
+    if (e.target && e.target.id === 'btn-limpar-filtro-cliente') { filtroCliente = null; renderLista(); }
+  });
   document.getElementById('lista').addEventListener('click', function (e) {
     var btn = e.target.closest('button[data-action]');
     if (!btn) return;
