@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.14-11" />
+<meta name="app-version" content="2026.10.14-12" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -775,6 +775,8 @@
   // ---------- navigation ----------
   var filtroEmpresaOrdens = null;
   var filtroSeveridade = null;
+  var dashSel = {};          // laudos marcados na lista do Dashboard / portal do cliente
+  var dashVisiveis = [];     // laudos atualmente listados
   var filtroCliente = null;   // filtro de criticidade no portal do cliente
   var SEVERIDADE_LABEL = { normal: 'Normal', observar: 'Observar', programar: 'Programar', urgencia: 'Urgência', emergencia: 'Emergência' };
   function pontosDaEmpresa(empId) {
@@ -1774,13 +1776,20 @@
       return;
     }
     contador.textContent = '(' + visiveis.length + ')';
-    var html = '';
+    dashVisiveis = visiveis;
+    var qtdSelDash = visiveis.filter(function (p) { return dashSel[p.id]; }).length;
+    var todosMarcados = visiveis.length > 0 && qtdSelDash === visiveis.length;
+    var html = '<div class="os-laudos-toolbar">' +
+      '<label class="laudo-check laudo-check-all"><input type="checkbox" id="dash-check-all"' + (todosMarcados ? ' checked' : '') + '> Selecionar todos</label>' +
+      '<button class="btn-secondary" type="button" data-action="dash-baixar-sel">⬇ Baixar selecionados' + (qtdSelDash ? ' (' + qtdSelDash + ')' : '') + '</button>' +
+      '<button class="btn-secondary" type="button" data-action="dash-baixar-todos">⬇ Baixar todos (' + visiveis.length + ')</button>' +
+      '</div>';
     visiveis.forEach(function (p) {
       var c = classificarPrincipal(p);
       html += '<div class="ponto" data-id="' + p.id + '">' +
         '<div class="ponto-top">' +
           '<div>' +
-            '<div class="ponto-titulo">#' + p.numero + ' — ' + escapeHtml(p.quadro || 'Sem identificação') + '</div>' +
+            '<label class="laudo-check"><input type="checkbox" class="dash-check" data-id="' + p.id + '"' + (dashSel[p.id] ? ' checked' : '') + '><span class="ponto-titulo">#' + p.numero + ' — ' + escapeHtml(p.quadro || 'Sem identificação') + '</span></label>' +
             '<div class="ponto-sub">' + escapeHtml(p.local || '') + (p.local && p.tipo ? ' · ' : '') + escapeHtml(p.tipo || '') + '</div>' +
             '<div class="ponto-sub">' + fmtData(p.dataHora) + ' · Máx. ' + (typeof p.maxima === 'number' ? p.maxima.toFixed(1) : '—') + '°C</div>' +
           '</div>' +
@@ -1800,9 +1809,31 @@
   document.addEventListener('click', function (e) {
     if (e.target && e.target.id === 'btn-limpar-filtro-cliente') { filtroCliente = null; renderLista(); }
   });
+  document.getElementById('lista').addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.id === 'dash-check-all') {
+      dashVisiveis.forEach(function (p) { if (t.checked) dashSel[p.id] = true; else delete dashSel[p.id]; });
+      renderLista();
+    } else if (t.classList && t.classList.contains('dash-check')) {
+      var idc = t.getAttribute('data-id');
+      if (t.checked) dashSel[idc] = true; else delete dashSel[idc];
+      renderLista();
+    }
+  });
   document.getElementById('lista').addEventListener('click', function (e) {
     var btn = e.target.closest('button[data-action]');
     if (!btn) return;
+    var act0 = btn.getAttribute('data-action');
+    if (act0 === 'dash-baixar-sel') {
+      var sel = dashVisiveis.filter(function (p) { return dashSel[p.id]; });
+      if (!sel.length) { toast('Marque ao menos um laudo para baixar.'); return; }
+      baixarVariosPdfs(sel, 'Laudos_selecionados.zip');
+      return;
+    }
+    if (act0 === 'dash-baixar-todos') {
+      baixarVariosPdfs(dashVisiveis.slice(), 'Laudos_todos.zip');
+      return;
+    }
     var id = btn.getAttribute('data-id');
     var ponto = pontosCache.find(function (p) { return p.id === id; });
     if (!ponto) { console.error('Ponto não encontrado no cache local:', id, pontosCache); toast('Não achei esse ponto — atualize a página.'); return; }
