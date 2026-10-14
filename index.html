@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.14-5" />
+<meta name="app-version" content="2026.10.14-6" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -621,6 +621,7 @@
 
   <section class="view" id="view-empresas" style="display:none;">
   <div class="card" id="card-empresas-filtro" style="display:none;">
+    <button class="btn-secondary btn-voltar-dashboard" type="button" style="margin-bottom:10px;">← Voltar para o Dashboard</button>
     <div class="filtro-bar">
       <span>Mostrando empresas com quadros: <span class="filtro-badge" id="filtro-empresas-badge"></span></span>
       <button class="btn-secondary" id="btn-limpar-filtro-empresas">✕ Limpar filtro</button>
@@ -647,6 +648,7 @@
 
   <section class="view" id="view-ordens" style="display:none;">
   <div class="card" id="card-ordens-filtro" style="display:none;">
+    <button class="btn-secondary btn-voltar-dashboard" type="button">← Dashboard</button>
     <button class="btn-secondary" id="btn-voltar-empresas">← Voltar para Empresas</button>
     <h2 style="margin-top:10px;">🗂 OS de <span id="ordens-filtro-nome"></span></h2>
     <div class="filtro-bar" id="ordens-filtro-severidade-bar" style="display:none;">
@@ -796,6 +798,14 @@
   document.getElementById('btn-limpar-filtro-ordens').addEventListener('click', function () {
     filtroSeveridade = null;
     renderOrdens();
+  });
+  document.querySelectorAll('.btn-voltar-dashboard').forEach(function (b) {
+    b.addEventListener('click', function () {
+      filtroSeveridade = null;
+      filtroEmpresaOrdens = null;
+      renderEmpresas();
+      mostrarView('dashboard');
+    });
   });
   function mostrarView(nome) {
     ['dashboard', 'novo', 'ordens', 'empresas', 'laudos'].forEach(function (v) {
