@@ -365,9 +365,15 @@
       'auth/user-not-found': 'Usuário não cadastrado.', 'auth/configuration-not-found': 'O login ainda não foi ativado no Firebase. Veja o LEIA-ME.',
       'auth/operation-not-allowed': 'Este tipo de login ainda não foi ativado no Firebase. Veja o LEIA-ME.',
       'auth/unauthorized-domain': 'Este endereço do site não está autorizado no Firebase (Authentication → Settings → Authorized domains).',
-      'auth/popup-closed-by-user': 'Login cancelado.', 'auth/cancelled-popup-request': 'Login cancelado.'
+      'auth/popup-closed-by-user': 'A janela do Google foi fechada antes de terminar. Tente de novo.', 'auth/cancelled-popup-request': 'Login cancelado.',
+      'auth/popup-blocked': 'O navegador bloqueou a janela do Google. Clique no ícone de pop-up bloqueado na barra de endereço, escolha "Sempre permitir" para este site e tente de novo.',
+      'auth/network-request-failed': 'Sem conexão com o Google. Verifique a internet e tente de novo.',
+      'auth/internal-error': 'O Google recusou o login. Confira se o provedor Google está ativado no Firebase (Authentication → Método de login).'
     };
-    auth.getRedirectResult().catch(function (e) { $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message); });
+    function mostrarErro(e) {
+      console.error('Login Google:', e);
+      $('login-erro').textContent = (erroLogin[e.code] || ('Não foi possível entrar: ' + (e.message || e))) + (e.code ? ' (' + e.code + ')' : '');
+    }
     auth.onAuthStateChanged(function (u) {
       if (u && !permitido(u)) { auth.signOut(); telaLogin('A conta ' + u.email + ' não tem acesso ao Cronos.'); return; }
       if (u) { if (!iniciado) { iniciado = true; iniciarApp(u.email); } }
@@ -378,19 +384,17 @@
       var email = $('login-email').value.trim(), senha = $('login-senha').value;
       if (!email || !senha) { $('login-erro').textContent = 'Informe e-mail e senha.'; return; }
       $('login-erro').textContent = 'Entrando…';
-      auth.signInWithEmailAndPassword(email, senha).catch(function (e) {
-        $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message);
-      });
+      auth.signInWithEmailAndPassword(email, senha).catch(mostrarErro);
     });
+    // Só janela (pop-up): o login por redirecionamento falha calado nos navegadores que bloqueiam
+    // cookies de outro site, porque o authDomain (firebaseapp.com) é diferente do endereço do Cronos.
     $('btn-google').addEventListener('click', function () {
       var prov = new firebase.auth.GoogleAuthProvider();
       prov.setCustomParameters({ prompt: 'select_account' });
-      $('login-erro').textContent = 'Abrindo o Google…';
-      auth.signInWithPopup(prov).catch(function (e) {
-        // celulares e navegadores que bloqueiam janela: entra pelo redirecionamento
-        if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') return auth.signInWithRedirect(prov);
-        $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message);
-      });
+      $('login-erro').textContent = 'Abrindo a janela do Google…';
+      auth.signInWithPopup(prov).then(function (r) {
+        if (!r || !r.user) $('login-erro').textContent = 'O Google não devolveu a conta. Tente de novo.';
+      }).catch(mostrarErro);
     });
     $('login-senha').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('btn-entrar').click(); });
     $('btn-sair').addEventListener('click', function () { auth.signOut(); });
@@ -477,17 +481,38 @@
   });
   $('btn-novo-cliente').addEventListener('click', function () { formCliente(); });
 
+  function formatarCNPJ(d) { return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5'); }
+  // Consulta pública da Receita (BrasilAPI): preenche só os campos que estão vazios
+  async function buscarCNPJ(valor) {
+    var d = soDigitos(valor), info = $('f-cnpj-info');
+    if (d.length !== 14) { info.textContent = ''; return; }
+    $('f-cnpj').value = formatarCNPJ(d);
+    info.textContent = 'Buscando na Receita…';
+    try {
+      var r = await fetch('https://brasilapi.com.br/api/cnpj/v1/' + d);
+      if (!r.ok) { info.textContent = r.status === 404 ? 'CNPJ não encontrado na Receita.' : 'Consulta indisponível agora; preencha à mão.'; return; }
+      var x = await r.json();
+      function por(id, v) { if (v && !$(id).value.trim()) $(id).value = v; }
+      por('f-nome', x.razao_social);
+      por('f-endereco', [x.descricao_tipo_de_logradouro, x.logradouro].filter(Boolean).join(' ') + (x.numero ? ', ' + x.numero : '') + (x.complemento ? ' ' + x.complemento : '') + (x.bairro ? ' - ' + x.bairro : ''));
+      por('f-cidade', x.municipio); por('f-uf', x.uf); por('f-cep', x.cep ? String(x.cep).replace(/^(\d{5})(\d{3})$/, '$1-$2') : '');
+      por('f-telefone', x.ddd_telefone_1); por('f-email', (x.email || '').toLowerCase());
+      info.textContent = (x.razao_social || '') + (x.descricao_situacao_cadastral ? ' · ' + x.descricao_situacao_cadastral : '');
+    } catch (e) { info.textContent = 'Consulta indisponível agora; preencha à mão.'; }
+  }
+
   function formCliente(c) {
     c = c || {};
     abrirModal('<h3>' + (c.id ? 'Editar cliente ' + esc(c.codigo || '') : 'Novo cliente') + '</h3>' +
       '<label>Nome / Razão social *</label><input id="f-nome" value="' + esc(c.nome) + '">' +
-      '<div class="linha"><div><label>CNPJ / CPF</label><input id="f-cnpj" value="' + esc(c.cnpj) + '"></div><div><label>Inscrição estadual</label><input id="f-ie" value="' + esc(c.ie) + '"></div></div>' +
+      '<div class="linha"><div><label>CNPJ / CPF</label><input id="f-cnpj" value="' + esc(c.cnpj) + '" placeholder="Digite o CNPJ para preencher o resto"><div class="muted" id="f-cnpj-info"></div></div><div><label>Inscrição estadual</label><input id="f-ie" value="' + esc(c.ie) + '"></div></div>' +
       '<div class="linha"><div><label>Contato</label><input id="f-contato" value="' + esc(c.contato) + '"></div><div><label>Telefone</label><input id="f-telefone" value="' + esc(c.telefone) + '"></div><div><label>E-mail</label><input id="f-email" type="email" value="' + esc(c.email) + '"></div></div>' +
       '<label>Endereço</label><input id="f-endereco" value="' + esc(c.endereco) + '">' +
       '<div class="linha"><div><label>Cidade</label><input id="f-cidade" value="' + esc(c.cidade) + '"></div><div><label>UF</label><input id="f-uf" maxlength="2" value="' + esc(c.uf) + '"></div><div><label>CEP</label><input id="f-cep" value="' + esc(c.cep) + '"></div></div>' +
       '<label>Observações</label><textarea id="f-obs">' + esc(c.obs) + '</textarea>' +
       '<div class="acoes"><button class="btn" id="f-salvar">Salvar</button><button class="btn sec" id="f-cancelar">Cancelar</button></div>');
     $('f-cancelar').onclick = fecharModal;
+    $('f-cnpj').addEventListener('change', function () { buscarCNPJ(this.value); });
     $('f-salvar').onclick = async function () {
       var d = { nome: $('f-nome').value.trim(), cnpj: $('f-cnpj').value.trim(), ie: $('f-ie').value.trim(), contato: $('f-contato').value.trim(), telefone: $('f-telefone').value.trim(), email: $('f-email').value.trim(), endereco: $('f-endereco').value.trim(), cidade: $('f-cidade').value.trim(), uf: $('f-uf').value.trim().toUpperCase(), cep: $('f-cep').value.trim(), obs: $('f-obs').value.trim(), updatedAt: agora() };
       if (!d.nome) { toast('Informe o nome do cliente.'); return; }
