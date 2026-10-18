@@ -31,3 +31,17 @@ No Painel, botão **Importar planilhas antigas** → escolha o arquivo `importac
 `Finanças/Notas Fiscais Emitidas/Planilha de Notas Fiscais Emitidas.xls` e `Contatos/Lista de Contatos  Clientes.ods`).
 O Cronos mostra um resumo para conferir antes de gravar. Rodar de novo não duplica nada.
 O arquivo tem dados de clientes: não coloque no GitHub.
+
+## Modelos de proposta
+Menu **Modelos**: textos e itens com preço prontos por tipo de serviço (NR-13 periódica, reconstituição
+de prontuário, calibração, tubulação de gás, tanque de combustível, termografia). Os modelos da Idealle
+entram pela mesma importação (`importacao-idealle.json` ou só `modelos-idealle.json`) e ficam na coleção
+`modelos` do Firestore; os preços não ficam no GitHub. Cada modelo mostra a faixa de valores que a Idealle
+já cobrou naquele tipo de serviço.
+
+- **Nova proposta → Começar de um modelo** preenche título, itens, objetivo, escopo, fornecimentos, prazo
+  e condições; tudo pode ser ajustado antes de salvar.
+- **Imprimir / PDF** gera a proposta no padrão Idealle (seções 1 a 10, valor por extenso, dados de
+  faturamento e assinaturas).
+- **Salvar como modelo** numa proposta transforma ela em modelo novo.
+- Reimportar não sobrescreve modelos já importados (para não desfazer ajustes feitos no Cronos).
