@@ -1,0 +1,1143 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cronos · Ideal LESP</title>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.js"></script>
+<style>
+  :root {
+    --bg: #f4f6f9; --card: #ffffff; --text: #1d2433; --muted: #667085; --line: #e3e7ee;
+    --pri: #0b5cad; --pri-2: #e8f1fb; --ok: #16794c; --ok-2: #e6f4ec; --warn: #9a6400; --warn-2: #fdf3df;
+    --bad: #b42318; --bad-2: #fdecea; --gray-2: #eef0f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151c; --card: #1b2029; --text: #e7eaf0; --muted: #9aa3b2; --line: #2b3240;
+      --pri: #5aa2ec; --pri-2: #1c2c40; --ok: #4cc38a; --ok-2: #173326; --warn: #e3b04b; --warn-2: #3a2e15;
+      --bad: #f07a6f; --bad-2: #3d1d1b; --gray-2: #252b36;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
+  header { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+  .top { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; max-width: 1200px; margin: 0 auto; gap: 12px; }
+  .marca { font-weight: 700; font-size: 18px; letter-spacing: .3px; }
+  .marca small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 6px; }
+  .usuario { color: var(--muted); font-size: 13px; display: flex; gap: 8px; align-items: center; }
+  nav { display: flex; gap: 4px; overflow-x: auto; padding: 0 16px; max-width: 1200px; margin: 0 auto; }
+  nav button { background: none; border: none; border-bottom: 3px solid transparent; padding: 10px 12px; color: var(--muted); font-size: 15px; cursor: pointer; white-space: nowrap; }
+  nav button.ativo { color: var(--pri); border-bottom-color: var(--pri); font-weight: 600; }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  .view { display: none; } .view.ativa { display: block; }
+  h2 { font-size: 20px; margin: 4px 0 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .kpi .rotulo { color: var(--muted); font-size: 13px; }
+  .kpi .valor { font-size: 24px; font-weight: 700; margin-top: 4px; }
+  .kpi .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .kpi { cursor: pointer; }
+  .funil { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+  .funil .etapa { flex: 1 1 140px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; text-align: center; cursor: pointer; }
+  .funil .etapa b { display: block; font-size: 22px; }
+  .funil .etapa span { color: var(--muted); font-size: 13px; }
+  .funil .seta { align-self: center; color: var(--muted); }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
+  input, select, textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; }
+  textarea { min-height: 70px; resize: vertical; }
+  .linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 12px; }
+  .btn { background: var(--pri); color: #fff; border: none; border-radius: 8px; padding: 9px 14px; font: inherit; cursor: pointer; }
+  .btn.sec { background: var(--gray-2); color: var(--text); }
+  .btn.perigo { background: var(--bad-2); color: var(--bad); }
+  .btn.ok { background: var(--ok); }
+  .btn.peq { padding: 6px 10px; font-size: 13px; }
+  .acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .busca { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .busca input, .busca select { flex: 1 1 200px; width: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  tr.clicavel { cursor: pointer; } tr.clicavel:hover td { background: var(--pri-2); }
+  .tabela { overflow-x: auto; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .t-gray { background: var(--gray-2); color: var(--muted); } .t-blue { background: var(--pri-2); color: var(--pri); }
+  .t-ok { background: var(--ok-2); color: var(--ok); } .t-warn { background: var(--warn-2); color: var(--warn); } .t-bad { background: var(--bad-2); color: var(--bad); }
+  .muted { color: var(--muted); font-size: 13px; }
+  .vazio { text-align: center; color: var(--muted); padding: 24px; }
+  .itens td input { padding: 6px 8px; }
+  .total { text-align: right; font-size: 18px; font-weight: 700; margin-top: 10px; }
+  #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #1d2433; color: #fff; padding: 10px 16px; border-radius: 8px; display: none; z-index: 100; max-width: 90vw; }
+  .aviso { background: var(--warn-2); color: var(--warn); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+  .modal-fundo { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: flex-start; justify-content: center; z-index: 50; overflow-y: auto; padding: 24px 12px; }
+  .modal-fundo.aberto { display: flex; }
+  .modal { background: var(--card); border-radius: 12px; width: 100%; max-width: 760px; padding: 18px; }
+  .modal h3 { margin: 0 0 8px; }
+  .detalhe dt { color: var(--muted); font-size: 12px; margin-top: 8px; } .detalhe dd { margin: 2px 0 0; }
+  .ciclo { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+  #tela-login { max-width: 380px; margin: 60px auto; }
+  #print { display: none; }
+  .ou { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; color: var(--muted, #6b7785); font-size: 13px; }
+  .ou::before, .ou::after { content: ''; flex: 1; border-top: 1px solid #dde2e7; }
+  .btn-google { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  @media (max-width: 520px) { #usuario-nome { display: none; } .marca small { display: none; } }
+  @media print {
+    body { background: #fff; color: #000; }
+    header, main, #toast, .modal-fundo { display: none !important; }
+    #print { display: block; font-size: 12pt; }
+    #print table th, #print table td { border-bottom: 1px solid #ccc; color: #000; }
+    @page { margin: 12mm 14mm 6mm; }
+    .pp-tab { width: 100%; border-collapse: collapse; }
+    .pp-tab > tbody > tr > td, .pp-tab > tfoot > tr > td { border: 0 !important; padding: 0; }
+    .pp { font-size: 10.5pt; line-height: 1.4; }
+    .pp p { margin: 4px 0; text-align: justify; }
+    .pp h4 { margin: 14px 0 4px; font-size: 11pt; break-after: avoid; }
+    .pp-topo { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }
+    .pp-marca { font-size: 22pt; letter-spacing: 2px; }
+    .pp ol.sub { list-style: none; padding-left: 14px; margin: 4px 0; }
+    .pp ol.sub li { margin: 2px 0; text-align: justify; break-inside: avoid; }
+    .pp ol.sub span { font-weight: bold; }
+    .pp .itens-print { width: 100%; border-collapse: collapse; font-size: 10pt; }
+    .pp .itens-print th { text-align: left; border-bottom: 1px solid #000; }
+    .pp .itens-print .n { text-align: right; white-space: nowrap; }
+    .pp .dados { margin-left: 14px; text-align: left; }
+    .pp-assin { display: flex; justify-content: space-around; margin-top: 40px; text-align: center; break-inside: avoid; }
+    .pp-rodape { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 8pt; color: #333; border-top: 1px solid #999; padding-top: 3px; }
+  }
+</style>
+</head>
+<body>
+
+<header id="cabecalho" style="display:none">
+  <div class="top">
+    <div class="marca">Cronos <small>Idealle</small></div>
+    <div class="usuario"><span id="usuario-nome"></span><button class="btn sec peq" id="btn-sair">Sair</button></div>
+  </div>
+  <nav id="menu">
+    <button data-view="painel" class="ativo">Painel</button>
+    <button data-view="clientes">Clientes</button>
+    <button data-view="propostas">Propostas</button>
+    <button data-view="modelos">Modelos</button>
+    <button data-view="ordens">Ordens de Serviço</button>
+    <button data-view="faturas">Faturamento</button>
+  </nav>
+</header>
+
+<div id="tela-login" class="card" style="display:none">
+  <h2>Cronos</h2>
+  <p class="muted">Entre com seu e-mail e senha da Idealle.</p>
+  <label>E-mail</label><input id="login-email" type="email" autocomplete="username">
+  <label>Senha</label><input id="login-senha" type="password" autocomplete="current-password">
+  <div class="acoes"><button class="btn" id="btn-entrar">Entrar</button><button class="btn sec" id="btn-demo">Testar sem banco</button></div>
+  <div class="ou"><span>ou</span></div>
+  <button class="btn sec btn-google" id="btn-google"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.5 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.8 6C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.3.8-4.7l-7.8-6C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.8 6C6.6 42.6 14.6 48 24 48z"/></svg> Entrar com Google</button>
+  <p class="muted" id="login-erro"></p>
+</div>
+
+<main id="app" style="display:none">
+  <div id="aviso-modo" class="aviso" style="display:none"></div>
+
+  <!-- PAINEL -->
+  <section class="view ativa" id="v-painel">
+    <h2>Painel <button class="btn sec peq" id="btn-importar">Importar planilhas antigas</button></h2>
+    <input type="file" id="arquivo-importacao" accept=".json,application/json" style="display:none">
+    <div class="funil" id="funil"></div>
+    <div class="grid" id="kpis" style="margin-top:12px"></div>
+    <div class="card" style="margin-top:12px">
+      <b>Precisa de atenção</b>
+      <div id="atencao" class="tabela"></div>
+    </div>
+  </section>
+
+  <!-- CLIENTES -->
+  <section class="view" id="v-clientes">
+    <h2>Clientes <button class="btn" id="btn-novo-cliente">+ Novo cliente</button></h2>
+    <div class="busca"><input id="busca-cliente" placeholder="Buscar por nome, código, CNPJ, cidade…"></div>
+    <div id="aviso-codigos"></div>
+    <div class="card tabela" id="lista-clientes"></div>
+  </section>
+
+  <!-- PROPOSTAS -->
+  <section class="view" id="v-propostas">
+    <h2>Propostas comerciais <button class="btn" id="btn-nova-proposta">+ Nova proposta</button></h2>
+    <div class="busca">
+      <input id="busca-proposta" placeholder="Buscar por número, cliente, título…">
+      <select id="filtro-proposta"><option value="">Todos os status</option></select>
+    </div>
+    <div class="card tabela" id="lista-propostas"></div>
+  </section>
+
+  <!-- MODELOS DE PROPOSTA -->
+  <section class="view" id="v-modelos">
+    <h2>Modelos de proposta <button class="btn" id="btn-novo-modelo">+ Novo modelo</button></h2>
+    <p class="muted">Textos e preços prontos para começar uma proposta. A faixa mostra o que a Idealle já cobrou nesse tipo de serviço.</p>
+    <div id="lista-modelos"></div>
+  </section>
+
+  <!-- ORDENS -->
+  <section class="view" id="v-ordens">
+    <h2>Ordens de Serviço <button class="btn" id="btn-nova-os">+ Nova OS</button></h2>
+    <div class="busca">
+      <input id="busca-os" placeholder="Buscar por número, cliente, descrição…">
+      <select id="filtro-os"><option value="">Todos os status</option></select>
+    </div>
+    <div class="card tabela" id="lista-ordens"></div>
+  </section>
+
+  <!-- FATURAS -->
+  <section class="view" id="v-faturas">
+    <h2>Faturamento</h2>
+    <div class="busca">
+      <input id="busca-fatura" placeholder="Buscar por número, cliente, NF…">
+      <select id="filtro-fatura"><option value="">Todos os status</option></select>
+    </div>
+    <div class="card tabela" id="lista-faturas"></div>
+  </section>
+</main>
+
+<div class="modal-fundo" id="modal-fundo"><div class="modal" id="modal"></div></div>
+<div id="print"></div>
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ===================== CONFIGURAÇÃO =====================
+  // Mesmo banco Firebase da Termografia: clientes (coleção "empresas") e OS (coleção "ordens")
+  // ficam compartilhados, então o que você cadastra aqui aparece lá sem digitar de novo.
+  var FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAN72-6pCbPaBowiGA2jciJ_lzB9d6z110",
+    authDomain: "idealle-termografia.firebaseapp.com",
+    projectId: "idealle-termografia",
+    storageBucket: "idealle-termografia.firebasestorage.app",
+    messagingSenderId: "577776042104",
+    appId: "1:577776042104:web:508a131e13a4ef4afbed8d"
+  };
+  // Endereço da Termografia (mesmo site: o Cronos fica em /cronos/), para abrir uma OS direto lá.
+  var SISTEMAS = {
+    'Termografia': '/'
+  };
+  // Dados impressos nas propostas (cabeçalho, rodapé, faturamento e assinaturas)
+  // Quem pode entrar com Google: e-mails ou domínios (ex.: '@ideallesp.com.br'). Lista vazia = qualquer conta Google.
+  var ACESSO_GOOGLE = [];
+  var EMPRESA = {
+    nome: 'IDEALLE', razao: 'Idealle Inspeções e Serviços Ltda', slogan: 'Referência em Inspeções Industriais',
+    endereco: 'Rua Três Marias, 22, Sala 221 - Vila Madeirense - Guarulhos-SP - CEP 07110-170', telefone: '(11) 4280-9111',
+    site: 'www.ideallesp.com.br', cnpj: '52.743.559/0001-05', ie: '132.266.610.117', pix: '52743559000105', cidade: 'Guarulhos',
+    assinaturas: [['Rodrigo Cunha', 'Diretor Comercial'], ['Gilberto Luz', 'Diretor Operacional']]
+  };
+
+  // ===================== UTILIDADES =====================
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function agora() { return new Date().toISOString(); }
+  function hoje() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+  function somarDias(iso, n) { var d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+  function brl(v) { return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+  function data(iso) { if (!iso) return '—'; var p = String(iso).slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
+  function num(v) { if (typeof v === 'number') return v; var n = parseFloat(String(v).replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n; }
+  function normal(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
+  function toast(msg) { var t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(function () { t.style.display = 'none'; }, 3200); }
+  function proximoNumero(lista, campo) { var m = 0; lista.forEach(function (x) { var n = parseInt(x[campo], 10); if (!isNaN(n) && n > m) m = n; }); return m + 1; }
+  function pad(n, t) { n = String(n); while (n.length < t) n = '0' + n; return n; }
+
+  var STATUS = {
+    proposta: { rascunho: ['Rascunho', 't-gray'], enviada: ['Enviada', 't-blue'], aprovada: ['Aprovada', 't-ok'], recusada: ['Recusada', 't-bad'], semretorno: ['Sem retorno', 't-gray'] },
+    os: { aberta: ['Aberta', 't-blue'], execucao: ['Em execução', 't-warn'], concluida: ['Concluída', 't-ok'], faturada: ['Faturada', 't-gray'], cancelada: ['Cancelada', 't-bad'] },
+    fatura: { pendente: ['A receber', 't-warn'], paga: ['Recebida', 't-ok'], cancelada: ['Cancelada', 't-bad'] }
+  };
+  function tag(tipo, st, venc) {
+    var s = STATUS[tipo][st] || [st || '—', 't-gray'];
+    if (tipo === 'fatura' && st === 'pendente' && venc && venc < hoje()) return '<span class="tag t-bad">Vencida</span>';
+    return '<span class="tag ' + s[1] + '">' + s[0] + '</span>';
+  }
+  function statusOS(o) { return o.status || 'aberta'; } // OS criadas na Termografia não têm status: contam como abertas
+
+  // ===================== BANCO DE DADOS =====================
+  // Duas implementações com a mesma interface: Firestore (real) e local (modo de teste no navegador).
+  var COLECOES = ['empresas', 'propostas', 'ordens', 'faturas', 'modelos'];
+  var cache = { empresas: [], propostas: [], ordens: [], faturas: [], modelos: [] };
+  var banco = null;
+
+  function bancoFirestore(db) {
+    return {
+      ouvir: function (col, cb) {
+        return db.collection(col).onSnapshot(function (snap) {
+          cb(snap.docs.map(function (d) { var x = d.data() || {}; x.id = d.id; return x; }));
+        }, function (err) { console.error(err); toast('Erro ao ler ' + col + ': ' + err.message); });
+      },
+      criar: function (col, doc) { return db.collection(col).add(doc).then(function (r) { return r.id; }); },
+      // merge: true preserva campos que outros sistemas (como a Termografia) gravaram no mesmo documento
+      atualizar: function (col, id, doc) { return db.collection(col).doc(id).set(doc, { merge: true }); },
+      excluir: function (col, id) { return db.collection(col).doc(id).delete(); }
+    };
+  }
+
+  function bancoLocal() {
+    var CH = 'cronos-demo-v1', ouvintes = {}, dados;
+    try { dados = JSON.parse(localStorage.getItem(CH) || 'null'); } catch (e) { dados = null; }
+    if (!dados) dados = exemplo();
+    COLECOES.forEach(function (c) { dados[c] = dados[c] || []; });
+    function salvar() { try { localStorage.setItem(CH, JSON.stringify(dados)); } catch (e) {} }
+    function avisar(col) { (ouvintes[col] || []).forEach(function (cb) { cb(dados[col].map(function (x) { return Object.assign({}, x); })); }); }
+    return {
+      ouvir: function (col, cb) { (ouvintes[col] = ouvintes[col] || []).push(cb); setTimeout(function () { avisar(col); }, 0); },
+      criar: function (col, doc) { doc = Object.assign({}, doc); doc.id = 'L' + Date.now() + Math.random().toString(36).slice(2, 6); dados[col].push(doc); salvar(); avisar(col); return Promise.resolve(doc.id); },
+      atualizar: function (col, id, doc) { var i = dados[col].findIndex(function (x) { return x.id === id; }); if (i >= 0) Object.assign(dados[col][i], doc); salvar(); avisar(col); return Promise.resolve(); },
+      excluir: function (col, id) { dados[col] = dados[col].filter(function (x) { return x.id !== id; }); salvar(); avisar(col); return Promise.resolve(); }
+    };
+  }
+
+  function exemplo() {
+    var h = hoje();
+    return {
+      empresas: [
+        { id: 'c1', codigo: 'CLI-0001', nome: 'Metalúrgica Exemplo Ltda', cnpj: '12.345.678/0001-90', contato: 'Carlos', telefone: '(11) 99999-0000', email: 'carlos@exemplo.com.br', cidade: 'São Paulo', uf: 'SP', createdAt: agora() },
+        { id: 'c2', codigo: 'CLI-0002', nome: 'Hospital Modelo', cnpj: '98.765.432/0001-10', contato: 'Ana', telefone: '(11) 98888-1111', email: 'manutencao@modelo.org', cidade: 'Campinas', uf: 'SP', createdAt: agora() }
+      ],
+      propostas: [
+        { id: 'p1', numero: 1, ano: 2026, clienteId: 'c1', clienteNome: 'Metalúrgica Exemplo Ltda', titulo: 'Inspeção termográfica dos painéis elétricos', sistema: 'Termografia', itens: [{ descricao: 'Inspeção termográfica (diária)', qtd: 2, valor: 1800 }, { descricao: 'Relatório técnico com laudos', qtd: 1, valor: 600 }], total: 4200, validade: somarDias(h, 15), status: 'enviada', data: h, createdAt: agora() }
+      ],
+      ordens: [], faturas: [],
+      modelos: [
+        { id: 'm1', chave: 'exemplo-calibracao', nome: 'Calibração de válvulas e manômetros (exemplo)', titulo: 'Calibração dos instrumentos de segurança NR-13',
+          ref: 'PRESTAÇÃO DE SERVIÇOS DE CALIBRAÇÃO DE VÁLVULAS DE SEGURANÇA E MANÔMETROS EM ATENDIMENTO À NORMA NR-13.',
+          objetivo: 'Efetuar a calibração dos instrumentos de segurança dos vasos de pressão em atendimento à Norma NR-13.',
+          local: 'Nas instalações do cliente, conforme endereço acima.', escopo: 'Análise da documentação existente;\nCalibração em bancada com padrões rastreados RBC;\nEmissão de certificados digitais;\nRecolhimento da ART junto ao CREA/SP.',
+          fornIdealle: 'Equipe técnica capacitada;\nEquipamentos e materiais aplicáveis;\nRecolhimento da ART.', fornCliente: 'Documentação existente dos equipamentos;\nCondições de segurança para os técnicos.',
+          prazoExecucao: 'Até 7 dias.', obsPreco: 'Valores para dias úteis em horário comercial.', condicoes: 'Nota fiscal com vencimento a 15 dias após a entrega dos certificados.', validadeDias: 30,
+          itens: [{ descricao: 'Calibração de válvula de segurança', qtd: 4, valor: 300 }, { descricao: 'Calibração de manômetro', qtd: 4, valor: 120 }, { descricao: 'Mobilização e ART', qtd: 1, valor: 600 }],
+          referencia: { propostas: 0, aprovadas: 0, faixa: null, faixaAprovadas: null, base: 'Modelo de exemplo do modo de teste.' }, createdAt: agora() }
+      ]
+    };
+  }
+
+  // ===================== INICIALIZAÇÃO =====================
+  var modoDemo = /[?&]demo=1/.test(location.search);
+  var importando = false;
+  var firebaseOk = typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey.indexOf('COLE_AQUI') === -1;
+
+  function iniciarApp(usuario) {
+    $('tela-login').style.display = 'none';
+    $('cabecalho').style.display = 'block';
+    $('app').style.display = 'block';
+    $('usuario-nome').textContent = usuario || '';
+    if (modoDemo) {
+      $('aviso-modo').style.display = 'block';
+      $('aviso-modo').innerHTML = 'Modo de teste: os dados ficam só neste navegador e não vão para o banco. <a href="' + location.pathname + '">Sair do modo de teste</a>';
+    }
+    COLECOES.forEach(function (col) {
+      banco.ouvir(col, function (lista) { cache[col] = lista; if (!importando) renderTudo(); });
+    });
+  }
+
+  function telaLogin(msg) {
+    $('tela-login').style.display = 'block';
+    $('cabecalho').style.display = 'none';
+    $('app').style.display = 'none';
+    $('login-erro').textContent = msg || '';
+  }
+
+  $('btn-demo').addEventListener('click', function () { location.search = '?demo=1'; });
+
+  if (modoDemo || !firebaseOk) {
+    modoDemo = true;
+    banco = bancoLocal();
+    iniciarApp('Modo de teste');
+    $('btn-sair').textContent = 'Usar banco real';
+    $('btn-sair').addEventListener('click', function () { location.href = location.pathname; });
+  } else {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    banco = bancoFirestore(firebase.firestore());
+    var auth = firebase.auth();
+    var iniciado = false;
+    function permitido(u) {
+      var email = String(u.email || '').toLowerCase();
+      var google = u.providerData.some(function (x) { return x.providerId === 'google.com'; });
+      return !google || !ACESSO_GOOGLE.length || ACESSO_GOOGLE.some(function (a) { a = a.toLowerCase(); return a.charAt(0) === '@' ? email.slice(-a.length) === a : email === a; });
+    }
+    var erroLogin = {
+      'auth/invalid-credential': 'E-mail ou senha incorretos.', 'auth/wrong-password': 'E-mail ou senha incorretos.',
+      'auth/user-not-found': 'Usuário não cadastrado.', 'auth/configuration-not-found': 'O login ainda não foi ativado no Firebase. Veja o LEIA-ME.',
+      'auth/operation-not-allowed': 'Este tipo de login ainda não foi ativado no Firebase. Veja o LEIA-ME.',
+      'auth/unauthorized-domain': 'Este endereço do site não está autorizado no Firebase (Authentication → Settings → Authorized domains).',
+      'auth/popup-closed-by-user': 'Login cancelado.', 'auth/cancelled-popup-request': 'Login cancelado.'
+    };
+    auth.getRedirectResult().catch(function (e) { $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message); });
+    auth.onAuthStateChanged(function (u) {
+      if (u && !permitido(u)) { auth.signOut(); telaLogin('A conta ' + u.email + ' não tem acesso ao Cronos.'); return; }
+      if (u) { if (!iniciado) { iniciado = true; iniciarApp(u.email); } }
+      else if (iniciado) { location.reload(); }
+      else telaLogin();
+    });
+    $('btn-entrar').addEventListener('click', function () {
+      var email = $('login-email').value.trim(), senha = $('login-senha').value;
+      if (!email || !senha) { $('login-erro').textContent = 'Informe e-mail e senha.'; return; }
+      $('login-erro').textContent = 'Entrando…';
+      auth.signInWithEmailAndPassword(email, senha).catch(function (e) {
+        $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message);
+      });
+    });
+    $('btn-google').addEventListener('click', function () {
+      var prov = new firebase.auth.GoogleAuthProvider();
+      prov.setCustomParameters({ prompt: 'select_account' });
+      $('login-erro').textContent = 'Abrindo o Google…';
+      auth.signInWithPopup(prov).catch(function (e) {
+        // celulares e navegadores que bloqueiam janela: entra pelo redirecionamento
+        if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') return auth.signInWithRedirect(prov);
+        $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message);
+      });
+    });
+    $('login-senha').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('btn-entrar').click(); });
+    $('btn-sair').addEventListener('click', function () { auth.signOut(); });
+  }
+
+  // ===================== NAVEGAÇÃO =====================
+  var viewAtual = 'painel';
+  function mostrar(v) {
+    viewAtual = v;
+    document.querySelectorAll('.view').forEach(function (s) { s.classList.toggle('ativa', s.id === 'v-' + v); });
+    document.querySelectorAll('#menu button').forEach(function (b) { b.classList.toggle('ativo', b.dataset.view === v); });
+    window.scrollTo(0, 0);
+  }
+  $('menu').addEventListener('click', function (e) { var b = e.target.closest('button[data-view]'); if (b) mostrar(b.dataset.view); });
+
+  function preencherFiltro(id, tipo) {
+    var s = $(id);
+    Object.keys(STATUS[tipo]).forEach(function (k) { var o = document.createElement('option'); o.value = k; o.textContent = STATUS[tipo][k][0]; s.appendChild(o); });
+    s.addEventListener('change', renderTudo);
+  }
+  preencherFiltro('filtro-proposta', 'proposta');
+  preencherFiltro('filtro-os', 'os');
+  preencherFiltro('filtro-fatura', 'fatura');
+  ['busca-cliente', 'busca-proposta', 'busca-os', 'busca-fatura'].forEach(function (id) { $(id).addEventListener('input', renderTudo); });
+
+  // ===================== MODAL =====================
+  function abrirModal(html) { $('modal').innerHTML = html; $('modal-fundo').classList.add('aberto'); var f = $('modal').querySelector('input,select,textarea'); if (f) f.focus(); }
+  function fecharModal() { $('modal-fundo').classList.remove('aberto'); $('modal').innerHTML = ''; }
+  $('modal-fundo').addEventListener('click', function (e) { if (e.target.id === 'modal-fundo') fecharModal(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fecharModal(); });
+
+  function porId(col, id) { return cache[col].find(function (x) { return x.id === id; }); }
+  function nomeCliente(id, reserva) { var c = porId('empresas', id); return c ? c.nome : (reserva || '—'); }
+  // Mesmo padrão da Idealle: proposta e OS compartilham o número (ID-0292/2026)
+  function codID(n, ano) { return 'ID-' + pad(n, 4) + '/' + ano; }
+  function codProposta(p) { return p.codigo || codID(p.numero, p.ano || ''); }
+  function codOS(o) { return o.codigo || ('OS-' + o.numero); }
+  function codFatura(f) { return f.nf ? 'NF ' + f.nf : 'F-' + pad(f.numero, 4); }
+  function proximoID() { return Math.max(proximoNumero(cache.propostas, 'numero'), proximoNumero(cache.ordens, 'numero')); }
+  function totalItens(itens) { return (itens || []).reduce(function (s, i) { return s + num(i.qtd) * num(i.valor); }, 0); }
+  function opcoesClientes(sel) {
+    return '<option value="">Selecione o cliente…</option>' + cache.empresas.slice().sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; })
+      .map(function (c) { return '<option value="' + c.id + '"' + (c.id === sel ? ' selected' : '') + '>' + esc(c.nome) + (c.codigo ? ' (' + esc(c.codigo) + ')' : '') + '</option>'; }).join('');
+  }
+  function opcoesSistemas(sel) {
+    var l = Object.keys(SISTEMAS).concat(['Outro']);
+    return '<option value="">—</option>' + l.map(function (s) { return '<option' + (s === sel ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('');
+  }
+
+  async function salvar(acao, msgOk) {
+    try { var r = await acao(); if (msgOk) toast(msgOk); return r; }
+    catch (e) { console.error(e); toast('Não foi possível salvar: ' + (e.message || e)); throw e; }
+  }
+
+  // ===================== CLIENTES =====================
+  function proximoCodigoCliente() {
+    var m = 0; cache.empresas.forEach(function (c) { var n = parseInt(String(c.codigo || '').replace(/\D/g, ''), 10); if (!isNaN(n) && n > m) m = n; });
+    return 'CLI-' + pad(m + 1, 4);
+  }
+
+  function renderClientes() {
+    var q = normal($('busca-cliente').value);
+    var lista = cache.empresas.filter(function (c) { return !q || normal([c.nome, c.codigo, c.cnpj, c.cidade, c.contato, c.email].join(' ')).indexOf(q) >= 0; })
+      .sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; });
+    var semCodigo = cache.empresas.filter(function (c) { return !c.codigo; }).length;
+    $('aviso-codigos').innerHTML = semCodigo ? '<div class="aviso">' + semCodigo + ' cliente(s) vindos da Termografia ainda sem código. <button class="btn peq" id="btn-gerar-codigos">Gerar códigos</button></div>' : '';
+    if (!lista.length) { $('lista-clientes').innerHTML = '<div class="vazio">Nenhum cliente' + (q ? ' encontrado' : ' cadastrado ainda') + '.</div>'; return; }
+    $('lista-clientes').innerHTML = '<table><thead><tr><th>Código</th><th>Cliente</th><th>CNPJ</th><th>Cidade</th><th class="num">Propostas</th><th class="num">OS</th></tr></thead><tbody>' +
+      lista.map(function (c) {
+        var np = cache.propostas.filter(function (p) { return p.clienteId === c.id; }).length;
+        var no = cache.ordens.filter(function (o) { return o.empresaId === c.id; }).length;
+        return '<tr class="clicavel" data-cliente="' + c.id + '"><td>' + esc(c.codigo || '—') + '</td><td><b>' + esc(c.nome) + '</b><div class="muted">' + esc([c.contato, c.telefone].filter(Boolean).join(' · ')) + '</div></td><td>' + esc(c.cnpj || '—') + '</td><td>' + esc([c.cidade, c.uf].filter(Boolean).join('/') || '—') + '</td><td class="num">' + np + '</td><td class="num">' + no + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  $('v-clientes').addEventListener('click', async function (e) {
+    var tr = e.target.closest('tr[data-cliente]'); if (tr) verCliente(tr.dataset.cliente);
+    if (e.target.id === 'btn-gerar-codigos') {
+      var m = 0; cache.empresas.forEach(function (c) { var n = parseInt(String(c.codigo || '').replace(/\D/g, ''), 10); if (!isNaN(n) && n > m) m = n; });
+      var sem = cache.empresas.filter(function (c) { return !c.codigo; }).sort(function (a, b) { return String(a.createdAt) < String(b.createdAt) ? -1 : 1; });
+      for (var i = 0; i < sem.length; i++) { m++; await banco.atualizar('empresas', sem[i].id, { codigo: 'CLI-' + pad(m, 4), updatedAt: agora() }); }
+      toast(sem.length + ' código(s) gerado(s).');
+    }
+  });
+  $('btn-novo-cliente').addEventListener('click', function () { formCliente(); });
+
+  function formCliente(c) {
+    c = c || {};
+    abrirModal('<h3>' + (c.id ? 'Editar cliente ' + esc(c.codigo || '') : 'Novo cliente') + '</h3>' +
+      '<label>Nome / Razão social *</label><input id="f-nome" value="' + esc(c.nome) + '">' +
+      '<div class="linha"><div><label>CNPJ / CPF</label><input id="f-cnpj" value="' + esc(c.cnpj) + '"></div><div><label>Inscrição estadual</label><input id="f-ie" value="' + esc(c.ie) + '"></div></div>' +
+      '<div class="linha"><div><label>Contato</label><input id="f-contato" value="' + esc(c.contato) + '"></div><div><label>Telefone</label><input id="f-telefone" value="' + esc(c.telefone) + '"></div><div><label>E-mail</label><input id="f-email" type="email" value="' + esc(c.email) + '"></div></div>' +
+      '<label>Endereço</label><input id="f-endereco" value="' + esc(c.endereco) + '">' +
+      '<div class="linha"><div><label>Cidade</label><input id="f-cidade" value="' + esc(c.cidade) + '"></div><div><label>UF</label><input id="f-uf" maxlength="2" value="' + esc(c.uf) + '"></div><div><label>CEP</label><input id="f-cep" value="' + esc(c.cep) + '"></div></div>' +
+      '<label>Observações</label><textarea id="f-obs">' + esc(c.obs) + '</textarea>' +
+      '<div class="acoes"><button class="btn" id="f-salvar">Salvar</button><button class="btn sec" id="f-cancelar">Cancelar</button></div>');
+    $('f-cancelar').onclick = fecharModal;
+    $('f-salvar').onclick = async function () {
+      var d = { nome: $('f-nome').value.trim(), cnpj: $('f-cnpj').value.trim(), ie: $('f-ie').value.trim(), contato: $('f-contato').value.trim(), telefone: $('f-telefone').value.trim(), email: $('f-email').value.trim(), endereco: $('f-endereco').value.trim(), cidade: $('f-cidade').value.trim(), uf: $('f-uf').value.trim().toUpperCase(), cep: $('f-cep').value.trim(), obs: $('f-obs').value.trim(), updatedAt: agora() };
+      if (!d.nome) { toast('Informe o nome do cliente.'); return; }
+      var dup = cache.empresas.find(function (x) { return x.id !== c.id && ((d.cnpj && soDigitos(x.cnpj) === soDigitos(d.cnpj)) || normal(x.nome) === normal(d.nome)); });
+      if (dup) { toast('Já existe um cliente com esse ' + (normal(dup.nome) === normal(d.nome) ? 'nome' : 'CNPJ') + ': ' + dup.nome); return; }
+      if (c.id) {
+        await salvar(function () { return banco.atualizar('empresas', c.id, d); }, 'Cliente atualizado.');
+        if (c.nome !== d.nome) await renomearCliente(c.id, d.nome);
+      } else {
+        d.codigo = proximoCodigoCliente(); d.createdAt = agora();
+        await salvar(function () { return banco.criar('empresas', d); }, 'Cliente ' + d.codigo + ' cadastrado.');
+      }
+      fecharModal();
+    };
+  }
+
+  // Os documentos guardam também o nome (a Termografia exibe e filtra por ele), então mantemos em dia.
+  async function renomearCliente(id, nome) {
+    var os = cache.ordens.filter(function (o) { return o.empresaId === id; });
+    for (var i = 0; i < os.length; i++) await banco.atualizar('ordens', os[i].id, { empresaNome: nome });
+    var ps = cache.propostas.filter(function (p) { return p.clienteId === id; });
+    for (var j = 0; j < ps.length; j++) await banco.atualizar('propostas', ps[j].id, { clienteNome: nome });
+    if (os.length) toast('Nome atualizado também nas OS. Laudos antigos da Termografia seguem com o nome anterior.');
+  }
+
+  function verCliente(id) {
+    var c = porId('empresas', id); if (!c) return;
+    var ps = cache.propostas.filter(function (p) { return p.clienteId === id; });
+    var os = cache.ordens.filter(function (o) { return o.empresaId === id; });
+    var fs = cache.faturas.filter(function (f) { return f.clienteId === id; });
+    var aReceber = fs.filter(function (f) { return f.status === 'pendente'; }).reduce(function (s, f) { return s + num(f.valor); }, 0);
+    var recebido = fs.filter(function (f) { return f.status === 'paga'; }).reduce(function (s, f) { return s + num(f.valor); }, 0);
+    abrirModal('<h3>' + esc(c.nome) + ' <span class="tag t-blue">' + esc(c.codigo || 'sem código') + '</span></h3>' +
+      '<dl class="detalhe linha">' +
+      '<div><dt>CNPJ / CPF</dt><dd>' + esc(c.cnpj || '—') + '</dd></div><div><dt>Contato</dt><dd>' + esc(c.contato || '—') + '</dd></div>' +
+      '<div><dt>Telefone</dt><dd>' + esc(c.telefone || '—') + '</dd></div><div><dt>E-mail</dt><dd>' + esc(c.email || '—') + '</dd></div>' +
+      '<div><dt>Endereço</dt><dd>' + esc([c.endereco, c.cidade, c.uf, c.cep].filter(Boolean).join(', ') || '—') + '</dd></div>' +
+      '<div><dt>A receber / Recebido</dt><dd>' + brl(aReceber) + ' / ' + brl(recebido) + '</dd></div></dl>' +
+      (c.obs ? '<p class="muted">' + esc(c.obs) + '</p>' : '') +
+      '<p><b>Propostas</b></p>' + (ps.length ? ps.map(function (p) { return '<div>' + codProposta(p) + ' · ' + esc(p.titulo) + ' · ' + brl(p.total) + ' ' + tag('proposta', p.status) + '</div>'; }).join('') : '<div class="muted">Nenhuma.</div>') +
+      '<p><b>Ordens de Serviço</b></p>' + (os.length ? os.map(function (o) { return '<div>' + esc(codOS(o)) + ' · ' + esc(o.descricao || '') + ' ' + tag('os', statusOS(o)) + '</div>'; }).join('') : '<div class="muted">Nenhuma.</div>') +
+      '<div class="acoes"><button class="btn" id="c-proposta">+ Proposta para este cliente</button><button class="btn sec" id="c-editar">Editar</button><button class="btn perigo" id="c-excluir">Excluir</button><button class="btn sec" id="c-fechar">Fechar</button></div>');
+    $('c-fechar').onclick = fecharModal;
+    $('c-editar').onclick = function () { formCliente(c); };
+    $('c-proposta').onclick = function () { formProposta({ clienteId: c.id }); };
+    $('c-excluir').onclick = async function () {
+      if (ps.length || os.length || fs.length) { toast('Este cliente tem propostas, OS ou faturas. Não dá para excluir.'); return; }
+      if (!confirm('Excluir o cliente ' + c.nome + '?')) return;
+      await salvar(function () { return banco.excluir('empresas', c.id); }, 'Cliente excluído.'); fecharModal();
+    };
+  }
+
+  // ===================== PROPOSTAS =====================
+  function renderPropostas() {
+    var q = normal($('busca-proposta').value), st = $('filtro-proposta').value;
+    var lista = cache.propostas.filter(function (p) {
+      return (!st || p.status === st) && (!q || normal([codProposta(p), nomeCliente(p.clienteId, p.clienteNome), p.titulo].join(' ')).indexOf(q) >= 0);
+    }).sort(function (a, b) { return (b.ano - a.ano) || (b.numero - a.numero); });
+    if (!lista.length) { $('lista-propostas').innerHTML = '<div class="vazio">Nenhuma proposta' + (q || st ? ' encontrada' : ' ainda') + '.</div>'; return; }
+    $('lista-propostas').innerHTML = '<table><thead><tr><th>Número</th><th>Cliente / Serviço</th><th>Data</th><th>Validade</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>' +
+      lista.map(function (p) {
+        var vencida = p.status === 'enviada' && p.validade && p.validade < hoje();
+        return '<tr class="clicavel" data-proposta="' + p.id + '"><td><b>' + codProposta(p) + '</b></td><td>' + esc(nomeCliente(p.clienteId, p.clienteNome)) + '<div class="muted">' + esc(p.titulo) + '</div></td><td>' + data(p.data) + '</td><td>' + data(p.validade) + (vencida ? ' <span class="tag t-bad">vencida</span>' : '') + '</td><td class="num">' + brl(p.total) + '</td><td>' + tag('proposta', p.status) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+  $('lista-propostas').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-proposta]'); if (tr) verProposta(tr.dataset.proposta); });
+  $('btn-nova-proposta').addEventListener('click', function () { formProposta(); });
+
+  function linhaItem(i) {
+    i = i || { descricao: '', qtd: 1, valor: '' };
+    return '<tr><td><input class="i-desc" value="' + esc(i.descricao) + '" placeholder="Descrição do serviço"></td><td style="width:80px"><input class="i-qtd" inputmode="decimal" value="' + esc(i.qtd) + '"></td><td style="width:130px"><input class="i-valor" inputmode="decimal" value="' + esc(i.valor) + '" placeholder="0,00"></td><td style="width:40px"><button class="btn sec peq i-del" title="Remover">✕</button></td></tr>';
+  }
+
+  // Seções de texto da proposta, na ordem em que saem impressas (mesmo padrão das propostas da Idealle)
+  var TEXTOS = [
+    ['ref', 'Referência (REF.)', 2], ['objetivo', '1. Objetivo dos trabalhos', 3], ['local', '3. Local de execução', 1],
+    ['escopo', '4. Escopo (um item por linha)', 6], ['fornIdealle', '5. Fornecimento Idealle (um por linha)', 3],
+    ['fornCliente', '6. Fornecimento do cliente (um por linha)', 3], ['prazoExecucao', '7. Prazo de execução', 1],
+    ['obsPreco', 'Observações do preço (uma por linha)', 3]
+  ];
+  var CONDICOES_PADRAO = 'Quando do término dos serviços e entrega dos relatórios e prontuários será emitida nota fiscal fatura com vencimento a 15 dias. Após o vencimento será aplicada multa de 2% mais juros de 1% ao mês.';
+
+  function aplicarModelo(m) {
+    var d = { modeloId: m.id, modeloNome: m.nome, titulo: m.titulo || m.nome, sistema: m.sistema || '', condicoes: m.condicoes || CONDICOES_PADRAO,
+      validade: somarDias(hoje(), m.validadeDias || 30), itens: (m.itens || []).map(function (i) { return { descricao: i.descricao, qtd: i.qtd, valor: i.valor }; }) };
+    TEXTOS.forEach(function (t) { d[t[0]] = m[t[0]] || ''; });
+    return d;
+  }
+  function textoFaixa(m) {
+    var r = m && m.referencia; if (!r) return '';
+    var f = r.faixaAprovadas || r.faixa, partes = [];
+    if (f) partes.push((r.faixaAprovadas ? 'Aprovadas' : 'Enviadas') + ' deste tipo: ' + brl(f[0]) + ' a ' + brl(f[2]) + ' (mediana ' + brl(f[1]) + ')');
+    if (r.propostas) partes.push(r.propostas + ' propostas, ' + r.aprovadas + ' aprovadas');
+    return partes.join(' · ') + (r.base ? '<div>Base: ' + esc(r.base) + '</div>' : '');
+  }
+
+  function formProposta(p) {
+    p = p || {};
+    var itens = p.itens && p.itens.length ? p.itens : [null];
+    var modelo = p.modeloId ? porId('modelos', p.modeloId) : null;
+    var temTexto = TEXTOS.some(function (t) { return p[t[0]]; });
+    var modelos = cache.modelos.slice().sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; });
+    abrirModal('<h3>' + (p.id ? 'Editar proposta ' + codProposta(p) : 'Nova proposta') + '</h3>' +
+      (!p.id && modelos.length ? '<label>Começar de um modelo</label><select id="p-modelo"><option value="">Proposta em branco</option>' +
+        modelos.map(function (m) { return '<option value="' + m.id + '"' + (m.id === p.modeloId ? ' selected' : '') + '>' + esc(m.nome) + '</option>'; }).join('') + '</select>' : '') +
+      '<label>Cliente *</label><select id="p-cliente">' + opcoesClientes(p.clienteId) + '</select>' +
+      '<div class="muted" style="margin-top:4px">Cliente novo? <a href="#" id="p-novo-cliente">Cadastrar agora</a></div>' +
+      '<label>Título / Serviço *</label><input id="p-titulo" value="' + esc(p.titulo) + '" placeholder="Ex.: Inspeção periódica NR-13 com calibração">' +
+      '<div class="linha"><div><label>Data</label><input id="p-data" type="date" value="' + esc(p.data || hoje()) + '"></div><div><label>Validade</label><input id="p-validade" type="date" value="' + esc(p.validade || somarDias(hoje(), 30)) + '"></div><div><label>Sistema de execução</label><select id="p-sistema">' + opcoesSistemas(p.sistema) + '</select></div></div>' +
+      '<label>2. Objeto e preços (itens)</label><div class="tabela"><table class="itens"><thead><tr><th>Descrição</th><th>Qtd</th><th>Valor unit. (R$)</th><th></th></tr></thead><tbody id="p-itens">' + itens.map(linhaItem).join('') + '</tbody></table></div>' +
+      '<button class="btn sec peq" id="p-add-item" style="margin-top:6px">+ Item</button>' +
+      '<div class="total" id="p-total"></div>' +
+      (modelo && modelo.referencia ? '<div class="muted" style="text-align:right">' + textoFaixa(modelo) + '</div>' : '') +
+      '<details id="p-textos"' + (temTexto ? ' open' : '') + ' style="margin-top:10px"><summary><b>Texto da proposta</b> (objetivo, escopo, fornecimentos, prazo)</summary>' +
+      TEXTOS.map(function (t) { return '<label>' + t[1] + '</label><textarea id="p-' + t[0] + '" rows="' + t[2] + '">' + esc(p[t[0]]) + '</textarea>'; }).join('') +
+      '</details>' +
+      '<label>9. Condições de pagamento</label><textarea id="p-condicoes" rows="2">' + esc(p.condicoes || CONDICOES_PADRAO) + '</textarea>' +
+      '<div class="acoes"><button class="btn" id="p-salvar">Salvar</button><button class="btn sec" id="p-cancelar">Cancelar</button></div>');
+    function lerItens() {
+      return Array.prototype.map.call(document.querySelectorAll('#p-itens tr'), function (tr) {
+        return { descricao: tr.querySelector('.i-desc').value.trim(), qtd: num(tr.querySelector('.i-qtd').value), valor: num(tr.querySelector('.i-valor').value) };
+      }).filter(function (i) { return i.descricao; });
+    }
+    function atualizarTotal() { $('p-total').textContent = 'Total: ' + brl(totalItens(lerItens())); }
+    atualizarTotal();
+    if ($('p-modelo')) $('p-modelo').onchange = function () {
+      var m = porId('modelos', this.value), cid = $('p-cliente').value;
+      formProposta(Object.assign(m ? aplicarModelo(m) : {}, { clienteId: cid, data: $('p-data').value }));
+    };
+    $('p-itens').addEventListener('input', atualizarTotal);
+    $('p-itens').addEventListener('click', function (e) { if (e.target.classList.contains('i-del')) { e.target.closest('tr').remove(); atualizarTotal(); } });
+    $('p-add-item').onclick = function () { $('p-itens').insertAdjacentHTML('beforeend', linhaItem()); };
+    $('p-cancelar').onclick = fecharModal;
+    $('p-novo-cliente').onclick = function (e) { e.preventDefault(); formCliente(); };
+    $('p-salvar').onclick = async function () {
+      var cid = $('p-cliente').value, it = lerItens();
+      if (!cid) { toast('Selecione o cliente.'); return; }
+      if (!$('p-titulo').value.trim()) { toast('Informe o título da proposta.'); return; }
+      if (!it.length) { toast('Inclua pelo menos um item.'); return; }
+      var d = { clienteId: cid, clienteNome: nomeCliente(cid), titulo: $('p-titulo').value.trim(), data: $('p-data').value, validade: $('p-validade').value, sistema: $('p-sistema').value, itens: it, total: totalItens(it), condicoes: $('p-condicoes').value.trim(), updatedAt: agora() };
+      TEXTOS.forEach(function (t) { d[t[0]] = $('p-' + t[0]).value.trim(); });
+      if (p.modeloId) { d.modeloId = p.modeloId; d.modeloNome = p.modeloNome || ''; }
+      if (p.id) await salvar(function () { return banco.atualizar('propostas', p.id, d); }, 'Proposta atualizada.');
+      else {
+        d.ano = parseInt((d.data || hoje()).slice(0, 4), 10);
+        d.numero = proximoID();
+        d.status = 'rascunho'; d.createdAt = agora();
+        await salvar(function () { return banco.criar('propostas', d); }, 'Proposta ' + codProposta(d) + ' criada.');
+      }
+      fecharModal();
+    };
+  }
+
+  function verProposta(id) {
+    var p = porId('propostas', id); if (!p) return;
+    var os = p.osId ? porId('ordens', p.osId) : null;
+    var botoes = [];
+    if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn ok" id="pv-aprovar">Aprovada pelo cliente → gerar OS</button>');
+    if (p.status === 'rascunho') botoes.push('<button class="btn" id="pv-enviar">Marcar como enviada</button>');
+    if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn sec" id="pv-editar">Editar</button>', '<button class="btn perigo" id="pv-recusar">Recusada</button>');
+    if (p.status === 'recusada' || p.status === 'semretorno') botoes.push('<button class="btn sec" id="pv-reabrir">Reabrir</button>');
+    botoes.push('<button class="btn sec" id="pv-imprimir">Imprimir / PDF</button>', '<button class="btn sec" id="pv-copiar">Duplicar</button>', '<button class="btn sec" id="pv-modelo">Salvar como modelo</button>');
+    if (p.status !== 'aprovada') botoes.push('<button class="btn perigo" id="pv-excluir">Excluir</button>');
+    botoes.push('<button class="btn sec" id="pv-fechar">Fechar</button>');
+    abrirModal('<h3>' + codProposta(p) + ' ' + tag('proposta', p.status) + '</h3>' +
+      '<div><b>' + esc(nomeCliente(p.clienteId, p.clienteNome)) + '</b></div><div>' + esc(p.titulo) + '</div>' +
+      '<div class="muted">Data ' + data(p.data) + ' · validade ' + data(p.validade) + (p.sistema ? ' · executa em ' + esc(p.sistema) : '') + '</div>' +
+      '<div class="tabela" style="margin-top:10px"><table><thead><tr><th>Item</th><th class="num">Qtd</th><th class="num">Unit.</th><th class="num">Total</th></tr></thead><tbody>' +
+      (p.itens || []).map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td class="num">' + esc(i.qtd) + '</td><td class="num">' + brl(i.valor) + '</td><td class="num">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
+      '</tbody></table></div><div class="total">Total: ' + brl(p.total) + '</div>' +
+      (p.modeloNome ? '<p class="muted">Feita a partir do modelo ' + esc(p.modeloNome) + '</p>' : '') +
+      (p.objetivo ? '<p class="muted">' + esc(p.objetivo) + '</p>' : (p.escopo ? '<p class="muted" style="white-space:pre-wrap">' + esc(p.escopo) + '</p>' : '')) +
+      (os ? '<p>Gerou a <b>OS ' + esc(codOS(os)) + '</b> ' + tag('os', statusOS(os)) + ' <a href="#" id="pv-ver-os">ver OS</a></p>' : '') +
+      '<div class="acoes">' + botoes.join('') + '</div>');
+    function ligar(id, fn) { var b = $(id); if (b) b.onclick = fn; }
+    ligar('pv-fechar', fecharModal);
+    ligar('pv-editar', function () { formProposta(p); });
+    ligar('pv-imprimir', function () { imprimirProposta(p); });
+    ligar('pv-modelo', function () {
+      var m = { nome: p.titulo, titulo: p.titulo, sistema: p.sistema, condicoes: p.condicoes, validadeDias: p.data && p.validade ? diasEntre(p.data, p.validade) : 30, itens: p.itens };
+      TEXTOS.forEach(function (t) { m[t[0]] = p[t[0]] || ''; });
+      formModelo(m);
+    });
+    ligar('pv-ver-os', function (e) { e.preventDefault(); verOS(os.id); });
+    ligar('pv-copiar', function () { var c = Object.assign({}, p); delete c.id; delete c.osId; delete c.numero; delete c.status; delete c.codigo; c.data = hoje(); c.validade = somarDias(hoje(), 30); formProposta(c); });
+    ligar('pv-enviar', async function () { await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'enviada', enviadaEm: agora() }); }, 'Proposta marcada como enviada.'); verProposta(p.id); });
+    ligar('pv-recusar', async function () { var motivo = prompt('Motivo da recusa (opcional):'); if (motivo === null) return; await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'recusada', motivoRecusa: motivo, recusadaEm: agora() }); }, 'Proposta marcada como recusada.'); verProposta(p.id); });
+    ligar('pv-reabrir', async function () { await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'enviada' }); }, 'Proposta reaberta.'); verProposta(p.id); });
+    ligar('pv-excluir', async function () { if (!confirm('Excluir a proposta ' + codProposta(p) + '?')) return; await salvar(function () { return banco.excluir('propostas', p.id); }, 'Proposta excluída.'); fecharModal(); });
+    ligar('pv-aprovar', async function () {
+      if (!confirm('Confirmar aprovação e abrir a OS?')) return;
+      var numero = p.numero;
+      // Campos numero/empresaId/empresaNome/descricao/dataAbertura seguem o formato da Termografia,
+      // para a OS aparecer lá automaticamente.
+      var osId = await salvar(function () {
+        return banco.criar('ordens', { numero: numero, codigo: codProposta(p), empresaId: p.clienteId, empresaNome: nomeCliente(p.clienteId, p.clienteNome), descricao: p.titulo, dataAbertura: hoje(), createdAt: agora(), status: 'aberta', propostaId: p.id, propostaCodigo: codProposta(p), valor: p.total, sistema: p.sistema || '' });
+      });
+      await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'aprovada', aprovadaEm: agora(), osId: osId }); }, 'Proposta aprovada. OS ' + codProposta(p) + ' aberta.');
+      fecharModal(); mostrar('ordens');
+    });
+  }
+
+  function extenso(v) {
+    var U = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+    var D = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+    var C = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+    function ate999(n) {
+      if (n === 100) return 'cem';
+      var c = Math.floor(n / 100), r = n % 100, p = [];
+      if (c) p.push(C[c]);
+      if (r) p.push(r < 20 ? U[r] : D[Math.floor(r / 10)] + (r % 10 ? ' e ' + U[r % 10] : ''));
+      return p.join(' e ');
+    }
+    function inteiro(n) {
+      if (!n) return 'zero';
+      var grupos = [['', ''], ['mil', 'mil'], ['milhão', 'milhões'], ['bilhão', 'bilhões']], partes = [], i = 0, ultimo = 0;
+      while (n > 0) {
+        var g = n % 1000;
+        if (g) partes.unshift((i === 1 && g === 1 ? '' : ate999(g)) + (i ? (i === 1 && g === 1 ? '' : ' ') + grupos[i][g > 1 ? 1 : 0] : ''));
+        if (i === 0) ultimo = g;
+        n = Math.floor(n / 1000); i++;
+      }
+      // "mil e quinhentos", "dois mil e cinquenta", mas "mil novecentos e cinquenta"
+      if (partes.length > 1 && ultimo && (ultimo < 100 || ultimo % 100 === 0)) return partes.slice(0, -1).join(', ') + ' e ' + partes[partes.length - 1];
+      return partes.join(' ');
+    }
+    v = Math.round((Number(v) || 0) * 100);
+    var r = Math.floor(v / 100), c = v % 100;
+    var txt = inteiro(r) + (r === 1 ? ' real' : (r && r % 1000000 === 0 ? ' de reais' : ' reais'));
+    if (c) txt += ' e ' + inteiro(c) + (c === 1 ? ' centavo' : ' centavos');
+    return txt.charAt(0).toUpperCase() + txt.slice(1);
+  }
+  function dataExtenso(iso) {
+    var m = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+    var p = String(iso || hoje()).split('-');
+    return parseInt(p[2], 10) + ' de ' + m[parseInt(p[1], 10) - 1] + ' de ' + p[0];
+  }
+  function linhas(t) { return String(t || '').split('\n').map(function (l) { return l.trim(); }).filter(Boolean); }
+  function diasEntre(a, b) { return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5); }
+
+  function imprimirProposta(p) {
+    var c = porId('empresas', p.clienteId) || { nome: p.clienteNome };
+    var n = 0;
+    function secao(titulo, corpo) { n++; return '<h4>' + n + '. ' + titulo + '</h4>' + corpo; }
+    function lista(t, pre) { return '<ol class="sub">' + linhas(t).map(function (l, i) { return '<li><span>' + pre + '.' + (i + 1) + '.</span> ' + esc(l) + '</li>'; }).join('') + '</ol>'; }
+    function par(t) { return linhas(t).map(function (l) { return '<p>' + esc(l) + '</p>'; }).join(''); }
+    var dias = p.data && p.validade ? diasEntre(p.data, p.validade) : 30;
+    var corpo = '';
+    corpo += secao('OBJETIVO DOS TRABALHOS', par(p.objetivo || p.titulo));
+    corpo += secao('OBJETO DA INSPEÇÃO', '<table class="itens-print"><thead><tr><th>Item</th><th>Descrição</th><th class="n">Qtd</th><th class="n">Valor unit.</th><th class="n">Total</th></tr></thead><tbody>' +
+      (p.itens || []).filter(function (i) { return num(i.qtd); }).map(function (i, k) { return '<tr><td>2.' + (k + 1) + '</td><td>' + esc(i.descricao) + '</td><td class="n">' + esc(i.qtd) + '</td><td class="n">' + brl(i.valor) + '</td><td class="n">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') + '</tbody></table>');
+    corpo += secao('LOCAL DE EXECUÇÃO DOS SERVIÇOS', par(p.local || 'Nas instalações do cliente, conforme endereço acima.'));
+    if (p.escopo) corpo += secao('ESCOPO DA INSPEÇÃO', '<p>A fim de podermos atender o objetivo do trabalho, propomos a execução dos seguintes itens, os quais serão definidos para cada equipamento inspecionado:</p>' + lista(p.escopo, n + 1) +
+      '<p>Todos os prontuários, relatórios e certificados emitidos serão encaminhados no formato digital com armazenamento em nuvem para download.</p>');
+    if (p.fornIdealle) corpo += secao('FORNECIMENTO IDEALLE', lista(p.fornIdealle, n + 1));
+    if (p.fornCliente) corpo += secao('FORNECIMENTO DO CLIENTE', lista(p.fornCliente, n + 1));
+    if (p.prazoExecucao) corpo += secao('PRAZOS DE EXECUÇÃO', par(p.prazoExecucao));
+    corpo += secao('PREÇOS E CONDIÇÕES DE FORNECIMENTO', '<p>O valor global para a execução completa dos serviços propostos, relacionados no item 2 desta proposta, é de <b>' + brl(p.total) + '</b> (' + esc(extenso(p.total)) + ').</p>' +
+      linhas(p.obsPreco).map(function (l) { return '<p>* ' + esc(l) + '</p>'; }).join(''));
+    corpo += secao('CONDIÇÕES DE PAGAMENTO', par(p.condicoes || CONDICOES_PADRAO) +
+      '<p>Caso venhamos a ser contratados para os serviços descritos nesta proposta, o faturamento será executado pelo endereço:</p>' +
+      '<p class="dados">' + esc(EMPRESA.razao) + '<br>' + esc(EMPRESA.endereco) + '<br>CNPJ nº ' + esc(EMPRESA.cnpj) + ' e I. E. nº ' + esc(EMPRESA.ie) + '<br>PIX CNPJ: ' + esc(EMPRESA.pix) + '</p>');
+    corpo += secao('VALIDADE DA PROPOSTA', '<p>Esta proposta é válida por ' + dias + ' dias, a partir da data de sua emissão, após o que estará sujeita a confirmação. ' +
+      'Desde já agradecemos a oportunidade de participar desta tomada de preços e permanecemos à sua inteira disposição para quaisquer esclarecimentos que se fizerem necessários.</p>');
+    $('print').innerHTML =
+      '<div class="pp-rodape">' + esc(EMPRESA.nome) + ' - ' + esc(EMPRESA.slogan) + '<br>' + esc(EMPRESA.endereco) + ' - Tel. ' + esc(EMPRESA.telefone) + '<br>' + esc(EMPRESA.site) + '</div>' +
+      // o rodapé fixo se repete em cada página; o tfoot vazio reserva o espaço dele para o texto não passar por baixo
+      '<table class="pp-tab"><tfoot><tr><td><div style="height:20mm"></div></td></tr></tfoot><tbody><tr><td><div class="pp">' +
+      '<div class="pp-topo"><div><b class="pp-marca">' + esc(EMPRESA.nome) + '</b><div>' + esc(EMPRESA.slogan) + '</div></div><div style="text-align:right"><b>PROPOSTA COMERCIAL</b><div>' + codProposta(p) + '</div></div></div>' +
+      '<p style="text-align:right">' + esc(EMPRESA.cidade) + ', ' + dataExtenso(p.data) + '.</p>' +
+      '<p>À<br><b>' + esc(c.nome) + '</b>' + (c.cnpj ? '<br>CNPJ ' + esc(c.cnpj) : '') + (c.endereco || c.cidade ? '<br>' + esc([c.endereco, c.cidade, c.uf].filter(Boolean).join(' - ')) : '') + '</p>' +
+      (c.contato ? '<p>At.: ' + esc(c.contato) + (c.email ? ' · ' + esc(c.email) : '') + '</p>' : '') +
+      '<p><b>REF.:</b> ' + esc(p.ref || ('PROPOSTA PARA A PRESTAÇÃO DE SERVIÇOS DE ' + p.titulo).toUpperCase()) + '</p>' +
+      '<p><b>N/REF.:</b> ' + codProposta(p) + '</p>' +
+      '<p>Prezados Senhores(as),<br>Atendendo à solicitação de V.S.as, apresentamos nossas melhores condições técnicas e comerciais para a execução do serviço em referência, conforme segue:</p>' +
+      corpo +
+      '<p style="margin-top:24px">Atenciosamente,</p>' +
+      '<div class="pp-assin">' + EMPRESA.assinaturas.map(function (a) { return '<div>______________________________<br><b>' + esc(a[0]) + '</b><br>' + esc(a[1]) + '</div>'; }).join('') + '</div>' +
+      '</div></td></tr></tbody></table>';
+    window.print();
+  }
+
+  // ===================== MODELOS DE PROPOSTA =====================
+  // Cada modelo guarda o texto e os itens com preço de um tipo de serviço. Os modelos da Idealle
+  // entram pela importação (arquivo privado, fora do GitHub) e podem ser editados aqui.
+  function renderModelos() {
+    var lista = cache.modelos.slice().sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; });
+    if (!lista.length) { $('lista-modelos').innerHTML = '<div class="card vazio">Nenhum modelo ainda. Importe o arquivo de modelos da Idealle pelo Painel, crie um em "+ Novo modelo" ou use "Salvar como modelo" numa proposta.</div>'; return; }
+    $('lista-modelos').innerHTML = '<div class="grid">' + lista.map(function (m) {
+      var usos = cache.propostas.filter(function (p) { return p.modeloId === m.id; }).length;
+      return '<div class="card"><b>' + esc(m.nome) + '</b><div class="muted">' + esc(m.titulo || '') + '</div>' +
+        '<div style="margin:6px 0">Itens: ' + (m.itens || []).length + ' · exemplo ' + brl(totalItens(m.itens)) + (usos ? ' · usado em ' + usos + ' proposta' + (usos > 1 ? 's' : '') : '') + '</div>' +
+        '<div class="muted">' + textoFaixa(m) + '</div>' +
+        '<div class="acoes"><button class="btn peq" data-usar="' + m.id + '">Usar</button><button class="btn sec peq" data-editar-modelo="' + m.id + '">Editar</button></div></div>';
+    }).join('') + '</div>';
+  }
+  $('lista-modelos').addEventListener('click', function (e) {
+    var u = e.target.closest('[data-usar]'), ed = e.target.closest('[data-editar-modelo]');
+    if (u) formProposta(aplicarModelo(porId('modelos', u.dataset.usar)));
+    if (ed) formModelo(porId('modelos', ed.dataset.editarModelo));
+  });
+  $('btn-novo-modelo').addEventListener('click', function () { formModelo(); });
+
+  function formModelo(m) {
+    m = m || { condicoes: CONDICOES_PADRAO, validadeDias: 30, local: 'Nas instalações do cliente, conforme endereço acima.' };
+    var itens = m.itens && m.itens.length ? m.itens : [null];
+    abrirModal('<h3>' + (m.id ? 'Editar modelo' : 'Novo modelo') + '</h3>' +
+      '<label>Nome do modelo *</label><input id="m-nome" value="' + esc(m.nome) + '" placeholder="Ex.: NR-13 · Inspeção periódica + calibração">' +
+      '<label>Título que vai na proposta</label><input id="m-titulo" value="' + esc(m.titulo) + '">' +
+      '<div class="linha"><div><label>Validade (dias)</label><input id="m-validade" inputmode="numeric" value="' + esc(m.validadeDias || 30) + '"></div><div><label>Sistema de execução</label><select id="m-sistema">' + opcoesSistemas(m.sistema) + '</select></div></div>' +
+      '<label>Itens com preço sugerido</label><div class="tabela"><table class="itens"><thead><tr><th>Descrição</th><th>Qtd</th><th>Valor unit. (R$)</th><th></th></tr></thead><tbody id="m-itens">' + itens.map(linhaItem).join('') + '</tbody></table></div>' +
+      '<button class="btn sec peq" id="m-add-item" style="margin-top:6px">+ Item</button>' +
+      (m.referencia ? '<div class="muted" style="margin-top:6px">' + textoFaixa(m) + '</div>' : '') +
+      TEXTOS.map(function (t) { return '<label>' + t[1] + '</label><textarea id="m-' + t[0] + '" rows="' + t[2] + '">' + esc(m[t[0]]) + '</textarea>'; }).join('') +
+      '<label>Condições de pagamento</label><textarea id="m-condicoes" rows="2">' + esc(m.condicoes) + '</textarea>' +
+      '<div class="acoes"><button class="btn" id="m-salvar">Salvar</button>' + (m.id ? '<button class="btn perigo" id="m-excluir">Excluir</button>' : '') + '<button class="btn sec" id="m-cancelar">Cancelar</button></div>');
+    $('m-itens').addEventListener('click', function (e) { if (e.target.classList.contains('i-del')) e.target.closest('tr').remove(); });
+    $('m-add-item').onclick = function () { $('m-itens').insertAdjacentHTML('beforeend', linhaItem()); };
+    $('m-cancelar').onclick = fecharModal;
+    if ($('m-excluir')) $('m-excluir').onclick = async function () { if (!confirm('Excluir o modelo "' + m.nome + '"? As propostas feitas com ele não mudam.')) return; await salvar(function () { return banco.excluir('modelos', m.id); }, 'Modelo excluído.'); fecharModal(); };
+    $('m-salvar').onclick = async function () {
+      if (!$('m-nome').value.trim()) { toast('Dê um nome ao modelo.'); return; }
+      var it = Array.prototype.map.call(document.querySelectorAll('#m-itens tr'), function (tr) {
+        return { descricao: tr.querySelector('.i-desc').value.trim(), qtd: num(tr.querySelector('.i-qtd').value), valor: num(tr.querySelector('.i-valor').value) };
+      }).filter(function (i) { return i.descricao; });
+      var d = { nome: $('m-nome').value.trim(), titulo: $('m-titulo').value.trim(), validadeDias: parseInt($('m-validade').value, 10) || 30, sistema: $('m-sistema').value, itens: it, condicoes: $('m-condicoes').value.trim(), updatedAt: agora() };
+      TEXTOS.forEach(function (t) { d[t[0]] = $('m-' + t[0]).value.trim(); });
+      if (m.id) await salvar(function () { return banco.atualizar('modelos', m.id, d); }, 'Modelo atualizado.');
+      else { d.createdAt = agora(); await salvar(function () { return banco.criar('modelos', d); }, 'Modelo criado.'); }
+      fecharModal(); mostrar('modelos');
+    };
+  }
+
+  // ===================== ORDENS DE SERVIÇO =====================
+  function renderOrdens() {
+    var q = normal($('busca-os').value), st = $('filtro-os').value;
+    var lista = cache.ordens.filter(function (o) {
+      return (!st || statusOS(o) === st) && (!q || normal([codOS(o), nomeCliente(o.empresaId, o.empresaNome), o.descricao, o.responsavel].join(' ')).indexOf(q) >= 0);
+    }).sort(function (a, b) { return (parseInt(b.numero, 10) || 0) - (parseInt(a.numero, 10) || 0); });
+    if (!lista.length) { $('lista-ordens').innerHTML = '<div class="vazio">Nenhuma OS' + (q || st ? ' encontrada' : ' ainda') + '.</div>'; return; }
+    $('lista-ordens').innerHTML = '<table><thead><tr><th>OS</th><th>Cliente / Serviço</th><th>Abertura</th><th>Prazo</th><th>Sistema</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>' +
+      lista.map(function (o) {
+        var atrasada = o.prazo && o.prazo < hoje() && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0;
+        return '<tr class="clicavel" data-os="' + o.id + '"><td><b>' + esc(codOS(o)) + '</b></td><td>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '<div class="muted">' + esc(o.descricao || '') + (o.responsavel ? ' · ' + esc(o.responsavel) : '') + '</div></td><td>' + data(o.dataAbertura) + '</td><td>' + data(o.prazo) + (atrasada ? ' <span class="tag t-bad">atrasada</span>' : '') + '</td><td>' + esc(o.sistema || '—') + '</td><td class="num">' + (o.valor != null ? brl(o.valor) : '—') + '</td><td>' + tag('os', statusOS(o)) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+  $('lista-ordens').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-os]'); if (tr) verOS(tr.dataset.os); });
+  $('btn-nova-os').addEventListener('click', function () { formOS(); });
+
+  function formOS(o) {
+    o = o || {};
+    abrirModal('<h3>' + (o.id ? 'Editar OS ' + esc(codOS(o)) : 'Nova OS (sem proposta)') + '</h3>' +
+      '<label>Cliente *</label><select id="o-cliente">' + opcoesClientes(o.empresaId) + '</select>' +
+      '<label>Descrição do serviço *</label><input id="o-desc" value="' + esc(o.descricao) + '">' +
+      '<div class="linha"><div><label>Abertura</label><input id="o-abertura" type="date" value="' + esc(o.dataAbertura || hoje()) + '"></div><div><label>Prazo</label><input id="o-prazo" type="date" value="' + esc(o.prazo) + '"></div><div><label>Responsável</label><input id="o-resp" value="' + esc(o.responsavel) + '"></div></div>' +
+      '<div class="linha"><div><label>Sistema de execução</label><select id="o-sistema">' + opcoesSistemas(o.sistema) + '</select></div><div><label>Valor (R$)</label><input id="o-valor" inputmode="decimal" value="' + esc(o.valor != null ? String(o.valor).replace('.', ',') : '') + '"></div></div>' +
+      '<label>Observações</label><textarea id="o-obs">' + esc(o.obs) + '</textarea>' +
+      '<div class="acoes"><button class="btn" id="o-salvar">Salvar</button><button class="btn sec" id="o-cancelar">Cancelar</button></div>');
+    $('o-cancelar').onclick = fecharModal;
+    $('o-salvar').onclick = async function () {
+      var cid = $('o-cliente').value;
+      if (!cid) { toast('Selecione o cliente.'); return; }
+      if (!$('o-desc').value.trim()) { toast('Descreva o serviço.'); return; }
+      var d = { empresaId: cid, empresaNome: nomeCliente(cid), descricao: $('o-desc').value.trim(), dataAbertura: $('o-abertura').value, prazo: $('o-prazo').value, responsavel: $('o-resp').value.trim(), sistema: $('o-sistema').value, valor: $('o-valor').value.trim() ? num($('o-valor').value) : null, obs: $('o-obs').value.trim(), updatedAt: agora() };
+      if (o.id) await salvar(function () { return banco.atualizar('ordens', o.id, d); }, 'OS atualizada.');
+      else { d.numero = proximoID(); d.codigo = codID(d.numero, (d.dataAbertura || hoje()).slice(0, 4)); d.status = 'aberta'; d.createdAt = agora(); await salvar(function () { return banco.criar('ordens', d); }, 'OS ' + d.codigo + ' aberta.'); }
+      fecharModal();
+    };
+  }
+
+  function verOS(id) {
+    var o = porId('ordens', id); if (!o) return;
+    var st = statusOS(o), p = o.propostaId ? porId('propostas', o.propostaId) : null, f = o.faturaId ? porId('faturas', o.faturaId) : null;
+    var url = SISTEMAS[o.sistema];
+    var b = [];
+    if (st === 'aberta') b.push('<button class="btn" id="ov-iniciar">Iniciar execução</button>');
+    if (st === 'aberta' || st === 'execucao') b.push('<button class="btn ok" id="ov-concluir">Concluir serviço</button>');
+    if (st === 'concluida') b.push('<button class="btn ok" id="ov-faturar">Faturar</button>');
+    if (url) b.push('<a class="btn sec" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(url) + '">Abrir na ' + esc(o.sistema) + '</a>');
+    if (st !== 'faturada') b.push('<button class="btn sec" id="ov-editar">Editar</button>');
+    if (st === 'aberta' || st === 'execucao') b.push('<button class="btn perigo" id="ov-cancelar">Cancelar OS</button>');
+    if (st === 'cancelada') b.push('<button class="btn sec" id="ov-reabrir">Reabrir</button>');
+    b.push('<button class="btn sec" id="ov-fechar">Fechar</button>');
+    abrirModal('<h3>OS ' + esc(codOS(o)) + ' ' + tag('os', st) + '</h3>' +
+      '<div><b>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '</b></div><div>' + esc(o.descricao || '') + '</div>' +
+      '<div class="ciclo">' + ['Proposta', 'OS aberta', 'Execução', 'Concluída', 'Faturada', 'Recebida'].map(function (e, i) {
+        var feito = [!!p, true, ['execucao', 'concluida', 'faturada'].indexOf(st) >= 0, ['concluida', 'faturada'].indexOf(st) >= 0, st === 'faturada', !!(f && f.status === 'paga')][i];
+        return '<span class="tag ' + (feito ? 't-ok' : 't-gray') + '">' + (feito ? '✓ ' : '') + e + '</span>';
+      }).join('') + '</div>' +
+      '<dl class="detalhe linha">' +
+      '<div><dt>Abertura</dt><dd>' + data(o.dataAbertura) + '</dd></div><div><dt>Prazo</dt><dd>' + data(o.prazo) + '</dd></div>' +
+      '<div><dt>Responsável</dt><dd>' + esc(o.responsavel || '—') + '</dd></div><div><dt>Sistema</dt><dd>' + esc(o.sistema || '—') + '</dd></div>' +
+      '<div><dt>Valor</dt><dd>' + (o.valor != null ? brl(o.valor) : '—') + '</dd></div>' +
+      '<div><dt>Proposta</dt><dd>' + (p ? '<a href="#" id="ov-ver-proposta">' + codProposta(p) + '</a>' : (o.propostaCodigo || '—')) + '</dd></div>' +
+      (o.dataConclusao ? '<div><dt>Concluída em</dt><dd>' + data(o.dataConclusao) + '</dd></div>' : '') +
+      (f ? '<div><dt>Fatura</dt><dd>' + codFatura(f) + ' ' + tag('fatura', f.status, f.vencimento) + '</dd></div>' : '') +
+      '</dl>' + (o.obs ? '<p class="muted">' + esc(o.obs) + '</p>' : '') +
+      (o.sistema === 'Termografia' ? '<p class="muted">Esta OS já aparece na Termografia para lançar os laudos.</p>' : '') +
+      '<div class="acoes">' + b.join('') + '</div>');
+    function ligar(id, fn) { var x = $(id); if (x) x.onclick = fn; }
+    ligar('ov-fechar', fecharModal);
+    ligar('ov-editar', function () { formOS(o); });
+    ligar('ov-ver-proposta', function (e) { e.preventDefault(); verProposta(p.id); });
+    ligar('ov-iniciar', async function () { await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'execucao', dataInicio: hoje() }); }, 'OS em execução.'); verOS(o.id); });
+    ligar('ov-concluir', async function () { if (!confirm('Marcar a OS ' + codOS(o) + ' como concluída?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'concluida', dataConclusao: hoje() }); }, 'OS concluída. Pronta para faturar.'); verOS(o.id); });
+    ligar('ov-cancelar', async function () { if (!confirm('Cancelar a OS ' + codOS(o) + '?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'cancelada' }); }, 'OS cancelada.'); verOS(o.id); });
+    ligar('ov-reabrir', async function () { await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'aberta' }); }, 'OS reaberta.'); verOS(o.id); });
+    ligar('ov-faturar', function () { formFatura(o); });
+  }
+
+  // ===================== FATURAMENTO =====================
+  function formFatura(o) {
+    abrirModal('<h3>Faturar OS ' + esc(codOS(o)) + '</h3><div>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + ' · ' + esc(o.descricao || '') + '</div>' +
+      '<div class="linha"><div><label>Valor (R$) *</label><input id="fa-valor" inputmode="decimal" value="' + esc(o.valor != null ? String(o.valor).replace('.', ',') : '') + '"></div><div><label>Emissão</label><input id="fa-emissao" type="date" value="' + hoje() + '"></div><div><label>Vencimento</label><input id="fa-venc" type="date" value="' + somarDias(hoje(), 30) + '"></div></div>' +
+      '<div class="linha"><div><label>Nº da nota fiscal</label><input id="fa-nf"></div><div><label>Forma de pagamento</label><select id="fa-forma"><option>Boleto</option><option>PIX</option><option>Transferência</option><option>Outro</option></select></div></div>' +
+      '<label>Observações</label><textarea id="fa-obs"></textarea>' +
+      '<div class="acoes"><button class="btn ok" id="fa-salvar">Gerar fatura</button><button class="btn sec" id="fa-cancelar">Cancelar</button></div>');
+    $('fa-cancelar').onclick = function () { verOS(o.id); };
+    $('fa-salvar').onclick = async function () {
+      var v = num($('fa-valor').value); if (!v) { toast('Informe o valor.'); return; }
+      var d = { numero: proximoNumero(cache.faturas, 'numero'), clienteId: o.empresaId, clienteNome: nomeCliente(o.empresaId, o.empresaNome), osId: o.id, osNumero: o.numero, osCodigo: codOS(o), descricao: o.descricao || '', valor: v, emissao: $('fa-emissao').value, vencimento: $('fa-venc').value, nf: $('fa-nf').value.trim(), forma: $('fa-forma').value, obs: $('fa-obs').value.trim(), status: 'pendente', createdAt: agora() };
+      var fid = await salvar(function () { return banco.criar('faturas', d); });
+      await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'faturada', faturaId: fid }); }, 'Fatura ' + codFatura(d) + ' gerada.');
+      fecharModal(); mostrar('faturas');
+    };
+  }
+
+  function renderFaturas() {
+    var q = normal($('busca-fatura').value), st = $('filtro-fatura').value;
+    var lista = cache.faturas.filter(function (f) {
+      return (!st || f.status === st) && (!q || normal([codFatura(f), nomeCliente(f.clienteId, f.clienteNome), f.nf, f.osCodigo || ('OS-' + f.osNumero), f.descricao].join(' ')).indexOf(q) >= 0);
+    }).sort(function (a, b) { return b.numero - a.numero; });
+    if (!lista.length) { $('lista-faturas').innerHTML = '<div class="vazio">Nenhuma fatura' + (q || st ? ' encontrada' : ' ainda. Conclua uma OS e clique em Faturar') + '.</div>'; return; }
+    $('lista-faturas').innerHTML = '<table><thead><tr><th>Fatura</th><th>Cliente / OS</th><th>NF</th><th>Vencimento</th><th class="num">Valor</th><th>Status</th><th></th></tr></thead><tbody>' +
+      lista.map(function (f) {
+        return '<tr><td><b>' + codFatura(f) + '</b><div class="muted">' + data(f.emissao) + '</div></td><td>' + esc(nomeCliente(f.clienteId, f.clienteNome)) + '<div class="muted">' + esc(f.osCodigo || ('OS-' + f.osNumero)) + ' · ' + esc(f.descricao || '') + '</div></td><td>' + esc(f.nf || '—') + '</td><td>' + data(f.vencimento) + '</td><td class="num">' + brl(f.valor) + '</td><td>' + tag('fatura', f.status, f.vencimento) + (f.dataPagamento ? '<div class="muted">' + data(f.dataPagamento) + '</div>' : (f.recebimentoPresumido ? '<div class="muted">presumido</div>' : '')) + '</td><td>' +
+          (f.status === 'pendente' ? '<button class="btn ok peq" data-pagar="' + f.id + '">Recebido</button> <button class="btn sec peq" data-nf="' + f.id + '">NF</button>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+  $('lista-faturas').addEventListener('click', async function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.pagar) {
+      var dt = prompt('Data do recebimento (dd/mm/aaaa):', data(hoje())); if (dt === null) return;
+      var p = dt.split('/'); var iso = p.length === 3 ? p[2] + '-' + pad(p[1], 2) + '-' + pad(p[0], 2) : hoje();
+      await salvar(function () { return banco.atualizar('faturas', b.dataset.pagar, { status: 'paga', dataPagamento: iso }); }, 'Recebimento registrado.');
+    }
+    if (b.dataset.nf) {
+      var f = porId('faturas', b.dataset.nf), nf = prompt('Número da nota fiscal:', f.nf || ''); if (nf === null) return;
+      await salvar(function () { return banco.atualizar('faturas', f.id, { nf: nf.trim() }); }, 'NF registrada.');
+    }
+  });
+
+  // ===================== PAINEL =====================
+  function renderPainel() {
+    var h = hoje(), mes = h.slice(0, 7);
+    var P = cache.propostas, O = cache.ordens, F = cache.faturas;
+    function soma(l, c) { return l.reduce(function (s, x) { return s + num(x[c]); }, 0); }
+    var pAbertas = P.filter(function (p) { return p.status === 'rascunho' || p.status === 'enviada'; });
+    var oAbertas = O.filter(function (o) { return statusOS(o) === 'aberta'; });
+    var oExec = O.filter(function (o) { return statusOS(o) === 'execucao'; });
+    var oConcl = O.filter(function (o) { return statusOS(o) === 'concluida'; });
+    var fPend = F.filter(function (f) { return f.status === 'pendente'; });
+    var fVenc = fPend.filter(function (f) { return f.vencimento && f.vencimento < h; });
+    var fMes = F.filter(function (f) { return f.status === 'paga' && String(f.dataPagamento || '').slice(0, 7) === mes; });
+    var aprovMes = P.filter(function (p) { return p.status === 'aprovada' && String(p.aprovadaEm || '').slice(0, 7) === mes; });
+    var decididas = P.filter(function (p) { return ['aprovada', 'recusada', 'semretorno'].indexOf(p.status) >= 0; });
+    var taxa = decididas.length ? Math.round(100 * P.filter(function (p) { return p.status === 'aprovada'; }).length / decididas.length) : null;
+
+    var etapas = [
+      ['Propostas em aberto', pAbertas.length, brl(soma(pAbertas, 'total')), 'propostas', ''],
+      ['OS abertas', oAbertas.length, '', 'ordens', 'aberta'],
+      ['Em execução', oExec.length, '', 'ordens', 'execucao'],
+      ['A faturar', oConcl.length, brl(soma(oConcl, 'valor')), 'ordens', 'concluida'],
+      ['A receber', fPend.length, brl(soma(fPend, 'valor')), 'faturas', 'pendente']
+    ];
+    $('funil').innerHTML = etapas.map(function (e, i) {
+      return (i ? '<div class="seta">›</div>' : '') + '<div class="etapa" data-ir="' + e[3] + '" data-filtro="' + e[4] + '"><b>' + e[1] + '</b><span>' + e[0] + '</span>' + (e[2] ? '<div class="muted">' + e[2] + '</div>' : '') + '</div>';
+    }).join('');
+    $('kpis').innerHTML = [
+      ['Recebido no mês', brl(soma(fMes, 'valor')), fMes.length + ' fatura(s)', 'faturas', 'paga'],
+      ['Vencido', brl(soma(fVenc, 'valor')), fVenc.length + ' fatura(s) em atraso', 'faturas', 'pendente'],
+      ['Aprovado no mês', brl(soma(aprovMes, 'total')), aprovMes.length + ' proposta(s)', 'propostas', 'aprovada'],
+      ['Taxa de aprovação', taxa == null ? '—' : taxa + '%', decididas.length + ' proposta(s) decididas', 'propostas', ''],
+      ['Clientes', cache.empresas.length, 'cadastro único', 'clientes', '']
+    ].map(function (k) { return '<div class="card kpi" data-ir="' + k[3] + '" data-filtro="' + k[4] + '"><div class="rotulo">' + k[0] + '</div><div class="valor">' + k[1] + '</div><div class="sub">' + k[2] + '</div></div>'; }).join('');
+
+    var at = [];
+    fVenc.forEach(function (f) { at.push([f.vencimento, 'Fatura ' + codFatura(f) + ' vencida em ' + data(f.vencimento), nomeCliente(f.clienteId, f.clienteNome), brl(f.valor)]); });
+    O.filter(function (o) { return o.prazo && o.prazo < h && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0; }).forEach(function (o) { at.push([o.prazo, codOS(o) + ' com prazo vencido em ' + data(o.prazo), nomeCliente(o.empresaId, o.empresaNome), '']); });
+    oConcl.forEach(function (o) { at.push([o.dataConclusao || h, codOS(o) + ' concluída, falta faturar', nomeCliente(o.empresaId, o.empresaNome), o.valor != null ? brl(o.valor) : '']); });
+    P.filter(function (p) { return p.status === 'enviada' && p.validade && p.validade < h; }).forEach(function (p) { at.push([p.validade, 'Proposta ' + codProposta(p) + ' vencida sem resposta', nomeCliente(p.clienteId, p.clienteNome), brl(p.total)]); });
+    at.sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
+    $('atencao').innerHTML = at.length ? '<table><tbody>' + at.map(function (a) { return '<tr><td>' + esc(a[1]) + '</td><td>' + esc(a[2]) + '</td><td class="num">' + a[3] + '</td></tr>'; }).join('') + '</tbody></table>' : '<div class="vazio">Tudo em dia.</div>';
+  }
+  $('v-painel').addEventListener('click', function (e) {
+    var el = e.target.closest('[data-ir]'); if (!el) return;
+    var v = el.dataset.ir, f = el.dataset.filtro;
+    var sel = { propostas: 'filtro-proposta', ordens: 'filtro-os', faturas: 'filtro-fatura' }[v];
+    if (sel) $(sel).value = f || '';
+    renderTudo(); mostrar(v);
+  });
+
+  // ===================== IMPORTAÇÃO DAS PLANILHAS ANTIGAS =====================
+  // Lê o arquivo gerado a partir da planilha de OS, das notas fiscais e da lista de contatos.
+  // Nada é gravado antes de você conferir o resumo e clicar em Importar; o que já existe não é duplicado.
+  $('btn-importar').addEventListener('click', function () { $('arquivo-importacao').value = ''; $('arquivo-importacao').click(); });
+  $('arquivo-importacao').addEventListener('change', function () {
+    var arq = this.files[0]; if (!arq) return;
+    var leitor = new FileReader();
+    leitor.onload = function () {
+      var d; try { d = JSON.parse(leitor.result); } catch (e) { toast('Arquivo inválido.'); return; }
+      if (!(d.clientes && d.propostas && d.ordens && d.faturas) && !d.modelos) { toast('Este arquivo não é uma importação do Cronos.'); return; }
+      ['clientes', 'propostas', 'ordens', 'faturas', 'modelos', 'avisos'].forEach(function (k) { d[k] = d[k] || []; });
+      conferirImportacao(d);
+    };
+    leitor.readAsText(arq, 'utf-8');
+  });
+
+  function conferirImportacao(d) {
+    function cont(l, tipo) { var c = {}; l.forEach(function (x) { c[x.status] = (c[x.status] || 0) + 1; }); return Object.keys(c).map(function (k) { return c[k] + ' ' + ((STATUS[tipo][k] || [k])[0]).toLowerCase(); }).join(', '); }
+    function soma(l, campo) { return l.reduce(function (s, x) { return s + num(x[campo]); }, 0); }
+    var unidos = d.clientes.filter(function (c) { return (c.grafiasAntigas || []).length > 1; });
+    abrirModal('<h3>Importar planilhas antigas</h3><p class="muted">' + esc(d.fonte || '') + '</p>' +
+      '<div class="tabela"><table><tbody>' +
+      '<tr><td>Clientes</td><td class="num">' + d.clientes.length + '</td><td class="muted">' + unidos.length + ' com grafias diferentes unificadas</td></tr>' +
+      '<tr><td>Propostas</td><td class="num">' + d.propostas.length + '</td><td class="muted">' + cont(d.propostas, 'proposta') + ' · ' + brl(soma(d.propostas, 'total')) + '</td></tr>' +
+      '<tr><td>Ordens de Serviço</td><td class="num">' + d.ordens.length + '</td><td class="muted">' + cont(d.ordens, 'os') + ' · ' + brl(soma(d.ordens, 'valor')) + '</td></tr>' +
+      '<tr><td>Notas fiscais</td><td class="num">' + d.faturas.length + '</td><td class="muted">' + cont(d.faturas, 'fatura') + '</td></tr>' +
+      '<tr><td>Modelos de proposta</td><td class="num">' + d.modelos.length + '</td><td class="muted">' + esc(d.modelos.map(function (m) { return m.nome; }).join(' · ')) + '</td></tr>' +
+      '</tbody></table></div>' +
+      (d.faturas.length ? '<label><input type="checkbox" id="imp-presumir" checked style="width:auto"> A planilha de notas não registra o recebimento. Considerar recebidas as notas com vencimento até</label>' +
+      '<input type="date" id="imp-corte" value="' + somarDias(hoje(), -30) + '" style="max-width:200px">' : '') +
+      '<details style="margin-top:10px"><summary>Ver clientes unificados (' + unidos.length + ')</summary><div class="muted">' +
+      unidos.map(function (c) { return '<div><b>' + esc(c.nome) + '</b> ← ' + esc(c.grafiasAntigas.join(' · ')) + '</div>'; }).join('') + '</div></details>' +
+      ((d.avisos || []).length ? '<details><summary>Avisos (' + d.avisos.length + ')</summary><div class="muted">' + d.avisos.map(function (a) { return '<div>' + esc(a) + '</div>'; }).join('') + '</div></details>' : '') +
+      '<p id="imp-progresso" class="muted"></p>' +
+      '<div class="acoes"><button class="btn ok" id="imp-ok">Importar</button><button class="btn sec" id="imp-cancelar">Cancelar</button></div>');
+    $('imp-cancelar').onclick = fecharModal;
+    $('imp-ok').onclick = async function () {
+      var corte = $('imp-presumir') && $('imp-presumir').checked ? $('imp-corte').value : '';
+      this.disabled = true; $('imp-cancelar').disabled = true;
+      importando = true;
+      try {
+        var r = await executarImportacao(d, corte, function (msg) { $('imp-progresso').textContent = msg; });
+        $('imp-progresso').textContent = 'Concluído: ' + r;
+        toast('Importação concluída.');
+      } catch (e) { console.error(e); $('imp-progresso').textContent = 'A importação parou: ' + (e.message || e) + '. Pode rodar de novo: o que já entrou não é duplicado.'; }
+      importando = false; renderTudo();
+      $('imp-cancelar').disabled = false; $('imp-cancelar').textContent = 'Fechar';
+    };
+  }
+
+  async function emLotes(lista, fn, aviso, rotulo) {
+    for (var i = 0; i < lista.length; i += 20) {
+      await Promise.all(lista.slice(i, i + 20).map(fn));
+      aviso(rotulo + ': ' + Math.min(i + 20, lista.length) + ' de ' + lista.length);
+    }
+  }
+
+  async function executarImportacao(d, corte, aviso) {
+    var criados = { clientes: 0, propostas: 0, ordens: 0, faturas: 0, modelos: 0 };
+    function chaveID(n, ano, cid) { return n + '/' + ano + '|' + cid; }
+
+    // Clientes: reaproveita quem já existe (inclusive os cadastrados pela Termografia)
+    var porNome = {};
+    cache.empresas.forEach(function (c) { porNome[normal(c.nome)] = c; });
+    var codN = parseInt(proximoCodigoCliente().replace(/\D/g, ''), 10) - 1;
+    var idCliente = {};
+    await emLotes(d.clientes, async function (c) {
+      var ex = porNome[normal(c.nome)] || (c.grafiasAntigas || []).map(function (g) { return porNome[normal(g)]; }).filter(Boolean)[0];
+      if (ex) {
+        var upd = { contatos: c.contatos || [], updatedAt: agora() };
+        ['contato', 'email', 'telefone'].forEach(function (k) { if (!ex[k] && c[k]) upd[k] = c[k]; });
+        if (!ex.codigo) upd.codigo = 'CLI-' + pad(++codN, 4);
+        await banco.atualizar('empresas', ex.id, upd);
+        idCliente[c.nome] = ex.id;
+      } else {
+        var doc = { nome: c.nome, codigo: 'CLI-' + pad(++codN, 4), contato: c.contato || '', email: c.email || '', telefone: c.telefone || '', contatos: c.contatos || [], origem: 'planilha', createdAt: agora(), updatedAt: agora() };
+        idCliente[c.nome] = await banco.criar('empresas', doc); criados.clientes++;
+      }
+    }, aviso, 'Clientes');
+
+    // Propostas
+    var propExist = {};
+    cache.propostas.forEach(function (p) { propExist[chaveID(p.numero, p.ano, p.clienteId) + '|' + normal(p.titulo)] = p.id; });
+    var propPorID = {};
+    await emLotes(d.propostas, async function (p) {
+      var cid = idCliente[p.clienteNome]; if (!cid) return;
+      var k = chaveID(p.numero, p.ano, cid) + '|' + normal(p.titulo);
+      var id = propExist[k];
+      if (!id) {
+        var doc = Object.assign({}, p, { clienteId: cid, sistema: /termogra/i.test(p.titulo) ? 'Termografia' : '', createdAt: agora(), updatedAt: agora() });
+        if (doc.status === 'aprovada') doc.aprovadaEm = doc.data || '';
+        id = await banco.criar('propostas', doc); criados.propostas++;
+      }
+      propPorID[chaveID(p.numero, p.ano, cid)] = { id: id, p: p };
+    }, aviso, 'Propostas');
+
+    // Ordens de Serviço
+    var osExist = {};
+    cache.ordens.forEach(function (o) { if (o.codigo) osExist[o.codigo + '|' + o.empresaId] = o.id; });
+    var osPorID = {}, osPorNumero = {};
+    await emLotes(d.ordens, async function (o) {
+      var cid = idCliente[o.empresaNome]; if (!cid) return;
+      var pr = propPorID[chaveID(o.numero, o.ano, cid)];
+      var id = osExist[o.codigo + '|' + cid];
+      if (!id) {
+        var doc = { numero: o.numero, codigo: o.codigo, empresaId: cid, empresaNome: o.empresaNome, descricao: o.descricao, valor: o.valor, pedido: o.pedido || '',
+          dataAbertura: (pr && pr.p.data) || o.dataFaturamentoPrevista || '', previsaoRecebimento: o.previsaoRecebimento || '', condicoes: o.condicoes || '',
+          obs: o.obs || '', status: o.status, propostaId: pr ? pr.id : '', propostaCodigo: o.codigo, origem: 'planilha', createdAt: agora() };
+        if (o.status === 'faturada') doc.dataConclusao = o.dataFaturamentoPrevista || '';
+        id = await banco.criar('ordens', doc); criados.ordens++;
+        if (pr) await banco.atualizar('propostas', pr.id, { osId: id, status: 'aprovada' });
+      }
+      osPorID[chaveID(o.numero, o.ano, cid)] = id;
+      osPorNumero[o.numero + '/' + o.ano] = osPorNumero[o.numero + '/' + o.ano] || { id: id, o: o };
+    }, aviso, 'Ordens de Serviço');
+
+    // Notas fiscais
+    var nfExist = {};
+    cache.faturas.forEach(function (f) { if (f.nf) nfExist[f.nf] = true; });
+    var seq = proximoNumero(cache.faturas, 'numero');
+    await emLotes(d.faturas, async function (f) {
+      if (nfExist[f.nf]) return;
+      var cid = idCliente[f.clienteNome];
+      var osId = osPorID[chaveID(f.osNumero, f.osAno, cid)] || (osPorNumero[f.osNumero + '/' + f.osAno] || {}).id || '';
+      var ref = f.vencimento || f.emissao || '';
+      var paga = f.status === 'pendente' && corte && ref && ref <= corte;
+      var doc = { numero: seq++, nf: f.nf, clienteId: cid || '', clienteNome: f.clienteNome, osId: osId, osNumero: f.osNumero, osCodigo: f.osCodigo,
+        descricao: (osPorNumero[f.osNumero + '/' + f.osAno] || { o: {} }).o.descricao || '', pedido: f.pedido || '', valor: f.valor, emissao: f.emissao || '',
+        vencimento: f.vencimento || '', prazo: f.prazo || '', status: paga ? 'paga' : f.status, origem: 'planilha', createdAt: agora() };
+      if (paga) { doc.dataPagamento = ref; doc.recebimentoPresumido = true; }
+      var fid = await banco.criar('faturas', doc); criados.faturas++;
+      if (osId) await banco.atualizar('ordens', osId, { faturaId: fid });
+    }, aviso, 'Notas fiscais');
+
+    // Modelos de proposta: os que já vieram de uma importação anterior (mesma chave) não são sobrescritos,
+    // para não desfazer ajustes feitos aqui no Cronos
+    var modExist = {};
+    cache.modelos.forEach(function (m) { if (m.chave) modExist[m.chave] = true; });
+    await emLotes(d.modelos, async function (m) {
+      if (m.chave && modExist[m.chave]) return;
+      await banco.criar('modelos', Object.assign({}, m, { createdAt: agora(), updatedAt: agora() })); criados.modelos++;
+    }, aviso, 'Modelos');
+
+    return criados.clientes + ' clientes, ' + criados.propostas + ' propostas, ' + criados.ordens + ' OS, ' + criados.faturas + ' notas e ' + criados.modelos + ' modelos criados.';
+  }
+
+  function renderTudo() { renderPainel(); renderClientes(); renderPropostas(); renderModelos(); renderOrdens(); renderFaturas(); }
+})();
+</script>
+</body>
+</html>
