@@ -481,17 +481,38 @@
   });
   $('btn-novo-cliente').addEventListener('click', function () { formCliente(); });
 
+  function formatarCNPJ(d) { return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5'); }
+  // Consulta pública da Receita (BrasilAPI): preenche só os campos que estão vazios
+  async function buscarCNPJ(valor) {
+    var d = soDigitos(valor), info = $('f-cnpj-info');
+    if (d.length !== 14) { info.textContent = ''; return; }
+    $('f-cnpj').value = formatarCNPJ(d);
+    info.textContent = 'Buscando na Receita…';
+    try {
+      var r = await fetch('https://brasilapi.com.br/api/cnpj/v1/' + d);
+      if (!r.ok) { info.textContent = r.status === 404 ? 'CNPJ não encontrado na Receita.' : 'Consulta indisponível agora; preencha à mão.'; return; }
+      var x = await r.json();
+      function por(id, v) { if (v && !$(id).value.trim()) $(id).value = v; }
+      por('f-nome', x.razao_social);
+      por('f-endereco', [x.descricao_tipo_de_logradouro, x.logradouro].filter(Boolean).join(' ') + (x.numero ? ', ' + x.numero : '') + (x.complemento ? ' ' + x.complemento : '') + (x.bairro ? ' - ' + x.bairro : ''));
+      por('f-cidade', x.municipio); por('f-uf', x.uf); por('f-cep', x.cep ? String(x.cep).replace(/^(\d{5})(\d{3})$/, '$1-$2') : '');
+      por('f-telefone', x.ddd_telefone_1); por('f-email', (x.email || '').toLowerCase());
+      info.textContent = (x.razao_social || '') + (x.descricao_situacao_cadastral ? ' · ' + x.descricao_situacao_cadastral : '');
+    } catch (e) { info.textContent = 'Consulta indisponível agora; preencha à mão.'; }
+  }
+
   function formCliente(c) {
     c = c || {};
     abrirModal('<h3>' + (c.id ? 'Editar cliente ' + esc(c.codigo || '') : 'Novo cliente') + '</h3>' +
       '<label>Nome / Razão social *</label><input id="f-nome" value="' + esc(c.nome) + '">' +
-      '<div class="linha"><div><label>CNPJ / CPF</label><input id="f-cnpj" value="' + esc(c.cnpj) + '"></div><div><label>Inscrição estadual</label><input id="f-ie" value="' + esc(c.ie) + '"></div></div>' +
+      '<div class="linha"><div><label>CNPJ / CPF</label><input id="f-cnpj" value="' + esc(c.cnpj) + '" placeholder="Digite o CNPJ para preencher o resto"><div class="muted" id="f-cnpj-info"></div></div><div><label>Inscrição estadual</label><input id="f-ie" value="' + esc(c.ie) + '"></div></div>' +
       '<div class="linha"><div><label>Contato</label><input id="f-contato" value="' + esc(c.contato) + '"></div><div><label>Telefone</label><input id="f-telefone" value="' + esc(c.telefone) + '"></div><div><label>E-mail</label><input id="f-email" type="email" value="' + esc(c.email) + '"></div></div>' +
       '<label>Endereço</label><input id="f-endereco" value="' + esc(c.endereco) + '">' +
       '<div class="linha"><div><label>Cidade</label><input id="f-cidade" value="' + esc(c.cidade) + '"></div><div><label>UF</label><input id="f-uf" maxlength="2" value="' + esc(c.uf) + '"></div><div><label>CEP</label><input id="f-cep" value="' + esc(c.cep) + '"></div></div>' +
       '<label>Observações</label><textarea id="f-obs">' + esc(c.obs) + '</textarea>' +
       '<div class="acoes"><button class="btn" id="f-salvar">Salvar</button><button class="btn sec" id="f-cancelar">Cancelar</button></div>');
     $('f-cancelar').onclick = fecharModal;
+    $('f-cnpj').addEventListener('change', function () { buscarCNPJ(this.value); });
     $('f-salvar').onclick = async function () {
       var d = { nome: $('f-nome').value.trim(), cnpj: $('f-cnpj').value.trim(), ie: $('f-ie').value.trim(), contato: $('f-contato').value.trim(), telefone: $('f-telefone').value.trim(), email: $('f-email').value.trim(), endereco: $('f-endereco').value.trim(), cidade: $('f-cidade').value.trim(), uf: $('f-uf').value.trim().toUpperCase(), cep: $('f-cep').value.trim(), obs: $('f-obs').value.trim(), updatedAt: agora() };
       if (!d.nome) { toast('Informe o nome do cliente.'); return; }
