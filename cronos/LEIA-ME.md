@@ -24,3 +24,10 @@ Antes disso, use o botão **Testar sem banco** na tela de entrada: os dados fica
 4. **OS**: iniciar execução, concluir, faturar.
 5. **Faturamento**: vencimento, NF, marcar recebido.
 6. **Painel**: funil inteiro e o que precisa de atenção (vencidos, atrasos, a faturar).
+
+## Importar as planilhas antigas
+No Painel, botão **Importar planilhas antigas** → escolha o arquivo `importacao-idealle.json`
+(gerado a partir de `Corporativo Idealle 1/Operacional/Planilha de controle de OS Emitidas.xls`,
+`Finanças/Notas Fiscais Emitidas/Planilha de Notas Fiscais Emitidas.xls` e `Contatos/Lista de Contatos  Clientes.ods`).
+O Cronos mostra um resumo para conferir antes de gravar. Rodar de novo não duplica nada.
+O arquivo tem dados de clientes: não coloque no GitHub.

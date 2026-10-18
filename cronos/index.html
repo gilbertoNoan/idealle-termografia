@@ -118,7 +118,8 @@
 
   <!-- PAINEL -->
   <section class="view ativa" id="v-painel">
-    <h2>Painel</h2>
+    <h2>Painel <button class="btn sec peq" id="btn-importar">Importar planilhas antigas</button></h2>
+    <input type="file" id="arquivo-importacao" accept=".json,application/json" style="display:none">
     <div class="funil" id="funil"></div>
     <div class="grid" id="kpis" style="margin-top:12px"></div>
     <div class="card" style="margin-top:12px">
@@ -199,7 +200,7 @@
   function somarDias(iso, n) { var d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
   function brl(v) { return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
   function data(iso) { if (!iso) return '—'; var p = String(iso).slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
-  function num(v) { var n = parseFloat(String(v).replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n; }
+  function num(v) { if (typeof v === 'number') return v; var n = parseFloat(String(v).replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n; }
   function normal(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
   function toast(msg) { var t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(function () { t.style.display = 'none'; }, 3200); }
@@ -207,7 +208,7 @@
   function pad(n, t) { n = String(n); while (n.length < t) n = '0' + n; return n; }
 
   var STATUS = {
-    proposta: { rascunho: ['Rascunho', 't-gray'], enviada: ['Enviada', 't-blue'], aprovada: ['Aprovada', 't-ok'], recusada: ['Recusada', 't-bad'] },
+    proposta: { rascunho: ['Rascunho', 't-gray'], enviada: ['Enviada', 't-blue'], aprovada: ['Aprovada', 't-ok'], recusada: ['Recusada', 't-bad'], semretorno: ['Sem retorno', 't-gray'] },
     os: { aberta: ['Aberta', 't-blue'], execucao: ['Em execução', 't-warn'], concluida: ['Concluída', 't-ok'], faturada: ['Faturada', 't-gray'], cancelada: ['Cancelada', 't-bad'] },
     fatura: { pendente: ['A receber', 't-warn'], paga: ['Recebida', 't-ok'], cancelada: ['Cancelada', 't-bad'] }
   };
@@ -268,6 +269,7 @@
 
   // ===================== INICIALIZAÇÃO =====================
   var modoDemo = /[?&]demo=1/.test(location.search);
+  var importando = false;
   var firebaseOk = typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey.indexOf('COLE_AQUI') === -1;
 
   function iniciarApp(usuario) {
@@ -280,7 +282,7 @@
       $('aviso-modo').innerHTML = 'Modo de teste: os dados ficam só neste navegador e não vão para o banco. <a href="' + location.pathname + '">Sair do modo de teste</a>';
     }
     COLECOES.forEach(function (col) {
-      banco.ouvir(col, function (lista) { cache[col] = lista; renderTudo(); });
+      banco.ouvir(col, function (lista) { cache[col] = lista; if (!importando) renderTudo(); });
     });
   }
 
@@ -354,8 +356,12 @@
 
   function porId(col, id) { return cache[col].find(function (x) { return x.id === id; }); }
   function nomeCliente(id, reserva) { var c = porId('empresas', id); return c ? c.nome : (reserva || '—'); }
-  function codProposta(p) { return 'P-' + (p.ano || '') + '-' + pad(p.numero, 3); }
-  function codFatura(f) { return 'F-' + pad(f.numero, 4); }
+  // Mesmo padrão da Idealle: proposta e OS compartilham o número (ID-0292/2026)
+  function codID(n, ano) { return 'ID-' + pad(n, 4) + '/' + ano; }
+  function codProposta(p) { return p.codigo || codID(p.numero, p.ano || ''); }
+  function codOS(o) { return o.codigo || ('OS-' + o.numero); }
+  function codFatura(f) { return f.nf ? 'NF ' + f.nf : 'F-' + pad(f.numero, 4); }
+  function proximoID() { return Math.max(proximoNumero(cache.propostas, 'numero'), proximoNumero(cache.ordens, 'numero')); }
   function totalItens(itens) { return (itens || []).reduce(function (s, i) { return s + num(i.qtd) * num(i.valor); }, 0); }
   function opcoesClientes(sel) {
     return '<option value="">Selecione o cliente…</option>' + cache.empresas.slice().sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; })
@@ -454,7 +460,7 @@
       '<div><dt>A receber / Recebido</dt><dd>' + brl(aReceber) + ' / ' + brl(recebido) + '</dd></div></dl>' +
       (c.obs ? '<p class="muted">' + esc(c.obs) + '</p>' : '') +
       '<p><b>Propostas</b></p>' + (ps.length ? ps.map(function (p) { return '<div>' + codProposta(p) + ' · ' + esc(p.titulo) + ' · ' + brl(p.total) + ' ' + tag('proposta', p.status) + '</div>'; }).join('') : '<div class="muted">Nenhuma.</div>') +
-      '<p><b>Ordens de Serviço</b></p>' + (os.length ? os.map(function (o) { return '<div>OS-' + esc(o.numero) + ' · ' + esc(o.descricao || '') + ' ' + tag('os', statusOS(o)) + '</div>'; }).join('') : '<div class="muted">Nenhuma.</div>') +
+      '<p><b>Ordens de Serviço</b></p>' + (os.length ? os.map(function (o) { return '<div>' + esc(codOS(o)) + ' · ' + esc(o.descricao || '') + ' ' + tag('os', statusOS(o)) + '</div>'; }).join('') : '<div class="muted">Nenhuma.</div>') +
       '<div class="acoes"><button class="btn" id="c-proposta">+ Proposta para este cliente</button><button class="btn sec" id="c-editar">Editar</button><button class="btn perigo" id="c-excluir">Excluir</button><button class="btn sec" id="c-fechar">Fechar</button></div>');
     $('c-fechar').onclick = fecharModal;
     $('c-editar').onclick = function () { formCliente(c); };
@@ -522,7 +528,7 @@
       if (p.id) await salvar(function () { return banco.atualizar('propostas', p.id, d); }, 'Proposta atualizada.');
       else {
         d.ano = parseInt((d.data || hoje()).slice(0, 4), 10);
-        d.numero = proximoNumero(cache.propostas.filter(function (x) { return x.ano === d.ano; }), 'numero');
+        d.numero = proximoID();
         d.status = 'rascunho'; d.createdAt = agora();
         await salvar(function () { return banco.criar('propostas', d); }, 'Proposta ' + codProposta(d) + ' criada.');
       }
@@ -537,7 +543,7 @@
     if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn ok" id="pv-aprovar">Aprovada pelo cliente → gerar OS</button>');
     if (p.status === 'rascunho') botoes.push('<button class="btn" id="pv-enviar">Marcar como enviada</button>');
     if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn sec" id="pv-editar">Editar</button>', '<button class="btn perigo" id="pv-recusar">Recusada</button>');
-    if (p.status === 'recusada') botoes.push('<button class="btn sec" id="pv-reabrir">Reabrir</button>');
+    if (p.status === 'recusada' || p.status === 'semretorno') botoes.push('<button class="btn sec" id="pv-reabrir">Reabrir</button>');
     botoes.push('<button class="btn sec" id="pv-imprimir">Imprimir / PDF</button>', '<button class="btn sec" id="pv-copiar">Duplicar</button>');
     if (p.status !== 'aprovada') botoes.push('<button class="btn perigo" id="pv-excluir">Excluir</button>');
     botoes.push('<button class="btn sec" id="pv-fechar">Fechar</button>');
@@ -548,7 +554,7 @@
       (p.itens || []).map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td class="num">' + esc(i.qtd) + '</td><td class="num">' + brl(i.valor) + '</td><td class="num">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
       '</tbody></table></div><div class="total">Total: ' + brl(p.total) + '</div>' +
       (p.escopo ? '<p class="muted">' + esc(p.escopo) + '</p>' : '') +
-      (os ? '<p>Gerou a <b>OS-' + esc(os.numero) + '</b> ' + tag('os', statusOS(os)) + ' <a href="#" id="pv-ver-os">ver OS</a></p>' : '') +
+      (os ? '<p>Gerou a <b>OS ' + esc(codOS(os)) + '</b> ' + tag('os', statusOS(os)) + ' <a href="#" id="pv-ver-os">ver OS</a></p>' : '') +
       '<div class="acoes">' + botoes.join('') + '</div>');
     function ligar(id, fn) { var b = $(id); if (b) b.onclick = fn; }
     ligar('pv-fechar', fecharModal);
@@ -562,13 +568,13 @@
     ligar('pv-excluir', async function () { if (!confirm('Excluir a proposta ' + codProposta(p) + '?')) return; await salvar(function () { return banco.excluir('propostas', p.id); }, 'Proposta excluída.'); fecharModal(); });
     ligar('pv-aprovar', async function () {
       if (!confirm('Confirmar aprovação e abrir a OS?')) return;
-      var numero = proximoNumero(cache.ordens, 'numero');
+      var numero = p.numero;
       // Campos numero/empresaId/empresaNome/descricao/dataAbertura seguem o formato da Termografia,
       // para a OS aparecer lá automaticamente.
       var osId = await salvar(function () {
-        return banco.criar('ordens', { numero: numero, empresaId: p.clienteId, empresaNome: nomeCliente(p.clienteId, p.clienteNome), descricao: p.titulo, dataAbertura: hoje(), createdAt: agora(), status: 'aberta', propostaId: p.id, propostaCodigo: codProposta(p), valor: p.total, sistema: p.sistema || '' });
+        return banco.criar('ordens', { numero: numero, codigo: codProposta(p), empresaId: p.clienteId, empresaNome: nomeCliente(p.clienteId, p.clienteNome), descricao: p.titulo, dataAbertura: hoje(), createdAt: agora(), status: 'aberta', propostaId: p.id, propostaCodigo: codProposta(p), valor: p.total, sistema: p.sistema || '' });
       });
-      await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'aprovada', aprovadaEm: agora(), osId: osId }); }, 'Proposta aprovada. OS-' + numero + ' aberta.');
+      await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'aprovada', aprovadaEm: agora(), osId: osId }); }, 'Proposta aprovada. OS ' + codProposta(p) + ' aberta.');
       fecharModal(); mostrar('ordens');
     });
   }
@@ -591,13 +597,13 @@
   function renderOrdens() {
     var q = normal($('busca-os').value), st = $('filtro-os').value;
     var lista = cache.ordens.filter(function (o) {
-      return (!st || statusOS(o) === st) && (!q || normal(['OS-' + o.numero, nomeCliente(o.empresaId, o.empresaNome), o.descricao, o.responsavel].join(' ')).indexOf(q) >= 0);
+      return (!st || statusOS(o) === st) && (!q || normal([codOS(o), nomeCliente(o.empresaId, o.empresaNome), o.descricao, o.responsavel].join(' ')).indexOf(q) >= 0);
     }).sort(function (a, b) { return (parseInt(b.numero, 10) || 0) - (parseInt(a.numero, 10) || 0); });
     if (!lista.length) { $('lista-ordens').innerHTML = '<div class="vazio">Nenhuma OS' + (q || st ? ' encontrada' : ' ainda') + '.</div>'; return; }
     $('lista-ordens').innerHTML = '<table><thead><tr><th>OS</th><th>Cliente / Serviço</th><th>Abertura</th><th>Prazo</th><th>Sistema</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>' +
       lista.map(function (o) {
         var atrasada = o.prazo && o.prazo < hoje() && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0;
-        return '<tr class="clicavel" data-os="' + o.id + '"><td><b>OS-' + esc(o.numero) + '</b></td><td>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '<div class="muted">' + esc(o.descricao || '') + (o.responsavel ? ' · ' + esc(o.responsavel) : '') + '</div></td><td>' + data(o.dataAbertura) + '</td><td>' + data(o.prazo) + (atrasada ? ' <span class="tag t-bad">atrasada</span>' : '') + '</td><td>' + esc(o.sistema || '—') + '</td><td class="num">' + (o.valor != null ? brl(o.valor) : '—') + '</td><td>' + tag('os', statusOS(o)) + '</td></tr>';
+        return '<tr class="clicavel" data-os="' + o.id + '"><td><b>' + esc(codOS(o)) + '</b></td><td>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '<div class="muted">' + esc(o.descricao || '') + (o.responsavel ? ' · ' + esc(o.responsavel) : '') + '</div></td><td>' + data(o.dataAbertura) + '</td><td>' + data(o.prazo) + (atrasada ? ' <span class="tag t-bad">atrasada</span>' : '') + '</td><td>' + esc(o.sistema || '—') + '</td><td class="num">' + (o.valor != null ? brl(o.valor) : '—') + '</td><td>' + tag('os', statusOS(o)) + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
   $('lista-ordens').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-os]'); if (tr) verOS(tr.dataset.os); });
@@ -605,7 +611,7 @@
 
   function formOS(o) {
     o = o || {};
-    abrirModal('<h3>' + (o.id ? 'Editar OS-' + esc(o.numero) : 'Nova OS (sem proposta)') + '</h3>' +
+    abrirModal('<h3>' + (o.id ? 'Editar OS ' + esc(codOS(o)) : 'Nova OS (sem proposta)') + '</h3>' +
       '<label>Cliente *</label><select id="o-cliente">' + opcoesClientes(o.empresaId) + '</select>' +
       '<label>Descrição do serviço *</label><input id="o-desc" value="' + esc(o.descricao) + '">' +
       '<div class="linha"><div><label>Abertura</label><input id="o-abertura" type="date" value="' + esc(o.dataAbertura || hoje()) + '"></div><div><label>Prazo</label><input id="o-prazo" type="date" value="' + esc(o.prazo) + '"></div><div><label>Responsável</label><input id="o-resp" value="' + esc(o.responsavel) + '"></div></div>' +
@@ -619,7 +625,7 @@
       if (!$('o-desc').value.trim()) { toast('Descreva o serviço.'); return; }
       var d = { empresaId: cid, empresaNome: nomeCliente(cid), descricao: $('o-desc').value.trim(), dataAbertura: $('o-abertura').value, prazo: $('o-prazo').value, responsavel: $('o-resp').value.trim(), sistema: $('o-sistema').value, valor: $('o-valor').value.trim() ? num($('o-valor').value) : null, obs: $('o-obs').value.trim(), updatedAt: agora() };
       if (o.id) await salvar(function () { return banco.atualizar('ordens', o.id, d); }, 'OS atualizada.');
-      else { d.numero = proximoNumero(cache.ordens, 'numero'); d.status = 'aberta'; d.createdAt = agora(); await salvar(function () { return banco.criar('ordens', d); }, 'OS-' + d.numero + ' aberta.'); }
+      else { d.numero = proximoID(); d.codigo = codID(d.numero, (d.dataAbertura || hoje()).slice(0, 4)); d.status = 'aberta'; d.createdAt = agora(); await salvar(function () { return banco.criar('ordens', d); }, 'OS ' + d.codigo + ' aberta.'); }
       fecharModal();
     };
   }
@@ -637,7 +643,7 @@
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn perigo" id="ov-cancelar">Cancelar OS</button>');
     if (st === 'cancelada') b.push('<button class="btn sec" id="ov-reabrir">Reabrir</button>');
     b.push('<button class="btn sec" id="ov-fechar">Fechar</button>');
-    abrirModal('<h3>OS-' + esc(o.numero) + ' ' + tag('os', st) + '</h3>' +
+    abrirModal('<h3>OS ' + esc(codOS(o)) + ' ' + tag('os', st) + '</h3>' +
       '<div><b>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '</b></div><div>' + esc(o.descricao || '') + '</div>' +
       '<div class="ciclo">' + ['Proposta', 'OS aberta', 'Execução', 'Concluída', 'Faturada', 'Recebida'].map(function (e, i) {
         var feito = [!!p, true, ['execucao', 'concluida', 'faturada'].indexOf(st) >= 0, ['concluida', 'faturada'].indexOf(st) >= 0, st === 'faturada', !!(f && f.status === 'paga')][i];
@@ -658,15 +664,15 @@
     ligar('ov-editar', function () { formOS(o); });
     ligar('ov-ver-proposta', function (e) { e.preventDefault(); verProposta(p.id); });
     ligar('ov-iniciar', async function () { await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'execucao', dataInicio: hoje() }); }, 'OS em execução.'); verOS(o.id); });
-    ligar('ov-concluir', async function () { if (!confirm('Marcar a OS-' + o.numero + ' como concluída?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'concluida', dataConclusao: hoje() }); }, 'OS concluída. Pronta para faturar.'); verOS(o.id); });
-    ligar('ov-cancelar', async function () { if (!confirm('Cancelar a OS-' + o.numero + '?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'cancelada' }); }, 'OS cancelada.'); verOS(o.id); });
+    ligar('ov-concluir', async function () { if (!confirm('Marcar a OS ' + codOS(o) + ' como concluída?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'concluida', dataConclusao: hoje() }); }, 'OS concluída. Pronta para faturar.'); verOS(o.id); });
+    ligar('ov-cancelar', async function () { if (!confirm('Cancelar a OS ' + codOS(o) + '?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'cancelada' }); }, 'OS cancelada.'); verOS(o.id); });
     ligar('ov-reabrir', async function () { await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'aberta' }); }, 'OS reaberta.'); verOS(o.id); });
     ligar('ov-faturar', function () { formFatura(o); });
   }
 
   // ===================== FATURAMENTO =====================
   function formFatura(o) {
-    abrirModal('<h3>Faturar OS-' + esc(o.numero) + '</h3><div>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + ' · ' + esc(o.descricao || '') + '</div>' +
+    abrirModal('<h3>Faturar OS ' + esc(codOS(o)) + '</h3><div>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + ' · ' + esc(o.descricao || '') + '</div>' +
       '<div class="linha"><div><label>Valor (R$) *</label><input id="fa-valor" inputmode="decimal" value="' + esc(o.valor != null ? String(o.valor).replace('.', ',') : '') + '"></div><div><label>Emissão</label><input id="fa-emissao" type="date" value="' + hoje() + '"></div><div><label>Vencimento</label><input id="fa-venc" type="date" value="' + somarDias(hoje(), 30) + '"></div></div>' +
       '<div class="linha"><div><label>Nº da nota fiscal</label><input id="fa-nf"></div><div><label>Forma de pagamento</label><select id="fa-forma"><option>Boleto</option><option>PIX</option><option>Transferência</option><option>Outro</option></select></div></div>' +
       '<label>Observações</label><textarea id="fa-obs"></textarea>' +
@@ -674,7 +680,7 @@
     $('fa-cancelar').onclick = function () { verOS(o.id); };
     $('fa-salvar').onclick = async function () {
       var v = num($('fa-valor').value); if (!v) { toast('Informe o valor.'); return; }
-      var d = { numero: proximoNumero(cache.faturas, 'numero'), clienteId: o.empresaId, clienteNome: nomeCliente(o.empresaId, o.empresaNome), osId: o.id, osNumero: o.numero, descricao: o.descricao || '', valor: v, emissao: $('fa-emissao').value, vencimento: $('fa-venc').value, nf: $('fa-nf').value.trim(), forma: $('fa-forma').value, obs: $('fa-obs').value.trim(), status: 'pendente', createdAt: agora() };
+      var d = { numero: proximoNumero(cache.faturas, 'numero'), clienteId: o.empresaId, clienteNome: nomeCliente(o.empresaId, o.empresaNome), osId: o.id, osNumero: o.numero, osCodigo: codOS(o), descricao: o.descricao || '', valor: v, emissao: $('fa-emissao').value, vencimento: $('fa-venc').value, nf: $('fa-nf').value.trim(), forma: $('fa-forma').value, obs: $('fa-obs').value.trim(), status: 'pendente', createdAt: agora() };
       var fid = await salvar(function () { return banco.criar('faturas', d); });
       await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'faturada', faturaId: fid }); }, 'Fatura ' + codFatura(d) + ' gerada.');
       fecharModal(); mostrar('faturas');
@@ -684,12 +690,12 @@
   function renderFaturas() {
     var q = normal($('busca-fatura').value), st = $('filtro-fatura').value;
     var lista = cache.faturas.filter(function (f) {
-      return (!st || f.status === st) && (!q || normal([codFatura(f), nomeCliente(f.clienteId, f.clienteNome), f.nf, 'OS-' + f.osNumero, f.descricao].join(' ')).indexOf(q) >= 0);
+      return (!st || f.status === st) && (!q || normal([codFatura(f), nomeCliente(f.clienteId, f.clienteNome), f.nf, f.osCodigo || ('OS-' + f.osNumero), f.descricao].join(' ')).indexOf(q) >= 0);
     }).sort(function (a, b) { return b.numero - a.numero; });
     if (!lista.length) { $('lista-faturas').innerHTML = '<div class="vazio">Nenhuma fatura' + (q || st ? ' encontrada' : ' ainda. Conclua uma OS e clique em Faturar') + '.</div>'; return; }
     $('lista-faturas').innerHTML = '<table><thead><tr><th>Fatura</th><th>Cliente / OS</th><th>NF</th><th>Vencimento</th><th class="num">Valor</th><th>Status</th><th></th></tr></thead><tbody>' +
       lista.map(function (f) {
-        return '<tr><td><b>' + codFatura(f) + '</b><div class="muted">' + data(f.emissao) + '</div></td><td>' + esc(nomeCliente(f.clienteId, f.clienteNome)) + '<div class="muted">OS-' + esc(f.osNumero) + ' · ' + esc(f.descricao) + '</div></td><td>' + esc(f.nf || '—') + '</td><td>' + data(f.vencimento) + '</td><td class="num">' + brl(f.valor) + '</td><td>' + tag('fatura', f.status, f.vencimento) + (f.dataPagamento ? '<div class="muted">' + data(f.dataPagamento) + '</div>' : '') + '</td><td>' +
+        return '<tr><td><b>' + codFatura(f) + '</b><div class="muted">' + data(f.emissao) + '</div></td><td>' + esc(nomeCliente(f.clienteId, f.clienteNome)) + '<div class="muted">' + esc(f.osCodigo || ('OS-' + f.osNumero)) + ' · ' + esc(f.descricao || '') + '</div></td><td>' + esc(f.nf || '—') + '</td><td>' + data(f.vencimento) + '</td><td class="num">' + brl(f.valor) + '</td><td>' + tag('fatura', f.status, f.vencimento) + (f.dataPagamento ? '<div class="muted">' + data(f.dataPagamento) + '</div>' : (f.recebimentoPresumido ? '<div class="muted">presumido</div>' : '')) + '</td><td>' +
           (f.status === 'pendente' ? '<button class="btn ok peq" data-pagar="' + f.id + '">Recebido</button> <button class="btn sec peq" data-nf="' + f.id + '">NF</button>' : '') + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
@@ -719,7 +725,7 @@
     var fVenc = fPend.filter(function (f) { return f.vencimento && f.vencimento < h; });
     var fMes = F.filter(function (f) { return f.status === 'paga' && String(f.dataPagamento || '').slice(0, 7) === mes; });
     var aprovMes = P.filter(function (p) { return p.status === 'aprovada' && String(p.aprovadaEm || '').slice(0, 7) === mes; });
-    var decididas = P.filter(function (p) { return p.status === 'aprovada' || p.status === 'recusada'; });
+    var decididas = P.filter(function (p) { return ['aprovada', 'recusada', 'semretorno'].indexOf(p.status) >= 0; });
     var taxa = decididas.length ? Math.round(100 * P.filter(function (p) { return p.status === 'aprovada'; }).length / decididas.length) : null;
 
     var etapas = [
@@ -742,8 +748,8 @@
 
     var at = [];
     fVenc.forEach(function (f) { at.push([f.vencimento, 'Fatura ' + codFatura(f) + ' vencida em ' + data(f.vencimento), nomeCliente(f.clienteId, f.clienteNome), brl(f.valor)]); });
-    O.filter(function (o) { return o.prazo && o.prazo < h && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0; }).forEach(function (o) { at.push([o.prazo, 'OS-' + o.numero + ' com prazo vencido em ' + data(o.prazo), nomeCliente(o.empresaId, o.empresaNome), '']); });
-    oConcl.forEach(function (o) { at.push([o.dataConclusao || h, 'OS-' + o.numero + ' concluída, falta faturar', nomeCliente(o.empresaId, o.empresaNome), o.valor != null ? brl(o.valor) : '']); });
+    O.filter(function (o) { return o.prazo && o.prazo < h && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0; }).forEach(function (o) { at.push([o.prazo, codOS(o) + ' com prazo vencido em ' + data(o.prazo), nomeCliente(o.empresaId, o.empresaNome), '']); });
+    oConcl.forEach(function (o) { at.push([o.dataConclusao || h, codOS(o) + ' concluída, falta faturar', nomeCliente(o.empresaId, o.empresaNome), o.valor != null ? brl(o.valor) : '']); });
     P.filter(function (p) { return p.status === 'enviada' && p.validade && p.validade < h; }).forEach(function (p) { at.push([p.validade, 'Proposta ' + codProposta(p) + ' vencida sem resposta', nomeCliente(p.clienteId, p.clienteNome), brl(p.total)]); });
     at.sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
     $('atencao').innerHTML = at.length ? '<table><tbody>' + at.map(function (a) { return '<tr><td>' + esc(a[1]) + '</td><td>' + esc(a[2]) + '</td><td class="num">' + a[3] + '</td></tr>'; }).join('') + '</tbody></table>' : '<div class="vazio">Tudo em dia.</div>';
@@ -755,6 +761,141 @@
     if (sel) $(sel).value = f || '';
     renderTudo(); mostrar(v);
   });
+
+  // ===================== IMPORTAÇÃO DAS PLANILHAS ANTIGAS =====================
+  // Lê o arquivo gerado a partir da planilha de OS, das notas fiscais e da lista de contatos.
+  // Nada é gravado antes de você conferir o resumo e clicar em Importar; o que já existe não é duplicado.
+  $('btn-importar').addEventListener('click', function () { $('arquivo-importacao').value = ''; $('arquivo-importacao').click(); });
+  $('arquivo-importacao').addEventListener('change', function () {
+    var arq = this.files[0]; if (!arq) return;
+    var leitor = new FileReader();
+    leitor.onload = function () {
+      var d; try { d = JSON.parse(leitor.result); } catch (e) { toast('Arquivo inválido.'); return; }
+      if (!d.clientes || !d.propostas || !d.ordens || !d.faturas) { toast('Este arquivo não é uma importação do Cronos.'); return; }
+      conferirImportacao(d);
+    };
+    leitor.readAsText(arq, 'utf-8');
+  });
+
+  function conferirImportacao(d) {
+    function cont(l, tipo) { var c = {}; l.forEach(function (x) { c[x.status] = (c[x.status] || 0) + 1; }); return Object.keys(c).map(function (k) { return c[k] + ' ' + ((STATUS[tipo][k] || [k])[0]).toLowerCase(); }).join(', '); }
+    function soma(l, campo) { return l.reduce(function (s, x) { return s + num(x[campo]); }, 0); }
+    var unidos = d.clientes.filter(function (c) { return (c.grafiasAntigas || []).length > 1; });
+    abrirModal('<h3>Importar planilhas antigas</h3><p class="muted">' + esc(d.fonte || '') + '</p>' +
+      '<div class="tabela"><table><tbody>' +
+      '<tr><td>Clientes</td><td class="num">' + d.clientes.length + '</td><td class="muted">' + unidos.length + ' com grafias diferentes unificadas</td></tr>' +
+      '<tr><td>Propostas</td><td class="num">' + d.propostas.length + '</td><td class="muted">' + cont(d.propostas, 'proposta') + ' · ' + brl(soma(d.propostas, 'total')) + '</td></tr>' +
+      '<tr><td>Ordens de Serviço</td><td class="num">' + d.ordens.length + '</td><td class="muted">' + cont(d.ordens, 'os') + ' · ' + brl(soma(d.ordens, 'valor')) + '</td></tr>' +
+      '<tr><td>Notas fiscais</td><td class="num">' + d.faturas.length + '</td><td class="muted">' + cont(d.faturas, 'fatura') + '</td></tr>' +
+      '</tbody></table></div>' +
+      '<label><input type="checkbox" id="imp-presumir" checked style="width:auto"> A planilha de notas não registra o recebimento. Considerar recebidas as notas com vencimento até</label>' +
+      '<input type="date" id="imp-corte" value="' + somarDias(hoje(), -30) + '" style="max-width:200px">' +
+      '<details style="margin-top:10px"><summary>Ver clientes unificados (' + unidos.length + ')</summary><div class="muted">' +
+      unidos.map(function (c) { return '<div><b>' + esc(c.nome) + '</b> ← ' + esc(c.grafiasAntigas.join(' · ')) + '</div>'; }).join('') + '</div></details>' +
+      ((d.avisos || []).length ? '<details><summary>Avisos (' + d.avisos.length + ')</summary><div class="muted">' + d.avisos.map(function (a) { return '<div>' + esc(a) + '</div>'; }).join('') + '</div></details>' : '') +
+      '<p id="imp-progresso" class="muted"></p>' +
+      '<div class="acoes"><button class="btn ok" id="imp-ok">Importar</button><button class="btn sec" id="imp-cancelar">Cancelar</button></div>');
+    $('imp-cancelar').onclick = fecharModal;
+    $('imp-ok').onclick = async function () {
+      var corte = $('imp-presumir').checked ? $('imp-corte').value : '';
+      this.disabled = true; $('imp-cancelar').disabled = true;
+      importando = true;
+      try {
+        var r = await executarImportacao(d, corte, function (msg) { $('imp-progresso').textContent = msg; });
+        $('imp-progresso').textContent = 'Concluído: ' + r;
+        toast('Importação concluída.');
+      } catch (e) { console.error(e); $('imp-progresso').textContent = 'A importação parou: ' + (e.message || e) + '. Pode rodar de novo: o que já entrou não é duplicado.'; }
+      importando = false; renderTudo();
+      $('imp-cancelar').disabled = false; $('imp-cancelar').textContent = 'Fechar';
+    };
+  }
+
+  async function emLotes(lista, fn, aviso, rotulo) {
+    for (var i = 0; i < lista.length; i += 20) {
+      await Promise.all(lista.slice(i, i + 20).map(fn));
+      aviso(rotulo + ': ' + Math.min(i + 20, lista.length) + ' de ' + lista.length);
+    }
+  }
+
+  async function executarImportacao(d, corte, aviso) {
+    var criados = { clientes: 0, propostas: 0, ordens: 0, faturas: 0 };
+    function chaveID(n, ano, cid) { return n + '/' + ano + '|' + cid; }
+
+    // Clientes: reaproveita quem já existe (inclusive os cadastrados pela Termografia)
+    var porNome = {};
+    cache.empresas.forEach(function (c) { porNome[normal(c.nome)] = c; });
+    var codN = parseInt(proximoCodigoCliente().replace(/\D/g, ''), 10) - 1;
+    var idCliente = {};
+    await emLotes(d.clientes, async function (c) {
+      var ex = porNome[normal(c.nome)] || (c.grafiasAntigas || []).map(function (g) { return porNome[normal(g)]; }).filter(Boolean)[0];
+      if (ex) {
+        var upd = { contatos: c.contatos || [], updatedAt: agora() };
+        ['contato', 'email', 'telefone'].forEach(function (k) { if (!ex[k] && c[k]) upd[k] = c[k]; });
+        if (!ex.codigo) upd.codigo = 'CLI-' + pad(++codN, 4);
+        await banco.atualizar('empresas', ex.id, upd);
+        idCliente[c.nome] = ex.id;
+      } else {
+        var doc = { nome: c.nome, codigo: 'CLI-' + pad(++codN, 4), contato: c.contato || '', email: c.email || '', telefone: c.telefone || '', contatos: c.contatos || [], origem: 'planilha', createdAt: agora(), updatedAt: agora() };
+        idCliente[c.nome] = await banco.criar('empresas', doc); criados.clientes++;
+      }
+    }, aviso, 'Clientes');
+
+    // Propostas
+    var propExist = {};
+    cache.propostas.forEach(function (p) { propExist[chaveID(p.numero, p.ano, p.clienteId) + '|' + normal(p.titulo)] = p.id; });
+    var propPorID = {};
+    await emLotes(d.propostas, async function (p) {
+      var cid = idCliente[p.clienteNome]; if (!cid) return;
+      var k = chaveID(p.numero, p.ano, cid) + '|' + normal(p.titulo);
+      var id = propExist[k];
+      if (!id) {
+        var doc = Object.assign({}, p, { clienteId: cid, sistema: /termogra/i.test(p.titulo) ? 'Termografia' : '', createdAt: agora(), updatedAt: agora() });
+        if (doc.status === 'aprovada') doc.aprovadaEm = doc.data || '';
+        id = await banco.criar('propostas', doc); criados.propostas++;
+      }
+      propPorID[chaveID(p.numero, p.ano, cid)] = { id: id, p: p };
+    }, aviso, 'Propostas');
+
+    // Ordens de Serviço
+    var osExist = {};
+    cache.ordens.forEach(function (o) { if (o.codigo) osExist[o.codigo + '|' + o.empresaId] = o.id; });
+    var osPorID = {}, osPorNumero = {};
+    await emLotes(d.ordens, async function (o) {
+      var cid = idCliente[o.empresaNome]; if (!cid) return;
+      var pr = propPorID[chaveID(o.numero, o.ano, cid)];
+      var id = osExist[o.codigo + '|' + cid];
+      if (!id) {
+        var doc = { numero: o.numero, codigo: o.codigo, empresaId: cid, empresaNome: o.empresaNome, descricao: o.descricao, valor: o.valor, pedido: o.pedido || '',
+          dataAbertura: (pr && pr.p.data) || o.dataFaturamentoPrevista || '', previsaoRecebimento: o.previsaoRecebimento || '', condicoes: o.condicoes || '',
+          obs: o.obs || '', status: o.status, propostaId: pr ? pr.id : '', propostaCodigo: o.codigo, origem: 'planilha', createdAt: agora() };
+        if (o.status === 'faturada') doc.dataConclusao = o.dataFaturamentoPrevista || '';
+        id = await banco.criar('ordens', doc); criados.ordens++;
+        if (pr) await banco.atualizar('propostas', pr.id, { osId: id, status: 'aprovada' });
+      }
+      osPorID[chaveID(o.numero, o.ano, cid)] = id;
+      osPorNumero[o.numero + '/' + o.ano] = osPorNumero[o.numero + '/' + o.ano] || { id: id, o: o };
+    }, aviso, 'Ordens de Serviço');
+
+    // Notas fiscais
+    var nfExist = {};
+    cache.faturas.forEach(function (f) { if (f.nf) nfExist[f.nf] = true; });
+    var seq = proximoNumero(cache.faturas, 'numero');
+    await emLotes(d.faturas, async function (f) {
+      if (nfExist[f.nf]) return;
+      var cid = idCliente[f.clienteNome];
+      var osId = osPorID[chaveID(f.osNumero, f.osAno, cid)] || (osPorNumero[f.osNumero + '/' + f.osAno] || {}).id || '';
+      var ref = f.vencimento || f.emissao || '';
+      var paga = f.status === 'pendente' && corte && ref && ref <= corte;
+      var doc = { numero: seq++, nf: f.nf, clienteId: cid || '', clienteNome: f.clienteNome, osId: osId, osNumero: f.osNumero, osCodigo: f.osCodigo,
+        descricao: (osPorNumero[f.osNumero + '/' + f.osAno] || { o: {} }).o.descricao || '', pedido: f.pedido || '', valor: f.valor, emissao: f.emissao || '',
+        vencimento: f.vencimento || '', prazo: f.prazo || '', status: paga ? 'paga' : f.status, origem: 'planilha', createdAt: agora() };
+      if (paga) { doc.dataPagamento = ref; doc.recebimentoPresumido = true; }
+      var fid = await banco.criar('faturas', doc); criados.faturas++;
+      if (osId) await banco.atualizar('ordens', osId, { faturaId: fid });
+    }, aviso, 'Notas fiscais');
+
+    return criados.clientes + ' clientes, ' + criados.propostas + ' propostas, ' + criados.ordens + ' OS e ' + criados.faturas + ' notas criados.';
+  }
 
   function renderTudo() { renderPainel(); renderClientes(); renderPropostas(); renderOrdens(); renderFaturas(); }
 })();
