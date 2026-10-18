@@ -15,6 +15,11 @@ O Cronos usa **o mesmo banco Firebase** da Termografia:
 2. Menu **Authentication** → **Vamos começar** → aba **Método de login** → **E-mail/senha** → Ativar → Salvar
 3. Aba **Usuários** → **Adicionar usuário** → seu e-mail e uma senha (repita para cada pessoa da equipe)
 
+### Entrar com conta Google
+1. Mesma aba **Método de login** → **Adicionar novo provedor** → **Google** → Ativar → escolha o e-mail de suporte → Salvar.
+2. Aba **Settings** → **Domínios autorizados**: confira se o endereço do site está na lista (o domínio do Vercel e, se usar, o seu próprio domínio). Sem isso aparece "endereço não autorizado".
+3. Por padrão qualquer conta Google entra. Para limitar, preencha `ACESSO_GOOGLE` no início do script do `cronos/index.html`, por exemplo `['@ideallesp.com.br', 'seuemail@gmail.com']`.
+
 Antes disso, use o botão **Testar sem banco** na tela de entrada: os dados ficam só no navegador.
 
 ## Fluxo

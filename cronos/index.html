@@ -79,6 +79,9 @@
   .ciclo { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
   #tela-login { max-width: 380px; margin: 60px auto; }
   #print { display: none; }
+  .ou { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; color: var(--muted, #6b7785); font-size: 13px; }
+  .ou::before, .ou::after { content: ''; flex: 1; border-top: 1px solid #dde2e7; }
+  .btn-google { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; }
   @media (max-width: 520px) { #usuario-nome { display: none; } .marca small { display: none; } }
   @media print {
     body { background: #fff; color: #000; }
@@ -128,6 +131,8 @@
   <label>E-mail</label><input id="login-email" type="email" autocomplete="username">
   <label>Senha</label><input id="login-senha" type="password" autocomplete="current-password">
   <div class="acoes"><button class="btn" id="btn-entrar">Entrar</button><button class="btn sec" id="btn-demo">Testar sem banco</button></div>
+  <div class="ou"><span>ou</span></div>
+  <button class="btn sec btn-google" id="btn-google"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.5 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.8 6C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.3.8-4.7l-7.8-6C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.8 6C6.6 42.6 14.6 48 24 48z"/></svg> Entrar com Google</button>
   <p class="muted" id="login-erro"></p>
 </div>
 
@@ -216,6 +221,8 @@
     'Termografia': '/'
   };
   // Dados impressos nas propostas (cabeçalho, rodapé, faturamento e assinaturas)
+  // Quem pode entrar com Google: e-mails ou domínios (ex.: '@ideallesp.com.br'). Lista vazia = qualquer conta Google.
+  var ACESSO_GOOGLE = [];
   var EMPRESA = {
     nome: 'IDEALLE', razao: 'Idealle Inspeções e Serviços Ltda', slogan: 'Referência em Inspeções Industriais',
     endereco: 'Rua Três Marias, 22, Sala 221 - Vila Madeirense - Guarulhos-SP - CEP 07110-170', telefone: '(11) 4280-9111',
@@ -348,7 +355,21 @@
     banco = bancoFirestore(firebase.firestore());
     var auth = firebase.auth();
     var iniciado = false;
+    function permitido(u) {
+      var email = String(u.email || '').toLowerCase();
+      var google = u.providerData.some(function (x) { return x.providerId === 'google.com'; });
+      return !google || !ACESSO_GOOGLE.length || ACESSO_GOOGLE.some(function (a) { a = a.toLowerCase(); return a.charAt(0) === '@' ? email.slice(-a.length) === a : email === a; });
+    }
+    var erroLogin = {
+      'auth/invalid-credential': 'E-mail ou senha incorretos.', 'auth/wrong-password': 'E-mail ou senha incorretos.',
+      'auth/user-not-found': 'Usuário não cadastrado.', 'auth/configuration-not-found': 'O login ainda não foi ativado no Firebase. Veja o LEIA-ME.',
+      'auth/operation-not-allowed': 'Este tipo de login ainda não foi ativado no Firebase. Veja o LEIA-ME.',
+      'auth/unauthorized-domain': 'Este endereço do site não está autorizado no Firebase (Authentication → Settings → Authorized domains).',
+      'auth/popup-closed-by-user': 'Login cancelado.', 'auth/cancelled-popup-request': 'Login cancelado.'
+    };
+    auth.getRedirectResult().catch(function (e) { $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message); });
     auth.onAuthStateChanged(function (u) {
+      if (u && !permitido(u)) { auth.signOut(); telaLogin('A conta ' + u.email + ' não tem acesso ao Cronos.'); return; }
       if (u) { if (!iniciado) { iniciado = true; iniciarApp(u.email); } }
       else if (iniciado) { location.reload(); }
       else telaLogin();
@@ -358,12 +379,17 @@
       if (!email || !senha) { $('login-erro').textContent = 'Informe e-mail e senha.'; return; }
       $('login-erro').textContent = 'Entrando…';
       auth.signInWithEmailAndPassword(email, senha).catch(function (e) {
-        var m = {
-          'auth/invalid-credential': 'E-mail ou senha incorretos.', 'auth/wrong-password': 'E-mail ou senha incorretos.',
-          'auth/user-not-found': 'Usuário não cadastrado.', 'auth/configuration-not-found': 'O login ainda não foi ativado no Firebase. Veja o LEIA-ME.',
-          'auth/operation-not-allowed': 'O login por e-mail ainda não foi ativado no Firebase. Veja o LEIA-ME.'
-        };
-        $('login-erro').textContent = m[e.code] || ('Não foi possível entrar: ' + e.message);
+        $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message);
+      });
+    });
+    $('btn-google').addEventListener('click', function () {
+      var prov = new firebase.auth.GoogleAuthProvider();
+      prov.setCustomParameters({ prompt: 'select_account' });
+      $('login-erro').textContent = 'Abrindo o Google…';
+      auth.signInWithPopup(prov).catch(function (e) {
+        // celulares e navegadores que bloqueiam janela: entra pelo redirecionamento
+        if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') return auth.signInWithRedirect(prov);
+        $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message);
       });
     });
     $('login-senha').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('btn-entrar').click(); });
