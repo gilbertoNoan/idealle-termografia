@@ -128,7 +128,7 @@
 <div id="tela-login" class="card" style="display:none">
   <h2>Cronos</h2>
   <p class="muted">Entre com seu e-mail e senha da Idealle.</p>
-  <label>E-mail</label><input id="login-email" type="email" autocomplete="username">
+  <label>E-mail</label><input id="login-email" type="email" autocomplete="username" autocapitalize="none" autocorrect="off">
   <label>Senha</label><input id="login-senha" type="password" autocomplete="current-password">
   <div class="acoes"><button class="btn" id="btn-entrar">Entrar</button><button class="btn sec" id="btn-demo">Testar sem banco</button></div>
   <div class="ou"><span>ou</span></div>
@@ -365,8 +365,19 @@
       'auth/user-not-found': 'Usuário não cadastrado.', 'auth/configuration-not-found': 'O login ainda não foi ativado no Firebase. Veja o LEIA-ME.',
       'auth/operation-not-allowed': 'Este tipo de login ainda não foi ativado no Firebase. Veja o LEIA-ME.',
       'auth/unauthorized-domain': 'Este endereço do site não está autorizado no Firebase (Authentication → Settings → Authorized domains).',
-      'auth/popup-closed-by-user': 'Login cancelado.', 'auth/cancelled-popup-request': 'Login cancelado.'
+      'auth/popup-closed-by-user': 'Login cancelado.', 'auth/cancelled-popup-request': 'Login cancelado.',
+      'auth/popup-blocked': 'O navegador bloqueou a janela do Google. Permita pop-ups para este site e toque em "Entrar com Google" de novo.',
+      'auth/network-request-failed': 'Sem conexão com a internet. Verifique e tente de novo.',
+      'auth/web-storage-unsupported': 'Este navegador está bloqueando o login (modo anônimo ou cookies desligados). Abra no Chrome ou Safari normal.'
     };
+    // Navegadores embutidos (link aberto dentro do WhatsApp, Instagram, Gmail, app do Claude…) não deixam entrar com Google.
+    var navegadorEmbutido = /FBAN|FBAV|Instagram|WhatsApp|Line\/|; wv\)|GSA\//i.test(navigator.userAgent);
+    function avisoNavegadorEmbutido() {
+      $('login-erro').innerHTML = 'Este link abriu dentro de outro aplicativo, e o Google não permite entrar por aqui. ' +
+        'Abra o Cronos no <b>Chrome</b> ou no <b>Safari</b>: toque nos três pontinhos e escolha "Abrir no navegador", ou copie o endereço. ' +
+        '<button class="btn sec peq" id="btn-copiar-link">Copiar endereço</button>';
+      $('btn-copiar-link').onclick = function () { (navigator.clipboard ? navigator.clipboard.writeText(location.href) : Promise.reject()).then(function () { toast('Endereço copiado. Cole no Chrome ou Safari.'); }, function () { prompt('Copie o endereço:', location.href); }); };
+    }
     auth.getRedirectResult().catch(function (e) { $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message); });
     auth.onAuthStateChanged(function (u) {
       if (u && !permitido(u)) { auth.signOut(); telaLogin('A conta ' + u.email + ' não tem acesso ao Cronos.'); return; }
@@ -375,7 +386,7 @@
       else telaLogin();
     });
     $('btn-entrar').addEventListener('click', function () {
-      var email = $('login-email').value.trim(), senha = $('login-senha').value;
+      var email = $('login-email').value.trim().toLowerCase(), senha = $('login-senha').value;
       if (!email || !senha) { $('login-erro').textContent = 'Informe e-mail e senha.'; return; }
       $('login-erro').textContent = 'Entrando…';
       auth.signInWithEmailAndPassword(email, senha).catch(function (e) {
@@ -383,12 +394,14 @@
       });
     });
     $('btn-google').addEventListener('click', function () {
+      if (navegadorEmbutido) { avisoNavegadorEmbutido(); return; }
       var prov = new firebase.auth.GoogleAuthProvider();
       prov.setCustomParameters({ prompt: 'select_account' });
       $('login-erro').textContent = 'Abrindo o Google…';
+      // Sempre pela janela (popup). O login por redirecionamento falha no celular porque o
+      // Firebase fica em outro domínio (firebaseapp.com) e o Safari/Chrome bloqueiam esse cookie.
       auth.signInWithPopup(prov).catch(function (e) {
-        // celulares e navegadores que bloqueiam janela: entra pelo redirecionamento
-        if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') return auth.signInWithRedirect(prov);
+        if (e.code === 'auth/operation-not-supported-in-this-environment' || e.code === 'auth/internal-error') { avisoNavegadorEmbutido(); return; }
         $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message);
       });
     });
