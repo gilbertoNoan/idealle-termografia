@@ -115,6 +115,7 @@
     .pp ol.sub span { font-weight: bold; }
     .pp .itens-print { width: 100%; border-collapse: collapse; font-size: 10pt; }
     .pp .itens-print th { text-align: left; border-bottom: 1px solid #000; }
+    .pp .itens-print th.num { text-align: right; }
     .pp .itens-print .n { text-align: right; white-space: nowrap; }
     .pp .dados { margin-left: 14px; text-align: left; }
     .pp-assin { display: flex; justify-content: space-around; margin-top: 40px; text-align: center; break-inside: avoid; }
@@ -1242,7 +1243,7 @@
   var GRUPO_FATURA = 'Receita com Serviços';
   var MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   var DOCUMENTOS = ['Boleto', 'PIX', 'Transferência', 'Débito automático', 'Cartão', 'Dinheiro', 'Nota fiscal'];
-  var FIN_ABAS = [['resumo', 'Resumo'], ['pagar', 'Contas a pagar'], ['receber', 'Contas a receber'], ['extrato', 'Extrato'], ['fluxo', 'Fluxo de caixa'], ['dre', 'DRE'], ['metas', 'Metas'], ['relatorios', 'Relatórios'], ['cadastros', 'Bancos e categorias']];
+  var FIN_ABAS = [['resumo', 'Resumo'], ['faturamento', 'Faturamento'], ['pagar', 'Contas a pagar'], ['receber', 'Contas a receber'], ['extrato', 'Extrato'], ['fluxo', 'Fluxo de caixa'], ['dre', 'DRE'], ['impostos', 'Impostos'], ['metas', 'Metas'], ['relatorios', 'Relatórios'], ['cadastros', 'Bancos e categorias']];
   var fin = { aba: 'resumo', ano: Number(hoje().slice(0, 4)), mes: hoje().slice(0, 7), filtro: 'aberto', conta: '', previsto: true, regime: 'competencia', metaMes: '' };
 
   function cfgFin() { return porId('config', 'financas') || {}; }
@@ -1320,7 +1321,7 @@
     $('fin-abas').innerHTML = FIN_ABAS.map(function (a) { return '<button data-aba="' + a[0] + '"' + (a[0] === fin.aba ? ' class="ativo"' : '') + '>' + a[1] + '</button>'; }).join('');
     if (viewAtual !== 'financas') return;
     var M = movimentos();
-    var f = { resumo: finResumo, pagar: function (M) { return finLista(M, -1); }, receber: function (M) { return finLista(M, 1); }, extrato: finExtrato, fluxo: finFluxo, dre: finDRE, metas: finMetas, relatorios: finRelatorios, cadastros: finCadastros }[fin.aba];
+    var f = { resumo: finResumo, faturamento: finFaturamento, pagar: function (M) { return finLista(M, -1); }, receber: function (M) { return finLista(M, 1); }, extrato: finExtrato, fluxo: finFluxo, dre: finDRE, impostos: finImpostos, metas: finMetas, relatorios: finRelatorios, cadastros: finCadastros }[fin.aba];
     $('fin-conteudo').innerHTML = (!cache.contas.length && fin.aba !== 'cadastros' ? '<div class="aviso">Comece cadastrando os bancos da empresa e o saldo de hoje em <a href="#" data-aba="cadastros">Bancos e categorias</a>. As faturas do Faturamento já aparecem aqui sozinhas.</div>' : '') + f(M);
   }
 
@@ -1336,6 +1337,7 @@
       ['A receber', brl(somaV(rec)), (recV.length ? brl(somaV(recV)) + ' vencido' : 'nada vencido'), 'receber'],
       ['A pagar', brl(somaV(pag)), (pagV.length ? brl(somaV(pagV)) + ' vencido' : 'nada vencido'), 'pagar'],
       ['Saldo previsto em 30 dias', sinal(saldo + somaV(rec30) - somaV(pag30)), 'saldo + recebe − paga até ' + data(em30), 'fluxo'],
+      ['Imposto (DAS) de ' + nomeMes(mes), brl(apuracao(M, mes).imposto), 'estimado sobre as notas do mês · vence ' + data(apuracao(M, mes).vencimento), 'impostos'],
       ['Lucro de ' + nomeMes(mes), sinal(r.lucro), 'receita ' + brl(r.receitaBruta) + (r.receitaBruta ? ' · margem ' + Math.round(100 * r.lucro / r.receitaBruta) + '%' : ''), 'dre']
     ];
     var html = '<div class="grid">' + kpis.map(function (k) { return '<div class="card kpi" data-aba="' + k[3] + '"><div class="rotulo">' + k[0] + '</div><div class="valor">' + k[1] + '</div><div class="sub">' + k[2] + '</div></div>'; }).join('') + '</div>';
@@ -1553,7 +1555,9 @@
       ranking(l.filter(function (x) { return x.sentido > 0; }), function (x) { return x.pessoa; }, 'Receita por cliente') +
       ranking(l.filter(function (x) { return x.sentido < 0; }), function (x) { return x.pessoa; }, 'Gastos por fornecedor') +
       ranking(l.filter(function (x) { return x.sentido < 0; }), function (x) { return x.grupo; }, 'Gastos por categoria') +
-      ranking(l.filter(function (x) { return x.sentido > 0; }), function (x) { return x.categoria || x.grupo; }, 'Receita por tipo de serviço') + '</div>' + tabOS;
+      ranking(l.filter(function (x) { return x.sentido > 0; }), function (x) { return x.categoria || x.grupo; }, 'Receita por tipo de serviço') +
+      ranking(M.filter(function (x) { return !x.interno && x.sentido > 0 && x.pagamento && x.pagamento.slice(0, 4) === ano; }), function (x) { return nomeConta(x.contaId); }, 'Recebido em cada banco') +
+      ranking(M.filter(function (x) { return !x.interno && x.sentido < 0 && x.pagamento && x.pagamento.slice(0, 4) === ano; }), function (x) { return nomeConta(x.contaId); }, 'Pago por cada banco') + '</div>' + tabOS;
   }
 
   function finCadastros(M) {
@@ -1568,6 +1572,136 @@
       plano().map(function (g, i) { return '<tr class="clicavel" data-grupo="' + i + '"><td><b>' + esc(g.nome) + '</b><div class="muted">' + (g.tipo === 'receita' ? 'receita' : 'gasto') + '</div></td><td>' + esc(DRE_NOMES[g.dre] || g.dre) + '</td><td class="muted">' + esc((g.itens || []).join(', ')) + '</td><td class="num">' + (usados[g.nome] || 0) + '</td></tr>'; }).join('') +
       '</tbody></table></div>';
     return html;
+  }
+
+  // Impostos: estimativa do DAS do Simples Nacional (tabelas da LC 123, vigentes desde 2018).
+  // Alíquota efetiva = (RBT12 × alíquota da faixa − parcela a deduzir) / RBT12, sobre o faturamento do mês.
+  // Fator R (folha 12 meses ÷ receita 12 meses) ≥ 28% leva serviços de engenharia ao Anexo III; abaixo, Anexo V.
+  var ANEXOS = {
+    III: [[180000, 0.06, 0], [360000, 0.112, 9360], [720000, 0.135, 17640], [1800000, 0.16, 35640], [3600000, 0.21, 125640], [4800000, 0.33, 648000]],
+    V: [[180000, 0.155, 0], [360000, 0.18, 4500], [720000, 0.195, 9900], [1800000, 0.205, 17100], [3600000, 0.23, 62100], [4800000, 0.305, 540000]]
+  };
+  var FOLHA = /pr[oó][- ]?labore|folha|sal[aá]rio|inss|fgts|f[eé]rias|13/i;
+  function cfgImp() { return Object.assign({ regime: 'simples', anexo: 'auto', percentual: 0, diaVenc: 20 }, cfgFin().impostos || {}); }
+  function ehDAS(x) { return x.sentido < 0 && dreGrupo(x.grupo, -1) === 'deducao' && /\bDAS\b|simples/i.test([x.categoria, x.descricao].join(' ')); }
+  function apuracao(M, ym) {
+    var cfg = cfgImp(), ini12 = somarMeses(ym + '-01', -12).slice(0, 7);
+    function noPeriodo(x) { var m = x.competencia.slice(0, 7); return m >= ini12 && m < ym; }
+    var receitaBruta = function (x) { return !x.interno && x.sentido > 0 && dreGrupo(x.grupo, 1) === 'receita'; };
+    var fat = somaV(M.filter(function (x) { return receitaBruta(x) && x.competencia.slice(0, 7) === ym; }));
+    var rbt12 = somaV(M.filter(function (x) { return receitaBruta(x) && noPeriodo(x); }));
+    var folha = somaV(M.filter(function (x) { return !x.interno && x.sentido < 0 && noPeriodo(x) && (FOLHA.test(x.categoria) || (dreGrupo(x.grupo, -1) === 'despesa' && FOLHA.test(x.descricao))); }));
+    var r = { ym: ym, fat: fat, rbt12: rbt12, folha: folha, fatorR: rbt12 ? folha / rbt12 : null };
+    if (cfg.regime === 'percentual') { r.anexo = '—'; r.aliq = num(cfg.percentual) / 100; }
+    else {
+      r.anexo = cfg.anexo !== 'auto' ? cfg.anexo : (r.fatorR != null && r.fatorR >= 0.28 ? 'III' : 'V');
+      var base = rbt12 || fat * 12, faixa = ANEXOS[r.anexo].find(function (f) { return base <= f[0]; }) || ANEXOS[r.anexo][5];
+      r.aliq = base ? Math.max(0, (base * faixa[1] - faixa[2]) / base) : faixa[1];
+    }
+    r.imposto = Math.round(100 * fat * r.aliq) / 100;
+    r.vencimento = somarMeses(ym + '-01', 1).slice(0, 8) + pad(cfg.diaVenc || 20, 2);
+    // DAS já lançado: despesa de DAS com vencimento no mês seguinte ao faturamento
+    var mesVenc = r.vencimento.slice(0, 7);
+    r.lancados = M.filter(function (x) { return ehDAS(x) && x.fonte === 'lanc' && !(x.l && x.l.parcela) && x.vencimento.slice(0, 7) === mesVenc; });
+    return r;
+  }
+  function finImpostos(M) {
+    var cfg = cfgImp(), ano = String(fin.ano), mesAtual = hoje().slice(0, 7), linhas = '', tot = { fat: 0, imp: 0 };
+    for (var i = 1; i <= 12; i++) {
+      var ym = ano + '-' + pad(i, 2); if (ym > mesAtual) break;
+      var r = apuracao(M, ym), lanc = somaV(r.lancados), pago = r.lancados.length && r.lancados.every(function (x) { return x.pagamento; });
+      tot.fat += r.fat; tot.imp += r.imposto;
+      linhas += '<tr><td><b>' + nomeMes(ym) + '</b><div class="muted">vence ' + data(r.vencimento) + '</div></td><td class="num">' + brl(r.fat) + '</td><td class="num">' + brl(r.rbt12) + '</td><td class="num">' + (cfg.regime === 'percentual' ? '—' : (r.fatorR == null ? '—' : Math.round(1000 * r.fatorR) / 10 + '%') + '<div class="muted">Anexo ' + r.anexo + '</div>') + '</td><td class="num">' + (Math.round(10000 * r.aliq) / 100).toLocaleString('pt-BR') + '%</td><td class="num"><b>' + brl(r.imposto) + '</b></td><td>' +
+        (r.lancados.length ? '<span class="tag ' + (pago ? 't-ok' : 't-blue') + '">' + (pago ? 'Pago' : 'Lançado') + ' ' + brl(lanc) + '</span>' : (r.imposto && r.vencimento >= somarDias(hoje(), -40) ? '<button class="btn sec peq" data-das="' + ym + '">Lançar a pagar</button>' : '')) + '</td></tr>';
+    }
+    var atual = apuracao(M, mesAtual);
+    return '<div class="busca"><select id="fin-ano">' + opcoesAnos(fin.ano) + '</select><button class="btn sec" id="fin-cfg-imp">Configurar regime</button></div>' +
+      '<div class="grid"><div class="card kpi"><div class="rotulo">DAS estimado de ' + nomeMes(mesAtual) + '</div><div class="valor">' + brl(atual.imposto) + '</div><div class="sub">vence ' + data(atual.vencimento) + ' · cresce conforme as notas do mês</div></div>' +
+      '<div class="card kpi"><div class="rotulo">Alíquota efetiva agora</div><div class="valor">' + (Math.round(10000 * atual.aliq) / 100).toLocaleString('pt-BR') + '%</div><div class="sub">' + (cfg.regime === 'percentual' ? 'percentual fixo informado' : 'Simples Nacional · Anexo ' + atual.anexo) + '</div></div>' +
+      (cfg.regime === 'percentual' ? '' : '<div class="card kpi"><div class="rotulo">Fator R</div><div class="valor">' + (atual.fatorR == null ? '—' : Math.round(1000 * atual.fatorR) / 10 + '%') + '</div><div class="sub">folha ' + brl(atual.folha) + ' em 12 meses. Com 28% ou mais, cai no Anexo III (mais barato)</div></div>') + '</div>' +
+      '<div class="card tabela"><table><thead><tr><th>Mês</th><th class="num">Faturado</th><th class="num">Receita 12 meses</th><th class="num">Fator R</th><th class="num">Alíquota</th><th class="num">Imposto</th><th></th></tr></thead><tbody>' + (linhas || '<tr><td colspan="7" class="vazio">Nada neste ano.</td></tr>') +
+      '<tr class="forte"><td>Total</td><td class="num">' + brl(tot.fat) + '</td><td colspan="3"></td><td class="num">' + brl(tot.imp) + '</td><td></td></tr></tbody></table></div>' +
+      '<p class="muted">É uma estimativa para planejar o caixa: a guia oficial sai do PGDAS da contabilidade. Conta como faturado o valor das notas pela data de emissão; a folha (pró-labore, salários, INSS, FGTS) vem das despesas lançadas. "Lançar a pagar" cria o DAS em Contas a pagar.</p>';
+  }
+  function formImpostos() {
+    var c = cfgImp();
+    abrirModal('<h3>Regime de impostos</h3>' +
+      '<label>Regime</label><select id="fi-regime"><option value="simples"' + (c.regime === 'simples' ? ' selected' : '') + '>Simples Nacional (calcula pela tabela)</option><option value="percentual"' + (c.regime === 'percentual' ? ' selected' : '') + '>Percentual fixo sobre o faturamento</option></select>' +
+      '<div class="linha"><div><label>Anexo do Simples</label><select id="fi-anexo"><option value="auto"' + (c.anexo === 'auto' ? ' selected' : '') + '>Automático pelo Fator R (III ou V)</option><option value="III"' + (c.anexo === 'III' ? ' selected' : '') + '>Sempre Anexo III</option><option value="V"' + (c.anexo === 'V' ? ' selected' : '') + '>Sempre Anexo V</option></select></div>' +
+      '<div><label>Percentual fixo (%)</label><input id="fi-perc" inputmode="decimal" value="' + (c.percentual ? String(c.percentual).replace('.', ',') : '') + '"></div><div><label>Dia do vencimento</label><input id="fi-dia" type="number" min="1" max="28" value="' + (c.diaVenc || 20) + '"></div></div>' +
+      '<p class="muted">Na dúvida, pergunte à contabilidade qual anexo aparece no PGDAS. Engenharia e inspeção normalmente usam o Fator R.</p>' +
+      '<div class="acoes"><button class="btn" id="fi-salvar">Salvar</button><button class="btn sec" id="fi-cancelar">Cancelar</button></div>');
+    $('fi-cancelar').onclick = fecharModal;
+    $('fi-salvar').onclick = async function () {
+      var d = { regime: $('fi-regime').value, anexo: $('fi-anexo').value, percentual: num($('fi-perc').value), diaVenc: Math.min(28, Math.max(1, parseInt($('fi-dia').value, 10) || 20)) };
+      await salvar(function () { return banco.atualizar('config', 'financas', { impostos: d, updatedAt: agora() }); }, 'Regime salvo.'); fecharModal();
+    };
+  }
+  async function lancarDAS(ym) {
+    var r = apuracao(movimentos(), ym);
+    if (!confirm('Lançar o DAS de ' + nomeMes(ym) + ' (' + brl(r.imposto) + ', vence ' + data(r.vencimento) + ') em Contas a pagar?')) return;
+    await salvar(function () {
+      return banco.criar('lancamentos', { tipo: 'despesa', descricao: 'DAS ' + nomeMes(ym) + ' (estimado)', grupo: 'Deduções sobre Vendas', categoria: 'DAS - Simples Nacional', pessoa: 'Receita Federal',
+        valor: r.imposto, vencimento: r.vencimento, pagamento: '', contaId: contaPrincipal(), documento: 'Boleto', dataDoc: hoje(), obs: 'Valor estimado pelo Cronos. Ajuste para o valor da guia quando ela sair.', createdAt: agora() });
+    }, 'DAS lançado em Contas a pagar.');
+  }
+
+  // Faturamento por período (mês, trimestre, semestre, ano) comparando os anos
+  var PERIODOS = { mensal: ['Mensal', 12, function (m) { return m; }, function (i) { return MESES[i]; }],
+    trimestral: ['Trimestral', 4, function (m) { return Math.floor(m / 3); }, function (i) { return (i + 1) + 'º trimestre'; }],
+    semestral: ['Semestral', 2, function (m) { return Math.floor(m / 6); }, function (i) { return (i + 1) + 'º semestre'; }],
+    anual: ['Anual', 1, function () { return 0; }, function () { return 'Ano inteiro'; }] };
+  function dadosFaturamento(M) {
+    var per = PERIODOS[fin.periodo || 'mensal'], caixa = fin.fatBase === 'recebido', anos = {}, notas = {}, ytd = {}, md = hoje().slice(5);
+    M.forEach(function (x) {
+      if (x.interno || x.sentido < 0 || dreGrupo(x.grupo, 1) !== 'receita') return;
+      if (fin.fatCliente && x.clienteId !== fin.fatCliente) return;
+      var d = caixa ? x.pagamento : x.competencia; if (!d) return;
+      var a = d.slice(0, 4), i = per[2](Number(d.slice(5, 7)) - 1);
+      if (!anos[a]) { anos[a] = []; for (var k = 0; k < per[1]; k++) anos[a].push(0); notas[a] = 0; }
+      anos[a][i] += x.valor; notas[a]++;
+      if (d.slice(5, 10) <= md) ytd[a] = (ytd[a] || 0) + x.valor; // até o mesmo dia do ano
+    });
+    var lista = Object.keys(anos).sort().slice(-(fin.fatAnos || 5));
+    return { per: per, anos: lista, v: anos, notas: notas, ytd: ytd, caixa: caixa };
+  }
+  function tabelaFaturamento(d, impressao) {
+    var h = hoje(), anoAtual = h.slice(0, 4);
+    function varia(a, b) { if (!b) return ''; var p = Math.round(1000 * (a - b) / b) / 10; return '<div class="' + (impressao ? '' : (p < 0 ? 'neg' : 'pos')) + '" style="font-size:12px">' + (p > 0 ? '+' : '') + p.toLocaleString('pt-BR') + '%</div>'; }
+    var linhas = '', pAtual = d.per[2](Number(h.slice(5, 7)) - 1);
+    function futuro(a, i) { return a === anoAtual && i > pAtual; }
+    for (var i = 0; i < d.per[1]; i++) {
+      linhas += '<tr><td>' + d.per[3](i) + '</td>' + d.anos.map(function (a, j) { var v = d.v[a][i], ant = j ? d.v[d.anos[j - 1]][i] : 0; return '<td class="num">' + (v ? brl(v) : '—') + (j && !futuro(a, i) ? varia(v, ant) : '') + '</td>'; }).join('') + '</tr>';
+    }
+    var tot = function (a) { return d.v[a].reduce(function (s, x) { return s + x; }, 0); };
+    // ano corrente compara com o mesmo pedaço do ano anterior
+    linhas += '<tr class="forte"><td>Total do ano' + '</td>' + d.anos.map(function (a, j) { var parcial = a === anoAtual; return '<td class="num">' + brl(tot(a)) + (j ? varia(tot(a), parcial ? (d.ytd[d.anos[j - 1]] || 0) : tot(d.anos[j - 1])) : '') + (a === anoAtual ? '<div class="muted" style="font-size:12px">até ' + data(h) + (parcial && j ? ', comparado ao mesmo período de ' + d.anos[j - 1] : '') + '</div>' : '') + '</td>'; }).join('') + '</tr>';
+    linhas += '<tr><td class="muted">Média por mês</td>' + d.anos.map(function (a) { var meses = a === anoAtual ? Number(h.slice(5, 7)) : 12; return '<td class="num muted">' + brl(tot(a) / meses) + '</td>'; }).join('') + '</tr>';
+    linhas += '<tr><td class="muted">Notas / ticket médio</td>' + d.anos.map(function (a) { return '<td class="num muted">' + d.notas[a] + ' · ' + brl(d.notas[a] ? tot(a) / d.notas[a] : 0) + '</td>'; }).join('') + '</tr>';
+    return '<table' + (impressao ? ' class="itens-print"' : '') + '><thead><tr><th>' + d.per[0] + '</th>' + d.anos.map(function (a) { return '<th class="num">' + a + '</th>'; }).join('') + '</tr></thead><tbody>' + linhas + '</tbody></table>';
+  }
+  function finFaturamento(M) {
+    var d = dadosFaturamento(M), sel = function (id, atual, ops) { return '<select id="' + id + '">' + ops.map(function (o) { return '<option value="' + o[0] + '"' + (String(o[0]) === String(atual) ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>'; };
+    var clientes = cache.empresas.slice().sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; }).map(function (c) { return [c.id, esc(c.nome)]; });
+    var html = '<div class="busca">' + sel('fin-periodo', fin.periodo || 'mensal', Object.keys(PERIODOS).map(function (k) { return [k, PERIODOS[k][0]]; })) +
+      sel('fin-fat-base', fin.fatBase || 'emitido', [['emitido', 'Faturado (data da nota)'], ['recebido', 'Recebido (data do pagamento)']]) +
+      sel('fin-fat-anos', fin.fatAnos || 5, [[3, 'Últimos 3 anos'], [5, 'Últimos 5 anos'], [10, 'Últimos 10 anos']]) +
+      sel('fin-fat-cliente', fin.fatCliente || '', [['', 'Todos os clientes']].concat(clientes)) +
+      '<button class="btn" id="fin-imprimir-fat">Imprimir / PDF</button></div>';
+    if (!d.anos.length) return html + '<div class="card vazio">Nenhum faturamento registrado.</div>';
+    // gráfico: total por ano
+    var tots = d.anos.map(function (a) { return d.v[a].reduce(function (s, x) { return s + x; }, 0); }), max = Math.max.apply(null, tots) || 1;
+    html += '<div class="card tabela"><b>Faturamento por ano</b><table><tbody>' + d.anos.map(function (a, i) {
+      return '<tr><td style="width:60px">' + a + '</td><td><div class="barra" style="height:14px"><i style="width:' + Math.max(1, 100 * tots[i] / max) + '%"></i></div></td><td class="num" style="width:150px">' + brl(tots[i]) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+    return html + '<div class="card tabela">' + tabelaFaturamento(d) + '</div><p class="muted">A porcentagem compara com o mesmo período do ano anterior. Conta notas fiscais e outras receitas de venda (não conta rendimentos nem transferências).</p>';
+  }
+  function imprimirFaturamento() {
+    var d = dadosFaturamento(movimentos()), cli = fin.fatCliente ? nomeCliente(fin.fatCliente) : '';
+    $('print').innerHTML = '<div class="pp"><div class="pp-topo"><div><div class="pp-marca">' + esc(EMPRESA.nome) + '</div><div>' + esc(EMPRESA.razao) + ' · CNPJ ' + esc(EMPRESA.cnpj) + '</div></div><div style="text-align:right">Relatório de faturamento<br>' + data(hoje()) + '</div></div>' +
+      '<h4>Faturamento ' + d.per[0].toLowerCase() + ' · ' + (d.caixa ? 'pela data do recebimento' : 'pela data da nota fiscal') + (cli ? ' · cliente ' + esc(cli) : '') + ' · ' + d.anos[0] + ' a ' + d.anos[d.anos.length - 1] + '</h4>' +
+      tabelaFaturamento(d, true) + '<p style="font-size:9pt;margin-top:10px">A variação compara com o mesmo período do ano anterior. Gerado pelo Cronos.</p></div>';
+    window.print();
   }
 
   // ---------- formulários ----------
@@ -1643,9 +1777,15 @@
   }
 
   // Registrar pagamento ou recebimento (também usado pelo botão "Recebido" do Faturamento)
+  // Sugere o banco onde esse cliente (ou fornecedor) pagou da última vez
+  function ultimoBanco(x) {
+    var ant = movimentos().filter(function (m) { return m.sentido === x.sentido && m.pagamento && m.id !== x.id && ((x.clienteId && m.clienteId === x.clienteId) || (!x.clienteId && x.pessoa && normal(m.pessoa) === normal(x.pessoa))); })
+      .sort(function (a, b) { return a.pagamento < b.pagamento ? 1 : -1; })[0];
+    return ant && porId('contas', ant.contaId) ? ant.contaId : '';
+  }
   function formBaixa(x) {
     abrirModal('<h3>' + (x.sentido > 0 ? 'Registrar recebimento' : 'Registrar pagamento') + '</h3><div>' + esc(x.pessoa) + ' · ' + esc(x.descricao) + '</div><div class="total" style="text-align:left">' + brl(x.valor) + '</div>' +
-      '<div class="linha"><div><label>Data</label><input type="date" id="bx-data" value="' + hoje() + '"></div><div><label>' + (x.sentido > 0 ? 'Entrou em' : 'Saiu de') + '</label><select id="bx-conta">' + opcoesContas(x.contaId) + '</select></div></div>' +
+      '<div class="linha"><div><label>Data</label><input type="date" id="bx-data" value="' + hoje() + '"></div><div><label>' + (x.sentido > 0 ? 'Entrou em' : 'Saiu de') + '</label><select id="bx-conta">' + opcoesContas((x.f && x.f.contaId) || (x.l && x.l.contaId) || ultimoBanco(x) || x.contaId) + '</select></div></div>' +
       '<div class="acoes"><button class="btn ok" id="bx-ok">Confirmar</button><button class="btn sec" id="bx-cancelar">Cancelar</button></div>');
     $('bx-cancelar').onclick = fecharModal;
     $('bx-ok').onclick = async function () {
@@ -1756,6 +1896,9 @@
     if (b && b.id === 'fin-nova-conta') { formConta(); return; }
     if (b && b.id === 'fin-novo-grupo') { formGrupo(); return; }
     if (b && b.id === 'fin-editar-metas') { formMetas(); return; }
+    if (b && b.id === 'fin-cfg-imp') { formImpostos(); return; }
+    if (b && b.id === 'fin-imprimir-fat') { imprimirFaturamento(); return; }
+    if (b && b.dataset.das) { lancarDAS(b.dataset.das); return; }
     var g = e.target.closest('tr[data-grupo]'); if (g) { formGrupo(Number(g.dataset.grupo)); return; }
     var tr = e.target.closest('tr[data-mov]');
     if (tr) {
@@ -1766,7 +1909,8 @@
     }
   });
   $('v-financas').addEventListener('change', function (e) {
-    var t = e.target, mapa = { 'fin-filtro': 'filtro', 'fin-conta': 'conta', 'fin-regime': 'regime', 'fin-meta-mes': 'metaMes', 'fin-mes-lista': 'mesLista' };
+    var t = e.target, mapa = { 'fin-filtro': 'filtro', 'fin-conta': 'conta', 'fin-regime': 'regime', 'fin-meta-mes': 'metaMes', 'fin-mes-lista': 'mesLista', 'fin-periodo': 'periodo', 'fin-fat-base': 'fatBase', 'fin-fat-cliente': 'fatCliente' };
+    if (t.id === 'fin-fat-anos') { fin.fatAnos = Number(t.value); renderFinancas(); return; }
     if (mapa[t.id]) fin[mapa[t.id]] = t.value;
     else if (t.id === 'fin-mes') fin.mes = t.value || hoje().slice(0, 7);
     else if (t.id === 'fin-ano') fin.ano = Number(t.value);

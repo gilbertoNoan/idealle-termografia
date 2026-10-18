@@ -63,6 +63,13 @@ Menu **Finanças**: a saúde da empresa no estilo da planilha de controle financ
 - **Fluxo de caixa** (mês a mês, com o previsto), **DRE** (receita, deduções, custos, margem de contribuição,
   despesas fixas, lucro), **Metas** (previsto x realizado por categoria) e **Relatórios** (por cliente,
   fornecedor, categoria e resultado por OS).
+- **Faturamento**: mensal, trimestral, semestral ou anual, comparando até 10 anos, por data da nota ou do
+  recebimento, de todos os clientes ou de um só. O botão *Imprimir / PDF* gera o relatório.
+- **Impostos**: estimativa do DAS do Simples Nacional de cada mês (receita dos últimos 12 meses, Fator R,
+  Anexo III ou V, alíquota efetiva) e botão para lançar o DAS em Contas a pagar. Em *Configurar regime* dá para
+  fixar o anexo ou usar um percentual fixo. É estimativa para planejar; a guia oficial vem do PGDAS.
+- **Bancos nos recebimentos**: ao receber, o Cronos sugere o banco que aquele cliente usou da última vez.
+  Em Relatórios aparece quanto entrou e saiu por banco.
 - **Bancos e categorias**: bancos com o saldo de partida e o plano de contas (o mesmo da planilha). O saldo de cada
   banco é o saldo informado no início de um dia mais tudo o que entrou e saiu dali em diante. Para acertar com o
   banco, clique em *Atualizar saldo* e digite o saldo do extrato.
