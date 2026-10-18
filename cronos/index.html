@@ -365,9 +365,15 @@
       'auth/user-not-found': 'Usuário não cadastrado.', 'auth/configuration-not-found': 'O login ainda não foi ativado no Firebase. Veja o LEIA-ME.',
       'auth/operation-not-allowed': 'Este tipo de login ainda não foi ativado no Firebase. Veja o LEIA-ME.',
       'auth/unauthorized-domain': 'Este endereço do site não está autorizado no Firebase (Authentication → Settings → Authorized domains).',
-      'auth/popup-closed-by-user': 'Login cancelado.', 'auth/cancelled-popup-request': 'Login cancelado.'
+      'auth/popup-closed-by-user': 'A janela do Google foi fechada antes de terminar. Tente de novo.', 'auth/cancelled-popup-request': 'Login cancelado.',
+      'auth/popup-blocked': 'O navegador bloqueou a janela do Google. Clique no ícone de pop-up bloqueado na barra de endereço, escolha "Sempre permitir" para este site e tente de novo.',
+      'auth/network-request-failed': 'Sem conexão com o Google. Verifique a internet e tente de novo.',
+      'auth/internal-error': 'O Google recusou o login. Confira se o provedor Google está ativado no Firebase (Authentication → Método de login).'
     };
-    auth.getRedirectResult().catch(function (e) { $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message); });
+    function mostrarErro(e) {
+      console.error('Login Google:', e);
+      $('login-erro').textContent = (erroLogin[e.code] || ('Não foi possível entrar: ' + (e.message || e))) + (e.code ? ' (' + e.code + ')' : '');
+    }
     auth.onAuthStateChanged(function (u) {
       if (u && !permitido(u)) { auth.signOut(); telaLogin('A conta ' + u.email + ' não tem acesso ao Cronos.'); return; }
       if (u) { if (!iniciado) { iniciado = true; iniciarApp(u.email); } }
@@ -378,19 +384,17 @@
       var email = $('login-email').value.trim(), senha = $('login-senha').value;
       if (!email || !senha) { $('login-erro').textContent = 'Informe e-mail e senha.'; return; }
       $('login-erro').textContent = 'Entrando…';
-      auth.signInWithEmailAndPassword(email, senha).catch(function (e) {
-        $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message);
-      });
+      auth.signInWithEmailAndPassword(email, senha).catch(mostrarErro);
     });
+    // Só janela (pop-up): o login por redirecionamento falha calado nos navegadores que bloqueiam
+    // cookies de outro site, porque o authDomain (firebaseapp.com) é diferente do endereço do Cronos.
     $('btn-google').addEventListener('click', function () {
       var prov = new firebase.auth.GoogleAuthProvider();
       prov.setCustomParameters({ prompt: 'select_account' });
-      $('login-erro').textContent = 'Abrindo o Google…';
-      auth.signInWithPopup(prov).catch(function (e) {
-        // celulares e navegadores que bloqueiam janela: entra pelo redirecionamento
-        if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') return auth.signInWithRedirect(prov);
-        $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message);
-      });
+      $('login-erro').textContent = 'Abrindo a janela do Google…';
+      auth.signInWithPopup(prov).then(function (r) {
+        if (!r || !r.user) $('login-erro').textContent = 'O Google não devolveu a conta. Tente de novo.';
+      }).catch(mostrarErro);
     });
     $('login-senha').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('btn-entrar').click(); });
     $('btn-sair').addEventListener('click', function () { auth.signOut(); });
