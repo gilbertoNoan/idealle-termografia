@@ -2060,7 +2060,7 @@
     try {
       if (editando) {
         if (db) {
-          await comTimeout(db.collection('empresas').doc(editandoEmpresaId).set(doc), 15000, 'atualizar empresa');
+          await comTimeout(db.collection('empresas').doc(editandoEmpresaId).set(doc, { merge: true }), 15000, 'atualizar empresa');
         } else {
           doc.id = editandoEmpresaId;
           var idx = empresasCache.findIndex(function (x) { return x.id === editandoEmpresaId; });

@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cronos · Ideal LESP</title>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.js"></script>
+<style>
+  :root {
+    --bg: #f4f6f9; --card: #ffffff; --text: #1d2433; --muted: #667085; --line: #e3e7ee;
+    --pri: #0b5cad; --pri-2: #e8f1fb; --ok: #16794c; --ok-2: #e6f4ec; --warn: #9a6400; --warn-2: #fdf3df;
+    --bad: #b42318; --bad-2: #fdecea; --gray-2: #eef0f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151c; --card: #1b2029; --text: #e7eaf0; --muted: #9aa3b2; --line: #2b3240;
+      --pri: #5aa2ec; --pri-2: #1c2c40; --ok: #4cc38a; --ok-2: #173326; --warn: #e3b04b; --warn-2: #3a2e15;
+      --bad: #f07a6f; --bad-2: #3d1d1b; --gray-2: #252b36;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
+  header { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+  .top { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; max-width: 1200px; margin: 0 auto; gap: 12px; }
+  .marca { font-weight: 700; font-size: 18px; letter-spacing: .3px; }
+  .marca small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 6px; }
+  .usuario { color: var(--muted); font-size: 13px; display: flex; gap: 8px; align-items: center; }
+  nav { display: flex; gap: 4px; overflow-x: auto; padding: 0 16px; max-width: 1200px; margin: 0 auto; }
+  nav button { background: none; border: none; border-bottom: 3px solid transparent; padding: 10px 12px; color: var(--muted); font-size: 15px; cursor: pointer; white-space: nowrap; }
+  nav button.ativo { color: var(--pri); border-bottom-color: var(--pri); font-weight: 600; }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  .view { display: none; } .view.ativa { display: block; }
+  h2 { font-size: 20px; margin: 4px 0 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .kpi .rotulo { color: var(--muted); font-size: 13px; }
+  .kpi .valor { font-size: 24px; font-weight: 700; margin-top: 4px; }
+  .kpi .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .kpi { cursor: pointer; }
+  .funil { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+  .funil .etapa { flex: 1 1 140px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; text-align: center; cursor: pointer; }
+  .funil .etapa b { display: block; font-size: 22px; }
+  .funil .etapa span { color: var(--muted); font-size: 13px; }
+  .funil .seta { align-self: center; color: var(--muted); }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
+  input, select, textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; }
+  textarea { min-height: 70px; resize: vertical; }
+  .linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 12px; }
+  .btn { background: var(--pri); color: #fff; border: none; border-radius: 8px; padding: 9px 14px; font: inherit; cursor: pointer; }
+  .btn.sec { background: var(--gray-2); color: var(--text); }
+  .btn.perigo { background: var(--bad-2); color: var(--bad); }
+  .btn.ok { background: var(--ok); }
+  .btn.peq { padding: 6px 10px; font-size: 13px; }
+  .acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .busca { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .busca input, .busca select { flex: 1 1 200px; width: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  tr.clicavel { cursor: pointer; } tr.clicavel:hover td { background: var(--pri-2); }
+  .tabela { overflow-x: auto; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .t-gray { background: var(--gray-2); color: var(--muted); } .t-blue { background: var(--pri-2); color: var(--pri); }
+  .t-ok { background: var(--ok-2); color: var(--ok); } .t-warn { background: var(--warn-2); color: var(--warn); } .t-bad { background: var(--bad-2); color: var(--bad); }
+  .muted { color: var(--muted); font-size: 13px; }
+  .vazio { text-align: center; color: var(--muted); padding: 24px; }
+  .itens td input { padding: 6px 8px; }
+  .total { text-align: right; font-size: 18px; font-weight: 700; margin-top: 10px; }
+  #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #1d2433; color: #fff; padding: 10px 16px; border-radius: 8px; display: none; z-index: 100; max-width: 90vw; }
+  .aviso { background: var(--warn-2); color: var(--warn); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+  .modal-fundo { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: flex-start; justify-content: center; z-index: 50; overflow-y: auto; padding: 24px 12px; }
+  .modal-fundo.aberto { display: flex; }
+  .modal { background: var(--card); border-radius: 12px; width: 100%; max-width: 760px; padding: 18px; }
+  .modal h3 { margin: 0 0 8px; }
+  .detalhe dt { color: var(--muted); font-size: 12px; margin-top: 8px; } .detalhe dd { margin: 2px 0 0; }
+  .ciclo { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+  #tela-login { max-width: 380px; margin: 60px auto; }
+  #print { display: none; }
+  @media (max-width: 520px) { #usuario-nome { display: none; } .marca small { display: none; } }
+  @media print {
+    body { background: #fff; color: #000; }
+    header, main, #toast, .modal-fundo { display: none !important; }
+    #print { display: block; padding: 10mm; font-size: 12pt; }
+    #print table th, #print table td { border-bottom: 1px solid #ccc; color: #000; }
+  }
+</style>
+</head>
+<body>
+
+<header id="cabecalho" style="display:none">
+  <div class="top">
+    <div class="marca">Cronos <small>Ideal LESP</small></div>
+    <div class="usuario"><span id="usuario-nome"></span><button class="btn sec peq" id="btn-sair">Sair</button></div>
+  </div>
+  <nav id="menu">
+    <button data-view="painel" class="ativo">Painel</button>
+    <button data-view="clientes">Clientes</button>
+    <button data-view="propostas">Propostas</button>
+    <button data-view="ordens">Ordens de Serviço</button>
+    <button data-view="faturas">Faturamento</button>
+  </nav>
+</header>
+
+<div id="tela-login" class="card" style="display:none">
+  <h2>Cronos</h2>
+  <p class="muted">Entre com seu e-mail e senha da Ideal LESP.</p>
+  <label>E-mail</label><input id="login-email" type="email" autocomplete="username">
+  <label>Senha</label><input id="login-senha" type="password" autocomplete="current-password">
+  <div class="acoes"><button class="btn" id="btn-entrar">Entrar</button><button class="btn sec" id="btn-demo">Testar sem banco</button></div>
+  <p class="muted" id="login-erro"></p>
+</div>
+
+<main id="app" style="display:none">
+  <div id="aviso-modo" class="aviso" style="display:none"></div>
+
+  <!-- PAINEL -->
+  <section class="view ativa" id="v-painel">
+    <h2>Painel</h2>
+    <div class="funil" id="funil"></div>
+    <div class="grid" id="kpis" style="margin-top:12px"></div>
+    <div class="card" style="margin-top:12px">
+      <b>Precisa de atenção</b>
+      <div id="atencao" class="tabela"></div>
+    </div>
+  </section>
+
+  <!-- CLIENTES -->
+  <section class="view" id="v-clientes">
+    <h2>Clientes <button class="btn" id="btn-novo-cliente">+ Novo cliente</button></h2>
+    <div class="busca"><input id="busca-cliente" placeholder="Buscar por nome, código, CNPJ, cidade…"></div>
+    <div id="aviso-codigos"></div>
+    <div class="card tabela" id="lista-clientes"></div>
+  </section>
+
+  <!-- PROPOSTAS -->
+  <section class="view" id="v-propostas">
+    <h2>Propostas comerciais <button class="btn" id="btn-nova-proposta">+ Nova proposta</button></h2>
+    <div class="busca">
+      <input id="busca-proposta" placeholder="Buscar por número, cliente, título…">
+      <select id="filtro-proposta"><option value="">Todos os status</option></select>
+    </div>
+    <div class="card tabela" id="lista-propostas"></div>
+  </section>
+
+  <!-- ORDENS -->
+  <section class="view" id="v-ordens">
+    <h2>Ordens de Serviço <button class="btn" id="btn-nova-os">+ Nova OS</button></h2>
+    <div class="busca">
+      <input id="busca-os" placeholder="Buscar por número, cliente, descrição…">
+      <select id="filtro-os"><option value="">Todos os status</option></select>
+    </div>
+    <div class="card tabela" id="lista-ordens"></div>
+  </section>
+
+  <!-- FATURAS -->
+  <section class="view" id="v-faturas">
+    <h2>Faturamento</h2>
+    <div class="busca">
+      <input id="busca-fatura" placeholder="Buscar por número, cliente, NF…">
+      <select id="filtro-fatura"><option value="">Todos os status</option></select>
+    </div>
+    <div class="card tabela" id="lista-faturas"></div>
+  </section>
+</main>
+
+<div class="modal-fundo" id="modal-fundo"><div class="modal" id="modal"></div></div>
+<div id="print"></div>
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ===================== CONFIGURAÇÃO =====================
+  // Mesmo banco Firebase da Termografia: clientes (coleção "empresas") e OS (coleção "ordens")
+  // ficam compartilhados, então o que você cadastra aqui aparece lá sem digitar de novo.
+  var FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAN72-6pCbPaBowiGA2jciJ_lzB9d6z110",
+    authDomain: "idealle-termografia.firebaseapp.com",
+    projectId: "idealle-termografia",
+    storageBucket: "idealle-termografia.firebasestorage.app",
+    messagingSenderId: "577776042104",
+    appId: "1:577776042104:web:508a131e13a4ef4afbed8d"
+  };
+  // Endereço da Termografia (mesmo site: o Cronos fica em /cronos/), para abrir uma OS direto lá.
+  var SISTEMAS = {
+    'Termografia': '/'
+  };
+  var EMPRESA = { nome: 'Ideal LESP', site: 'www.ideallesp.com.br' };
+
+  // ===================== UTILIDADES =====================
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function agora() { return new Date().toISOString(); }
+  function hoje() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+  function somarDias(iso, n) { var d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+  function brl(v) { return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+  function data(iso) { if (!iso) return '—'; var p = String(iso).slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
+  function num(v) { var n = parseFloat(String(v).replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n; }
+  function normal(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
+  function toast(msg) { var t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(function () { t.style.display = 'none'; }, 3200); }
+  function proximoNumero(lista, campo) { var m = 0; lista.forEach(function (x) { var n = parseInt(x[campo], 10); if (!isNaN(n) && n > m) m = n; }); return m + 1; }
+  function pad(n, t) { n = String(n); while (n.length < t) n = '0' + n; return n; }
+
+  var STATUS = {
+    proposta: { rascunho: ['Rascunho', 't-gray'], enviada: ['Enviada', 't-blue'], aprovada: ['Aprovada', 't-ok'], recusada: ['Recusada', 't-bad'] },
+    os: { aberta: ['Aberta', 't-blue'], execucao: ['Em execução', 't-warn'], concluida: ['Concluída', 't-ok'], faturada: ['Faturada', 't-gray'], cancelada: ['Cancelada', 't-bad'] },
+    fatura: { pendente: ['A receber', 't-warn'], paga: ['Recebida', 't-ok'], cancelada: ['Cancelada', 't-bad'] }
+  };
+  function tag(tipo, st, venc) {
+    var s = STATUS[tipo][st] || [st || '—', 't-gray'];
+    if (tipo === 'fatura' && st === 'pendente' && venc && venc < hoje()) return '<span class="tag t-bad">Vencida</span>';
+    return '<span class="tag ' + s[1] + '">' + s[0] + '</span>';
+  }
+  function statusOS(o) { return o.status || 'aberta'; } // OS criadas na Termografia não têm status: contam como abertas
+
+  // ===================== BANCO DE DADOS =====================
+  // Duas implementações com a mesma interface: Firestore (real) e local (modo de teste no navegador).
+  var COLECOES = ['empresas', 'propostas', 'ordens', 'faturas'];
+  var cache = { empresas: [], propostas: [], ordens: [], faturas: [] };
+  var banco = null;
+
+  function bancoFirestore(db) {
+    return {
+      ouvir: function (col, cb) {
+        return db.collection(col).onSnapshot(function (snap) {
+          cb(snap.docs.map(function (d) { var x = d.data() || {}; x.id = d.id; return x; }));
+        }, function (err) { console.error(err); toast('Erro ao ler ' + col + ': ' + err.message); });
+      },
+      criar: function (col, doc) { return db.collection(col).add(doc).then(function (r) { return r.id; }); },
+      // merge: true preserva campos que outros sistemas (como a Termografia) gravaram no mesmo documento
+      atualizar: function (col, id, doc) { return db.collection(col).doc(id).set(doc, { merge: true }); },
+      excluir: function (col, id) { return db.collection(col).doc(id).delete(); }
+    };
+  }
+
+  function bancoLocal() {
+    var CH = 'cronos-demo-v1', ouvintes = {}, dados;
+    try { dados = JSON.parse(localStorage.getItem(CH) || 'null'); } catch (e) { dados = null; }
+    if (!dados) dados = exemplo();
+    function salvar() { try { localStorage.setItem(CH, JSON.stringify(dados)); } catch (e) {} }
+    function avisar(col) { (ouvintes[col] || []).forEach(function (cb) { cb(dados[col].map(function (x) { return Object.assign({}, x); })); }); }
+    return {
+      ouvir: function (col, cb) { (ouvintes[col] = ouvintes[col] || []).push(cb); setTimeout(function () { avisar(col); }, 0); },
+      criar: function (col, doc) { doc = Object.assign({}, doc); doc.id = 'L' + Date.now() + Math.random().toString(36).slice(2, 6); dados[col].push(doc); salvar(); avisar(col); return Promise.resolve(doc.id); },
+      atualizar: function (col, id, doc) { var i = dados[col].findIndex(function (x) { return x.id === id; }); if (i >= 0) Object.assign(dados[col][i], doc); salvar(); avisar(col); return Promise.resolve(); },
+      excluir: function (col, id) { dados[col] = dados[col].filter(function (x) { return x.id !== id; }); salvar(); avisar(col); return Promise.resolve(); }
+    };
+  }
+
+  function exemplo() {
+    var h = hoje();
+    return {
+      empresas: [
+        { id: 'c1', codigo: 'CLI-0001', nome: 'Metalúrgica Exemplo Ltda', cnpj: '12.345.678/0001-90', contato: 'Carlos', telefone: '(11) 99999-0000', email: 'carlos@exemplo.com.br', cidade: 'São Paulo', uf: 'SP', createdAt: agora() },
+        { id: 'c2', codigo: 'CLI-0002', nome: 'Hospital Modelo', cnpj: '98.765.432/0001-10', contato: 'Ana', telefone: '(11) 98888-1111', email: 'manutencao@modelo.org', cidade: 'Campinas', uf: 'SP', createdAt: agora() }
+      ],
+      propostas: [
+        { id: 'p1', numero: 1, ano: 2026, clienteId: 'c1', clienteNome: 'Metalúrgica Exemplo Ltda', titulo: 'Inspeção termográfica dos painéis elétricos', sistema: 'Termografia', itens: [{ descricao: 'Inspeção termográfica (diária)', qtd: 2, valor: 1800 }, { descricao: 'Relatório técnico com laudos', qtd: 1, valor: 600 }], total: 4200, validade: somarDias(h, 15), status: 'enviada', data: h, createdAt: agora() }
+      ],
+      ordens: [], faturas: []
+    };
+  }
+
+  // ===================== INICIALIZAÇÃO =====================
+  var modoDemo = /[?&]demo=1/.test(location.search);
+  var firebaseOk = typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey.indexOf('COLE_AQUI') === -1;
+
+  function iniciarApp(usuario) {
+    $('tela-login').style.display = 'none';
+    $('cabecalho').style.display = 'block';
+    $('app').style.display = 'block';
+    $('usuario-nome').textContent = usuario || '';
+    if (modoDemo) {
+      $('aviso-modo').style.display = 'block';
+      $('aviso-modo').innerHTML = 'Modo de teste: os dados ficam só neste navegador e não vão para o banco. <a href="' + location.pathname + '">Sair do modo de teste</a>';
+    }
+    COLECOES.forEach(function (col) {
+      banco.ouvir(col, function (lista) { cache[col] = lista; renderTudo(); });
+    });
+  }
+
+  function telaLogin(msg) {
+    $('tela-login').style.display = 'block';
+    $('cabecalho').style.display = 'none';
+    $('app').style.display = 'none';
+    $('login-erro').textContent = msg || '';
+  }
+
+  $('btn-demo').addEventListener('click', function () { location.search = '?demo=1'; });
+
+  if (modoDemo || !firebaseOk) {
+    modoDemo = true;
+    banco = bancoLocal();
+    iniciarApp('Modo de teste');
+    $('btn-sair').textContent = 'Usar banco real';
+    $('btn-sair').addEventListener('click', function () { location.href = location.pathname; });
+  } else {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    banco = bancoFirestore(firebase.firestore());
+    var auth = firebase.auth();
+    var iniciado = false;
+    auth.onAuthStateChanged(function (u) {
+      if (u) { if (!iniciado) { iniciado = true; iniciarApp(u.email); } }
+      else if (iniciado) { location.reload(); }
+      else telaLogin();
+    });
+    $('btn-entrar').addEventListener('click', function () {
+      var email = $('login-email').value.trim(), senha = $('login-senha').value;
+      if (!email || !senha) { $('login-erro').textContent = 'Informe e-mail e senha.'; return; }
+      $('login-erro').textContent = 'Entrando…';
+      auth.signInWithEmailAndPassword(email, senha).catch(function (e) {
+        var m = {
+          'auth/invalid-credential': 'E-mail ou senha incorretos.', 'auth/wrong-password': 'E-mail ou senha incorretos.',
+          'auth/user-not-found': 'Usuário não cadastrado.', 'auth/configuration-not-found': 'O login ainda não foi ativado no Firebase. Veja o LEIA-ME.',
+          'auth/operation-not-allowed': 'O login por e-mail ainda não foi ativado no Firebase. Veja o LEIA-ME.'
+        };
+        $('login-erro').textContent = m[e.code] || ('Não foi possível entrar: ' + e.message);
+      });
+    });
+    $('login-senha').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('btn-entrar').click(); });
+    $('btn-sair').addEventListener('click', function () { auth.signOut(); });
+  }
+
+  // ===================== NAVEGAÇÃO =====================
+  var viewAtual = 'painel';
+  function mostrar(v) {
+    viewAtual = v;
+    document.querySelectorAll('.view').forEach(function (s) { s.classList.toggle('ativa', s.id === 'v-' + v); });
+    document.querySelectorAll('#menu button').forEach(function (b) { b.classList.toggle('ativo', b.dataset.view === v); });
+    window.scrollTo(0, 0);
+  }
+  $('menu').addEventListener('click', function (e) { var b = e.target.closest('button[data-view]'); if (b) mostrar(b.dataset.view); });
+
+  function preencherFiltro(id, tipo) {
+    var s = $(id);
+    Object.keys(STATUS[tipo]).forEach(function (k) { var o = document.createElement('option'); o.value = k; o.textContent = STATUS[tipo][k][0]; s.appendChild(o); });
+    s.addEventListener('change', renderTudo);
+  }
+  preencherFiltro('filtro-proposta', 'proposta');
+  preencherFiltro('filtro-os', 'os');
+  preencherFiltro('filtro-fatura', 'fatura');
+  ['busca-cliente', 'busca-proposta', 'busca-os', 'busca-fatura'].forEach(function (id) { $(id).addEventListener('input', renderTudo); });
+
+  // ===================== MODAL =====================
+  function abrirModal(html) { $('modal').innerHTML = html; $('modal-fundo').classList.add('aberto'); var f = $('modal').querySelector('input,select,textarea'); if (f) f.focus(); }
+  function fecharModal() { $('modal-fundo').classList.remove('aberto'); $('modal').innerHTML = ''; }
+  $('modal-fundo').addEventListener('click', function (e) { if (e.target.id === 'modal-fundo') fecharModal(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fecharModal(); });
+
+  function porId(col, id) { return cache[col].find(function (x) { return x.id === id; }); }
+  function nomeCliente(id, reserva) { var c = porId('empresas', id); return c ? c.nome : (reserva || '—'); }
+  function codProposta(p) { return 'P-' + (p.ano || '') + '-' + pad(p.numero, 3); }
+  function codFatura(f) { return 'F-' + pad(f.numero, 4); }
+  function totalItens(itens) { return (itens || []).reduce(function (s, i) { return s + num(i.qtd) * num(i.valor); }, 0); }
+  function opcoesClientes(sel) {
+    return '<option value="">Selecione o cliente…</option>' + cache.empresas.slice().sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; })
+      .map(function (c) { return '<option value="' + c.id + '"' + (c.id === sel ? ' selected' : '') + '>' + esc(c.nome) + (c.codigo ? ' (' + esc(c.codigo) + ')' : '') + '</option>'; }).join('');
+  }
+  function opcoesSistemas(sel) {
+    var l = Object.keys(SISTEMAS).concat(['Outro']);
+    return '<option value="">—</option>' + l.map(function (s) { return '<option' + (s === sel ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('');
+  }
+
+  async function salvar(acao, msgOk) {
+    try { var r = await acao(); if (msgOk) toast(msgOk); return r; }
+    catch (e) { console.error(e); toast('Não foi possível salvar: ' + (e.message || e)); throw e; }
+  }
+
+  // ===================== CLIENTES =====================
+  function proximoCodigoCliente() {
+    var m = 0; cache.empresas.forEach(function (c) { var n = parseInt(String(c.codigo || '').replace(/\D/g, ''), 10); if (!isNaN(n) && n > m) m = n; });
+    return 'CLI-' + pad(m + 1, 4);
+  }
+
+  function renderClientes() {
+    var q = normal($('busca-cliente').value);
+    var lista = cache.empresas.filter(function (c) { return !q || normal([c.nome, c.codigo, c.cnpj, c.cidade, c.contato, c.email].join(' ')).indexOf(q) >= 0; })
+      .sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; });
+    var semCodigo = cache.empresas.filter(function (c) { return !c.codigo; }).length;
+    $('aviso-codigos').innerHTML = semCodigo ? '<div class="aviso">' + semCodigo + ' cliente(s) vindos da Termografia ainda sem código. <button class="btn peq" id="btn-gerar-codigos">Gerar códigos</button></div>' : '';
+    if (!lista.length) { $('lista-clientes').innerHTML = '<div class="vazio">Nenhum cliente' + (q ? ' encontrado' : ' cadastrado ainda') + '.</div>'; return; }
+    $('lista-clientes').innerHTML = '<table><thead><tr><th>Código</th><th>Cliente</th><th>CNPJ</th><th>Cidade</th><th class="num">Propostas</th><th class="num">OS</th></tr></thead><tbody>' +
+      lista.map(function (c) {
+        var np = cache.propostas.filter(function (p) { return p.clienteId === c.id; }).length;
+        var no = cache.ordens.filter(function (o) { return o.empresaId === c.id; }).length;
+        return '<tr class="clicavel" data-cliente="' + c.id + '"><td>' + esc(c.codigo || '—') + '</td><td><b>' + esc(c.nome) + '</b><div class="muted">' + esc([c.contato, c.telefone].filter(Boolean).join(' · ')) + '</div></td><td>' + esc(c.cnpj || '—') + '</td><td>' + esc([c.cidade, c.uf].filter(Boolean).join('/') || '—') + '</td><td class="num">' + np + '</td><td class="num">' + no + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  $('v-clientes').addEventListener('click', async function (e) {
+    var tr = e.target.closest('tr[data-cliente]'); if (tr) verCliente(tr.dataset.cliente);
+    if (e.target.id === 'btn-gerar-codigos') {
+      var m = 0; cache.empresas.forEach(function (c) { var n = parseInt(String(c.codigo || '').replace(/\D/g, ''), 10); if (!isNaN(n) && n > m) m = n; });
+      var sem = cache.empresas.filter(function (c) { return !c.codigo; }).sort(function (a, b) { return String(a.createdAt) < String(b.createdAt) ? -1 : 1; });
+      for (var i = 0; i < sem.length; i++) { m++; await banco.atualizar('empresas', sem[i].id, { codigo: 'CLI-' + pad(m, 4), updatedAt: agora() }); }
+      toast(sem.length + ' código(s) gerado(s).');
+    }
+  });
+  $('btn-novo-cliente').addEventListener('click', function () { formCliente(); });
+
+  function formCliente(c) {
+    c = c || {};
+    abrirModal('<h3>' + (c.id ? 'Editar cliente ' + esc(c.codigo || '') : 'Novo cliente') + '</h3>' +
+      '<label>Nome / Razão social *</label><input id="f-nome" value="' + esc(c.nome) + '">' +
+      '<div class="linha"><div><label>CNPJ / CPF</label><input id="f-cnpj" value="' + esc(c.cnpj) + '"></div><div><label>Inscrição estadual</label><input id="f-ie" value="' + esc(c.ie) + '"></div></div>' +
+      '<div class="linha"><div><label>Contato</label><input id="f-contato" value="' + esc(c.contato) + '"></div><div><label>Telefone</label><input id="f-telefone" value="' + esc(c.telefone) + '"></div><div><label>E-mail</label><input id="f-email" type="email" value="' + esc(c.email) + '"></div></div>' +
+      '<label>Endereço</label><input id="f-endereco" value="' + esc(c.endereco) + '">' +
+      '<div class="linha"><div><label>Cidade</label><input id="f-cidade" value="' + esc(c.cidade) + '"></div><div><label>UF</label><input id="f-uf" maxlength="2" value="' + esc(c.uf) + '"></div><div><label>CEP</label><input id="f-cep" value="' + esc(c.cep) + '"></div></div>' +
+      '<label>Observações</label><textarea id="f-obs">' + esc(c.obs) + '</textarea>' +
+      '<div class="acoes"><button class="btn" id="f-salvar">Salvar</button><button class="btn sec" id="f-cancelar">Cancelar</button></div>');
+    $('f-cancelar').onclick = fecharModal;
+    $('f-salvar').onclick = async function () {
+      var d = { nome: $('f-nome').value.trim(), cnpj: $('f-cnpj').value.trim(), ie: $('f-ie').value.trim(), contato: $('f-contato').value.trim(), telefone: $('f-telefone').value.trim(), email: $('f-email').value.trim(), endereco: $('f-endereco').value.trim(), cidade: $('f-cidade').value.trim(), uf: $('f-uf').value.trim().toUpperCase(), cep: $('f-cep').value.trim(), obs: $('f-obs').value.trim(), updatedAt: agora() };
+      if (!d.nome) { toast('Informe o nome do cliente.'); return; }
+      var dup = cache.empresas.find(function (x) { return x.id !== c.id && ((d.cnpj && soDigitos(x.cnpj) === soDigitos(d.cnpj)) || normal(x.nome) === normal(d.nome)); });
+      if (dup) { toast('Já existe um cliente com esse ' + (normal(dup.nome) === normal(d.nome) ? 'nome' : 'CNPJ') + ': ' + dup.nome); return; }
+      if (c.id) {
+        await salvar(function () { return banco.atualizar('empresas', c.id, d); }, 'Cliente atualizado.');
+        if (c.nome !== d.nome) await renomearCliente(c.id, d.nome);
+      } else {
+        d.codigo = proximoCodigoCliente(); d.createdAt = agora();
+        await salvar(function () { return banco.criar('empresas', d); }, 'Cliente ' + d.codigo + ' cadastrado.');
+      }
+      fecharModal();
+    };
+  }
+
+  // Os documentos guardam também o nome (a Termografia exibe e filtra por ele), então mantemos em dia.
+  async function renomearCliente(id, nome) {
+    var os = cache.ordens.filter(function (o) { return o.empresaId === id; });
+    for (var i = 0; i < os.length; i++) await banco.atualizar('ordens', os[i].id, { empresaNome: nome });
+    var ps = cache.propostas.filter(function (p) { return p.clienteId === id; });
+    for (var j = 0; j < ps.length; j++) await banco.atualizar('propostas', ps[j].id, { clienteNome: nome });
+    if (os.length) toast('Nome atualizado também nas OS. Laudos antigos da Termografia seguem com o nome anterior.');
+  }
+
+  function verCliente(id) {
+    var c = porId('empresas', id); if (!c) return;
+    var ps = cache.propostas.filter(function (p) { return p.clienteId === id; });
+    var os = cache.ordens.filter(function (o) { return o.empresaId === id; });
+    var fs = cache.faturas.filter(function (f) { return f.clienteId === id; });
+    var aReceber = fs.filter(function (f) { return f.status === 'pendente'; }).reduce(function (s, f) { return s + num(f.valor); }, 0);
+    var recebido = fs.filter(function (f) { return f.status === 'paga'; }).reduce(function (s, f) { return s + num(f.valor); }, 0);
+    abrirModal('<h3>' + esc(c.nome) + ' <span class="tag t-blue">' + esc(c.codigo || 'sem código') + '</span></h3>' +
+      '<dl class="detalhe linha">' +
+      '<div><dt>CNPJ / CPF</dt><dd>' + esc(c.cnpj || '—') + '</dd></div><div><dt>Contato</dt><dd>' + esc(c.contato || '—') + '</dd></div>' +
+      '<div><dt>Telefone</dt><dd>' + esc(c.telefone || '—') + '</dd></div><div><dt>E-mail</dt><dd>' + esc(c.email || '—') + '</dd></div>' +
+      '<div><dt>Endereço</dt><dd>' + esc([c.endereco, c.cidade, c.uf, c.cep].filter(Boolean).join(', ') || '—') + '</dd></div>' +
+      '<div><dt>A receber / Recebido</dt><dd>' + brl(aReceber) + ' / ' + brl(recebido) + '</dd></div></dl>' +
+      (c.obs ? '<p class="muted">' + esc(c.obs) + '</p>' : '') +
+      '<p><b>Propostas</b></p>' + (ps.length ? ps.map(function (p) { return '<div>' + codProposta(p) + ' · ' + esc(p.titulo) + ' · ' + brl(p.total) + ' ' + tag('proposta', p.status) + '</div>'; }).join('') : '<div class="muted">Nenhuma.</div>') +
+      '<p><b>Ordens de Serviço</b></p>' + (os.length ? os.map(function (o) { return '<div>OS-' + esc(o.numero) + ' · ' + esc(o.descricao || '') + ' ' + tag('os', statusOS(o)) + '</div>'; }).join('') : '<div class="muted">Nenhuma.</div>') +
+      '<div class="acoes"><button class="btn" id="c-proposta">+ Proposta para este cliente</button><button class="btn sec" id="c-editar">Editar</button><button class="btn perigo" id="c-excluir">Excluir</button><button class="btn sec" id="c-fechar">Fechar</button></div>');
+    $('c-fechar').onclick = fecharModal;
+    $('c-editar').onclick = function () { formCliente(c); };
+    $('c-proposta').onclick = function () { formProposta({ clienteId: c.id }); };
+    $('c-excluir').onclick = async function () {
+      if (ps.length || os.length || fs.length) { toast('Este cliente tem propostas, OS ou faturas. Não dá para excluir.'); return; }
+      if (!confirm('Excluir o cliente ' + c.nome + '?')) return;
+      await salvar(function () { return banco.excluir('empresas', c.id); }, 'Cliente excluído.'); fecharModal();
+    };
+  }
+
+  // ===================== PROPOSTAS =====================
+  function renderPropostas() {
+    var q = normal($('busca-proposta').value), st = $('filtro-proposta').value;
+    var lista = cache.propostas.filter(function (p) {
+      return (!st || p.status === st) && (!q || normal([codProposta(p), nomeCliente(p.clienteId, p.clienteNome), p.titulo].join(' ')).indexOf(q) >= 0);
+    }).sort(function (a, b) { return (b.ano - a.ano) || (b.numero - a.numero); });
+    if (!lista.length) { $('lista-propostas').innerHTML = '<div class="vazio">Nenhuma proposta' + (q || st ? ' encontrada' : ' ainda') + '.</div>'; return; }
+    $('lista-propostas').innerHTML = '<table><thead><tr><th>Número</th><th>Cliente / Serviço</th><th>Data</th><th>Validade</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>' +
+      lista.map(function (p) {
+        var vencida = p.status === 'enviada' && p.validade && p.validade < hoje();
+        return '<tr class="clicavel" data-proposta="' + p.id + '"><td><b>' + codProposta(p) + '</b></td><td>' + esc(nomeCliente(p.clienteId, p.clienteNome)) + '<div class="muted">' + esc(p.titulo) + '</div></td><td>' + data(p.data) + '</td><td>' + data(p.validade) + (vencida ? ' <span class="tag t-bad">vencida</span>' : '') + '</td><td class="num">' + brl(p.total) + '</td><td>' + tag('proposta', p.status) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+  $('lista-propostas').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-proposta]'); if (tr) verProposta(tr.dataset.proposta); });
+  $('btn-nova-proposta').addEventListener('click', function () { formProposta(); });
+
+  function linhaItem(i) {
+    i = i || { descricao: '', qtd: 1, valor: '' };
+    return '<tr><td><input class="i-desc" value="' + esc(i.descricao) + '" placeholder="Descrição do serviço"></td><td style="width:80px"><input class="i-qtd" inputmode="decimal" value="' + esc(i.qtd) + '"></td><td style="width:130px"><input class="i-valor" inputmode="decimal" value="' + esc(i.valor) + '" placeholder="0,00"></td><td style="width:40px"><button class="btn sec peq i-del" title="Remover">✕</button></td></tr>';
+  }
+
+  function formProposta(p) {
+    p = p || {};
+    var itens = p.itens && p.itens.length ? p.itens : [null];
+    abrirModal('<h3>' + (p.id ? 'Editar proposta ' + codProposta(p) : 'Nova proposta') + '</h3>' +
+      '<label>Cliente *</label><select id="p-cliente">' + opcoesClientes(p.clienteId) + '</select>' +
+      '<div class="muted" style="margin-top:4px">Cliente novo? <a href="#" id="p-novo-cliente">Cadastrar agora</a></div>' +
+      '<label>Título / Serviço *</label><input id="p-titulo" value="' + esc(p.titulo) + '" placeholder="Ex.: Inspeção termográfica dos painéis elétricos">' +
+      '<div class="linha"><div><label>Data</label><input id="p-data" type="date" value="' + esc(p.data || hoje()) + '"></div><div><label>Validade</label><input id="p-validade" type="date" value="' + esc(p.validade || somarDias(hoje(), 15)) + '"></div><div><label>Sistema de execução</label><select id="p-sistema">' + opcoesSistemas(p.sistema) + '</select></div></div>' +
+      '<label>Itens</label><div class="tabela"><table class="itens"><thead><tr><th>Descrição</th><th>Qtd</th><th>Valor unit. (R$)</th><th></th></tr></thead><tbody id="p-itens">' + itens.map(linhaItem).join('') + '</tbody></table></div>' +
+      '<button class="btn sec peq" id="p-add-item" style="margin-top:6px">+ Item</button>' +
+      '<div class="total" id="p-total"></div>' +
+      '<label>Escopo / Observações</label><textarea id="p-escopo">' + esc(p.escopo) + '</textarea>' +
+      '<label>Condições de pagamento</label><input id="p-condicoes" value="' + esc(p.condicoes || '30 dias após a entrega do relatório') + '">' +
+      '<div class="acoes"><button class="btn" id="p-salvar">Salvar</button><button class="btn sec" id="p-cancelar">Cancelar</button></div>');
+    function lerItens() {
+      return Array.prototype.map.call(document.querySelectorAll('#p-itens tr'), function (tr) {
+        return { descricao: tr.querySelector('.i-desc').value.trim(), qtd: num(tr.querySelector('.i-qtd').value), valor: num(tr.querySelector('.i-valor').value) };
+      }).filter(function (i) { return i.descricao; });
+    }
+    function atualizarTotal() { $('p-total').textContent = 'Total: ' + brl(totalItens(lerItens())); }
+    atualizarTotal();
+    $('p-itens').addEventListener('input', atualizarTotal);
+    $('p-itens').addEventListener('click', function (e) { if (e.target.classList.contains('i-del')) { e.target.closest('tr').remove(); atualizarTotal(); } });
+    $('p-add-item').onclick = function () { $('p-itens').insertAdjacentHTML('beforeend', linhaItem()); };
+    $('p-cancelar').onclick = fecharModal;
+    $('p-novo-cliente').onclick = function (e) { e.preventDefault(); formCliente(); };
+    $('p-salvar').onclick = async function () {
+      var cid = $('p-cliente').value, it = lerItens();
+      if (!cid) { toast('Selecione o cliente.'); return; }
+      if (!$('p-titulo').value.trim()) { toast('Informe o título da proposta.'); return; }
+      if (!it.length) { toast('Inclua pelo menos um item.'); return; }
+      var d = { clienteId: cid, clienteNome: nomeCliente(cid), titulo: $('p-titulo').value.trim(), data: $('p-data').value, validade: $('p-validade').value, sistema: $('p-sistema').value, itens: it, total: totalItens(it), escopo: $('p-escopo').value.trim(), condicoes: $('p-condicoes').value.trim(), updatedAt: agora() };
+      if (p.id) await salvar(function () { return banco.atualizar('propostas', p.id, d); }, 'Proposta atualizada.');
+      else {
+        d.ano = parseInt((d.data || hoje()).slice(0, 4), 10);
+        d.numero = proximoNumero(cache.propostas.filter(function (x) { return x.ano === d.ano; }), 'numero');
+        d.status = 'rascunho'; d.createdAt = agora();
+        await salvar(function () { return banco.criar('propostas', d); }, 'Proposta ' + codProposta(d) + ' criada.');
+      }
+      fecharModal();
+    };
+  }
+
+  function verProposta(id) {
+    var p = porId('propostas', id); if (!p) return;
+    var os = p.osId ? porId('ordens', p.osId) : null;
+    var botoes = [];
+    if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn ok" id="pv-aprovar">Aprovada pelo cliente → gerar OS</button>');
+    if (p.status === 'rascunho') botoes.push('<button class="btn" id="pv-enviar">Marcar como enviada</button>');
+    if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn sec" id="pv-editar">Editar</button>', '<button class="btn perigo" id="pv-recusar">Recusada</button>');
+    if (p.status === 'recusada') botoes.push('<button class="btn sec" id="pv-reabrir">Reabrir</button>');
+    botoes.push('<button class="btn sec" id="pv-imprimir">Imprimir / PDF</button>', '<button class="btn sec" id="pv-copiar">Duplicar</button>');
+    if (p.status !== 'aprovada') botoes.push('<button class="btn perigo" id="pv-excluir">Excluir</button>');
+    botoes.push('<button class="btn sec" id="pv-fechar">Fechar</button>');
+    abrirModal('<h3>' + codProposta(p) + ' ' + tag('proposta', p.status) + '</h3>' +
+      '<div><b>' + esc(nomeCliente(p.clienteId, p.clienteNome)) + '</b></div><div>' + esc(p.titulo) + '</div>' +
+      '<div class="muted">Data ' + data(p.data) + ' · validade ' + data(p.validade) + (p.sistema ? ' · executa em ' + esc(p.sistema) : '') + '</div>' +
+      '<div class="tabela" style="margin-top:10px"><table><thead><tr><th>Item</th><th class="num">Qtd</th><th class="num">Unit.</th><th class="num">Total</th></tr></thead><tbody>' +
+      (p.itens || []).map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td class="num">' + esc(i.qtd) + '</td><td class="num">' + brl(i.valor) + '</td><td class="num">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
+      '</tbody></table></div><div class="total">Total: ' + brl(p.total) + '</div>' +
+      (p.escopo ? '<p class="muted">' + esc(p.escopo) + '</p>' : '') +
+      (os ? '<p>Gerou a <b>OS-' + esc(os.numero) + '</b> ' + tag('os', statusOS(os)) + ' <a href="#" id="pv-ver-os">ver OS</a></p>' : '') +
+      '<div class="acoes">' + botoes.join('') + '</div>');
+    function ligar(id, fn) { var b = $(id); if (b) b.onclick = fn; }
+    ligar('pv-fechar', fecharModal);
+    ligar('pv-editar', function () { formProposta(p); });
+    ligar('pv-imprimir', function () { imprimirProposta(p); });
+    ligar('pv-ver-os', function (e) { e.preventDefault(); verOS(os.id); });
+    ligar('pv-copiar', function () { var c = Object.assign({}, p); delete c.id; delete c.osId; delete c.numero; delete c.status; c.data = hoje(); c.validade = somarDias(hoje(), 15); formProposta(c); });
+    ligar('pv-enviar', async function () { await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'enviada', enviadaEm: agora() }); }, 'Proposta marcada como enviada.'); verProposta(p.id); });
+    ligar('pv-recusar', async function () { var motivo = prompt('Motivo da recusa (opcional):'); if (motivo === null) return; await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'recusada', motivoRecusa: motivo, recusadaEm: agora() }); }, 'Proposta marcada como recusada.'); verProposta(p.id); });
+    ligar('pv-reabrir', async function () { await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'enviada' }); }, 'Proposta reaberta.'); verProposta(p.id); });
+    ligar('pv-excluir', async function () { if (!confirm('Excluir a proposta ' + codProposta(p) + '?')) return; await salvar(function () { return banco.excluir('propostas', p.id); }, 'Proposta excluída.'); fecharModal(); });
+    ligar('pv-aprovar', async function () {
+      if (!confirm('Confirmar aprovação e abrir a OS?')) return;
+      var numero = proximoNumero(cache.ordens, 'numero');
+      // Campos numero/empresaId/empresaNome/descricao/dataAbertura seguem o formato da Termografia,
+      // para a OS aparecer lá automaticamente.
+      var osId = await salvar(function () {
+        return banco.criar('ordens', { numero: numero, empresaId: p.clienteId, empresaNome: nomeCliente(p.clienteId, p.clienteNome), descricao: p.titulo, dataAbertura: hoje(), createdAt: agora(), status: 'aberta', propostaId: p.id, propostaCodigo: codProposta(p), valor: p.total, sistema: p.sistema || '' });
+      });
+      await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'aprovada', aprovadaEm: agora(), osId: osId }); }, 'Proposta aprovada. OS-' + numero + ' aberta.');
+      fecharModal(); mostrar('ordens');
+    });
+  }
+
+  function imprimirProposta(p) {
+    var c = porId('empresas', p.clienteId) || { nome: p.clienteNome };
+    $('print').innerHTML =
+      '<div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:8px"><div><b style="font-size:18pt">' + esc(EMPRESA.nome) + '</b><div>' + esc(EMPRESA.site) + '</div></div><div style="text-align:right"><b>PROPOSTA COMERCIAL</b><div>' + codProposta(p) + '</div><div>' + data(p.data) + '</div></div></div>' +
+      '<p><b>Cliente:</b> ' + esc(c.nome) + (c.cnpj ? ' · CNPJ ' + esc(c.cnpj) : '') + '<br>' + (c.contato ? 'A/C ' + esc(c.contato) + (c.email ? ' · ' + esc(c.email) : '') + '<br>' : '') + esc([c.endereco, c.cidade, c.uf].filter(Boolean).join(', ')) + '</p>' +
+      '<p><b>Objeto:</b> ' + esc(p.titulo) + '</p>' + (p.escopo ? '<p style="white-space:pre-wrap">' + esc(p.escopo) + '</p>' : '') +
+      '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left">Item</th><th style="text-align:right">Qtd</th><th style="text-align:right">Valor unit.</th><th style="text-align:right">Total</th></tr></thead><tbody>' +
+      (p.itens || []).map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td style="text-align:right">' + esc(i.qtd) + '</td><td style="text-align:right">' + brl(i.valor) + '</td><td style="text-align:right">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
+      '</tbody></table><p style="text-align:right;font-size:14pt"><b>Total: ' + brl(p.total) + '</b></p>' +
+      '<p><b>Condições de pagamento:</b> ' + esc(p.condicoes || '—') + '<br><b>Validade da proposta:</b> ' + data(p.validade) + '</p>' +
+      '<p style="margin-top:40px">______________________________<br>' + esc(EMPRESA.nome) + '</p>';
+    window.print();
+  }
+
+  // ===================== ORDENS DE SERVIÇO =====================
+  function renderOrdens() {
+    var q = normal($('busca-os').value), st = $('filtro-os').value;
+    var lista = cache.ordens.filter(function (o) {
+      return (!st || statusOS(o) === st) && (!q || normal(['OS-' + o.numero, nomeCliente(o.empresaId, o.empresaNome), o.descricao, o.responsavel].join(' ')).indexOf(q) >= 0);
+    }).sort(function (a, b) { return (parseInt(b.numero, 10) || 0) - (parseInt(a.numero, 10) || 0); });
+    if (!lista.length) { $('lista-ordens').innerHTML = '<div class="vazio">Nenhuma OS' + (q || st ? ' encontrada' : ' ainda') + '.</div>'; return; }
+    $('lista-ordens').innerHTML = '<table><thead><tr><th>OS</th><th>Cliente / Serviço</th><th>Abertura</th><th>Prazo</th><th>Sistema</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>' +
+      lista.map(function (o) {
+        var atrasada = o.prazo && o.prazo < hoje() && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0;
+        return '<tr class="clicavel" data-os="' + o.id + '"><td><b>OS-' + esc(o.numero) + '</b></td><td>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '<div class="muted">' + esc(o.descricao || '') + (o.responsavel ? ' · ' + esc(o.responsavel) : '') + '</div></td><td>' + data(o.dataAbertura) + '</td><td>' + data(o.prazo) + (atrasada ? ' <span class="tag t-bad">atrasada</span>' : '') + '</td><td>' + esc(o.sistema || '—') + '</td><td class="num">' + (o.valor != null ? brl(o.valor) : '—') + '</td><td>' + tag('os', statusOS(o)) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+  $('lista-ordens').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-os]'); if (tr) verOS(tr.dataset.os); });
+  $('btn-nova-os').addEventListener('click', function () { formOS(); });
+
+  function formOS(o) {
+    o = o || {};
+    abrirModal('<h3>' + (o.id ? 'Editar OS-' + esc(o.numero) : 'Nova OS (sem proposta)') + '</h3>' +
+      '<label>Cliente *</label><select id="o-cliente">' + opcoesClientes(o.empresaId) + '</select>' +
+      '<label>Descrição do serviço *</label><input id="o-desc" value="' + esc(o.descricao) + '">' +
+      '<div class="linha"><div><label>Abertura</label><input id="o-abertura" type="date" value="' + esc(o.dataAbertura || hoje()) + '"></div><div><label>Prazo</label><input id="o-prazo" type="date" value="' + esc(o.prazo) + '"></div><div><label>Responsável</label><input id="o-resp" value="' + esc(o.responsavel) + '"></div></div>' +
+      '<div class="linha"><div><label>Sistema de execução</label><select id="o-sistema">' + opcoesSistemas(o.sistema) + '</select></div><div><label>Valor (R$)</label><input id="o-valor" inputmode="decimal" value="' + esc(o.valor != null ? String(o.valor).replace('.', ',') : '') + '"></div></div>' +
+      '<label>Observações</label><textarea id="o-obs">' + esc(o.obs) + '</textarea>' +
+      '<div class="acoes"><button class="btn" id="o-salvar">Salvar</button><button class="btn sec" id="o-cancelar">Cancelar</button></div>');
+    $('o-cancelar').onclick = fecharModal;
+    $('o-salvar').onclick = async function () {
+      var cid = $('o-cliente').value;
+      if (!cid) { toast('Selecione o cliente.'); return; }
+      if (!$('o-desc').value.trim()) { toast('Descreva o serviço.'); return; }
+      var d = { empresaId: cid, empresaNome: nomeCliente(cid), descricao: $('o-desc').value.trim(), dataAbertura: $('o-abertura').value, prazo: $('o-prazo').value, responsavel: $('o-resp').value.trim(), sistema: $('o-sistema').value, valor: $('o-valor').value.trim() ? num($('o-valor').value) : null, obs: $('o-obs').value.trim(), updatedAt: agora() };
+      if (o.id) await salvar(function () { return banco.atualizar('ordens', o.id, d); }, 'OS atualizada.');
+      else { d.numero = proximoNumero(cache.ordens, 'numero'); d.status = 'aberta'; d.createdAt = agora(); await salvar(function () { return banco.criar('ordens', d); }, 'OS-' + d.numero + ' aberta.'); }
+      fecharModal();
+    };
+  }
+
+  function verOS(id) {
+    var o = porId('ordens', id); if (!o) return;
+    var st = statusOS(o), p = o.propostaId ? porId('propostas', o.propostaId) : null, f = o.faturaId ? porId('faturas', o.faturaId) : null;
+    var url = SISTEMAS[o.sistema];
+    var b = [];
+    if (st === 'aberta') b.push('<button class="btn" id="ov-iniciar">Iniciar execução</button>');
+    if (st === 'aberta' || st === 'execucao') b.push('<button class="btn ok" id="ov-concluir">Concluir serviço</button>');
+    if (st === 'concluida') b.push('<button class="btn ok" id="ov-faturar">Faturar</button>');
+    if (url) b.push('<a class="btn sec" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(url) + '">Abrir na ' + esc(o.sistema) + '</a>');
+    if (st !== 'faturada') b.push('<button class="btn sec" id="ov-editar">Editar</button>');
+    if (st === 'aberta' || st === 'execucao') b.push('<button class="btn perigo" id="ov-cancelar">Cancelar OS</button>');
+    if (st === 'cancelada') b.push('<button class="btn sec" id="ov-reabrir">Reabrir</button>');
+    b.push('<button class="btn sec" id="ov-fechar">Fechar</button>');
+    abrirModal('<h3>OS-' + esc(o.numero) + ' ' + tag('os', st) + '</h3>' +
+      '<div><b>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '</b></div><div>' + esc(o.descricao || '') + '</div>' +
+      '<div class="ciclo">' + ['Proposta', 'OS aberta', 'Execução', 'Concluída', 'Faturada', 'Recebida'].map(function (e, i) {
+        var feito = [!!p, true, ['execucao', 'concluida', 'faturada'].indexOf(st) >= 0, ['concluida', 'faturada'].indexOf(st) >= 0, st === 'faturada', !!(f && f.status === 'paga')][i];
+        return '<span class="tag ' + (feito ? 't-ok' : 't-gray') + '">' + (feito ? '✓ ' : '') + e + '</span>';
+      }).join('') + '</div>' +
+      '<dl class="detalhe linha">' +
+      '<div><dt>Abertura</dt><dd>' + data(o.dataAbertura) + '</dd></div><div><dt>Prazo</dt><dd>' + data(o.prazo) + '</dd></div>' +
+      '<div><dt>Responsável</dt><dd>' + esc(o.responsavel || '—') + '</dd></div><div><dt>Sistema</dt><dd>' + esc(o.sistema || '—') + '</dd></div>' +
+      '<div><dt>Valor</dt><dd>' + (o.valor != null ? brl(o.valor) : '—') + '</dd></div>' +
+      '<div><dt>Proposta</dt><dd>' + (p ? '<a href="#" id="ov-ver-proposta">' + codProposta(p) + '</a>' : (o.propostaCodigo || '—')) + '</dd></div>' +
+      (o.dataConclusao ? '<div><dt>Concluída em</dt><dd>' + data(o.dataConclusao) + '</dd></div>' : '') +
+      (f ? '<div><dt>Fatura</dt><dd>' + codFatura(f) + ' ' + tag('fatura', f.status, f.vencimento) + '</dd></div>' : '') +
+      '</dl>' + (o.obs ? '<p class="muted">' + esc(o.obs) + '</p>' : '') +
+      (o.sistema === 'Termografia' ? '<p class="muted">Esta OS já aparece na Termografia para lançar os laudos.</p>' : '') +
+      '<div class="acoes">' + b.join('') + '</div>');
+    function ligar(id, fn) { var x = $(id); if (x) x.onclick = fn; }
+    ligar('ov-fechar', fecharModal);
+    ligar('ov-editar', function () { formOS(o); });
+    ligar('ov-ver-proposta', function (e) { e.preventDefault(); verProposta(p.id); });
+    ligar('ov-iniciar', async function () { await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'execucao', dataInicio: hoje() }); }, 'OS em execução.'); verOS(o.id); });
+    ligar('ov-concluir', async function () { if (!confirm('Marcar a OS-' + o.numero + ' como concluída?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'concluida', dataConclusao: hoje() }); }, 'OS concluída. Pronta para faturar.'); verOS(o.id); });
+    ligar('ov-cancelar', async function () { if (!confirm('Cancelar a OS-' + o.numero + '?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'cancelada' }); }, 'OS cancelada.'); verOS(o.id); });
+    ligar('ov-reabrir', async function () { await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'aberta' }); }, 'OS reaberta.'); verOS(o.id); });
+    ligar('ov-faturar', function () { formFatura(o); });
+  }
+
+  // ===================== FATURAMENTO =====================
+  function formFatura(o) {
+    abrirModal('<h3>Faturar OS-' + esc(o.numero) + '</h3><div>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + ' · ' + esc(o.descricao || '') + '</div>' +
+      '<div class="linha"><div><label>Valor (R$) *</label><input id="fa-valor" inputmode="decimal" value="' + esc(o.valor != null ? String(o.valor).replace('.', ',') : '') + '"></div><div><label>Emissão</label><input id="fa-emissao" type="date" value="' + hoje() + '"></div><div><label>Vencimento</label><input id="fa-venc" type="date" value="' + somarDias(hoje(), 30) + '"></div></div>' +
+      '<div class="linha"><div><label>Nº da nota fiscal</label><input id="fa-nf"></div><div><label>Forma de pagamento</label><select id="fa-forma"><option>Boleto</option><option>PIX</option><option>Transferência</option><option>Outro</option></select></div></div>' +
+      '<label>Observações</label><textarea id="fa-obs"></textarea>' +
+      '<div class="acoes"><button class="btn ok" id="fa-salvar">Gerar fatura</button><button class="btn sec" id="fa-cancelar">Cancelar</button></div>');
+    $('fa-cancelar').onclick = function () { verOS(o.id); };
+    $('fa-salvar').onclick = async function () {
+      var v = num($('fa-valor').value); if (!v) { toast('Informe o valor.'); return; }
+      var d = { numero: proximoNumero(cache.faturas, 'numero'), clienteId: o.empresaId, clienteNome: nomeCliente(o.empresaId, o.empresaNome), osId: o.id, osNumero: o.numero, descricao: o.descricao || '', valor: v, emissao: $('fa-emissao').value, vencimento: $('fa-venc').value, nf: $('fa-nf').value.trim(), forma: $('fa-forma').value, obs: $('fa-obs').value.trim(), status: 'pendente', createdAt: agora() };
+      var fid = await salvar(function () { return banco.criar('faturas', d); });
+      await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'faturada', faturaId: fid }); }, 'Fatura ' + codFatura(d) + ' gerada.');
+      fecharModal(); mostrar('faturas');
+    };
+  }
+
+  function renderFaturas() {
+    var q = normal($('busca-fatura').value), st = $('filtro-fatura').value;
+    var lista = cache.faturas.filter(function (f) {
+      return (!st || f.status === st) && (!q || normal([codFatura(f), nomeCliente(f.clienteId, f.clienteNome), f.nf, 'OS-' + f.osNumero, f.descricao].join(' ')).indexOf(q) >= 0);
+    }).sort(function (a, b) { return b.numero - a.numero; });
+    if (!lista.length) { $('lista-faturas').innerHTML = '<div class="vazio">Nenhuma fatura' + (q || st ? ' encontrada' : ' ainda. Conclua uma OS e clique em Faturar') + '.</div>'; return; }
+    $('lista-faturas').innerHTML = '<table><thead><tr><th>Fatura</th><th>Cliente / OS</th><th>NF</th><th>Vencimento</th><th class="num">Valor</th><th>Status</th><th></th></tr></thead><tbody>' +
+      lista.map(function (f) {
+        return '<tr><td><b>' + codFatura(f) + '</b><div class="muted">' + data(f.emissao) + '</div></td><td>' + esc(nomeCliente(f.clienteId, f.clienteNome)) + '<div class="muted">OS-' + esc(f.osNumero) + ' · ' + esc(f.descricao) + '</div></td><td>' + esc(f.nf || '—') + '</td><td>' + data(f.vencimento) + '</td><td class="num">' + brl(f.valor) + '</td><td>' + tag('fatura', f.status, f.vencimento) + (f.dataPagamento ? '<div class="muted">' + data(f.dataPagamento) + '</div>' : '') + '</td><td>' +
+          (f.status === 'pendente' ? '<button class="btn ok peq" data-pagar="' + f.id + '">Recebido</button> <button class="btn sec peq" data-nf="' + f.id + '">NF</button>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+  $('lista-faturas').addEventListener('click', async function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.pagar) {
+      var dt = prompt('Data do recebimento (dd/mm/aaaa):', data(hoje())); if (dt === null) return;
+      var p = dt.split('/'); var iso = p.length === 3 ? p[2] + '-' + pad(p[1], 2) + '-' + pad(p[0], 2) : hoje();
+      await salvar(function () { return banco.atualizar('faturas', b.dataset.pagar, { status: 'paga', dataPagamento: iso }); }, 'Recebimento registrado.');
+    }
+    if (b.dataset.nf) {
+      var f = porId('faturas', b.dataset.nf), nf = prompt('Número da nota fiscal:', f.nf || ''); if (nf === null) return;
+      await salvar(function () { return banco.atualizar('faturas', f.id, { nf: nf.trim() }); }, 'NF registrada.');
+    }
+  });
+
+  // ===================== PAINEL =====================
+  function renderPainel() {
+    var h = hoje(), mes = h.slice(0, 7);
+    var P = cache.propostas, O = cache.ordens, F = cache.faturas;
+    function soma(l, c) { return l.reduce(function (s, x) { return s + num(x[c]); }, 0); }
+    var pAbertas = P.filter(function (p) { return p.status === 'rascunho' || p.status === 'enviada'; });
+    var oAbertas = O.filter(function (o) { return statusOS(o) === 'aberta'; });
+    var oExec = O.filter(function (o) { return statusOS(o) === 'execucao'; });
+    var oConcl = O.filter(function (o) { return statusOS(o) === 'concluida'; });
+    var fPend = F.filter(function (f) { return f.status === 'pendente'; });
+    var fVenc = fPend.filter(function (f) { return f.vencimento && f.vencimento < h; });
+    var fMes = F.filter(function (f) { return f.status === 'paga' && String(f.dataPagamento || '').slice(0, 7) === mes; });
+    var aprovMes = P.filter(function (p) { return p.status === 'aprovada' && String(p.aprovadaEm || '').slice(0, 7) === mes; });
+    var decididas = P.filter(function (p) { return p.status === 'aprovada' || p.status === 'recusada'; });
+    var taxa = decididas.length ? Math.round(100 * P.filter(function (p) { return p.status === 'aprovada'; }).length / decididas.length) : null;
+
+    var etapas = [
+      ['Propostas em aberto', pAbertas.length, brl(soma(pAbertas, 'total')), 'propostas', ''],
+      ['OS abertas', oAbertas.length, '', 'ordens', 'aberta'],
+      ['Em execução', oExec.length, '', 'ordens', 'execucao'],
+      ['A faturar', oConcl.length, brl(soma(oConcl, 'valor')), 'ordens', 'concluida'],
+      ['A receber', fPend.length, brl(soma(fPend, 'valor')), 'faturas', 'pendente']
+    ];
+    $('funil').innerHTML = etapas.map(function (e, i) {
+      return (i ? '<div class="seta">›</div>' : '') + '<div class="etapa" data-ir="' + e[3] + '" data-filtro="' + e[4] + '"><b>' + e[1] + '</b><span>' + e[0] + '</span>' + (e[2] ? '<div class="muted">' + e[2] + '</div>' : '') + '</div>';
+    }).join('');
+    $('kpis').innerHTML = [
+      ['Recebido no mês', brl(soma(fMes, 'valor')), fMes.length + ' fatura(s)', 'faturas', 'paga'],
+      ['Vencido', brl(soma(fVenc, 'valor')), fVenc.length + ' fatura(s) em atraso', 'faturas', 'pendente'],
+      ['Aprovado no mês', brl(soma(aprovMes, 'total')), aprovMes.length + ' proposta(s)', 'propostas', 'aprovada'],
+      ['Taxa de aprovação', taxa == null ? '—' : taxa + '%', decididas.length + ' proposta(s) decididas', 'propostas', ''],
+      ['Clientes', cache.empresas.length, 'cadastro único', 'clientes', '']
+    ].map(function (k) { return '<div class="card kpi" data-ir="' + k[3] + '" data-filtro="' + k[4] + '"><div class="rotulo">' + k[0] + '</div><div class="valor">' + k[1] + '</div><div class="sub">' + k[2] + '</div></div>'; }).join('');
+
+    var at = [];
+    fVenc.forEach(function (f) { at.push([f.vencimento, 'Fatura ' + codFatura(f) + ' vencida em ' + data(f.vencimento), nomeCliente(f.clienteId, f.clienteNome), brl(f.valor)]); });
+    O.filter(function (o) { return o.prazo && o.prazo < h && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0; }).forEach(function (o) { at.push([o.prazo, 'OS-' + o.numero + ' com prazo vencido em ' + data(o.prazo), nomeCliente(o.empresaId, o.empresaNome), '']); });
+    oConcl.forEach(function (o) { at.push([o.dataConclusao || h, 'OS-' + o.numero + ' concluída, falta faturar', nomeCliente(o.empresaId, o.empresaNome), o.valor != null ? brl(o.valor) : '']); });
+    P.filter(function (p) { return p.status === 'enviada' && p.validade && p.validade < h; }).forEach(function (p) { at.push([p.validade, 'Proposta ' + codProposta(p) + ' vencida sem resposta', nomeCliente(p.clienteId, p.clienteNome), brl(p.total)]); });
+    at.sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
+    $('atencao').innerHTML = at.length ? '<table><tbody>' + at.map(function (a) { return '<tr><td>' + esc(a[1]) + '</td><td>' + esc(a[2]) + '</td><td class="num">' + a[3] + '</td></tr>'; }).join('') + '</tbody></table>' : '<div class="vazio">Tudo em dia.</div>';
+  }
+  $('v-painel').addEventListener('click', function (e) {
+    var el = e.target.closest('[data-ir]'); if (!el) return;
+    var v = el.dataset.ir, f = el.dataset.filtro;
+    var sel = { propostas: 'filtro-proposta', ordens: 'filtro-os', faturas: 'filtro-fatura' }[v];
+    if (sel) $(sel).value = f || '';
+    renderTudo(); mostrar(v);
+  });
+
+  function renderTudo() { renderPainel(); renderClientes(); renderPropostas(); renderOrdens(); renderFaturas(); }
+})();
+</script>
+</body>
+</html>
