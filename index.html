@@ -1119,7 +1119,7 @@
     }
     document.getElementById('aviso-sem-os').style.display = 'none';
     selOs.innerHTML = '<option value="">Selecione uma OS…</option>' +
-      osDaEmpresa.map(function (o) { return '<option value="' + o.id + '">OS-' + o.numero + (o.descricao ? ' — ' + escapeHtml(o.descricao) : '') + '</option>'; }).join('');
+      osDaEmpresa.map(function (o) { return '<option value="' + o.id + '">' + escapeHtml(rotuloOS(o)) + (o.descricao ? ' — ' + escapeHtml(o.descricao) : '') + '</option>'; }).join('');
     if (atual) selOs.value = atual;
   }
   document.getElementById('novo-empresa').addEventListener('change', function () {
@@ -1543,6 +1543,8 @@
   var MODO_CLIENTE = false;
   var CLIENTE_ATUAL = null;
   var OS_ATUAL = null;
+  var OS_DO_CRONOS = null; // ?os=<id> sem ?cliente: aberto a partir de uma OS do Cronos
+  var empresasCarregadas = false;
 
   function classeResumo(key) {
     if (key === 'normal') return 'ok';
@@ -1927,6 +1929,7 @@
       try {
         await db.collection('pontos').doc(ponto.id).delete();
         toast('Ponto excluído.');
+        devolverParaCronos(ponto.osId);
       } catch (err) {
         toast('Não foi possível excluir.');
       }
@@ -1939,6 +1942,46 @@
     } catch (err) {
       console.error(err);
       toast('Não foi possível excluir.');
+    }
+  }
+
+  // ---------- Integração com o Cronos ----------
+  // O Cronos (em /cronos/) usa este mesmo banco. Ele abre a Termografia com ?os=<id da OS>
+  // e lê de volta, no próprio documento da OS, o resumo gravado aqui em resultados.Termografia.
+  var STATUS_OS_LABEL = { aberta: 'Aberta', execucao: 'Em execução', concluida: 'Concluída', faturada: 'Faturada', cancelada: 'Cancelada' };
+  function rotuloOS(o) { return o.codigo || ('OS-' + o.numero); }
+
+  function aplicarOsDoCronos() {
+    if (!OS_DO_CRONOS || !ordensCarregadas || !empresasCarregadas) return;
+    var osId = OS_DO_CRONOS;
+    OS_DO_CRONOS = null;
+    var os = ordensCache.find(function (o) { return o.id === osId; });
+    if (!os) { toast('A OS aberta pelo Cronos não foi encontrada aqui.'); return; }
+    mostrarView('novo');
+    document.getElementById('novo-empresa').value = os.empresaId || '';
+    atualizarSelectOsNovo(os.empresaId, false);
+    document.getElementById('f-os').value = os.id;
+    toast('Lançando laudos na ' + rotuloOS(os) + ' — ' + (os.empresaNome || ''));
+  }
+
+  // Grava na OS o resumo dos laudos dela, para o Cronos mostrar sem abrir a Termografia.
+  async function devolverParaCronos(osId) {
+    if (!db || !osId) return;
+    try {
+      var snap = await db.collection('pontos').where('osId', '==', osId).get();
+      var porNivel = {};
+      snap.docs.forEach(function (d) { var k = classificarPrincipal(d.data() || {}).key; porNivel[k] = (porNivel[k] || 0) + 1; });
+      var os = ordensCache.find(function (o) { return o.id === osId; });
+      var upd = { resultados: { Termografia: {
+        qtdLaudos: snap.size, porNivel: porNivel,
+        criticos: (porNivel.urgencia || 0) + (porNivel.emergencia || 0),
+        atualizadoEm: new Date().toISOString()
+      } } };
+      // Primeiro laudo lançado: a OS passa para "em execução" no Cronos
+      if (os && snap.size && (!os.status || os.status === 'aberta')) { upd.status = 'execucao'; upd.dataInicio = new Date().toISOString().slice(0, 10); }
+      await db.collection('ordens').doc(osId).set(upd, { merge: true });
+    } catch (err) {
+      console.error('Não foi possível atualizar a OS no Cronos:', err);
     }
   }
 
@@ -2202,10 +2245,10 @@
             '<button class="btn-secondary" data-action="baixar-todos-os" data-os-id="' + o.id + '">⬇ Baixar toda a OS (' + laudos.length + ')</button>' +
           '</div>' : '';
         return '<div class="os-item" data-id="' + o.id + '">' +
-          '<div class="nome">OS-' + o.numero + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">Aberta</span></div>' +
+          '<div class="nome">' + escapeHtml(rotuloOS(o)) + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">' + (STATUS_OS_LABEL[o.status] || 'Aberta') + '</span></div>' +
           '<div class="sub">' + escapeHtml(o.descricao || 'Sem descrição') + (o.dataAbertura ? ' · ' + o.dataAbertura : '') + '</div>' +
           '<div class="os-laudos"><div class="os-laudos-titulo">Laudos' + (filtroSeveridade ? ' ' + SEVERIDADE_LABEL[filtroSeveridade] : '') + ' desta OS (' + laudos.length + ')</div>' + toolbarHtml + laudosHtml + '</div>' +
-          (filtroSeveridade ? '' : '<div class="ponto-actions"><button class="btn-secondary" data-action="link-cliente-os" data-id="' + o.id + '">🔗 Link do cliente</button><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir OS</button></div>') +
+          (filtroSeveridade ? '' : '<div class="ponto-actions">' + ((!o.status || o.status === 'aberta' || o.status === 'execucao') ? '<button class="btn-secondary" data-action="concluir-os" data-id="' + o.id + '">✓ Concluir OS</button>' : '') + '<button class="btn-secondary" data-action="link-cliente-os" data-id="' + o.id + '">🔗 Link do cliente</button><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir OS</button></div>') +
         '</div>';
       }).join('');
     }
@@ -2254,6 +2297,21 @@
   });
 
   document.getElementById('lista-ordens').addEventListener('click', function (e) {
+    var btnConcluir = e.target.closest('button[data-action="concluir-os"]');
+    if (btnConcluir) {
+      var osC = ordensCache.find(function (x) { return x.id === btnConcluir.getAttribute('data-id'); });
+      if (!osC) return;
+      confirmarAcao('Concluir a ' + rotuloOS(osC) + '? Ela fica pronta para faturar no Cronos.').then(async function (ok) {
+        if (!ok) return;
+        if (!db) { osC.status = 'concluida'; renderOrdens(); toast('OS concluída.'); return; }
+        try {
+          await devolverParaCronos(osC.id);
+          await comTimeout(db.collection('ordens').doc(osC.id).set({ status: 'concluida', dataConclusao: new Date().toISOString().slice(0, 10) }, { merge: true }), 15000, 'concluir OS');
+          toast(rotuloOS(osC) + ' concluída. Já aparece no Cronos para faturar.');
+        } catch (err) { mostrarErroBanco(err, 'concluir OS'); toast('Não foi possível concluir a OS.'); }
+      });
+      return;
+    }
     var btnLink = e.target.closest('button[data-action="link-cliente-os"]');
     if (btnLink) {
       var idLink = btnLink.getAttribute('data-id');
@@ -2546,6 +2604,8 @@
         }
         toast('Ponto #' + numero + ' salvo.');
       }
+      devolverParaCronos(osId);
+      if (editando && editandoPontoOriginal && editandoPontoOriginal.osId && editandoPontoOriginal.osId !== osId) devolverParaCronos(editandoPontoOriginal.osId);
       limparFormulario();
     } catch (err) {
       console.error(err);
@@ -3306,6 +3366,7 @@
       document.getElementById('btn-hamburger').style.display = 'none';
       document.getElementById('fab-novo-laudo').style.display = 'none';
     } else {
+      OS_DO_CRONOS = osParam || null;
       atualizarCalculo();
       atualizarCalculoBx1();
     }
@@ -3350,8 +3411,10 @@
             var copy = {}; for (var k in data) if (Object.prototype.hasOwnProperty.call(data, k)) copy[k] = data[k];
             copy.id = d.id; return copy;
           });
+          empresasCarregadas = true;
           renderEmpresas();
           popularSelectDashEmpresa();
+          aplicarOsDoCronos();
         }, function (err) { mostrarErroBanco(err, 'carregar empresas'); });
       } catch (e) { console.error(e); }
       try {
@@ -3365,6 +3428,7 @@
           renderOrdens();
           renderEmpresas();
           atualizarDashboard();
+          aplicarOsDoCronos();
         }, function (err) { mostrarErroBanco(err, 'carregar OS'); });
       } catch (e) { console.error(e); }
     } else if (!MODO_CLIENTE) {
