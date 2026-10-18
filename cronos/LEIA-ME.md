@@ -50,3 +50,28 @@ já cobrou naquele tipo de serviço.
   faturamento e assinaturas).
 - **Salvar como modelo** numa proposta transforma ela em modelo novo.
 - Reimportar não sobrescreve modelos já importados (para não desfazer ajustes feitos no Cronos).
+
+## Finanças
+Menu **Finanças**: a saúde da empresa no estilo da planilha de controle financeiro, ligada ao resto do Cronos.
+
+- **Ligado ao faturamento**: toda fatura gerada a partir de uma OS já aparece em *Contas a receber*. Ao clicar
+  em *Recebido* (no Faturamento ou em Finanças) escolhe-se a data e o banco onde o dinheiro entrou.
+- **Contas a pagar**: despesas com categoria, fornecedor, vencimento e banco. Pode ser parcelada (divide o valor)
+  ou repetir todo mês. Uma despesa pode ser ligada a uma OS, para ver quanto sobrou em cada serviço.
+- **Extrato**: entradas e saídas por banco e o saldo dia a dia, para conferir com o extrato do banco.
+  Transferências entre bancos não contam como receita nem gasto.
+- **Fluxo de caixa** (mês a mês, com o previsto), **DRE** (receita, deduções, custos, margem de contribuição,
+  despesas fixas, lucro), **Metas** (previsto x realizado por categoria) e **Relatórios** (por cliente,
+  fornecedor, categoria e resultado por OS).
+- **Bancos e categorias**: bancos com o saldo de partida e o plano de contas (o mesmo da planilha). O saldo de cada
+  banco é o saldo informado no início de um dia mais tudo o que entrou e saiu dali em diante. Para acertar com o
+  banco, clique em *Atualizar saldo* e digite o saldo do extrato.
+
+Coleções novas no Firestore: `contas` (bancos), `lancamentos` (despesas, outras receitas e transferências) e
+`config/financas` (plano de contas e metas). As faturas ganham `contaId`, `grupo` e `categoria`.
+
+### Trazer a planilha financeira
+`importacao/financas.py <planilha.xlsm>` lê a *Planilha de Controle Financeiro Empresarial* e acrescenta o bloco
+`financas` ao `importacao-idealle.json` (rode depois do `build.py`). Na importação: bancos e saldo inicial, contas
+a pagar (pagas e em aberto) e, das contas a receber, o que bate com uma nota fiscal marca a nota como recebida
+com a data e o banco reais. O arquivo tem valores da empresa: não coloque no GitHub.
