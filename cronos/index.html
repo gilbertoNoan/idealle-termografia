@@ -240,10 +240,36 @@
     messagingSenderId: "577776042104",
     appId: "1:577776042104:web:508a131e13a4ef4afbed8d"
   };
-  // Endereço da Termografia (mesmo site: o Cronos fica em /cronos/), para abrir uma OS direto lá.
+  // Sistemas técnicos onde a OS é executada. A Termografia (mesmo site: o Cronos fica em /cronos/) já está
+  // integrada: abre direto na OS e devolve o resumo dos laudos em ordens/{id}.resultados.Termografia.
+  // Os demais recebem ?cronos_os=<id> e devolvem o resumo em ordens/{id}.resultados[<nome do sistema>].
   var SISTEMAS = {
-    'Termografia': '/'
+    'Termografia': '/',
+    'Relatório NR-13': 'https://app-nr13.vercel.app/',
+    'PMTA Calc': 'https://pmta-eta.vercel.app/',
+    'Calculadora NR-13': 'https://calculadora-iota-swart.vercel.app/',
+    'Gerador de Certificados': 'https://app-certificados-de-calibra-o.vercel.app/'
   };
+  // Sistemas já ligados ao Cronos e o nome do parâmetro que recebe o id da OS
+  var INTEGRADOS = { 'Termografia': 'os', 'Relatório NR-13': 'cronos_os', 'PMTA Calc': 'cronos_os', 'Calculadora NR-13': 'cronos_os', 'Gerador de Certificados': 'cronos_os' };
+  function linkSistema(o) {
+    var url = SISTEMAS[o.sistema];
+    if (!url) return '';
+    return INTEGRADOS[o.sistema] ? url + '?' + INTEGRADOS[o.sistema] + '=' + encodeURIComponent(o.id) : url;
+  }
+  var NIVEIS_TERMO = [['emergencia', 'Emergência', 't-bad'], ['urgencia', 'Urgência', 't-bad'], ['programar', 'Programar', 't-warn'], ['observar', 'Observar', 't-blue'], ['normal', 'Normal', 't-ok']];
+  function resumoResultado(o) {
+    var res = o.resultados || {};
+    return Object.keys(res).map(function (sis) {
+      var r = res[sis] || {};
+      if (sis !== 'Termografia') return '<p><b>' + esc(sis) + ':</b> ' + esc(r.resumo || (r.qtdLaudos + ' laudo(s)')) + (r.tags && r.tags.length ? ' <span class="muted">(' + esc(r.tags.join(', ')) + ')</span>' : '') + ' <span class="muted">atualizado em ' + data(r.atualizadoEm) + '</span></p>';
+      return resumoTermografia(r);
+    }).join('');
+  }
+  function resumoTermografia(r) {
+    var niveis = NIVEIS_TERMO.filter(function (n) { return r.porNivel && r.porNivel[n[0]]; }).map(function (n) { return '<span class="tag ' + n[2] + '">' + r.porNivel[n[0]] + ' ' + n[1] + '</span>'; }).join(' ');
+    return '<p><b>Termografia:</b> ' + r.qtdLaudos + ' laudo(s) ' + niveis + ' <span class="muted">atualizado em ' + data(r.atualizadoEm) + '</span></p>';
+  }
   // Dados impressos nas propostas (cabeçalho, rodapé, faturamento e assinaturas)
   // Quem pode entrar com Google: e-mails ou domínios (ex.: '@ideallesp.com.br'). Lista vazia = qualquer conta Google.
   var ACESSO_GOOGLE = [];
@@ -874,7 +900,7 @@
     $('lista-ordens').innerHTML = '<table><thead><tr><th>OS</th><th>Cliente / Serviço</th><th>Abertura</th><th>Prazo</th><th>Sistema</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>' +
       lista.map(function (o) {
         var atrasada = o.prazo && o.prazo < hoje() && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0;
-        return '<tr class="clicavel" data-os="' + o.id + '"><td><b>' + esc(codOS(o)) + '</b></td><td>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '<div class="muted">' + esc(o.descricao || '') + (o.responsavel ? ' · ' + esc(o.responsavel) : '') + '</div></td><td>' + data(o.dataAbertura) + '</td><td>' + data(o.prazo) + (atrasada ? ' <span class="tag t-bad">atrasada</span>' : '') + '</td><td>' + esc(o.sistema || '—') + '</td><td class="num">' + (o.valor != null ? brl(o.valor) : '—') + '</td><td>' + tag('os', statusOS(o)) + '</td></tr>';
+        return '<tr class="clicavel" data-os="' + o.id + '"><td><b>' + esc(codOS(o)) + '</b></td><td>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '<div class="muted">' + esc(o.descricao || '') + (o.responsavel ? ' · ' + esc(o.responsavel) : '') + '</div></td><td>' + data(o.dataAbertura) + '</td><td>' + data(o.prazo) + (atrasada ? ' <span class="tag t-bad">atrasada</span>' : '') + '</td><td>' + esc(o.sistema || '—') + (o.resultados && o.resultados[o.sistema] ? '<div class="muted">' + o.resultados[o.sistema].qtdLaudos + ' laudo(s)</div>' : '') + '</td><td class="num">' + (o.valor != null ? brl(o.valor) : '—') + '</td><td>' + tag('os', statusOS(o)) + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
   $('lista-ordens').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-os]'); if (tr) verOS(tr.dataset.os); });
@@ -904,12 +930,12 @@
   function verOS(id) {
     var o = porId('ordens', id); if (!o) return;
     var st = statusOS(o), p = o.propostaId ? porId('propostas', o.propostaId) : null, f = o.faturaId ? porId('faturas', o.faturaId) : null;
-    var url = SISTEMAS[o.sistema];
+    var url = linkSistema(o);
     var b = [];
     if (st === 'aberta') b.push('<button class="btn" id="ov-iniciar">Iniciar execução</button>');
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn ok" id="ov-concluir">Concluir serviço</button>');
     if (st === 'concluida') b.push('<button class="btn ok" id="ov-faturar">Faturar</button>');
-    if (url) b.push('<a class="btn sec" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(url) + '">Abrir na ' + esc(o.sistema) + '</a>');
+    if (url) b.push('<a class="btn sec" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(url) + '">' + (INTEGRADOS[o.sistema] ? 'Fazer laudos no ' + (o.sistema === 'Termografia' ? 'sistema de ' : '') : 'Abrir ') + esc(o.sistema) + '</a>');
     if (st !== 'faturada') b.push('<button class="btn sec" id="ov-editar">Editar</button>');
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn perigo" id="ov-cancelar">Cancelar OS</button>');
     if (st === 'cancelada') b.push('<button class="btn sec" id="ov-reabrir">Reabrir</button>');
@@ -928,7 +954,7 @@
       (o.dataConclusao ? '<div><dt>Concluída em</dt><dd>' + data(o.dataConclusao) + '</dd></div>' : '') +
       (f ? '<div><dt>Fatura</dt><dd>' + codFatura(f) + ' ' + tag('fatura', f.status, f.vencimento) + '</dd></div>' : '') +
       '</dl>' + (o.obs ? '<p class="muted">' + esc(o.obs) + '</p>' : '') +
-      (o.sistema === 'Termografia' ? '<p class="muted">Esta OS já aparece na Termografia para lançar os laudos.</p>' : '') +
+      (resumoResultado(o) || (INTEGRADOS[o.sistema] ? '<p class="muted">Nenhum laudo lançado ainda em ' + esc(o.sistema) + '.</p>' : '')) +
       '<div class="acoes">' + b.join('') + '</div>');
     function ligar(id, fn) { var x = $(id); if (x) x.onclick = fn; }
     ligar('ov-fechar', fecharModal);
