@@ -649,7 +649,7 @@
     if (p.status === 'rascunho') botoes.push('<button class="btn" id="pv-enviar">Marcar como enviada</button>');
     if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn sec" id="pv-editar">Editar</button>', '<button class="btn perigo" id="pv-recusar">Recusada</button>');
     if (p.status === 'recusada' || p.status === 'semretorno') botoes.push('<button class="btn sec" id="pv-reabrir">Reabrir</button>');
-    botoes.push('<button class="btn sec" id="pv-imprimir">Imprimir / PDF</button>', '<button class="btn sec" id="pv-copiar">Duplicar</button>', '<button class="btn sec" id="pv-modelo">Salvar como modelo</button>');
+    botoes.push('<button class="btn" id="pv-pdf">Ver PDF</button>', '<button class="btn sec" id="pv-copiar">Duplicar</button>', '<button class="btn sec" id="pv-modelo">Salvar como modelo</button>');
     if (p.status !== 'aprovada') botoes.push('<button class="btn perigo" id="pv-excluir">Excluir</button>');
     botoes.push('<button class="btn sec" id="pv-fechar">Fechar</button>');
     abrirModal('<h3>' + codProposta(p) + ' ' + tag('proposta', p.status) + '</h3>' +
@@ -665,7 +665,7 @@
     function ligar(id, fn) { var b = $(id); if (b) b.onclick = fn; }
     ligar('pv-fechar', fecharModal);
     ligar('pv-editar', function () { formProposta(p); });
-    ligar('pv-imprimir', function () { imprimirProposta(p); });
+    ligar('pv-pdf', function () { verPdfProposta(p); });
     ligar('pv-modelo', function () {
       var m = { nome: p.titulo, titulo: p.titulo, sistema: p.sistema, condicoes: p.condicoes, validadeDias: p.data && p.validade ? diasEntre(p.data, p.validade) : 30, itens: p.itens };
       TEXTOS.forEach(function (t) { m[t[0]] = p[t[0]] || ''; });
@@ -728,46 +728,114 @@
   function linhas(t) { return String(t || '').split('\n').map(function (l) { return l.trim(); }).filter(Boolean); }
   function diasEntre(a, b) { return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5); }
 
-  function imprimirProposta(p) {
+  // A proposta sai em PDF de verdade, no padrão Idealle: é o arquivo que vai para o cliente.
+  // O gerador (pdfmake) só é baixado na primeira vez que alguém abre um PDF.
+  var PDFMAKE = 'https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/';
+  function carregarScript(src) {
+    return new Promise(function (ok, erro) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = function () { erro(new Error(src)); }; document.head.appendChild(s); });
+  }
+  function carregarPdfMake() {
+    if (!carregarPdfMake._p) carregarPdfMake._p = carregarScript(PDFMAKE + 'pdfmake.min.js').then(function () { return carregarScript(PDFMAKE + 'vfs_fonts.js'); })
+      .catch(function (e) { carregarPdfMake._p = null; throw e; });
+    return carregarPdfMake._p;
+  }
+  function arquivoProposta(p) {
+    var cli = nomeCliente(p.clienteId, p.clienteNome) || '';
+    return ('Proposta ' + codProposta(p).replace(/^ID-/, 'Idealle-').replace(/\//g, '-') + (cli ? ' - ' + cli : '')).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() + '.pdf';
+  }
+
+  function docProposta(p) {
     var c = porId('empresas', p.clienteId) || { nome: p.clienteNome };
-    var n = 0;
-    function secao(titulo, corpo) { n++; return '<h4>' + n + '. ' + titulo + '</h4>' + corpo; }
-    function lista(t, pre) { return '<ol class="sub">' + linhas(t).map(function (l, i) { return '<li><span>' + pre + '.' + (i + 1) + '.</span> ' + esc(l) + '</li>'; }).join('') + '</ol>'; }
-    function par(t) { return linhas(t).map(function (l) { return '<p>' + esc(l) + '</p>'; }).join(''); }
+    var n = 0, corpo = [];
+    function secao(titulo, partes) { n++; corpo.push({ text: n + '. ' + titulo, style: 'secao', headlineLevel: 1 }); corpo.push.apply(corpo, partes); }
+    function par(t) { return linhas(t).map(function (l) { return { text: l, style: 'par' }; }); }
+    function lista(t, pre) { return linhas(t).map(function (l, i) { return { text: [{ text: pre + '.' + (i + 1) + '. ', bold: true }, l], style: 'par', margin: [12, 0, 0, 3] }; }); }
     var dias = p.data && p.validade ? diasEntre(p.data, p.validade) : 30;
-    var corpo = '';
-    corpo += secao('OBJETIVO DOS TRABALHOS', par(p.objetivo || p.titulo));
-    corpo += secao('OBJETO DA INSPEÇÃO', '<table class="itens-print"><thead><tr><th>Item</th><th>Descrição</th><th class="n">Qtd</th><th class="n">Valor unit.</th><th class="n">Total</th></tr></thead><tbody>' +
-      (p.itens || []).filter(function (i) { return num(i.qtd); }).map(function (i, k) { return '<tr><td>2.' + (k + 1) + '</td><td>' + esc(i.descricao) + '</td><td class="n">' + esc(i.qtd) + '</td><td class="n">' + brl(i.valor) + '</td><td class="n">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') + '</tbody></table>');
-    corpo += secao('LOCAL DE EXECUÇÃO DOS SERVIÇOS', par(p.local || 'Nas instalações do cliente, conforme endereço acima.'));
-    if (p.escopo) corpo += secao('ESCOPO DA INSPEÇÃO', '<p>A fim de podermos atender o objetivo do trabalho, propomos a execução dos seguintes itens, os quais serão definidos para cada equipamento inspecionado:</p>' + lista(p.escopo, n + 1) +
-      '<p>Todos os prontuários, relatórios e certificados emitidos serão encaminhados no formato digital com armazenamento em nuvem para download.</p>');
-    if (p.fornIdealle) corpo += secao('FORNECIMENTO IDEALLE', lista(p.fornIdealle, n + 1));
-    if (p.fornCliente) corpo += secao('FORNECIMENTO DO CLIENTE', lista(p.fornCliente, n + 1));
-    if (p.prazoExecucao) corpo += secao('PRAZOS DE EXECUÇÃO', par(p.prazoExecucao));
-    corpo += secao('PREÇOS E CONDIÇÕES DE FORNECIMENTO', '<p>O valor global para a execução completa dos serviços propostos, relacionados no item 2 desta proposta, é de <b>' + brl(p.total) + '</b> (' + esc(extenso(p.total)) + ').</p>' +
-      linhas(p.obsPreco).map(function (l) { return '<p>* ' + esc(l) + '</p>'; }).join(''));
-    corpo += secao('CONDIÇÕES DE PAGAMENTO', par(p.condicoes || CONDICOES_PADRAO) +
-      '<p>Caso venhamos a ser contratados para os serviços descritos nesta proposta, o faturamento será executado pelo endereço:</p>' +
-      '<p class="dados">' + esc(EMPRESA.razao) + '<br>' + esc(EMPRESA.endereco) + '<br>CNPJ nº ' + esc(EMPRESA.cnpj) + ' e I. E. nº ' + esc(EMPRESA.ie) + '<br>PIX CNPJ: ' + esc(EMPRESA.pix) + '</p>');
-    corpo += secao('VALIDADE DA PROPOSTA', '<p>Esta proposta é válida por ' + dias + ' dias, a partir da data de sua emissão, após o que estará sujeita a confirmação. ' +
-      'Desde já agradecemos a oportunidade de participar desta tomada de preços e permanecemos à sua inteira disposição para quaisquer esclarecimentos que se fizerem necessários.</p>');
-    $('print').innerHTML =
-      '<div class="pp-rodape">' + esc(EMPRESA.nome) + ' - ' + esc(EMPRESA.slogan) + '<br>' + esc(EMPRESA.endereco) + ' - Tel. ' + esc(EMPRESA.telefone) + '<br>' + esc(EMPRESA.site) + '</div>' +
-      // o rodapé fixo se repete em cada página; o tfoot vazio reserva o espaço dele para o texto não passar por baixo
-      '<table class="pp-tab"><tfoot><tr><td><div style="height:20mm"></div></td></tr></tfoot><tbody><tr><td><div class="pp">' +
-      '<div class="pp-topo"><div><b class="pp-marca">' + esc(EMPRESA.nome) + '</b><div>' + esc(EMPRESA.slogan) + '</div></div><div style="text-align:right"><b>PROPOSTA COMERCIAL</b><div>' + codProposta(p) + '</div></div></div>' +
-      '<p style="text-align:right">' + esc(EMPRESA.cidade) + ', ' + dataExtenso(p.data) + '.</p>' +
-      '<p>À<br><b>' + esc(c.nome) + '</b>' + (c.cnpj ? '<br>CNPJ ' + esc(c.cnpj) : '') + (c.endereco || c.cidade ? '<br>' + esc([c.endereco, c.cidade, c.uf].filter(Boolean).join(' - ')) : '') + '</p>' +
-      (c.contato ? '<p>At.: ' + esc(c.contato) + (c.email ? ' · ' + esc(c.email) : '') + '</p>' : '') +
-      '<p><b>REF.:</b> ' + esc(p.ref || ('PROPOSTA PARA A PRESTAÇÃO DE SERVIÇOS DE ' + p.titulo).toUpperCase()) + '</p>' +
-      '<p><b>N/REF.:</b> ' + codProposta(p) + '</p>' +
-      '<p>Prezados Senhores(as),<br>Atendendo à solicitação de V.S.as, apresentamos nossas melhores condições técnicas e comerciais para a execução do serviço em referência, conforme segue:</p>' +
-      corpo +
-      '<p style="margin-top:24px">Atenciosamente,</p>' +
-      '<div class="pp-assin">' + EMPRESA.assinaturas.map(function (a) { return '<div>______________________________<br><b>' + esc(a[0]) + '</b><br>' + esc(a[1]) + '</div>'; }).join('') + '</div>' +
-      '</div></td></tr></tbody></table>';
-    window.print();
+    var itens = (p.itens || []).filter(function (i) { return num(i.qtd); });
+    var cab = ['ITEM', 'DESCRIÇÃO', 'QTD', 'VALOR UNIT.', 'TOTAL'].map(function (t, k) { return { text: t, bold: true, fontSize: 8.5, alignment: k > 1 ? 'right' : 'left' }; });
+
+    secao('OBJETIVO DOS TRABALHOS', par(p.objetivo || p.titulo));
+    secao('OBJETO DA INSPEÇÃO', [{
+      table: { headerRows: 1, dontBreakRows: true, widths: ['auto', '*', 'auto', 'auto', 'auto'],
+        body: [cab].concat(itens.map(function (i, k) {
+          return ['2.' + (k + 1), i.descricao || '', { text: String(i.qtd), alignment: 'right' }, { text: brl(i.valor), alignment: 'right', noWrap: true }, { text: brl(num(i.qtd) * num(i.valor)), alignment: 'right', noWrap: true }];
+        })) },
+      layout: { hLineWidth: function (i) { return i === 0 ? 0 : 0.6; }, vLineWidth: function () { return 0; }, hLineColor: function () { return '#bbbbbb'; },
+        paddingTop: function () { return 5; }, paddingBottom: function () { return 5; } },
+      fontSize: 9.5, margin: [0, 2, 0, 4]
+    }]);
+    secao('LOCAL DE EXECUÇÃO DOS SERVIÇOS', par(p.local || 'Nas instalações do cliente, conforme endereço acima.'));
+    if (p.escopo) secao('ESCOPO DA INSPEÇÃO', [{ text: 'A fim de podermos atender o objetivo do trabalho, propomos a execução dos seguintes itens, os quais serão definidos para cada equipamento inspecionado:', style: 'par' }]
+      .concat(lista(p.escopo, n + 1), [{ text: 'Todos os prontuários, relatórios e certificados emitidos serão encaminhados no formato digital com armazenamento em nuvem para download.', style: 'par' }]));
+    if (p.fornIdealle) secao('FORNECIMENTO IDEALLE', lista(p.fornIdealle, n + 1));
+    if (p.fornCliente) secao('FORNECIMENTO DO CLIENTE', lista(p.fornCliente, n + 1));
+    if (p.prazoExecucao) secao('PRAZOS DE EXECUÇÃO', par(p.prazoExecucao));
+    secao('PREÇOS E CONDIÇÕES DE FORNECIMENTO', [{ text: ['O valor global para a execução completa dos serviços propostos, relacionados no item 2 desta proposta, é de ', { text: brl(p.total), bold: true }, ' (' + extenso(p.total) + ').'], style: 'par' }]
+      .concat(linhas(p.obsPreco).map(function (l) { return { text: '* ' + l, style: 'par' }; })));
+    secao('CONDIÇÕES DE PAGAMENTO', par(p.condicoes || CONDICOES_PADRAO).concat([
+      { text: 'Caso venhamos a ser contratados para os serviços descritos nesta proposta, o faturamento será executado pelo endereço:', style: 'par' },
+      { text: [EMPRESA.razao, EMPRESA.endereco, 'CNPJ nº ' + EMPRESA.cnpj + ' e I. E. nº ' + EMPRESA.ie, 'PIX CNPJ: ' + EMPRESA.pix].join('\n'), margin: [12, 0, 0, 3] }
+    ]));
+    secao('VALIDADE DA PROPOSTA', [{ text: 'Esta proposta é válida por ' + dias + ' dias, a partir da data de sua emissão, após o que estará sujeita a confirmação. ' +
+      'Desde já agradecemos a oportunidade de participar desta tomada de preços e permanecemos à sua inteira disposição para quaisquer esclarecimentos que se fizerem necessários.', style: 'par' }]);
+
+    var destinatario = [{ text: 'À' }, { text: c.nome || '', bold: true }];
+    if (c.cnpj) destinatario.push('CNPJ ' + c.cnpj);
+    if (c.endereco || c.cidade) destinatario.push([c.endereco, c.cidade, c.uf].filter(Boolean).join(' - '));
+    var rodape = EMPRESA.nome + ' - ' + EMPRESA.slogan + '\n' + EMPRESA.endereco + ' - Tel. ' + EMPRESA.telefone + '\n' + EMPRESA.site;
+
+    return {
+      pageSize: 'A4', pageMargins: [42, 36, 42, 70],
+      info: { title: 'Proposta ' + codProposta(p), author: EMPRESA.razao, subject: p.titulo || '' },
+      defaultStyle: { fontSize: 10, lineHeight: 1.25 },
+      styles: { par: { alignment: 'justify', margin: [0, 0, 0, 4] }, secao: { bold: true, fontSize: 10.5, margin: [0, 10, 0, 4] } },
+      // título de seção nunca fica sozinho no pé da página
+      pageBreakBefore: function (no, depois) { return no.headlineLevel === 1 && depois.length === 0; },
+      footer: function () {
+        return { margin: [42, 14, 42, 0], stack: [
+          { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 511, y2: 0, lineWidth: 0.6, lineColor: '#999999' }] },
+          { text: rodape, alignment: 'center', fontSize: 7.5, color: '#333333', margin: [0, 3, 0, 0], lineHeight: 1.1 }
+        ] };
+      },
+      content: [
+        { columns: [
+          { stack: [{ text: EMPRESA.nome, fontSize: 22, bold: true, characterSpacing: 2 }, EMPRESA.slogan] },
+          { stack: [{ text: 'PROPOSTA COMERCIAL', bold: true }, codProposta(p)], alignment: 'right', margin: [0, 10, 0, 0] }
+        ] },
+        { canvas: [{ type: 'line', x1: 0, y1: 4, x2: 511, y2: 4, lineWidth: 1.6 }], margin: [0, 0, 0, 10] },
+        { text: EMPRESA.cidade + ', ' + dataExtenso(p.data) + '.', alignment: 'right', margin: [0, 0, 0, 6] },
+        { stack: destinatario, margin: [0, 0, 0, 4] },
+        c.contato ? { text: 'At.: ' + c.contato + (c.email ? ' · ' + c.email : ''), margin: [0, 0, 0, 4] } : '',
+        { text: [{ text: 'REF.: ', bold: true }, (p.ref || ('PROPOSTA PARA A PRESTAÇÃO DE SERVIÇOS DE ' + p.titulo)).toUpperCase()], style: 'par' },
+        { text: [{ text: 'N/REF.: ', bold: true }, codProposta(p)], margin: [0, 0, 0, 4] },
+        { text: 'Prezados Senhores(as),\nAtendendo à solicitação de V.S.as, apresentamos nossas melhores condições técnicas e comerciais para a execução do serviço em referência, conforme segue:', style: 'par' }
+      ].concat(corpo, [{ unbreakable: true, stack: [
+        { text: 'Atenciosamente,', margin: [0, 20, 0, 36] },
+        { columns: EMPRESA.assinaturas.map(function (a) { return { stack: ['______________________________', { text: a[0], bold: true }, a[1]], alignment: 'center' }; }) }
+      ] }])
+    };
+  }
+
+  var urlPdf = null;
+  async function verPdfProposta(p) {
+    toast('Gerando o PDF…');
+    try { await carregarPdfMake(); } catch (e) { toast('Não deu para carregar o gerador de PDF. Confira a internet e tente de novo.'); return; }
+    pdfMake.createPdf(docProposta(p)).getBlob(function (blob) {
+      if (urlPdf) URL.revokeObjectURL(urlPdf);
+      urlPdf = URL.createObjectURL(blob);
+      var nome = arquivoProposta(p);
+      // celular não mostra PDF dentro da página: lá o PDF abre no leitor do aparelho
+      var celular = window.matchMedia('(pointer: coarse)').matches && window.innerWidth < 900;
+      abrirModal('<h3>Proposta ' + codProposta(p) + ' em PDF</h3>' +
+        (celular ? '<p class="muted">' + esc(nome) + '</p>' : '<iframe id="pdf-quadro" title="Proposta em PDF" src="' + urlPdf + '" style="width:100%;height:72vh;border:1px solid #dde2e7;border-radius:8px"></iframe>') +
+        '<div class="acoes"><button class="btn" id="pdf-baixar">Baixar PDF</button>' +
+        (celular ? '<button class="btn sec" id="pdf-abrir">Abrir PDF</button>' : '<button class="btn sec" id="pdf-imprimir">Imprimir</button>') +
+        '<button class="btn sec" id="pdf-voltar">Voltar</button></div>');
+      $('pdf-baixar').onclick = function () { var a = document.createElement('a'); a.href = urlPdf; a.download = nome; document.body.appendChild(a); a.click(); a.remove(); };
+      if ($('pdf-abrir')) $('pdf-abrir').onclick = function () { window.open(urlPdf, '_blank'); };
+      if ($('pdf-imprimir')) $('pdf-imprimir').onclick = function () { try { $('pdf-quadro').contentWindow.print(); } catch (e) { window.open(urlPdf, '_blank'); } };
+      $('pdf-voltar').onclick = function () { verProposta(p.id); };
+    });
   }
 
   // ===================== MODELOS DE PROPOSTA =====================
