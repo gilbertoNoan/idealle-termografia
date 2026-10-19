@@ -51,11 +51,11 @@ já cobrou naquele tipo de serviço.
 - **Salvar como modelo** numa proposta transforma ela em modelo novo.
 - Reimportar não sobrescreve modelos já importados (para não desfazer ajustes feitos no Cronos).
 
-## Finanças
-Menu **Finanças**: a saúde da empresa no estilo da planilha de controle financeiro, ligada ao resto do Cronos.
+## Financeiro
+Menu **Financeiro**: a saúde da empresa no estilo da planilha de controle financeiro, ligada ao resto do Cronos.
 
 - **Ligado ao faturamento**: toda fatura gerada a partir de uma OS já aparece em *Contas a receber*. Ao clicar
-  em *Recebido* (no Faturamento ou em Finanças) escolhe-se a data e o banco onde o dinheiro entrou.
+  em *Recebido* (no Faturamento ou no Financeiro) escolhe-se a data e o banco onde o dinheiro entrou.
 - **Contas a pagar**: despesas com categoria, fornecedor, vencimento e banco. Pode ser parcelada (divide o valor)
   ou repetir todo mês. Uma despesa pode ser ligada a uma OS, para ver quanto sobrou em cada serviço.
 - **Extrato**: entradas e saídas por banco e o saldo dia a dia, para conferir com o extrato do banco.
