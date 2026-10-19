@@ -46,7 +46,7 @@ já cobrou naquele tipo de serviço.
 
 - **Nova proposta → Começar de um modelo** preenche título, itens, objetivo, escopo, fornecimentos, prazo
   e condições; tudo pode ser ajustado antes de salvar.
-- **Imprimir / PDF** gera a proposta no padrão Idealle (seções 1 a 10, valor por extenso, dados de
-  faturamento e assinaturas).
+- **Ver PDF** gera a proposta em PDF no padrão Idealle (seções 1 a 10, valor por extenso, dados de
+  faturamento e assinaturas), para conferir na tela, baixar e mandar ao cliente, ou imprimir.
 - **Salvar como modelo** numa proposta transforma ela em modelo novo.
 - Reimportar não sobrescreve modelos já importados (para não desfazer ajustes feitos no Cronos).
