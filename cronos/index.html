@@ -218,16 +218,16 @@
   };
   // Sistemas técnicos onde a OS é executada. A Termografia (mesmo site: o Cronos fica em /cronos/) já está
   // integrada: abre direto na OS e devolve o resumo dos laudos em ordens/{id}.resultados.Termografia.
-  // Os demais, por enquanto, só abrem o site. Endereço vazio = sem link ainda.
+  // Os demais recebem ?cronos_os=<id> e devolvem o resumo em ordens/{id}.resultados[<nome do sistema>].
   var SISTEMAS = {
     'Termografia': '/',
     'Relatório NR-13': 'https://app-nr13.vercel.app/',
     'PMTA Calc': 'https://pmta-eta.vercel.app/',
-    'Calculadora NR-13': '',
-    'Gerador de Certificados': ''
+    'Calculadora NR-13': 'https://calculadora-iota-swart.vercel.app/',
+    'Gerador de Certificados': 'https://app-certificados-de-calibra-o.vercel.app/'
   };
   // Sistemas já ligados ao Cronos e o nome do parâmetro que recebe o id da OS
-  var INTEGRADOS = { 'Termografia': 'os', 'Relatório NR-13': 'cronos_os' };
+  var INTEGRADOS = { 'Termografia': 'os', 'Relatório NR-13': 'cronos_os', 'PMTA Calc': 'cronos_os', 'Calculadora NR-13': 'cronos_os', 'Gerador de Certificados': 'cronos_os' };
   function linkSistema(o) {
     var url = SISTEMAS[o.sistema];
     if (!url) return '';
