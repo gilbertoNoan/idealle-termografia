@@ -137,7 +137,7 @@
     <button data-view="modelos">Modelos</button>
     <button data-view="ordens">Ordens de Serviço</button>
     <button data-view="faturas">Faturamento</button>
-    <button data-view="financas">Finanças</button>
+    <button data-view="financas">Financeiro</button>
   </nav>
 </header>
 
@@ -214,7 +214,7 @@
 
   <!-- FINANÇAS -->
   <section class="view" id="v-financas">
-    <h2>Finanças da empresa</h2>
+    <h2>Financeiro</h2>
     <div class="subnav" id="fin-abas"></div>
     <div id="fin-conteudo"></div>
   </section>
@@ -1007,7 +1007,7 @@
     }).join('');
     var M = movimentos(), pagV = M.filter(function (x) { return emAberto(x) && x.sentido < 0 && x.vencimento < h; });
     $('kpis').innerHTML = [
-      ['Saldo nos bancos', brl(saldoTotal('', M)), cache.contas.length ? 'ver Finanças' : 'cadastre os bancos em Finanças', 'financas', 'resumo'],
+      ['Saldo nos bancos', brl(saldoTotal('', M)), cache.contas.length ? 'ver Financeiro' : 'cadastre os bancos no Financeiro', 'financas', 'resumo'],
       ['Contas a pagar vencidas', brl(somaV(pagV)), pagV.length + ' conta(s)', 'financas', 'pagar'],
       ['Recebido no mês', brl(soma(fMes, 'valor')), fMes.length + ' fatura(s)', 'faturas', 'paga'],
       ['Vencido', brl(soma(fVenc, 'valor')), fVenc.length + ' fatura(s) em atraso', 'faturas', 'pendente'],
@@ -1061,11 +1061,11 @@
       '<tr><td>Ordens de Serviço</td><td class="num">' + d.ordens.length + '</td><td class="muted">' + cont(d.ordens, 'os') + ' · ' + brl(soma(d.ordens, 'valor')) + '</td></tr>' +
       '<tr><td>Notas fiscais</td><td class="num">' + d.faturas.length + '</td><td class="muted">' + cont(d.faturas, 'fatura') + '</td></tr>' +
       '<tr><td>Modelos de proposta</td><td class="num">' + d.modelos.length + '</td><td class="muted">' + esc(d.modelos.map(function (m) { return m.nome; }).join(' · ')) + '</td></tr>' +
-      (d.financas ? '<tr><td>Finanças (bancos e despesas)</td><td class="num">' + d.financas.lancamentos.length + '</td><td class="muted">' + d.financas.contas.length + ' banco(s) · ' +
+      (d.financas ? '<tr><td>Financeiro (bancos e despesas)</td><td class="num">' + d.financas.lancamentos.length + '</td><td class="muted">' + d.financas.contas.length + ' banco(s) · ' +
         d.financas.lancamentos.filter(function (l) { return l.tipo === 'despesa'; }).length + ' despesas · ' + d.financas.lancamentos.filter(function (l) { return l.tipo === 'receita'; }).length + ' outras receitas · ' +
         d.financas.recebimentos.filter(function (r) { return r.dataPagamento; }).length + ' notas com recebimento real</td></tr>' : '') +
       '</tbody></table></div>' +
-      (d.financas ? '<p class="muted">Depois de importar, abra Finanças › Bancos e categorias e informe o saldo de hoje de cada banco: o último pagamento lançado na planilha financeira é de ' + data(d.financas.lancamentos.map(function (l) { return l.pagamento; }).filter(Boolean).sort().pop()) + '.</p>' : '') +
+      (d.financas ? '<p class="muted">Depois de importar, abra Financeiro › Bancos e categorias e informe o saldo de hoje de cada banco: o último pagamento lançado na planilha financeira é de ' + data(d.financas.lancamentos.map(function (l) { return l.pagamento; }).filter(Boolean).sort().pop()) + '.</p>' : '') +
       (d.faturas.length ? '<label><input type="checkbox" id="imp-presumir" checked style="width:auto"> A planilha de notas não registra o recebimento. Considerar recebidas as notas com vencimento até</label>' +
       '<input type="date" id="imp-corte" value="' + somarDias(hoje(), -30) + '" style="max-width:200px">' : '') +
       '<details style="margin-top:10px"><summary>Ver clientes unificados (' + unidos.length + ')</summary><div class="muted">' +
@@ -1201,7 +1201,7 @@
         if (chaves[l.chave]) return;
         var doc = Object.assign({}, l, { contaId: idBanco[normal(l.banco)] || '', clienteId: porNomeCli[normal(l.pessoa)] || '', createdAt: agora() }); delete doc.banco;
         await banco.criar('lancamentos', doc); nl++;
-      }, aviso, 'Finanças');
+      }, aviso, 'Financeiro');
       await emLotes(fn.recebimentos, async function (r) {
         var id = idNF[r.nf]; if (!id) return;
         var atual = porId('faturas', id) || {};
@@ -1210,7 +1210,7 @@
         if (r.dataPagamento) Object.assign(upd, { status: 'paga', dataPagamento: r.dataPagamento, contaId: idBanco[normal(r.banco)] || '', recebimentoPresumido: false });
         await banco.atualizar('faturas', id, upd); nr++;
       }, aviso, 'Recebimentos');
-      finTxt = ' Finanças: ' + nb + ' bancos, ' + nl + ' lançamentos, ' + nr + ' notas atualizadas.';
+      finTxt = ' Financeiro: ' + nb + ' bancos, ' + nl + ' lançamentos, ' + nr + ' notas atualizadas.';
     }
 
     return criados.clientes + ' clientes, ' + criados.propostas + ' propostas, ' + criados.ordens + ' OS, ' + criados.faturas + ' notas e ' + criados.modelos + ' modelos criados.' + finTxt;
