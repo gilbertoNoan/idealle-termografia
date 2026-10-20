@@ -533,7 +533,7 @@
     var lista = cache.empresas.filter(function (c) { return !q || normal([c.nome, c.codigo, c.cnpj, c.cidade, c.contato, c.email].join(' ')).indexOf(q) >= 0; })
       .sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; });
     var semCodigo = cache.empresas.filter(function (c) { return !c.codigo; }).length;
-    $('aviso-codigos').innerHTML = semCodigo ? '<div class="aviso">' + semCodigo + ' cliente(s) vindos da Termografia ainda sem código. <button class="btn peq" id="btn-gerar-codigos">Gerar códigos</button></div>' : '';
+    $('aviso-codigos').innerHTML = semCodigo ? '<div class="aviso">' + semCodigo + ' cliente(s) vindos dos outros sistemas ainda sem código. <button class="btn peq" id="btn-gerar-codigos">Gerar códigos</button></div>' : '';
     if (!lista.length) { $('lista-clientes').innerHTML = '<div class="vazio">Nenhum cliente' + (q ? ' encontrado' : ' cadastrado ainda') + '.</div>'; return; }
     $('lista-clientes').innerHTML = '<table><thead><tr><th>Código</th><th>Cliente</th><th>CNPJ</th><th>Cidade</th><th class="num">Propostas</th><th class="num">OS</th></tr></thead><tbody>' +
       lista.map(function (c) {
