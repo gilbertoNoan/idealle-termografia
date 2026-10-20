@@ -252,10 +252,18 @@
   };
   // Sistemas já ligados ao Cronos e o nome do parâmetro que recebe o id da OS
   var INTEGRADOS = { 'Termografia': 'os', 'Relatório NR-13': 'cronos_os', 'PMTA Calc': 'cronos_os', 'Calculadora NR-13': 'cronos_os', 'Gerador de Certificados': 'cronos_os' };
-  function linkSistema(o) {
-    var url = SISTEMAS[o.sistema];
+  function linkSistema(o, nome) {
+    var url = SISTEMAS[nome];
     if (!url) return '';
-    return INTEGRADOS[o.sistema] ? url + '?' + INTEGRADOS[o.sistema] + '=' + encodeURIComponent(o.id) : url;
+    return INTEGRADOS[nome] ? url + '?' + INTEGRADOS[nome] + '=' + encodeURIComponent(o.id) : url;
+  }
+  // Um botão por sistema; o sistema escolhido na OS vem primeiro e em destaque
+  function botoesSistemas(o) {
+    var nomes = Object.keys(SISTEMAS).sort(function (a, b) { return (b === o.sistema) - (a === o.sistema); });
+    return '<div class="sistemas-os"><div class="muted" style="margin:12px 0 6px">Fazer laudos desta OS em:</div><div class="acoes" style="margin-top:0">' +
+      nomes.map(function (nome) {
+        return '<a class="btn' + (nome === o.sistema ? '' : ' sec') + '" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(linkSistema(o, nome)) + '">' + esc(nome) + '</a>';
+      }).join('') + '</div></div>';
   }
   var NIVEIS_TERMO = [['emergencia', 'Emergência', 't-bad'], ['urgencia', 'Urgência', 't-bad'], ['programar', 'Programar', 't-warn'], ['observar', 'Observar', 't-blue'], ['normal', 'Normal', 't-ok']];
   function resumoResultado(o) {
@@ -930,12 +938,10 @@
   function verOS(id) {
     var o = porId('ordens', id); if (!o) return;
     var st = statusOS(o), p = o.propostaId ? porId('propostas', o.propostaId) : null, f = o.faturaId ? porId('faturas', o.faturaId) : null;
-    var url = linkSistema(o);
     var b = [];
     if (st === 'aberta') b.push('<button class="btn" id="ov-iniciar">Iniciar execução</button>');
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn ok" id="ov-concluir">Concluir serviço</button>');
     if (st === 'concluida') b.push('<button class="btn ok" id="ov-faturar">Faturar</button>');
-    if (url) b.push('<a class="btn sec" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(url) + '">' + (INTEGRADOS[o.sistema] ? 'Fazer laudos no ' + (o.sistema === 'Termografia' ? 'sistema de ' : '') : 'Abrir ') + esc(o.sistema) + '</a>');
     if (st !== 'faturada') b.push('<button class="btn sec" id="ov-editar">Editar</button>');
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn perigo" id="ov-cancelar">Cancelar OS</button>');
     if (st === 'cancelada') b.push('<button class="btn sec" id="ov-reabrir">Reabrir</button>');
@@ -954,7 +960,8 @@
       (o.dataConclusao ? '<div><dt>Concluída em</dt><dd>' + data(o.dataConclusao) + '</dd></div>' : '') +
       (f ? '<div><dt>Fatura</dt><dd>' + codFatura(f) + ' ' + tag('fatura', f.status, f.vencimento) + '</dd></div>' : '') +
       '</dl>' + (o.obs ? '<p class="muted">' + esc(o.obs) + '</p>' : '') +
-      (resumoResultado(o) || (INTEGRADOS[o.sistema] ? '<p class="muted">Nenhum laudo lançado ainda em ' + esc(o.sistema) + '.</p>' : '')) +
+      (resumoResultado(o) || '<p class="muted">Nenhum laudo lançado ainda nesta OS.</p>') +
+      (st !== 'cancelada' ? botoesSistemas(o) : '') +
       '<div class="acoes">' + b.join('') + '</div>');
     function ligar(id, fn) { var x = $(id); if (x) x.onclick = fn; }
     ligar('ov-fechar', fecharModal);
