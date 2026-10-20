@@ -25,6 +25,15 @@ resultados: {
 
 E pode mudar `status`: `execucao` quando começa o trabalho e `concluida` (com `dataConclusao`) quando termina. A OS concluída aparece no Cronos pronta para faturar. Nunca grave sem `merge: true`, para não apagar os campos do Cronos.
 
+## 3. Cadastro único de clientes
+
+Os clientes ficam em `empresas` do Cronos. Ao abrir, cada sistema lê essa coleção inteira e:
+- cadastra aqui os clientes do Cronos que faltam (anotando o código `CLI-0001`);
+- cria em `empresas` os clientes que só existem no sistema, com `origem: '<Nome do sistema>'` e sem código (o Cronos mostra o aviso "Gerar códigos");
+- completa os campos vazios dos dois lados (CNPJ, endereço, cidade, UF, CEP, telefone, e-mail, contato), sem sobrescrever nada preenchido.
+
+O cliente é o mesmo quando tem o mesmo CNPJ ou o mesmo nome, ignorando acento, pontuação e Ltda/ME/EPP/S.A. Os clientes de exemplo que vêm com cada sistema não vão para o Cronos. A Termografia já usa a própria coleção `empresas`. A Calculadora NR-13 não tem cadastro de clientes: ela só sugere os nomes do Cronos no campo Cliente.
+
 ## Situação
 
 | Sistema | Integrado |
