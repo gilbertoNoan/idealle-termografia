@@ -524,7 +524,11 @@
   function codProposta(p) { return p.codigo || codID(p.numero, p.ano || ''); }
   function codOS(o) { return o.codigo || ('OS-' + o.numero); }
   function codFatura(f) { return f.nf ? 'NF ' + f.nf : 'F-' + pad(f.numero, 4); }
-  function proximoID() { return Math.max(proximoNumero(cache.propostas, 'numero'), proximoNumero(cache.ordens, 'numero')); }
+  // Próximo número pela sequência Idealle (ID-0298/2026). Só conta propostas e OS com esse código:
+  // OS criadas direto nos sistemas técnicos têm numeração própria e jogavam a sequência para ID-2027.
+  function numeroID(x) { var m = /(\d{1,5})\/\d{4}\s*$/.exec(x.codigo || x.propostaCodigo || ''); return m ? parseInt(m[1], 10) : (x.ano ? parseInt(x.numero, 10) || 0 : 0); }
+  function proximoID() { var m = 0; cache.propostas.concat(cache.ordens).forEach(function (x) { var n = numeroID(x); if (n > m) m = n; }); return m + 1; }
+  function codRev(p) { return codProposta(p) + ' Rev. ' + (p.rev || 0); }
   function totalItens(itens) { return (itens || []).reduce(function (s, i) { return s + num(i.qtd) * num(i.valor); }, 0); }
   function opcoesClientes(sel) {
     return '<option value="">Selecione o cliente…</option>' + cache.empresas.slice().sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; })
@@ -645,7 +649,7 @@
     $('lista-propostas').innerHTML = '<table><thead><tr><th>Número</th><th>Cliente / Serviço</th><th>Data</th><th>Validade</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>' +
       lista.map(function (p) {
         var vencida = p.status === 'enviada' && p.validade && p.validade < hoje();
-        return '<tr class="clicavel" data-proposta="' + p.id + '"><td><b>' + codProposta(p) + '</b></td><td>' + esc(nomeCliente(p.clienteId, p.clienteNome)) + '<div class="muted">' + esc(p.titulo) + '</div></td><td>' + data(p.data) + '</td><td>' + data(p.validade) + (vencida ? ' <span class="tag t-bad">vencida</span>' : '') + '</td><td class="num">' + brl(p.total) + '</td><td>' + tag('proposta', p.status) + '</td></tr>';
+        return '<tr class="clicavel" data-proposta="' + p.id + '"><td><b>' + codProposta(p) + '</b>' + (p.rev ? '<div class="muted">Rev. ' + p.rev + '</div>' : '') + '</td><td>' + esc(nomeCliente(p.clienteId, p.clienteNome)) + '<div class="muted">' + esc(p.titulo) + '</div></td><td>' + data(p.data) + '</td><td>' + data(p.validade) + (vencida ? ' <span class="tag t-bad">vencida</span>' : '') + '</td><td class="num">' + brl(p.total) + '</td><td>' + tag('proposta', p.status) + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
   $('lista-propostas').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-proposta]'); if (tr) verProposta(tr.dataset.proposta); });
@@ -857,7 +861,7 @@
     }
     var def = c.def || {};
     $('print').innerHTML = '<div class="pp">' +
-      '<div class="pp-topo"><div><b>MEMÓRIA DE CÁLCULO</b><div>Uso interno · não enviar ao cliente</div></div><div style="text-align:right"><b>' + codProposta(p) + '</b><div>' + data(p.data) + '</div></div></div>' +
+      '<div class="pp-topo"><div><b>MEMÓRIA DE CÁLCULO</b><div>Uso interno · não enviar ao cliente</div></div><div style="text-align:right"><b>' + codRev(p) + '</b><div>' + data(p.data) + '</div></div></div>' +
       '<p><b>Cliente:</b> ' + esc(cli) + '<br><b>Serviço:</b> ' + esc(p.titulo) + '<br><b>Tipo:</b> ' + esc(c.tipo || '') + '</p>' +
       '<table class="cx-print"><tbody>' + [0, 4, 8, 12].map(function (i) { return '<tr>' + CALC_PARAMS.slice(i, i + 4).map(function (q) { return '<td>' + esc(q[1]) + '</td><td class="n">' + (q[0] === 'encFin' ? textoPrazo(c.encFin) : fmtN(c[q[0]], 2)) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>' +
       Object.keys(CALC_SECOES).map(tab).join('') +
@@ -885,6 +889,8 @@
         modelos.map(function (m) { return '<option value="' + m.id + '"' + (m.id === p.modeloId ? ' selected' : '') + '>' + esc(m.nome) + '</option>'; }).join('') + '</select>' : '') +
       '<label>Cliente *</label><select id="p-cliente">' + opcoesClientes(p.clienteId) + '</select>' +
       '<div class="muted" style="margin-top:4px">Cliente novo? <a href="#" id="p-novo-cliente">Cadastrar agora</a></div>' +
+      '<div class="linha"><div><label>Número da proposta</label><input id="p-numero" inputmode="numeric" value="' + esc(p.id ? numeroID(p) : proximoID()) + '"></div>' +
+      (p.id ? '<div><label>Revisão</label><input value="Rev. ' + (p.rev || 0) + '" disabled></div>' : '') + '</div>' +
       '<label>Título / Serviço *</label><input id="p-titulo" value="' + esc(p.titulo) + '" placeholder="Ex.: Inspeção periódica NR-13 com calibração">' +
       '<div class="linha"><div><label>Data</label><input id="p-data" type="date" value="' + esc(p.data || hoje()) + '"></div><div><label>Validade</label><input id="p-validade" type="date" value="' + esc(p.validade || somarDias(hoje(), 30)) + '"></div><div><label>Sistema de execução</label><select id="p-sistema">' + opcoesSistemas(p.sistema) + '</select></div></div>' +
       '<label>2. Objeto e preços (itens)</label><div class="tabela"><table class="itens"><thead><tr><th>Descrição</th><th>Qtd</th><th>Valor unit. (R$)</th><th></th></tr></thead><tbody id="p-itens">' + itens.map(linhaItem).join('') + '</tbody></table></div>' +
@@ -939,10 +945,16 @@
       TEXTOS.forEach(function (t) { d[t[0]] = $('p-' + t[0]).value.trim(); });
       if (p.modeloId) { d.modeloId = p.modeloId; d.modeloNome = p.modeloNome || ''; }
       if (usouCalc) d.calculo = limparCalculo(lerCalculo($('p-calc')));
+      var nNum = parseInt($('p-numero').value, 10);
+      if (!(nNum > 0)) { toast('Informe o número da proposta.'); return; }
+      var ano = p.id ? (p.ano || parseInt((p.data || hoje()).slice(0, 4), 10)) : parseInt((d.data || hoje()).slice(0, 4), 10);
+      var repetida = cache.propostas.find(function (x) { return x.id !== p.id && numeroID(x) === nNum && String(codProposta(x)).slice(-4) === String(ano); });
+      if (repetida && !confirm('Já existe a proposta ' + codProposta(repetida) + ' (' + nomeCliente(repetida.clienteId, repetida.clienteNome) + '). Usar o mesmo número mesmo assim?')) return;
+      if (p.id && nNum !== numeroID(p)) { d.numero = nNum; d.ano = ano; d.codigo = codID(nNum, ano); }
       if (p.id) await salvar(function () { return banco.atualizar('propostas', p.id, d); }, 'Proposta atualizada.');
       else {
         d.ano = parseInt((d.data || hoje()).slice(0, 4), 10);
-        d.numero = proximoID();
+        d.numero = nNum;
         d.status = 'rascunho'; d.createdAt = agora();
         await salvar(function () { return banco.criar('propostas', d); }, 'Proposta ' + codProposta(d) + ' criada.');
       }
@@ -958,19 +970,27 @@
     if (p.status === 'rascunho') botoes.push('<button class="btn" id="pv-enviar">Marcar como enviada</button>');
     if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn sec" id="pv-editar">Editar</button>', '<button class="btn perigo" id="pv-recusar">Recusada</button>');
     if (p.status === 'recusada' || p.status === 'semretorno') botoes.push('<button class="btn sec" id="pv-reabrir">Reabrir</button>');
+    if (p.status !== 'aprovada') botoes.push('<button class="btn" id="pv-revisao">Nova revisão (Rev. ' + ((p.rev || 0) + 1) + ')</button>');
     botoes.push('<button class="btn sec" id="pv-imprimir">Imprimir / PDF</button>', '<button class="btn sec" id="pv-imprimir-valores">PDF com valor por item</button>');
     if (p.calculo) botoes.push('<button class="btn sec" id="pv-calculo">Memória de cálculo</button>');
     botoes.push('<button class="btn sec" id="pv-copiar">Duplicar</button>', '<button class="btn sec" id="pv-modelo">Salvar como modelo</button>');
     if (p.status !== 'aprovada') botoes.push('<button class="btn perigo" id="pv-excluir">Excluir</button>');
     botoes.push('<button class="btn sec" id="pv-fechar">Fechar</button>');
-    abrirModal('<h3>' + codProposta(p) + ' ' + tag('proposta', p.status) + '</h3>' +
+    var revs = (p.revisoes || []).slice().sort(function (a, b) { return b.rev - a.rev; });
+    abrirModal('<h3>' + codRev(p) + ' ' + tag('proposta', p.status) + '</h3>' +
       '<div><b>' + esc(nomeCliente(p.clienteId, p.clienteNome)) + '</b></div><div>' + esc(p.titulo) + '</div>' +
       '<div class="muted">Data ' + data(p.data) + ' · validade ' + data(p.validade) + (p.sistema ? ' · executa em ' + esc(p.sistema) : '') + '</div>' +
+      (p.rev && p.motivoRevisao ? '<div class="muted">Motivo da Rev. ' + p.rev + ': ' + esc(p.motivoRevisao) + '</div>' : '') +
       '<div class="tabela" style="margin-top:10px"><table><thead><tr><th>Item</th><th class="num">Qtd</th><th class="num">Unit.</th><th class="num">Total</th></tr></thead><tbody>' +
       (p.itens || []).map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td class="num">' + esc(i.qtd) + '</td><td class="num">' + brl(i.valor) + '</td><td class="num">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
       '</tbody></table></div><div class="total">Total: ' + brl(p.total) + '</div>' +
       (p.calculo && p.calculo.resultado ? '<p class="muted">Memória de cálculo: ' + brl(p.calculo.resultado.final) + ' (BDI ' + fmtN(p.calculo.resultado.bdi, 4) + ')' +
         (Math.abs(p.calculo.resultado.final - num(p.total)) >= 0.01 ? ' · <span class="neg">diferente do total da proposta</span>' : '') + '</p>' : '') +
+      (revs.length ? '<details style="margin-top:10px"><summary><b>Revisões anteriores</b> (' + revs.length + ')</summary><div class="tabela"><table><thead><tr><th>Revisão</th><th>Data</th><th class="num">Total</th><th class="num">Cálculo</th><th>Motivo da revisão</th><th></th></tr></thead><tbody>' +
+        revs.map(function (r) {
+          return '<tr><td>Rev. ' + r.rev + '</td><td>' + data(r.data) + '</td><td class="num">' + brl(r.total) + '</td><td class="num">' + (r.calculo && r.calculo.resultado ? brl(r.calculo.resultado.final) : '—') + '</td><td class="muted">' + esc(r.motivo || '') + '</td>' +
+            '<td style="white-space:nowrap"><button class="btn sec peq" data-rev-pdf="' + r.rev + '">PDF</button> <button class="btn sec peq" data-rev-valores="' + r.rev + '">PDF c/ valores</button>' + (r.calculo ? ' <button class="btn sec peq" data-rev-calc="' + r.rev + '">Cálculo</button>' : '') + '</td></tr>';
+        }).join('') + '</tbody></table></div></details>' : '') +
       (p.modeloNome ? '<p class="muted">Feita a partir do modelo ' + esc(p.modeloNome) + '</p>' : '') +
       (p.objetivo ? '<p class="muted">' + esc(p.objetivo) + '</p>' : (p.escopo ? '<p class="muted" style="white-space:pre-wrap">' + esc(p.escopo) + '</p>' : '')) +
       (os ? '<p>Gerou a <b>OS ' + esc(codOS(os)) + '</b> ' + tag('os', statusOS(os)) + ' <a href="#" id="pv-ver-os">ver OS</a></p>' : '') +
@@ -988,7 +1008,28 @@
       formModelo(m);
     });
     ligar('pv-ver-os', function (e) { e.preventDefault(); verOS(os.id); });
-    ligar('pv-copiar', function () { var c = Object.assign({}, p); delete c.id; delete c.osId; delete c.numero; delete c.status; delete c.codigo; c.data = hoje(); c.validade = somarDias(hoje(), 30); formProposta(c); });
+    // Revisão anterior: imprime com os dados daquela versão (mesmo número, Rev. N)
+    function versao(rev) { var r = (p.revisoes || []).find(function (x) { return x.rev === rev; }); return r ? Object.assign({}, p, r) : null; }
+    $('modal').querySelectorAll('[data-rev-pdf],[data-rev-valores],[data-rev-calc]').forEach(function (b) {
+      b.onclick = function () {
+        var v = versao(parseInt(b.dataset.revPdf || b.dataset.revValores || b.dataset.revCalc, 10)); if (!v) return;
+        if (b.dataset.revCalc) imprimirCalculo(v); else imprimirProposta(v, !!b.dataset.revValores);
+      };
+    });
+    // Nova revisão: guarda a versão atual (itens, valores, textos e memória de cálculo) e reabre a proposta para editar
+    ligar('pv-revisao', async function () {
+      var motivo = prompt('Nova revisão ' + codProposta(p) + ' Rev. ' + ((p.rev || 0) + 1) + '.\nMotivo (opcional, ex.: cliente pediu revisão de valor):');
+      if (motivo === null) return;
+      var foto = { rev: p.rev || 0, data: p.data || '', validade: p.validade || '', titulo: p.titulo || '', itens: p.itens || [], total: num(p.total), condicoes: p.condicoes || '', status: p.status || '', guardadaEm: agora() };
+      TEXTOS.forEach(function (t) { foto[t[0]] = p[t[0]] || ''; });
+      if (p.calculo) foto.calculo = p.calculo;
+      // cada versão guarda o motivo que a criou (motivoRevisao); a Rev. 0 não tem
+      foto.motivo = p.motivoRevisao || '';
+      var mud = { rev: (p.rev || 0) + 1, revisoes: (p.revisoes || []).concat([foto]), motivoRevisao: motivo.trim(), data: hoje(), validade: somarDias(hoje(), p.data && p.validade ? diasEntre(p.data, p.validade) : 30), status: 'rascunho', updatedAt: agora() };
+      await salvar(function () { return banco.atualizar('propostas', p.id, mud); }, 'Rev. ' + mud.rev + ' criada. A Rev. ' + foto.rev + ' ficou guardada.');
+      formProposta(Object.assign({}, p, mud));
+    });
+    ligar('pv-copiar', function () { var c = Object.assign({}, p); delete c.id; delete c.osId; delete c.numero; delete c.status; delete c.codigo; delete c.rev; delete c.revisoes; delete c.motivoRevisao; c.data = hoje(); c.validade = somarDias(hoje(), 30); formProposta(c); });
     ligar('pv-enviar', async function () { await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'enviada', enviadaEm: agora() }); }, 'Proposta marcada como enviada.'); verProposta(p.id); });
     ligar('pv-recusar', async function () { var motivo = prompt('Motivo da recusa (opcional):'); if (motivo === null) return; await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'recusada', motivoRecusa: motivo, recusadaEm: agora() }); }, 'Proposta marcada como recusada.'); verProposta(p.id); });
     ligar('pv-reabrir', async function () { await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'enviada' }); }, 'Proposta reaberta.'); verProposta(p.id); });
@@ -1074,12 +1115,12 @@
       '<div class="pp-rodape">' + esc(EMPRESA.nome) + ' - ' + esc(EMPRESA.slogan) + '<br>' + esc(EMPRESA.endereco) + ' - Tel. ' + esc(EMPRESA.telefone) + '<br>' + esc(EMPRESA.site) + '</div>' +
       // o rodapé fixo se repete em cada página; o tfoot vazio reserva o espaço dele para o texto não passar por baixo
       '<table class="pp-tab"><tfoot><tr><td><div style="height:20mm"></div></td></tr></tfoot><tbody><tr><td><div class="pp">' +
-      '<div class="pp-topo"><div><b class="pp-marca">' + esc(EMPRESA.nome) + '</b><div>' + esc(EMPRESA.slogan) + '</div></div><div style="text-align:right"><b>PROPOSTA COMERCIAL</b><div>' + codProposta(p) + '</div></div></div>' +
+      '<div class="pp-topo"><div><b class="pp-marca">' + esc(EMPRESA.nome) + '</b><div>' + esc(EMPRESA.slogan) + '</div></div><div style="text-align:right"><b>PROPOSTA COMERCIAL</b><div>' + codRev(p) + '</div></div></div>' +
       '<p style="text-align:right">' + esc(EMPRESA.cidade) + ', ' + dataExtenso(p.data) + '.</p>' +
       '<p>À<br><b>' + esc(c.nome) + '</b>' + (c.cnpj ? '<br>CNPJ ' + esc(c.cnpj) : '') + (c.endereco || c.cidade ? '<br>' + esc([c.endereco, c.cidade, c.uf].filter(Boolean).join(' - ')) : '') + '</p>' +
       (c.contato ? '<p>At.: ' + esc(c.contato) + (c.email ? ' · ' + esc(c.email) : '') + '</p>' : '') +
       '<p><b>REF.:</b> ' + esc(p.ref || ('PROPOSTA PARA A PRESTAÇÃO DE SERVIÇOS DE ' + p.titulo).toUpperCase()) + '</p>' +
-      '<p><b>N/REF.:</b> ' + codProposta(p) + '</p>' +
+      '<p><b>N/REF.:</b> ' + codRev(p) + '</p>' +
       '<p>Prezados Senhores(as),<br>Atendendo à solicitação de V.S.as, apresentamos nossas melhores condições técnicas e comerciais para a execução do serviço em referência, conforme segue:</p>' +
       corpo +
       '<p style="margin-top:24px">Atenciosamente,</p>' +
