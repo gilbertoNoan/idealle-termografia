@@ -1397,16 +1397,36 @@
   function renderFaturas() {
     var q = normal($('busca-fatura').value), st = $('filtro-fatura').value;
     var lista = cache.faturas.filter(function (f) {
-      return (!st || f.status === st) && (!q || normal([codFatura(f), nomeCliente(f.clienteId, f.clienteNome), f.nf, f.osCodigo || ('OS-' + f.osNumero), f.descricao].join(' ')).indexOf(q) >= 0);
+      return (!st || f.status === st) && (!q || normal([codFatura(f), nomeCliente(f.clienteId, f.clienteNome), f.nf, f.osCodigo || ('OS-' + f.osNumero), f.descricao, f.tomador, f.tomadorCnpj, f.discriminacao, f.pedido].join(' ')).indexOf(q) >= 0);
     }).sort(function (a, b) { return b.numero - a.numero; });
     if (!lista.length) { $('lista-faturas').innerHTML = '<div class="vazio">Nenhuma fatura' + (q || st ? ' encontrada' : ' ainda. Conclua uma OS e clique em Faturar') + '.</div>'; return; }
     $('lista-faturas').innerHTML = '<table><thead><tr><th>Fatura</th><th>Cliente / OS</th><th>NF</th><th>Vencimento</th><th class="num">Valor</th><th>Status</th><th></th></tr></thead><tbody>' +
       lista.map(function (f) {
-        return '<tr><td><b>' + codFatura(f) + '</b><div class="muted">' + data(f.emissao) + '</div></td><td>' + esc(nomeCliente(f.clienteId, f.clienteNome)) + '<div class="muted">' + esc(f.osCodigo || ('OS-' + f.osNumero)) + ' · ' + esc(f.descricao || '') + '</div></td><td>' + esc(f.nf || '—') + '</td><td>' + data(f.vencimento) + '</td><td class="num">' + brl(f.valor) + '</td><td>' + tag('fatura', f.status, f.vencimento) + (f.dataPagamento ? '<div class="muted">' + data(f.dataPagamento) + '</div>' : (f.recebimentoPresumido ? '<div class="muted">presumido</div>' : '')) + '</td><td>' +
+        return '<tr><td><b>' + codFatura(f) + '</b><div class="muted">' + data(f.emissao) + '</div></td><td>' + esc(nomeCliente(f.clienteId, f.clienteNome)) + '<div class="muted">' + esc(f.osCodigo || ('OS-' + f.osNumero)) + ' · ' + esc(f.descricao || '') + '</div></td><td>' + (f.nf ? '<a href="#" data-vernf="' + f.id + '" title="Ver os dados da nota">' + esc(f.nf) + '</a>' : '—') + '</td><td>' + data(f.vencimento) + '</td><td class="num">' + brl(f.valor) + '</td><td>' + tag('fatura', f.status, f.vencimento) + (f.dataPagamento ? '<div class="muted">' + data(f.dataPagamento) + '</div>' : (f.recebimentoPresumido ? '<div class="muted">presumido</div>' : '')) + '</td><td>' +
           (f.status === 'pendente' ? '<button class="btn ok peq" data-pagar="' + f.id + '">Recebido</button> <button class="btn sec peq" data-nf="' + f.id + '">NF</button>' : '') + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
+  // Dados da nota fiscal (vindos do PDF da nota pelo complemento, ou só o número digitado)
+  function verNota(f) {
+    function lin(r, v) { return v == null || v === '' ? '' : '<div><dt>' + r + '</dt><dd>' + v + '</dd></div>'; }
+    var div = f.valorServico != null && Math.abs(num(f.valorServico) - num(f.valor)) > 0.5;
+    abrirModal('<h3>NF ' + esc(f.nf) + ' ' + tag('fatura', f.status, f.vencimento) + '</h3><div>' + esc(nomeCliente(f.clienteId, f.clienteNome)) + (f.osCodigo ? ' · ' + esc(f.osCodigo) : '') + '</div>' +
+      '<dl class="detalhe linha">' + lin('Emissão', data(f.emissao)) + lin('Vencimento', data(f.vencimento)) + lin('Valor no Cronos', brl(f.valor)) +
+      lin('Valor da nota', f.valorServico != null ? brl(f.valorServico) + (div ? ' <span class="tag t-warn">diferente</span>' : '') : '') +
+      lin('Tomador', esc(f.tomador || '')) + lin('CNPJ', esc(f.tomadorCnpj || '')) + lin('Município', esc(f.tomadorMunicipio || '')) +
+      lin('ISS', f.aliquotaISS != null ? String(f.aliquotaISS).replace('.', ',') + '%' + (f.valorISS ? ' · ' + brl(f.valorISS) : '') + (f.issRetido ? ' · retido' : '') : '') +
+      lin('Código de verificação', esc(f.codVerificacao || '')) + lin('Pedido', esc(f.pedido || f.pedidoNF || '')) +
+      lin('Substitui a NF', esc(f.substituiNF || '')) + lin('Situação na prefeitura', f.situacao ? esc(f.situacao) : '') + lin('Arquivo', esc(f.arquivo || '')) + '</dl>' +
+      (f.discriminacao ? '<label>Discriminação dos serviços</label><div style="white-space:pre-wrap">' + esc(f.discriminacao) + '</div>' : '<p class="muted">Sem os dados do PDF da nota. Eles entram pelo arquivo de complemento (Painel › Importar planilhas antigas).</p>') +
+      (div ? '<p class="muted">O valor da nota é diferente do valor lançado. Se o certo for o da nota, use "Usar valor da nota".</p>' : '') +
+      '<div class="acoes">' + (div ? '<button class="btn" id="vn-valor">Usar valor da nota</button>' : '') + '<button class="btn sec" id="vn-fechar">Fechar</button></div>');
+    $('vn-fechar').onclick = fecharModal;
+    if ($('vn-valor')) $('vn-valor').onclick = async function () {
+      await salvar(function () { return banco.atualizar('faturas', f.id, { valor: num(f.valorServico) }); }, 'Valor da NF ' + f.nf + ' atualizado.'); fecharModal();
+    };
+  }
   $('lista-faturas').addEventListener('click', async function (e) {
+    var a = e.target.closest('[data-vernf]'); if (a) { e.preventDefault(); verNota(porId('faturas', a.dataset.vernf)); return; }
     var b = e.target.closest('button'); if (!b) return;
     if (b.dataset.pagar) formBaixa(movFatura(porId('faturas', b.dataset.pagar), contaPrincipal()));
     if (b.dataset.nf) {
@@ -1479,6 +1499,7 @@
     var leitor = new FileReader();
     leitor.onload = function () {
       var d; try { d = JSON.parse(leitor.result); } catch (e) { toast('Arquivo inválido.'); return; }
+      if (d.tipo === 'complemento') { ['propostas', 'faturas', 'avisos'].forEach(function (k) { d[k] = d[k] || []; }); conferirComplemento(d); return; }
       if (!(d.clientes && d.propostas && d.ordens && d.faturas) && !d.modelos && !d.financas) { toast('Este arquivo não é uma importação do Cronos.'); return; }
       ['clientes', 'propostas', 'ordens', 'faturas', 'modelos', 'avisos'].forEach(function (k) { d[k] = d[k] || []; });
       conferirImportacao(d);
@@ -1650,6 +1671,95 @@
     }
 
     return criados.clientes + ' clientes, ' + criados.propostas + ' propostas, ' + criados.ordens + ' OS, ' + criados.faturas + ' notas e ' + criados.modelos + ' modelos criados.' + finTxt;
+  }
+
+  // ===================== COMPLEMENTO (TEXTOS DAS PROPOSTAS E DADOS DAS NOTAS) =====================
+  // Arquivo gerado a partir dos documentos das propostas e dos PDFs das notas fiscais na nuvem.
+  // Só preenche o que está vazio: valor, status e o que já foi editado aqui no Cronos não mudam.
+  var CAMPOS_NF = ['codVerificacao', 'tomador', 'tomadorCnpj', 'tomadorMunicipio', 'discriminacao', 'valorServico', 'aliquotaISS', 'valorISS', 'issRetido', 'valorLiquido', 'pedidoNF', 'substituiNF', 'situacao', 'arquivo'];
+  function acharProposta(c, porNum) {
+    var l = porNum[c.numero + '/' + c.ano] || [];
+    if (l.length === 1) return l[0];
+    return l.filter(function (p) { return normal(p.titulo) === normal(c.titulo); })[0] || l.filter(function (p) { return normal(nomeCliente(p.clienteId, p.clienteNome)) === normal(c.clienteNome); })[0] || null;
+  }
+  // Itens importados da planilha vêm como uma linha só com o título; esses podem ser trocados pelo objeto da proposta
+  function itensGenericos(p) { var it = p.itens || []; return !it.length || (it.length === 1 && normal(it[0].descricao) === normal(p.titulo)); }
+  function mudancasProposta(p, c) {
+    var upd = {};
+    Object.keys(c.campos || {}).forEach(function (k) { if (!String(p[k] || '').trim()) upd[k] = c.campos[k]; });
+    if (c.itens && c.itens.length && itensGenericos(p)) {
+      // O documento traz só o valor global: ele fica no primeiro item para o total não mudar
+      upd.itens = c.itens.map(function (d, i) { return { descricao: d, qtd: 1, valor: i ? 0 : num(p.total) }; });
+    }
+    if (c.data && p.dataEstimada) { upd.data = c.data; upd.dataEstimada = false; }
+    if (!p.validade && c.validadeDias && (upd.data || p.data)) upd.validade = somarDias(upd.data || p.data, c.validadeDias);
+    if (Object.keys(upd).length && c.arquivo) upd.arquivoOrigem = c.arquivo;
+    return upd;
+  }
+  function mudancasNota(f, n) {
+    var upd = {};
+    CAMPOS_NF.forEach(function (k) { if (n[k] != null && n[k] !== '' && (f[k] == null || f[k] === '')) upd[k] = n[k]; });
+    if (n.emissao && !f.emissao) upd.emissao = n.emissao;
+    if (n.pedidoNF && !f.pedido) upd.pedido = n.pedidoNF;
+    if (n.situacao === 'cancelada' && f.status === 'pendente') upd.status = 'cancelada';
+    return upd;
+  }
+  function conferirComplemento(d) {
+    var porNum = {}, porNF = {};
+    cache.propostas.forEach(function (p) { (porNum[p.numero + '/' + p.ano] = porNum[p.numero + '/' + p.ano] || []).push(p); });
+    cache.faturas.forEach(function (f) { if (f.nf) porNF[f.nf] = f; });
+    var pAt = 0, pIt = 0, pSem = [], fAt = 0, fNova = 0;
+    d.propostas.forEach(function (c) {
+      var p = acharProposta(c, porNum);
+      if (!p) { pSem.push(c.codigo); return; }
+      var u = mudancasProposta(p, c); if (Object.keys(u).length) pAt++; if (u.itens) pIt++;
+    });
+    d.faturas.forEach(function (n) { var f = porNF[n.nf]; if (!f) fNova++; else if (Object.keys(mudancasNota(f, n)).length) fAt++; });
+    abrirModal('<h3>Completar propostas e notas</h3><p class="muted">' + esc(d.fonte || '') + '</p>' +
+      '<div class="tabela"><table><tbody>' +
+      '<tr><td>Propostas com texto a preencher</td><td class="num">' + pAt + '</td><td class="muted">de ' + d.propostas.length + ' documentos lidos · ' + pIt + ' com os itens do objeto</td></tr>' +
+      '<tr><td>Notas fiscais com dados a completar</td><td class="num">' + fAt + '</td><td class="muted">tomador, CNPJ, discriminação, ISS, código de verificação</td></tr>' +
+      '<tr><td>Notas que ainda não estão no Cronos</td><td class="num">' + fNova + '</td><td class="muted">entram como a receber</td></tr>' +
+      '</tbody></table></div>' +
+      '<p class="muted">Só os campos vazios são preenchidos. Valor, status e o que você já editou no Cronos ficam como estão. Nas propostas, o valor global continua no total; no PDF com valores ele aparece no primeiro item.</p>' +
+      (pSem.length ? '<details><summary>Propostas do arquivo que não foram achadas no Cronos (' + pSem.length + ')</summary><div class="muted">' + esc(pSem.join(' · ')) + '</div></details>' : '') +
+      (d.avisos.length ? '<details><summary>Avisos (' + d.avisos.length + ')</summary><div class="muted">' + d.avisos.map(function (a) { return '<div>' + esc(a) + '</div>'; }).join('') + '</div></details>' : '') +
+      '<p id="imp-progresso" class="muted"></p>' +
+      '<div class="acoes"><button class="btn ok" id="imp-ok">Completar</button><button class="btn sec" id="imp-cancelar">Cancelar</button></div>');
+    $('imp-cancelar').onclick = fecharModal;
+    $('imp-ok').onclick = async function () {
+      this.disabled = true; $('imp-cancelar').disabled = true; importando = true;
+      try {
+        var r = await executarComplemento(d, function (msg) { $('imp-progresso').textContent = msg; });
+        $('imp-progresso').textContent = 'Concluído: ' + r; toast('Complemento concluído.');
+      } catch (e) { console.error(e); $('imp-progresso').textContent = 'Parou: ' + (e.message || e) + '. Pode rodar de novo: só o que falta é preenchido.'; }
+      importando = false; renderTudo();
+      $('imp-cancelar').disabled = false; $('imp-cancelar').textContent = 'Fechar';
+    };
+  }
+  async function executarComplemento(d, aviso) {
+    var porNum = {}, porNF = {}, porNomeCli = {}, porCnpj = {}, nP = 0, nF = 0, nN = 0;
+    cache.propostas.forEach(function (p) { (porNum[p.numero + '/' + p.ano] = porNum[p.numero + '/' + p.ano] || []).push(p); });
+    cache.faturas.forEach(function (f) { if (f.nf) porNF[f.nf] = f; });
+    cache.empresas.forEach(function (c) { porNomeCli[normal(c.nome)] = c; if (c.cnpj) porCnpj[String(c.cnpj).replace(/\D/g, '')] = c; });
+    // CNPJ do tomador de uma nota já ligada a um cliente serve para achar o cliente das notas novas
+    d.faturas.forEach(function (n) { var f = porNF[n.nf], cn = String(n.tomadorCnpj || '').replace(/\D/g, ''); if (f && f.clienteId && cn && !porCnpj[cn]) porCnpj[cn] = porId('empresas', f.clienteId); });
+    await emLotes(d.propostas, async function (c) {
+      var p = acharProposta(c, porNum); if (!p) return;
+      var u = mudancasProposta(p, c); if (!Object.keys(u).length) return;
+      u.updatedAt = agora(); await banco.atualizar('propostas', p.id, u); nP++;
+    }, aviso, 'Propostas');
+    var seq = proximoNumero(cache.faturas, 'numero');
+    await emLotes(d.faturas, async function (n) {
+      var f = porNF[n.nf];
+      if (f) { var u = mudancasNota(f, n); if (Object.keys(u).length) { await banco.atualizar('faturas', f.id, u); nF++; } return; }
+      var cli = porCnpj[String(n.tomadorCnpj || '').replace(/\D/g, '')] || porNomeCli[normal(n.tomador)] || null;
+      var doc = { numero: seq++, nf: n.nf, clienteId: cli ? cli.id : '', clienteNome: cli ? cli.nome : (n.tomador || ''), osId: '', descricao: String(n.discriminacao || '').split('\n')[0],
+        pedido: n.pedidoNF || '', valor: n.valorServico || 0, emissao: n.emissao || '', vencimento: '', status: n.situacao === 'cancelada' ? 'cancelada' : 'pendente', origem: 'nota', createdAt: agora() };
+      CAMPOS_NF.forEach(function (k) { if (n[k] != null && n[k] !== '') doc[k] = n[k]; });
+      await banco.criar('faturas', doc); nN++;
+    }, aviso, 'Notas fiscais');
+    return nP + ' propostas completadas, ' + nF + ' notas completadas e ' + nN + ' notas criadas.';
   }
 
   // ===================== FINANÇAS =====================
