@@ -940,6 +940,11 @@
       if (!cid) { toast('Selecione o cliente.'); return; }
       if (!$('p-titulo').value.trim()) { toast('Informe o título da proposta.'); return; }
       if (!it.length) { toast('Inclua pelo menos um item.'); return; }
+      // itens sem valor mas com cálculo feito: a proposta ficaria com total R$ 0,00
+      if (!totalItens(it) && usouCalc) {
+        var fin = calcular(lerCalculo($('p-calc'))).final, rp = fin > 0 ? repartirPreco(it, fin) : null;
+        if (rp && confirm('Os itens estão sem valor (total R$ 0,00). Usar o preço da memória de cálculo, ' + brl(fin) + ', repartido nos itens?')) { it = rp.itens; $('p-itens').innerHTML = it.map(linhaItem).join(''); }
+      }
       var d = { clienteId: cid, clienteNome: nomeCliente(cid), titulo: $('p-titulo').value.trim(), data: $('p-data').value, validade: $('p-validade').value, sistema: $('p-sistema').value, itens: it, total: totalItens(it), condicoes: $('p-condicoes').value.trim(), updatedAt: agora() };
       TEXTOS.forEach(function (t) { d[t[0]] = $('p-' + t[0]).value.trim(); });
       if (p.modeloId) { d.modeloId = p.modeloId; d.modeloNome = p.modeloNome || ''; }
@@ -959,6 +964,29 @@
       }
       fecharModal();
     };
+  }
+
+  // Revisão anterior em modo leitura: itens, textos e memória de cálculo como estavam naquela versão
+  function verRevisao(p, v) {
+    var r = v.calculo ? calcular(v.calculo) : null;
+    abrirModal('<h3>' + codRev(v) + ' <span class="tag t-gray">revisão anterior · só leitura</span></h3>' +
+      '<div><b>' + esc(nomeCliente(v.clienteId, v.clienteNome)) + '</b></div><div>' + esc(v.titulo) + '</div>' +
+      '<div class="muted">Data ' + data(v.data) + ' · validade ' + data(v.validade) + (v.motivo ? ' · motivo desta revisão: ' + esc(v.motivo) : '') + '</div>' +
+      '<div class="tabela" style="margin-top:10px"><table><thead><tr><th>Item</th><th class="num">Qtd</th><th class="num">Unit.</th><th class="num">Total</th></tr></thead><tbody>' +
+      (v.itens || []).map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td class="num">' + esc(i.qtd) + '</td><td class="num">' + brl(i.valor) + '</td><td class="num">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
+      '</tbody></table></div><div class="total">Total: ' + brl(v.total) + '</div>' +
+      (r ? '<div class="tabela" style="margin-top:10px"><table><thead><tr><th>Memória de cálculo</th><th class="num">Calculado</th><th class="num">Definitivo</th></tr></thead><tbody>' +
+        r.linhas.map(function (l) { var d = (v.calculo.def || {})[l[0]]; return '<tr><td>' + l[0] + ') ' + l[1] + '</td><td class="num">' + brl(l[3]) + '</td><td class="num">' + (d != null ? brl(d) : '') + '</td></tr>'; }).join('') +
+        (r.correcao ? '<tr><td>h) Correções e descontos</td><td></td><td class="num">' + brl(r.correcao) + '</td></tr>' : '') +
+        '<tr class="forte"><td>PREÇO TOTAL FINAL</td><td class="num">' + brl(r.calculado) + '</td><td class="num">' + brl(r.final) + '</td></tr>' +
+        '<tr><td>Margem de negociação</td><td></td><td class="num">' + textoMargem(r) + '</td></tr></tbody></table></div>' +
+        '<div class="muted">' + esc(v.calculo.tipo || '') + ' · BDI ' + fmtN(r.bdi, 4) + ' · prazo ' + textoPrazo(v.calculo.encFin) + '</div>' : '') +
+      TEXTOS.concat([['condicoes', '9. Condições de pagamento']]).filter(function (t) { return v[t[0]]; }).map(function (t) { return '<label>' + esc(t[1]) + '</label><div style="white-space:pre-wrap">' + esc(v[t[0]]) + '</div>'; }).join('') +
+      '<div class="acoes"><button class="btn sec" id="rv-voltar">← Voltar à proposta</button><button class="btn sec" id="rv-pdf">PDF</button><button class="btn sec" id="rv-valores">PDF com valor por item</button>' + (v.calculo ? '<button class="btn sec" id="rv-calc">Memória de cálculo</button>' : '') + '</div>');
+    $('rv-voltar').onclick = function () { verProposta(p.id); };
+    $('rv-pdf').onclick = function () { imprimirProposta(v); };
+    $('rv-valores').onclick = function () { imprimirProposta(v, true); };
+    if ($('rv-calc')) $('rv-calc').onclick = function () { imprimirCalculo(v); };
   }
 
   function verProposta(id) {
@@ -988,7 +1016,7 @@
       (revs.length ? '<details style="margin-top:10px"><summary><b>Revisões anteriores</b> (' + revs.length + ')</summary><div class="tabela"><table><thead><tr><th>Revisão</th><th>Data</th><th class="num">Total</th><th class="num">Cálculo</th><th>Motivo da revisão</th><th></th></tr></thead><tbody>' +
         revs.map(function (r) {
           return '<tr><td>Rev. ' + r.rev + '</td><td>' + data(r.data) + '</td><td class="num">' + brl(r.total) + '</td><td class="num">' + (r.calculo && r.calculo.resultado ? brl(r.calculo.resultado.final) : '—') + '</td><td class="muted">' + esc(r.motivo || '') + '</td>' +
-            '<td style="white-space:nowrap"><button class="btn sec peq" data-rev-pdf="' + r.rev + '">PDF</button> <button class="btn sec peq" data-rev-valores="' + r.rev + '">PDF c/ valores</button>' + (r.calculo ? ' <button class="btn sec peq" data-rev-calc="' + r.rev + '">Cálculo</button>' : '') + '</td></tr>';
+            '<td style="white-space:nowrap"><button class="btn peq" data-rev-ver="' + r.rev + '">Ver</button> <button class="btn sec peq" data-rev-pdf="' + r.rev + '">PDF</button> <button class="btn sec peq" data-rev-valores="' + r.rev + '">PDF c/ valores</button>' + (r.calculo ? ' <button class="btn sec peq" data-rev-calc="' + r.rev + '">Cálculo</button>' : '') + '</td></tr>';
         }).join('') + '</tbody></table></div></details>' : '') +
       (p.modeloNome ? '<p class="muted">Feita a partir do modelo ' + esc(p.modeloNome) + '</p>' : '') +
       (p.objetivo ? '<p class="muted">' + esc(p.objetivo) + '</p>' : (p.escopo ? '<p class="muted" style="white-space:pre-wrap">' + esc(p.escopo) + '</p>' : '')) +
@@ -1009,10 +1037,11 @@
     ligar('pv-ver-os', function (e) { e.preventDefault(); verOS(os.id); });
     // Revisão anterior: imprime com os dados daquela versão (mesmo número, Rev. N)
     function versao(rev) { var r = (p.revisoes || []).find(function (x) { return x.rev === rev; }); return r ? Object.assign({}, p, r) : null; }
-    $('modal').querySelectorAll('[data-rev-pdf],[data-rev-valores],[data-rev-calc]').forEach(function (b) {
+    $('modal').querySelectorAll('[data-rev-ver],[data-rev-pdf],[data-rev-valores],[data-rev-calc]').forEach(function (b) {
       b.onclick = function () {
-        var v = versao(parseInt(b.dataset.revPdf || b.dataset.revValores || b.dataset.revCalc, 10)); if (!v) return;
-        if (b.dataset.revCalc) imprimirCalculo(v); else imprimirProposta(v, !!b.dataset.revValores);
+        var v = versao(parseInt(b.dataset.revVer || b.dataset.revPdf || b.dataset.revValores || b.dataset.revCalc, 10)); if (!v) return;
+        if (b.dataset.revVer) verRevisao(p, v);
+        else if (b.dataset.revCalc) imprimirCalculo(v); else imprimirProposta(v, !!b.dataset.revValores);
       };
     });
     // Nova revisão: guarda a versão atual (itens, valores, textos e memória de cálculo) e reabre a proposta para editar
