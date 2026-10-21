@@ -154,7 +154,7 @@
 <header id="cabecalho" style="display:none">
   <div class="top">
     <div class="marca">Cronos <small>Idealle</small></div>
-    <div class="usuario"><span id="usuario-nome"></span><button class="btn sec peq" id="btn-sair">Sair</button></div>
+    <div class="usuario"><button class="btn sec peq" id="btn-ocultar">👁 Ocultar valores</button><span id="usuario-nome"></span><button class="btn sec peq" id="btn-sair">Sair</button></div>
   </div>
   <nav id="menu">
     <button data-view="painel" class="ativo">Painel</button>
@@ -320,7 +320,12 @@
   function agora() { return new Date().toISOString(); }
   function hoje() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
   function somarDias(iso, n) { var d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
-  function brl(v) { return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+  // "Ocultar valores": troca os valores em R$ da tela por R$ •••••. PDFs e impressões sempre saem com os valores reais.
+  var ocultarValores = false, valoresReais = 0;
+  try { ocultarValores = localStorage.getItem('cronos-ocultar-valores') === '1'; } catch (e) {}
+  function oculto() { return ocultarValores && !valoresReais; }
+  function comValoresReais(fn) { return function () { valoresReais++; try { return fn.apply(this, arguments); } finally { valoresReais--; } }; }
+  function brl(v) { return oculto() ? 'R$ •••••' : (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
   function data(iso) { if (!iso) return '—'; var p = String(iso).slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
   function num(v) {
     if (typeof v === 'number') return v;
@@ -515,6 +520,13 @@
     window.scrollTo(0, 0);
   }
   $('menu').addEventListener('click', function (e) { var b = e.target.closest('button[data-view]'); if (b) mostrar(b.dataset.view); });
+  function botaoOcultar() { $('btn-ocultar').textContent = ocultarValores ? '👁 Mostrar valores' : '👁 Ocultar valores'; }
+  botaoOcultar();
+  $('btn-ocultar').addEventListener('click', function () {
+    ocultarValores = !ocultarValores;
+    try { localStorage.setItem('cronos-ocultar-valores', ocultarValores ? '1' : '0'); } catch (e) {}
+    botaoOcultar(); renderTudo();
+  });
 
   function preencherFiltro(id, tipo) {
     var s = $(id);
@@ -920,6 +932,9 @@
   function logoIdealle() { return '<img class="pp-logo" src="' + LOGO + '" alt="' + esc(EMPRESA.nome) + '">'; }
   function rodapeIdealle() { return [EMPRESA.nome + ' - ' + EMPRESA.slogan, EMPRESA.endereco + ' - Tel. ' + EMPRESA.telefone, EMPRESA.site]; }
 
+  imprimirCalculo = comValoresReais(imprimirCalculo);
+  imprimirProposta = comValoresReais(imprimirProposta);
+  imprimirFaturamento = comValoresReais(imprimirFaturamento);
   function imprimirCalculo(p) {
     var c = p.calculo, r = calcular(c), cli = nomeCliente(p.clienteId, p.clienteNome);
     function tab(s) {
@@ -2082,7 +2097,7 @@
     var passo = Math.pow(10, Math.floor(Math.log10(max))), topo = Math.ceil(max / passo) * passo;
     var gw = (W - pe) / serie.length, bw = Math.min(18, (gw - 8) / 2), y = function (v) { return pt + (H - pt - pb) * (1 - v / topo); };
     var s = '<svg class="grafico" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Entradas e saídas por mês">';
-    for (var k = 0; k <= 4; k++) { var v = topo * k / 4; s += '<line x1="' + pe + '" x2="' + W + '" y1="' + y(v) + '" y2="' + y(v) + '"/><text x="' + (pe - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + (v >= 1000 ? Math.round(v / 1000) + 'k' : Math.round(v)) + '</text>'; }
+    for (var k = 0; k <= 4; k++) { var v = topo * k / 4; s += '<line x1="' + pe + '" x2="' + W + '" y1="' + y(v) + '" y2="' + y(v) + '"/><text x="' + (pe - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + (oculto() ? '•••' : v >= 1000 ? Math.round(v / 1000) + 'k' : Math.round(v)) + '</text>'; }
     serie.forEach(function (d, i) {
       var x = pe + i * gw + gw / 2, dica = esc(nomeMes(d.ym) + ' · entrou ' + brl(d.ent) + ' · saiu ' + brl(d.sai) + ' · sobrou ' + brl(d.ent - d.sai));
       s += '<g data-dica="' + dica + '"><rect x="' + (pe + i * gw) + '" y="0" width="' + gw + '" height="' + H + '" fill="transparent"/>' +
