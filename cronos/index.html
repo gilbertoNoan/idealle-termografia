@@ -512,8 +512,10 @@
   // ===================== MODAL =====================
   function abrirModal(html) { $('modal').innerHTML = html; $('modal-fundo').classList.add('aberto'); var f = $('modal').querySelector('input,select,textarea'); if (f) f.focus(); }
   function fecharModal() { $('modal-fundo').classList.remove('aberto'); $('modal').innerHTML = ''; }
-  $('modal-fundo').addEventListener('click', function (e) { if (e.target.id === 'modal-fundo') fecharModal(); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fecharModal(); });
+  // Formulário aberto (proposta, cliente, OS...) só fecha pelos botões: clicar fora ou Esc perdia o que foi digitado
+  function modalComCampos() { return !!$('modal').querySelector('input:not([type=checkbox]):not([type=radio]), textarea'); }
+  $('modal-fundo').addEventListener('click', function (e) { if (e.target.id === 'modal-fundo' && !modalComCampos()) fecharModal(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modalComCampos()) fecharModal(); });
 
   function porId(col, id) { return cache[col].find(function (x) { return x.id === id; }); }
   function nomeCliente(id, reserva) { var c = porId('empresas', id); return c ? c.nome : (reserva || '—'); }
