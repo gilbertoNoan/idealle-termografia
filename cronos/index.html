@@ -97,6 +97,10 @@
   .pdf-render .itens-print th, .pdf-render .cx-print th { font-weight: bold; border-bottom: 1px solid #000; }
   .flutuante { position: fixed; right: 20px; bottom: 20px; z-index: 70; display: flex; flex-direction: column; gap: 8px; }
   .flutuante .btn { box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+  .visor { position: fixed; inset: 0; z-index: 90; background: rgba(15,18,25,.92); display: flex; flex-direction: column; padding: 12px; gap: 8px; }
+  .visor-barra { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: #fff; }
+  .visor-barra b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .visor iframe { flex: 1; width: 100%; border: 0; background: #fff; border-radius: 6px; }
   .check { display: flex; gap: 8px; align-items: center; color: var(--text); font-size: 14px; } .check input { width: auto; }
   #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #1d2433; color: #fff; padding: 10px 16px; border-radius: 8px; display: none; z-index: 100; max-width: 90vw; }
   .aviso { background: var(--warn-2); color: var(--warn); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
@@ -870,7 +874,23 @@
     var ano = String(codProposta(p)).slice(-4);
     return 'IDEALLE-' + pad(numeroID(p), 4) + '-' + ano + '-Rev.' + (p.rev || 0) + (extra ? ' ' + extra : '') + '.pdf';
   }
+  // Ver PDF: quem chama liga pdfVer antes; baixarPdf mostra na tela em vez de baixar
+  var pdfVer = false;
+  function verPdf(fn) { pdfVer = true; try { fn(); } finally { pdfVer = false; } }
+  function mostrarPdf(pdf, nome) {
+    var url = URL.createObjectURL(pdf.output('blob')), v = document.createElement('div');
+    v.className = 'visor';
+    v.innerHTML = '<div class="visor-barra"><b></b><a class="btn sec" target="_blank" rel="noopener">Abrir em outra aba</a><button class="btn" data-a="baixar">Baixar PDF</button><button class="btn sec" data-a="fechar">Fechar</button></div><iframe title="Prévia do PDF"></iframe>';
+    v.querySelector('b').textContent = nome; v.querySelector('a').href = url; v.querySelector('iframe').src = url;
+    function fechar() { v.remove(); document.removeEventListener('keydown', esc, true); setTimeout(function () { URL.revokeObjectURL(url); }, 60000); }
+    function esc(e) { if (e.key === 'Escape') { e.stopImmediatePropagation(); fechar(); } }
+    v.querySelector('[data-a=baixar]').onclick = function () { pdf.save(nome); };
+    v.querySelector('[data-a=fechar]').onclick = fechar;
+    document.addEventListener('keydown', esc, true);
+    document.body.appendChild(v);
+  }
   async function baixarPdf(html, nome, rodape) {
+    var ver = pdfVer;
     toast('Gerando o PDF…');
     try { await carregarHtml2pdf(); } catch (e) { toast('Não deu para carregar o gerador de PDF. Confira a internet e tente de novo.'); return; }
     var el = document.createElement('div'); el.className = 'pdf-render'; el.innerHTML = html;
@@ -885,8 +905,8 @@
           if (rodape) { pdf.setDrawColor(150); pdf.line(14, h - 16, w - 14, h - 16); rodape.forEach(function (l, k) { pdf.text(l, w / 2, h - 12.5 + k * 3.3, { align: 'center' }); }); }
           if (n > 1) pdf.text(i + '/' + n, w - 14, h - 4, { align: 'right' });
         }
-      }).save();
-      toast('PDF baixado: ' + nome);
+        if (ver) { mostrarPdf(pdf, nome); $('toast').style.display = 'none'; } else { pdf.save(nome); toast('PDF baixado: ' + nome); }
+      });
     } catch (e) { console.error(e); toast('Não deu para gerar o PDF.'); }
   }
   function rodapeIdealle() { return [EMPRESA.nome + ' - ' + EMPRESA.slogan, EMPRESA.endereco + ' - Tel. ' + EMPRESA.telefone, EMPRESA.site]; }
@@ -944,7 +964,7 @@
       calcHtml(p.calculo || calcPadrao()) + '</details>' +
       '<div class="acoes"><button class="btn" id="p-salvar">Salvar</button><button class="btn sec" id="p-cancelar">Cancelar</button></div>' +
       // botões fixos na tela enquanto rola o formulário: prévia do PDF com o que está digitado (sem salvar)
-      '<div class="flutuante"><button class="btn" id="p-ver-pdf" title="Baixa o PDF com o que está na tela, sem salvar">Baixar PDF</button><button class="btn sec" id="p-ver-pdf-valores" title="Baixa o PDF com o valor de cada item">PDF c/ valores</button></div>');
+      '<div class="flutuante"><button class="btn" id="p-mostrar-pdf" title="Mostra o PDF na tela com o que está preenchido, sem salvar">Ver PDF</button><button class="btn sec" id="p-ver-pdf" title="Baixa o PDF com o que está na tela, sem salvar">Baixar PDF</button><button class="btn sec" id="p-ver-pdf-valores" title="Baixa o PDF com o valor de cada item">PDF c/ valores</button></div>');
     function lerItens() {
       return Array.prototype.map.call(document.querySelectorAll('#p-itens tr'), function (tr) {
         return { descricao: tr.querySelector('.i-desc').value.trim(), qtd: num(tr.querySelector('.i-qtd').value), valor: num(tr.querySelector('.i-valor').value) };
@@ -985,6 +1005,7 @@
       if (!it.length) toast('A prévia está sem itens.');
       imprimirProposta(v, comValores);
     }
+    $('p-mostrar-pdf').onclick = function () { verPdf(function () { previa(false); }); };
     $('p-ver-pdf').onclick = function () { previa(false); };
     $('p-ver-pdf-valores').onclick = function () { previa(true); };
     $('p-salvar').onclick = async function () {
@@ -1063,10 +1084,11 @@
         '<div class="muted">' + esc(v.calculo.tipo || '') + ' · BDI ' + fmtN(r.bdi, 4) + ' · prazo ' + textoPrazo(v.calculo.encFin) + '</div>' : '') +
       TEXTOS.concat([['condicoes', '9. Condições de pagamento']]).filter(function (t) { return v[t[0]]; }).map(function (t) { return '<label>' + esc(t[1]) + '</label><div style="white-space:pre-wrap">' + esc(v[t[0]]) + '</div>'; }).join('') +
       '<div class="acoes">' + (p.status !== 'aprovada' ? '<button class="btn" id="rv-editar">Editar (vira a Rev. ' + ((p.rev || 0) + 1) + ')</button>' : '') + '<button class="btn" id="rv-duplicar">Duplicar como nova proposta</button>' +
-      '<button class="btn sec" id="rv-voltar">← Voltar à proposta</button><button class="btn sec" id="rv-pdf">Baixar PDF</button><button class="btn sec" id="rv-valores">Baixar PDF com valor por item</button>' + (v.calculo ? '<button class="btn sec" id="rv-calc">Baixar memória de cálculo</button>' : '') + '</div>');
+      '<button class="btn sec" id="rv-voltar">← Voltar à proposta</button><button class="btn sec" id="rv-ver-pdf">Ver PDF</button><button class="btn sec" id="rv-pdf">Baixar PDF</button><button class="btn sec" id="rv-valores">Baixar PDF com valor por item</button>' + (v.calculo ? '<button class="btn sec" id="rv-calc">Baixar memória de cálculo</button>' : '') + '</div>');
     $('rv-voltar').onclick = function () { verProposta(p.id); };
     if ($('rv-editar')) $('rv-editar').onclick = function () { novaRevisao(p, v); };
     $('rv-duplicar').onclick = function () { duplicarProposta(v); };
+    $('rv-ver-pdf').onclick = function () { verPdf(function () { imprimirProposta(v); }); };
     $('rv-pdf').onclick = function () { imprimirProposta(v); };
     $('rv-valores').onclick = function () { imprimirProposta(v, true); };
     if ($('rv-calc')) $('rv-calc').onclick = function () { imprimirCalculo(v); };
@@ -1081,7 +1103,7 @@
     if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn sec" id="pv-editar">Editar</button>', '<button class="btn perigo" id="pv-recusar">Recusada</button>');
     if (p.status === 'recusada' || p.status === 'semretorno') botoes.push('<button class="btn sec" id="pv-reabrir">Reabrir</button>');
     if (p.status !== 'aprovada') botoes.push('<button class="btn" id="pv-revisao">Nova revisão (Rev. ' + ((p.rev || 0) + 1) + ')</button>');
-    botoes.push('<button class="btn sec" id="pv-imprimir">Baixar PDF</button>', '<button class="btn sec" id="pv-imprimir-valores">Baixar PDF com valor por item</button>');
+    botoes.push('<button class="btn sec" id="pv-ver-pdf">Ver PDF</button>', '<button class="btn sec" id="pv-imprimir">Baixar PDF</button>', '<button class="btn sec" id="pv-imprimir-valores">Baixar PDF com valor por item</button>');
     if (p.calculo) botoes.push('<button class="btn sec" id="pv-calculo">Baixar memória de cálculo</button>');
     botoes.push('<button class="btn sec" id="pv-copiar">Duplicar como nova proposta</button>', '<button class="btn sec" id="pv-modelo">Salvar como modelo</button>');
     if (p.status !== 'aprovada') botoes.push('<button class="btn perigo" id="pv-excluir">Excluir</button>');
@@ -1108,6 +1130,7 @@
     function ligar(id, fn) { var b = $(id); if (b) b.onclick = fn; }
     ligar('pv-fechar', fecharModal);
     ligar('pv-editar', function () { formProposta(p); });
+    ligar('pv-ver-pdf', function () { verPdf(function () { imprimirProposta(p); }); });
     ligar('pv-imprimir', function () { imprimirProposta(p); });
     ligar('pv-imprimir-valores', function () { imprimirProposta(p, true); });
     ligar('pv-calculo', function () { imprimirCalculo(p); });
