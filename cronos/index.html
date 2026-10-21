@@ -74,6 +74,8 @@
   .cx-par input { padding: 6px 8px; }
   table.cx td { padding: 4px; } table.cx td input, table.cx td select { padding: 6px; }
   .cx-res td { padding: 6px 8px; } .cx-res input { padding: 5px 8px; text-align: right; width: 120px; }
+  .flutuante { position: fixed; right: 20px; bottom: 20px; z-index: 70; display: flex; flex-direction: column; gap: 8px; }
+  .flutuante .btn { box-shadow: 0 4px 14px rgba(0,0,0,.35); }
   .check { display: flex; gap: 8px; align-items: center; color: var(--text); font-size: 14px; } .check input { width: auto; }
   #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #1d2433; color: #fff; padding: 10px 16px; border-radius: 8px; display: none; z-index: 100; max-width: 90vw; }
   .aviso { background: var(--warn-2); color: var(--warn); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
@@ -902,7 +904,9 @@
       '<label>9. Condições de pagamento</label><textarea id="p-condicoes" rows="2">' + esc(p.condicoes || CONDICOES_PADRAO) + '</textarea>' +
       '<details id="p-calc" open style="margin-top:10px"><summary><b>Memória de cálculo</b> (interna, não sai na proposta do cliente · clique aqui para recolher)' + (p.calculo && p.calculo.resultado ? ' · ' + brl(p.calculo.resultado.final) : '') + '</summary>' +
       calcHtml(p.calculo || calcPadrao()) + '</details>' +
-      '<div class="acoes"><button class="btn" id="p-salvar">Salvar</button><button class="btn sec" id="p-cancelar">Cancelar</button></div>');
+      '<div class="acoes"><button class="btn" id="p-salvar">Salvar</button><button class="btn sec" id="p-cancelar">Cancelar</button></div>' +
+      // botões fixos na tela enquanto rola o formulário: prévia do PDF com o que está digitado (sem salvar)
+      '<div class="flutuante"><button class="btn" id="p-ver-pdf" title="Prévia do PDF com o que está na tela, sem salvar">Ver PDF</button><button class="btn sec" id="p-ver-pdf-valores" title="Prévia com o valor de cada item">PDF c/ valores</button></div>');
     function lerItens() {
       return Array.prototype.map.call(document.querySelectorAll('#p-itens tr'), function (tr) {
         return { descricao: tr.querySelector('.i-desc').value.trim(), qtd: num(tr.querySelector('.i-qtd').value), valor: num(tr.querySelector('.i-valor').value) };
@@ -935,6 +939,16 @@
     $('p-add-item').onclick = function () { $('p-itens').insertAdjacentHTML('beforeend', linhaItem()); };
     $('p-cancelar').onclick = fecharModal;
     $('p-novo-cliente').onclick = function (e) { e.preventDefault(); formCliente(); };
+    function previa(comValores) {
+      var it = lerItens(), n = parseInt($('p-numero').value, 10) || 0, dt = $('p-data').value || hoje();
+      var v = Object.assign({}, p, { clienteId: $('p-cliente').value, clienteNome: nomeCliente($('p-cliente').value, p.clienteNome), titulo: $('p-titulo').value.trim(), data: dt, validade: $('p-validade').value, itens: it, total: totalItens(it), condicoes: $('p-condicoes').value.trim() });
+      TEXTOS.forEach(function (t) { v[t[0]] = $('p-' + t[0]).value.trim(); });
+      if (!p.id || n !== numeroID(p)) { v.numero = n; v.ano = p.ano || parseInt(dt.slice(0, 4), 10); v.codigo = codID(n, v.ano); }
+      if (!it.length) toast('A prévia está sem itens.');
+      imprimirProposta(v, comValores);
+    }
+    $('p-ver-pdf').onclick = function () { previa(false); };
+    $('p-ver-pdf-valores').onclick = function () { previa(true); };
     $('p-salvar').onclick = async function () {
       var cid = $('p-cliente').value, it = lerItens();
       if (!cid) { toast('Selecione o cliente.'); return; }
