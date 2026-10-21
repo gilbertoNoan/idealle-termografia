@@ -74,6 +74,27 @@
   .cx-par input { padding: 6px 8px; }
   table.cx td { padding: 4px; } table.cx td input, table.cx td select { padding: 6px; }
   .cx-res td { padding: 6px 8px; } .cx-res input { padding: 5px 8px; text-align: right; width: 120px; }
+  /* Layout da proposta (PDF baixado e impressão) */
+  .pp { font-size: 10.5pt; line-height: 1.4; }
+  .pp p { margin: 4px 0; text-align: justify; }
+  .pp h4 { margin: 14px 0 4px; font-size: 11pt; break-after: avoid; }
+  .pp-topo { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }
+  .pp-marca { font-size: 22pt; letter-spacing: 2px; }
+  .pp ol.sub { list-style: none; padding-left: 14px; margin: 4px 0; }
+  .pp ol.sub li { margin: 2px 0; text-align: justify; break-inside: avoid; }
+  .pp ol.sub span { font-weight: bold; }
+  .pp .itens-print { width: 100%; border-collapse: collapse; font-size: 10pt; }
+  .pp .itens-print th { text-align: left; border-bottom: 1px solid #000; }
+  .pp .itens-print th.num { text-align: right; }
+  .pp .itens-print .n { text-align: right; white-space: nowrap; }
+  .pp .dados { margin-left: 14px; text-align: left; }
+  .pp .cx-print { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 6px; }
+  .pp .cx-print th, .pp .cx-print td { padding: 3px 5px; }
+  .pp .cx-print .n { text-align: right; white-space: nowrap; }
+  .pp-assin { display: flex; justify-content: space-around; margin-top: 40px; text-align: center; break-inside: avoid; }
+  .pdf-render { width: 182mm; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
+  .pdf-render th, .pdf-render td { color: #000; border-bottom: 1px solid #ccc; padding: 4px 6px; text-transform: none; letter-spacing: 0; font-size: inherit; }
+  .pdf-render .itens-print th, .pdf-render .cx-print th { font-weight: bold; border-bottom: 1px solid #000; }
   .flutuante { position: fixed; right: 20px; bottom: 20px; z-index: 70; display: flex; flex-direction: column; gap: 8px; }
   .flutuante .btn { box-shadow: 0 4px 14px rgba(0,0,0,.35); }
   .check { display: flex; gap: 8px; align-items: center; color: var(--text); font-size: 14px; } .check input { width: auto; }
@@ -113,23 +134,6 @@
     @page { margin: 12mm 14mm 6mm; }
     .pp-tab { width: 100%; border-collapse: collapse; }
     .pp-tab > tbody > tr > td, .pp-tab > tfoot > tr > td { border: 0 !important; padding: 0; }
-    .pp { font-size: 10.5pt; line-height: 1.4; }
-    .pp p { margin: 4px 0; text-align: justify; }
-    .pp h4 { margin: 14px 0 4px; font-size: 11pt; break-after: avoid; }
-    .pp-topo { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }
-    .pp-marca { font-size: 22pt; letter-spacing: 2px; }
-    .pp ol.sub { list-style: none; padding-left: 14px; margin: 4px 0; }
-    .pp ol.sub li { margin: 2px 0; text-align: justify; break-inside: avoid; }
-    .pp ol.sub span { font-weight: bold; }
-    .pp .itens-print { width: 100%; border-collapse: collapse; font-size: 10pt; }
-    .pp .itens-print th { text-align: left; border-bottom: 1px solid #000; }
-    .pp .itens-print th.num { text-align: right; }
-    .pp .itens-print .n { text-align: right; white-space: nowrap; }
-    .pp .dados { margin-left: 14px; text-align: left; }
-    .pp .cx-print { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 6px; }
-    .pp .cx-print th, .pp .cx-print td { padding: 3px 5px; }
-    .pp .cx-print .n { text-align: right; white-space: nowrap; }
-    .pp-assin { display: flex; justify-content: space-around; margin-top: 40px; text-align: center; break-inside: avoid; }
     .pp-rodape { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 8pt; color: #333; border-top: 1px solid #999; padding-top: 3px; }
   }
 </style>
@@ -853,6 +857,40 @@
     return { itens: novos, sobra: sobra };
   }
 
+  // Baixa o PDF direto (html2pdf.js, carregado na primeira vez). O rodapé da Idealle é escrito em cada página.
+  var H2PDF = 'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js';
+  function carregarScript(src) { return new Promise(function (ok, erro) { var t = document.createElement('script'); t.src = src; t.onload = ok; t.onerror = erro; document.head.appendChild(t); }); }
+  function carregarHtml2pdf() {
+    if (window.html2pdf) return Promise.resolve();
+    if (!carregarHtml2pdf._p) carregarHtml2pdf._p = carregarScript(H2PDF).catch(function (e) { carregarHtml2pdf._p = null; throw e; });
+    return carregarHtml2pdf._p;
+  }
+  // Nome no padrão da Idealle: IDEALLE-0298-2026-Rev.1.pdf
+  function nomePdf(p, extra) {
+    var ano = String(codProposta(p)).slice(-4);
+    return 'IDEALLE-' + pad(numeroID(p), 4) + '-' + ano + '-Rev.' + (p.rev || 0) + (extra ? ' ' + extra : '') + '.pdf';
+  }
+  async function baixarPdf(html, nome, rodape) {
+    toast('Gerando o PDF…');
+    try { await carregarHtml2pdf(); } catch (e) { toast('Não deu para carregar o gerador de PDF. Confira a internet e tente de novo.'); return; }
+    var el = document.createElement('div'); el.className = 'pdf-render'; el.innerHTML = html;
+    var opt = { margin: [12, 14, rodape ? 20 : 12, 14], filename: nome, image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff' }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'avoid-all'] } };
+    try {
+      await html2pdf().set(opt).from(el).toPdf().get('pdf').then(function (pdf) {
+        var n = pdf.internal.getNumberOfPages(), w = pdf.internal.pageSize.getWidth(), h = pdf.internal.pageSize.getHeight();
+        for (var i = 1; i <= n; i++) {
+          pdf.setPage(i); pdf.setFontSize(7.5); pdf.setTextColor(60);
+          if (rodape) { pdf.setDrawColor(150); pdf.line(14, h - 16, w - 14, h - 16); rodape.forEach(function (l, k) { pdf.text(l, w / 2, h - 12.5 + k * 3.3, { align: 'center' }); }); }
+          if (n > 1) pdf.text(i + '/' + n, w - 14, h - 4, { align: 'right' });
+        }
+      }).save();
+      toast('PDF baixado: ' + nome);
+    } catch (e) { console.error(e); toast('Não deu para gerar o PDF.'); }
+  }
+  function rodapeIdealle() { return [EMPRESA.nome + ' - ' + EMPRESA.slogan, EMPRESA.endereco + ' - Tel. ' + EMPRESA.telefone, EMPRESA.site]; }
+
   function imprimirCalculo(p) {
     var c = p.calculo, r = calcular(c), cli = nomeCliente(p.clienteId, p.clienteNome);
     function tab(s) {
@@ -862,7 +900,7 @@
         rows.map(function (x) { return '<tr>' + S.cols.map(function (k, i) { return i ? '<td class="n">' + (k[2] === 'RD' ? esc(x.t || 'D') : fmtN(x[k[0]], k[0] === 'v' ? 2 : (num(x[k[0]]) % 1 ? 2 : 0))) + '</td>' : '<td>' + esc(x.d) + '</td>'; }).join('') + '<td class="n">' + brl(S.total(x)) + '</td></tr>'; }).join('') + '</tbody></table>';
     }
     var def = c.def || {};
-    $('print').innerHTML = '<div class="pp">' +
+    var html = '<div class="pp">' +
       '<div class="pp-topo"><div><b>MEMÓRIA DE CÁLCULO</b><div>Uso interno · não enviar ao cliente</div></div><div style="text-align:right"><b>' + codRev(p) + '</b><div>' + data(p.data) + '</div></div></div>' +
       '<p><b>Cliente:</b> ' + esc(cli) + '<br><b>Serviço:</b> ' + esc(p.titulo) + '<br><b>Tipo:</b> ' + esc(c.tipo || '') + '</p>' +
       '<table class="cx-print"><tbody>' + [0, 4, 8, 12].map(function (i) { return '<tr>' + CALC_PARAMS.slice(i, i + 4).map(function (q) { return '<td>' + esc(q[1]) + '</td><td class="n">' + (q[0] === 'encFin' ? textoPrazo(c.encFin) : fmtN(c[q[0]], 2)) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>' +
@@ -877,7 +915,7 @@
       (p.itens || []).map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td class="n">' + esc(i.qtd) + '</td><td class="n">' + brl(i.valor) + '</td><td class="n">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
       '<tr><td><b>Total da proposta</b></td><td></td><td></td><td class="n"><b>' + brl(p.total) + '</b></td></tr></tbody></table>' +
       '</div>';
-    window.print();
+    baixarPdf(html, nomePdf(p, 'memoria de calculo'));
   }
 
   function formProposta(p) {
@@ -906,7 +944,7 @@
       calcHtml(p.calculo || calcPadrao()) + '</details>' +
       '<div class="acoes"><button class="btn" id="p-salvar">Salvar</button><button class="btn sec" id="p-cancelar">Cancelar</button></div>' +
       // botões fixos na tela enquanto rola o formulário: prévia do PDF com o que está digitado (sem salvar)
-      '<div class="flutuante"><button class="btn" id="p-ver-pdf" title="Prévia do PDF com o que está na tela, sem salvar">Ver PDF</button><button class="btn sec" id="p-ver-pdf-valores" title="Prévia com o valor de cada item">PDF c/ valores</button></div>');
+      '<div class="flutuante"><button class="btn" id="p-ver-pdf" title="Baixa o PDF com o que está na tela, sem salvar">Baixar PDF</button><button class="btn sec" id="p-ver-pdf-valores" title="Baixa o PDF com o valor de cada item">PDF c/ valores</button></div>');
     function lerItens() {
       return Array.prototype.map.call(document.querySelectorAll('#p-itens tr'), function (tr) {
         return { descricao: tr.querySelector('.i-desc').value.trim(), qtd: num(tr.querySelector('.i-qtd').value), valor: num(tr.querySelector('.i-valor').value) };
@@ -1025,7 +1063,7 @@
         '<div class="muted">' + esc(v.calculo.tipo || '') + ' · BDI ' + fmtN(r.bdi, 4) + ' · prazo ' + textoPrazo(v.calculo.encFin) + '</div>' : '') +
       TEXTOS.concat([['condicoes', '9. Condições de pagamento']]).filter(function (t) { return v[t[0]]; }).map(function (t) { return '<label>' + esc(t[1]) + '</label><div style="white-space:pre-wrap">' + esc(v[t[0]]) + '</div>'; }).join('') +
       '<div class="acoes">' + (p.status !== 'aprovada' ? '<button class="btn" id="rv-editar">Editar (vira a Rev. ' + ((p.rev || 0) + 1) + ')</button>' : '') + '<button class="btn" id="rv-duplicar">Duplicar como nova proposta</button>' +
-      '<button class="btn sec" id="rv-voltar">← Voltar à proposta</button><button class="btn sec" id="rv-pdf">PDF</button><button class="btn sec" id="rv-valores">PDF com valor por item</button>' + (v.calculo ? '<button class="btn sec" id="rv-calc">Memória de cálculo</button>' : '') + '</div>');
+      '<button class="btn sec" id="rv-voltar">← Voltar à proposta</button><button class="btn sec" id="rv-pdf">Baixar PDF</button><button class="btn sec" id="rv-valores">Baixar PDF com valor por item</button>' + (v.calculo ? '<button class="btn sec" id="rv-calc">Baixar memória de cálculo</button>' : '') + '</div>');
     $('rv-voltar').onclick = function () { verProposta(p.id); };
     if ($('rv-editar')) $('rv-editar').onclick = function () { novaRevisao(p, v); };
     $('rv-duplicar').onclick = function () { duplicarProposta(v); };
@@ -1043,8 +1081,8 @@
     if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn sec" id="pv-editar">Editar</button>', '<button class="btn perigo" id="pv-recusar">Recusada</button>');
     if (p.status === 'recusada' || p.status === 'semretorno') botoes.push('<button class="btn sec" id="pv-reabrir">Reabrir</button>');
     if (p.status !== 'aprovada') botoes.push('<button class="btn" id="pv-revisao">Nova revisão (Rev. ' + ((p.rev || 0) + 1) + ')</button>');
-    botoes.push('<button class="btn sec" id="pv-imprimir">Imprimir / PDF</button>', '<button class="btn sec" id="pv-imprimir-valores">PDF com valor por item</button>');
-    if (p.calculo) botoes.push('<button class="btn sec" id="pv-calculo">Memória de cálculo</button>');
+    botoes.push('<button class="btn sec" id="pv-imprimir">Baixar PDF</button>', '<button class="btn sec" id="pv-imprimir-valores">Baixar PDF com valor por item</button>');
+    if (p.calculo) botoes.push('<button class="btn sec" id="pv-calculo">Baixar memória de cálculo</button>');
     botoes.push('<button class="btn sec" id="pv-copiar">Duplicar como nova proposta</button>', '<button class="btn sec" id="pv-modelo">Salvar como modelo</button>');
     if (p.status !== 'aprovada') botoes.push('<button class="btn perigo" id="pv-excluir">Excluir</button>');
     botoes.push('<button class="btn sec" id="pv-fechar">Fechar</button>');
@@ -1173,10 +1211,7 @@
       '<p class="dados">' + esc(EMPRESA.razao) + '<br>' + esc(EMPRESA.endereco) + '<br>CNPJ nº ' + esc(EMPRESA.cnpj) + ' e I. E. nº ' + esc(EMPRESA.ie) + '<br>PIX CNPJ: ' + esc(EMPRESA.pix) + '</p>');
     corpo += secao('VALIDADE DA PROPOSTA', '<p>Esta proposta é válida por ' + dias + ' dias, a partir da data de sua emissão, após o que estará sujeita a confirmação. ' +
       'Desde já agradecemos a oportunidade de participar desta tomada de preços e permanecemos à sua inteira disposição para quaisquer esclarecimentos que se fizerem necessários.</p>');
-    $('print').innerHTML =
-      '<div class="pp-rodape">' + esc(EMPRESA.nome) + ' - ' + esc(EMPRESA.slogan) + '<br>' + esc(EMPRESA.endereco) + ' - Tel. ' + esc(EMPRESA.telefone) + '<br>' + esc(EMPRESA.site) + '</div>' +
-      // o rodapé fixo se repete em cada página; o tfoot vazio reserva o espaço dele para o texto não passar por baixo
-      '<table class="pp-tab"><tfoot><tr><td><div style="height:20mm"></div></td></tr></tfoot><tbody><tr><td><div class="pp">' +
+    var html = '<div class="pp">' +
       '<div class="pp-topo"><div><b class="pp-marca">' + esc(EMPRESA.nome) + '</b><div>' + esc(EMPRESA.slogan) + '</div></div><div style="text-align:right"><b>PROPOSTA COMERCIAL</b><div>' + codRev(p) + '</div></div></div>' +
       '<p style="text-align:right">' + esc(EMPRESA.cidade) + ', ' + dataExtenso(p.data) + '.</p>' +
       '<p>À<br><b>' + esc(c.nome) + '</b>' + (c.cnpj ? '<br>CNPJ ' + esc(c.cnpj) : '') + (c.endereco || c.cidade ? '<br>' + esc([c.endereco, c.cidade, c.uf].filter(Boolean).join(' - ')) : '') + '</p>' +
@@ -1187,8 +1222,8 @@
       corpo +
       '<p style="margin-top:24px">Atenciosamente,</p>' +
       '<div class="pp-assin">' + EMPRESA.assinaturas.map(function (a) { return '<div>______________________________<br><b>' + esc(a[0]) + '</b><br>' + esc(a[1]) + '</div>'; }).join('') + '</div>' +
-      '</div></td></tr></tbody></table>';
-    window.print();
+      '</div>';
+    baixarPdf(html, nomePdf(p, comValores ? 'valores' : ''), rodapeIdealle());
   }
 
   // ===================== MODELOS DE PROPOSTA =====================
