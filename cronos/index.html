@@ -75,26 +75,27 @@
   table.cx td { padding: 4px; } table.cx td input, table.cx td select { padding: 6px; }
   .cx-res td { padding: 6px 8px; } .cx-res input { padding: 5px 8px; text-align: right; width: 120px; }
   /* Layout da proposta (PDF baixado e impressão) */
-  .pp { font-size: 9.5pt; line-height: 1.35; }
+  .pp { font-size: 8.5pt; line-height: 1.35; }
+  .pp .abertura { font-weight: bold; }
   .pp p { margin: 3px 0; break-inside: avoid; }
   /* O título reserva espaço abaixo de si (padding) para não ficar sozinho no fim da página */
-  .pp h4 { margin: 12px 0 -11mm; padding-bottom: 13mm; font-size: 10pt; break-inside: avoid; }
+  .pp h4 { margin: 10px 0 -11mm; padding-bottom: 13mm; font-size: 9pt; break-inside: avoid; }
   .pp-topo { display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #e99c26; padding-bottom: 6px; margin-bottom: 10px; break-inside: avoid; }
   .pp-logo { height: 13mm; display: block; }
   .pp ol.sub { list-style: none; padding-left: 12px; margin: 3px 0; }
   .pp ol.sub li { margin: 1px 0 1px 26px; text-indent: -26px; break-inside: avoid; }
   .pp ol.sub span { font-weight: bold; display: inline-block; min-width: 26px; text-indent: 0; }
-  .pp .itens-print { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  .pp .itens-print { width: 100%; border-collapse: collapse; font-size: 8pt; }
   .pp .itens-print th { text-align: left; border-bottom: 1px solid #000; }
   .pp .itens-print th.num { text-align: right; }
   .pp .itens-print .n { text-align: right; white-space: nowrap; }
   .pp .dados { margin-left: 14px; text-align: left; }
-  .pp .cx-print { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-bottom: 6px; }
+  .pp .cx-print { width: 100%; border-collapse: collapse; font-size: 7.5pt; margin-bottom: 6px; }
   .pp tr, .pp .dados { break-inside: avoid; }
   .pp .cx-print th, .pp .cx-print td { padding: 3px 5px; }
   .pp .cx-print .n { text-align: right; white-space: nowrap; }
   .pp-assin { display: flex; justify-content: space-around; margin-top: 32px; text-align: center; break-inside: avoid; }
-  .pdf-render { width: 182mm; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
+  .pdf-render { width: 178mm; padding-right: 2mm; box-sizing: content-box; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
   .pdf-render th, .pdf-render td { color: #000; border-bottom: 1px solid #ccc; padding: 4px 6px; text-transform: none; letter-spacing: 0; font-size: inherit; }
   .pdf-render .itens-print th, .pdf-render .cx-print th { font-weight: bold; border-bottom: 1px solid #000; }
   .flutuante { position: fixed; right: 20px; bottom: 20px; z-index: 70; display: flex; flex-direction: column; gap: 8px; }
@@ -897,7 +898,7 @@
     try { await carregarHtml2pdf(); } catch (e) { toast('Não deu para carregar o gerador de PDF. Confira a internet e tente de novo.'); return; }
     var el = document.createElement('div'); el.className = 'pdf-render'; el.innerHTML = html;
     var opt = { margin: [12, 14, rodape ? 20 : 12, 14], filename: nome, image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2, backgroundColor: '#ffffff' }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css'] } };
     try {
       await html2pdf().set(opt).from(el).toPdf().get('pdf').then(function (pdf) {
@@ -1241,10 +1242,10 @@
     var html = '<div class="pp">' +
       '<div class="pp-topo">' + logoIdealle() + '<div style="text-align:right"><b>PROPOSTA COMERCIAL</b><div>' + codRev(p) + '</div></div></div>' +
       '<p style="text-align:right">' + esc(EMPRESA.cidade) + ', ' + dataExtenso(p.data) + '.</p>' +
-      '<p>À<br><b>' + esc(c.nome) + '</b>' + (c.cnpj ? '<br>CNPJ ' + esc(c.cnpj) : '') + (c.endereco || c.cidade ? '<br>' + esc([c.endereco, c.cidade, c.uf].filter(Boolean).join(' - ')) : '') + '</p>' +
+      '<div class="abertura"><p>À<br><b>' + esc(c.nome) + '</b>' + (c.cnpj ? '<br>CNPJ ' + esc(c.cnpj) : '') + (c.endereco || c.cidade ? '<br>' + esc([c.endereco, c.cidade, c.uf].filter(Boolean).join(' - ')) : '') + '</p>' +
       (c.contato ? '<p>At.: ' + esc(c.contato) + (c.email ? ' · ' + esc(c.email) : '') + '</p>' : '') +
       '<p><b>REF.:</b> ' + esc(p.ref || ('PROPOSTA PARA A PRESTAÇÃO DE SERVIÇOS DE ' + p.titulo).toUpperCase()) + '</p>' +
-      '<p><b>N/REF.:</b> ' + codRev(p) + '</p>' +
+      '<p><b>N/REF.:</b> ' + codRev(p) + '</p></div>' +
       '<p>Prezados Senhores(as),<br>Atendendo à solicitação de V.S.as, apresentamos nossas melhores condições técnicas e comerciais para a execução do serviço em referência, conforme segue:</p>' +
       corpo +
       '<p style="margin-top:24px">Atenciosamente,</p>' +
