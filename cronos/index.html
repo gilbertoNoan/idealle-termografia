@@ -69,6 +69,12 @@
   .vazio { text-align: center; color: var(--muted); padding: 24px; }
   .itens td input { padding: 6px 8px; }
   .total { text-align: right; font-size: 18px; font-weight: 700; margin-top: 10px; }
+  .cx-sec { margin-top: 10px; } .cx-sec > b { font-size: 14px; }
+  .cx-par { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0 10px; }
+  .cx-par input { padding: 6px 8px; }
+  table.cx td { padding: 4px; } table.cx td input, table.cx td select { padding: 6px; }
+  .cx-res td { padding: 6px 8px; } .cx-res input { padding: 5px 8px; text-align: right; width: 120px; }
+  .check { display: flex; gap: 8px; align-items: center; color: var(--text); font-size: 14px; } .check input { width: auto; }
   #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #1d2433; color: #fff; padding: 10px 16px; border-radius: 8px; display: none; z-index: 100; max-width: 90vw; }
   .aviso { background: var(--warn-2); color: var(--warn); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
   .modal-fundo { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: flex-start; justify-content: center; z-index: 50; overflow-y: auto; padding: 24px 12px; }
@@ -118,6 +124,9 @@
     .pp .itens-print th.num { text-align: right; }
     .pp .itens-print .n { text-align: right; white-space: nowrap; }
     .pp .dados { margin-left: 14px; text-align: left; }
+    .pp .cx-print { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 6px; }
+    .pp .cx-print th, .pp .cx-print td { padding: 3px 5px; }
+    .pp .cx-print .n { text-align: right; white-space: nowrap; }
     .pp-assin { display: flex; justify-content: space-around; margin-top: 40px; text-align: center; break-inside: avoid; }
     .pp-rodape { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 8pt; color: #333; border-top: 1px solid #999; padding-top: 3px; }
   }
@@ -296,7 +305,14 @@
   function somarDias(iso, n) { var d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
   function brl(v) { return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
   function data(iso) { if (!iso) return '—'; var p = String(iso).slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
-  function num(v) { if (typeof v === 'number') return v; var n = parseFloat(String(v).replace(/\./g, '').replace(',', '.')); return isNaN(n) ? 0 : n; }
+  function num(v) {
+    if (typeof v === 'number') return v;
+    v = String(v == null ? '' : v).trim();
+    // "1.500" e "1.500,25" são milhar; "612.5" e "0.85" (número que voltou para o campo) são decimal
+    var n = parseFloat(v.indexOf(',') < 0 && /^-?\d*\.(\d{1,2}|\d{4,})$/.test(v) ? v : v.replace(/\./g, '').replace(',', '.'));
+    return isNaN(n) ? 0 : n;
+  }
+  function numCampo(v) { return v === '' || v == null ? '' : String(v).replace('.', ','); }
   function normal(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
   function toast(msg) { var t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(function () { t.style.display = 'none'; }, 3200); }
@@ -635,7 +651,7 @@
 
   function linhaItem(i) {
     i = i || { descricao: '', qtd: 1, valor: '' };
-    return '<tr><td><input class="i-desc" value="' + esc(i.descricao) + '" placeholder="Descrição do serviço"></td><td style="width:80px"><input class="i-qtd" inputmode="decimal" value="' + esc(i.qtd) + '"></td><td style="width:130px"><input class="i-valor" inputmode="decimal" value="' + esc(i.valor) + '" placeholder="0,00"></td><td style="width:40px"><button class="btn sec peq i-del" title="Remover">✕</button></td></tr>';
+    return '<tr><td><input class="i-desc" value="' + esc(i.descricao) + '" placeholder="Descrição do serviço"></td><td style="width:80px"><input class="i-qtd" inputmode="decimal" value="' + esc(numCampo(i.qtd)) + '"></td><td style="width:130px"><input class="i-valor" inputmode="decimal" value="' + esc(numCampo(i.valor)) + '" placeholder="0,00"></td><td style="width:40px"><button class="btn sec peq i-del" title="Remover">✕</button></td></tr>';
   }
 
   // Seções de texto da proposta, na ordem em que saem impressas (mesmo padrão das propostas da Idealle)
@@ -651,6 +667,7 @@
     var d = { modeloId: m.id, modeloNome: m.nome, titulo: m.titulo || m.nome, sistema: m.sistema || '', condicoes: m.condicoes || CONDICOES_PADRAO,
       validade: somarDias(hoje(), m.validadeDias || 30), itens: (m.itens || []).map(function (i) { return { descricao: i.descricao, qtd: i.qtd, valor: i.valor }; }) };
     TEXTOS.forEach(function (t) { d[t[0]] = m[t[0]] || ''; });
+    if (m.calculo) d.calculo = JSON.parse(JSON.stringify(m.calculo));
     return d;
   }
   function textoFaixa(m) {
@@ -659,6 +676,185 @@
     if (f) partes.push((r.faixaAprovadas ? 'Aprovadas' : 'Enviadas') + ' deste tipo: ' + brl(f[0]) + ' a ' + brl(f[2]) + ' (mediana ' + brl(f[1]) + ')');
     if (r.propostas) partes.push(r.propostas + ' propostas, ' + r.aprovadas + ' aprovadas');
     return partes.join(' · ') + (r.base ? '<div>Base: ' + esc(r.base) + '</div>' : '');
+  }
+
+  // ===================== MEMÓRIA DE CÁLCULO =====================
+  // Mesma conta da planilha de cálculo de orçamentos da Idealle (abas Inicial e Planilha).
+  // Fica guardada na proposta (campo calculo) e é só para uso interno: não sai no PDF do cliente.
+  // Tipo de serviço: [nome, ferramental %, lucro %, administração %, encargos "D" R$/h, contribuição social %]
+  var CALC_TIPOS = [
+    ['Estudos e Projetos', 0, 15, 40, 17, 2.88], ['Vistorias SPDA, NR-10 e Aterramento', 0, 15, 35, 17, 2.88],
+    ['Montagens até 100.000', 2, 15, 40, 8, 1.08], ['Montagens acima de 100.000', 2, 15, 35, 8, 1.08],
+    ['Instalação e adequação SPDA', 1, 20, 40, 8, 1.08], ['Manutenção Grandes Paradas', 1, 18, 45, 8, 2.88],
+    ['Inspeções NR-13', 1, 20, 45, 8, 2.88]
+  ];
+  var CALC_PARAMS = [
+    ['iss', 'ISS %', '4,1 · 4,2 · 4,3 · 4,8'], ['cofins', 'Cofins %'], ['pis', 'PIS %'], ['csll', 'Contr. social %'], ['ir', 'IR PJ %'], ['outros', 'Outros impostos %'],
+    ['lucro', 'Lucro %'], ['adm', 'Administração %'], ['ferram', 'Ferramental %'], ['encFin', 'Encargos financ. %', '15 dias 2 · 30 dias 3 · 60 dias 4'], ['giro', 'Capital de giro %'],
+    ['encSoc', 'Encargos sociais "R" %', 'Grupos A+B+C+D da planilha'], ['encD', 'Encargos "D" (R$/h)'],
+    ['admMat', 'Adm. materiais %'], ['admApoio', 'Adm. apoio %'], ['admDesp', 'Adm. deslocam. %']
+  ];
+  // Colunas de cada bloco: [campo, título, tipo] (t = texto, RD = registrado/subcontratado, vazio = número)
+  var CALC_SECOES = {
+    mo: { titulo: '1) Mão de obra direta', cols: [['d', 'Profissional', 't'], ['q', 'Qtd prof.'], ['h', 'Horas/prof.'], ['v', 'Valor hora'], ['t', 'Tipo', 'RD']], total: function (r) { return num(r.q) * num(r.h) * num(r.v); } },
+    mat: { titulo: '2a) Materiais', cols: [['d', 'Descrição', 't'], ['i', 'IPI %'], ['q', 'Quant.'], ['v', 'Valor unit.']], total: function (r) { return num(r.q) * num(r.v) * (1 + num(r.i) / 100); } },
+    apoio: { titulo: '2b) Serviços de apoio e infraestrutura', cols: [['d', 'Descrição', 't'], ['i', 'Imp. %'], ['q', 'Quant.'], ['v', 'Valor unit.']], total: function (r) { return num(r.q) * num(r.v) * (1 + num(r.i) / 100); } },
+    desp: { titulo: '3) Deslocamento, estadias e diárias', cols: [['d', 'Descrição', 't'], ['q', 'Quant.'], ['u', 'Diárias/unid.'], ['v', 'Valor unit.']], total: function (r) { return num(r.q) * num(r.u) * num(r.v); } },
+    coord: { titulo: '4) Coordenação', cols: [['d', 'Profissional', 't'], ['q', 'Qtd prof.'], ['h', 'Horas/prof.'], ['v', 'Valor hora']], total: function (r) { return num(r.q) * num(r.h) * num(r.v); } }
+  };
+  function calcPadrao() {
+    var t = CALC_TIPOS[6];
+    return { tipo: t[0], iss: 4.8, cofins: 3, pis: 0.65, csll: t[5], ir: 5, outros: 0, lucro: t[2], adm: t[3], ferram: t[1], encFin: 3, giro: 1, encSoc: 132.57808, encD: t[4], admMat: 15, admApoio: 15, admDesp: 15,
+      mo: [{ d: 'Inspetor', q: 1, h: '', v: 25, t: 'D' }, { d: 'Auxiliar', q: 1, h: '', v: 9, t: 'D' }, { d: 'Relatórios', q: 1, h: '', v: 9, t: 'R' }],
+      mat: [], apoio: [{ d: 'ART', i: 0, q: 1, v: 108 }], desp: [{ d: 'Deslocamento (km)', q: 1, u: '', v: 0.85 }, { d: 'Diárias', q: 1, u: '', v: 20 }], coord: [],
+      def: {}, correcao: '' };
+  }
+  function calcular(c) {
+    function P(k) { return num(c[k]); }
+    function soma(s, filtro) { return (c[s] || []).reduce(function (t, r) { return t + (!filtro || filtro(r) ? CALC_SECOES[s].total(r) : 0); }, 0); }
+    var moR = soma('mo', function (r) { return r.t === 'R'; }), moD = soma('mo', function (r) { return r.t !== 'R'; });
+    var horasD = (c.mo || []).reduce(function (t, r) { return t + (r.t !== 'R' ? num(r.q) * num(r.h) : 0); }, 0);
+    var mat = soma('mat'), apoio = soma('apoio'), desp = soma('desp'), coord = soma('coord');
+    var fES = 1 + P('encSoc') / 100;
+    var iv = P('iss') + P('cofins') + P('pis') + P('csll') + P('outros') + P('ir') + P('lucro') + P('adm') + P('ferram') + P('encFin') + P('giro');
+    var bdi = iv < 100 ? 1 / (1 - iv / 100) : 0;
+    var impFat = P('iss') + P('cofins') + P('pis') + P('csll') + P('outros') + P('ir') + P('encFin');
+    // como na planilha: o valor é dividido por (1 - impostos - administração - encargos financeiros - capital de giro)
+    function bruto(v, adm) { var f = 1 - (impFat + adm + P('encFin') + P('giro')) / 100; return f > 0 ? v / f : 0; }
+    var matAdm = mat * (1 + P('admMat') / 100);
+    var linhas = [
+      ['a', 'Mão de obra registrada "R"', 'MO × encargos × BDI', moR * fES * bdi + horasD * P('encD') * (fES - 1) * bdi],
+      ['b', 'Mão de obra contratada "D"', 'MO × BDI', moD * bdi],
+      ['c', 'Coordenação', 'Coord. × BDI', coord * bdi],
+      ['d', 'Materiais com administração', 'Mat. × (1 + adm.)', matAdm],
+      ['e', 'Impostos sobre materiais', 'Mat. + adm. + impostos − (d)', bruto(mat, P('admMat')) - matAdm],
+      ['f', 'Serviços de apoio e infraestrutura', 'Apoio + adm. + impostos', bruto(apoio, P('admApoio'))],
+      ['g', 'Deslocamento, estadias e diárias', 'Desp. + adm. + impostos', bruto(desp, P('admDesp'))]
+    ];
+    var def = c.def || {}, corr = num(c.correcao);
+    var calculado = corr, final = corr;
+    linhas.forEach(function (l) { calculado += l[3]; final += def[l[0]] !== '' && def[l[0]] != null ? num(def[l[0]]) : l[3]; });
+    return { linhas: linhas, bdi: bdi, fES: fES, impFat: impFat, horasD: horasD, custos: { moR: moR, moD: moD, mat: mat, apoio: apoio, desp: desp, coord: coord },
+      correcao: corr, calculado: Math.round(calculado * 100) / 100, final: Math.round(final * 100) / 100 };
+  }
+  function fmtN(v, d) { return (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+  function calcLinhaHtml(s, r) {
+    r = r || {};
+    return '<tr>' + CALC_SECOES[s].cols.map(function (c) {
+      if (c[2] === 'RD') return '<td style="width:64px"><select data-k="t" title="R = registrado (com encargos sociais) · D = subcontratado"><option' + (r.t !== 'R' ? ' selected' : '') + '>D</option><option' + (r.t === 'R' ? ' selected' : '') + '>R</option></select></td>';
+      if (c[2] === 't') return '<td><input data-k="d" value="' + esc(r.d) + '"></td>';
+      return '<td style="width:86px"><input data-k="' + c[0] + '" inputmode="decimal" value="' + esc(numCampo(r[c[0]])) + '"></td>';
+    }).join('') + '<td class="num cx-tot"></td><td style="width:38px"><button class="btn sec peq cx-del" title="Remover">✕</button></td></tr>';
+  }
+  function calcHtml(c) {
+    var tipos = CALC_TIPOS.map(function (t) { return t[0]; });
+    if (c.tipo && tipos.indexOf(c.tipo) < 0) tipos.push(c.tipo);
+    return '<label>Tipo de serviço (preenche lucro, administração, ferramental e encargos)</label><select id="cx-tipo">' + tipos.map(function (t) { return '<option' + (t === c.tipo ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select>' +
+      '<div class="cx-par">' + CALC_PARAMS.map(function (p) { return '<div><label' + (p[2] ? ' title="' + esc(p[2]) + '"' : '') + '>' + esc(p[1]) + '</label><input data-p="' + p[0] + '" inputmode="decimal" value="' + esc(numCampo(c[p[0]])) + '"></div>'; }).join('') + '</div>' +
+      Object.keys(CALC_SECOES).map(function (s) {
+        var S = CALC_SECOES[s];
+        return '<div class="cx-sec"><b>' + S.titulo + '</b><div class="tabela"><table class="itens cx"><thead><tr>' + S.cols.map(function (k) { return '<th>' + k[1] + '</th>'; }).join('') + '<th class="num">Total</th><th></th></tr></thead>' +
+          '<tbody data-sec="' + s + '">' + (c[s] || []).map(function (r) { return calcLinhaHtml(s, r); }).join('') + '</tbody></table></div><button class="btn sec peq" data-cx-add="' + s + '">+ linha</button></div>';
+      }).join('') +
+      '<div class="cx-sec"><b>Preço final</b> <span class="muted">(deixe "Definitivo" vazio para usar o calculado)</span><div class="tabela"><table class="cx-res"><thead><tr><th></th><th class="num">Calculado</th><th class="num">Definitivo</th></tr></thead><tbody>' +
+      calcular(c).linhas.map(function (l) { var v = (c.def || {})[l[0]]; return '<tr><td>' + l[0] + ') ' + l[1] + '<div class="muted">' + l[2] + '</div></td><td class="num" id="cx-r-' + l[0] + '"></td><td class="num"><input data-def="' + l[0] + '" inputmode="decimal" value="' + esc(numCampo(v)) + '"></td></tr>'; }).join('') +
+      '<tr><td>h) Correções e descontos <div class="muted">negativo para desconto</div></td><td></td><td class="num"><input id="cx-correcao" inputmode="decimal" value="' + esc(numCampo(c.correcao)) + '"></td></tr>' +
+      '<tr class="forte"><td>PREÇO TOTAL FINAL</td><td class="num" id="cx-calculado"></td><td class="num" id="cx-final"></td></tr></tbody></table></div>' +
+      '<div class="muted" id="cx-resumo"></div></div>' +
+      '<div class="acoes"><button class="btn peq" id="cx-aplicar">Usar este preço nos itens</button><span class="muted" id="cx-dif" style="align-self:center"></span></div>';
+  }
+  function lerCalculo(box) {
+    var c = { tipo: box.querySelector('#cx-tipo').value, def: {}, correcao: box.querySelector('#cx-correcao').value.trim() === '' ? '' : num(box.querySelector('#cx-correcao').value) };
+    box.querySelectorAll('[data-p]').forEach(function (i) { c[i.dataset.p] = num(i.value); });
+    box.querySelectorAll('[data-def]').forEach(function (i) { if (i.value.trim() !== '') c.def[i.dataset.def] = num(i.value); });
+    box.querySelectorAll('tbody[data-sec]').forEach(function (tb) {
+      c[tb.dataset.sec] = Array.prototype.map.call(tb.rows, function (tr) {
+        var r = {};
+        tr.querySelectorAll('[data-k]').forEach(function (i) { r[i.dataset.k] = i.dataset.k === 'd' || i.dataset.k === 't' ? i.value.trim() : (i.value.trim() === '' ? '' : num(i.value)); });
+        return r;
+      });
+    });
+    return c;
+  }
+  function limparCalculo(c) {
+    var d = Object.assign({}, c);
+    Object.keys(CALC_SECOES).forEach(function (s) { d[s] = (c[s] || []).filter(function (r) { return r.d || CALC_SECOES[s].total(r); }); });
+    var r = calcular(c);
+    d.resultado = { calculado: r.calculado, final: r.final, bdi: Math.round(r.bdi * 10000) / 10000 };
+    d.atualizadoEm = agora();
+    return d;
+  }
+  // Liga a memória de cálculo dentro do formulário da proposta. itensTotal() devolve o total atual dos itens.
+  function ligarCalculo(box, itensTotal) {
+    function atualizar() {
+      var c = lerCalculo(box), r = calcular(c);
+      box.querySelectorAll('tbody[data-sec]').forEach(function (tb) {
+        var s = tb.dataset.sec;
+        Array.prototype.forEach.call(tb.rows, function (tr, i) { tr.querySelector('.cx-tot').textContent = brl(CALC_SECOES[s].total(c[s][i])); });
+      });
+      r.linhas.forEach(function (l) { box.querySelector('#cx-r-' + l[0]).textContent = brl(l[3]); });
+      box.querySelector('#cx-calculado').textContent = brl(r.calculado);
+      box.querySelector('#cx-final').textContent = brl(r.final);
+      box.querySelector('#cx-resumo').textContent = 'BDI ' + fmtN(r.bdi, 4) + ' · fator de encargos sociais ' + fmtN(r.fES, 3) + ' · impostos sobre faturamento ' + fmtN(r.impFat, 2) + '%' +
+        ' · custo direto ' + brl(r.custos.moR + r.custos.moD + r.custos.coord + r.custos.mat + r.custos.apoio + r.custos.desp) + (r.bdi ? '' : ' · a soma dos percentuais passou de 100%');
+      var dif = Math.round((itensTotal() - r.final) * 100) / 100;
+      box.querySelector('#cx-dif').textContent = dif ? 'Itens da proposta somam ' + brl(itensTotal()) + ' (' + (dif > 0 ? '+' : '') + brl(dif) + ' em relação ao cálculo)' : 'Itens da proposta batem com o cálculo.';
+      return r;
+    }
+    box.addEventListener('input', atualizar);
+    box.addEventListener('change', atualizar);
+    box.querySelector('#cx-tipo').onchange = function () {
+      var t = CALC_TIPOS.find(function (x) { return x[0] === this.value; }, this); if (!t) return;
+      [['ferram', 1], ['lucro', 2], ['adm', 3], ['encD', 4], ['csll', 5]].forEach(function (k) { box.querySelector('[data-p="' + k[0] + '"]').value = numCampo(t[k[1]]); });
+      atualizar();
+    };
+    box.addEventListener('click', function (e) {
+      var add = e.target.closest('[data-cx-add]');
+      if (add) { e.preventDefault(); box.querySelector('tbody[data-sec="' + add.dataset.cxAdd + '"]').insertAdjacentHTML('beforeend', calcLinhaHtml(add.dataset.cxAdd)); atualizar(); }
+      if (e.target.classList.contains('cx-del')) { e.preventDefault(); e.target.closest('tr').remove(); atualizar(); }
+    });
+    atualizar();
+    return atualizar;
+  }
+  // Reparte o preço final entre os itens, mantendo a proporção que eles já têm (ou pela quantidade, se estão sem valor).
+  // A sobra de centavos vai para um item de quantidade 1, para o total bater exatamente.
+  function repartirPreco(itens, alvo) {
+    var base = totalItens(itens), qtd = itens.reduce(function (s, i) { return s + num(i.qtd); }, 0);
+    if (!qtd) return null;
+    var novos = itens.map(function (i) {
+      var unit = base > 0 ? num(i.valor) * alvo / base : alvo / qtd;
+      return Object.assign({}, i, { valor: Math.round(unit * 100) / 100 });
+    });
+    var sobra = Math.round((alvo - totalItens(novos)) * 100) / 100;
+    var um = novos.find(function (i) { return num(i.qtd) === 1 && (base <= 0 || num(i.valor) > 0); });
+    if (sobra && um) { um.valor = Math.round((um.valor + sobra) * 100) / 100; sobra = 0; }
+    return { itens: novos, sobra: sobra };
+  }
+
+  function imprimirCalculo(p) {
+    var c = p.calculo, r = calcular(c), cli = nomeCliente(p.clienteId, p.clienteNome);
+    function tab(s) {
+      var S = CALC_SECOES[s], rows = (c[s] || []).filter(function (x) { return x.d || S.total(x); });
+      if (!rows.length) return '';
+      return '<h4>' + S.titulo + '</h4><table class="cx-print"><thead><tr>' + S.cols.map(function (k, i) { return '<th' + (i ? ' class="n"' : '') + '>' + k[1] + '</th>'; }).join('') + '<th class="n">Total</th></tr></thead><tbody>' +
+        rows.map(function (x) { return '<tr>' + S.cols.map(function (k, i) { return i ? '<td class="n">' + (k[2] === 'RD' ? esc(x.t || 'D') : fmtN(x[k[0]], k[0] === 'v' ? 2 : (num(x[k[0]]) % 1 ? 2 : 0))) + '</td>' : '<td>' + esc(x.d) + '</td>'; }).join('') + '<td class="n">' + brl(S.total(x)) + '</td></tr>'; }).join('') + '</tbody></table>';
+    }
+    var def = c.def || {};
+    $('print').innerHTML = '<div class="pp">' +
+      '<div class="pp-topo"><div><b>MEMÓRIA DE CÁLCULO</b><div>Uso interno · não enviar ao cliente</div></div><div style="text-align:right"><b>' + codProposta(p) + '</b><div>' + data(p.data) + '</div></div></div>' +
+      '<p><b>Cliente:</b> ' + esc(cli) + '<br><b>Serviço:</b> ' + esc(p.titulo) + '<br><b>Tipo:</b> ' + esc(c.tipo || '') + '</p>' +
+      '<table class="cx-print"><tbody>' + [0, 4, 8, 12].map(function (i) { return '<tr>' + CALC_PARAMS.slice(i, i + 4).map(function (q) { return '<td>' + esc(q[1]) + '</td><td class="n">' + fmtN(c[q[0]], 2) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>' +
+      Object.keys(CALC_SECOES).map(tab).join('') +
+      '<h4>Preço final</h4><table class="cx-print"><thead><tr><th></th><th class="n">Calculado</th><th class="n">Definitivo</th></tr></thead><tbody>' +
+      r.linhas.map(function (l) { return '<tr><td>' + l[0] + ') ' + l[1] + '</td><td class="n">' + brl(l[3]) + '</td><td class="n">' + (def[l[0]] != null ? brl(def[l[0]]) : '') + '</td></tr>'; }).join('') +
+      (r.correcao ? '<tr><td>h) Correções e descontos</td><td></td><td class="n">' + brl(r.correcao) + '</td></tr>' : '') +
+      '<tr><td><b>PREÇO TOTAL FINAL</b></td><td class="n"><b>' + brl(r.calculado) + '</b></td><td class="n"><b>' + brl(r.final) + '</b></td></tr></tbody></table>' +
+      '<p>BDI ' + fmtN(r.bdi, 4) + ' · fator de encargos sociais ' + fmtN(r.fES, 3) + ' · impostos sobre faturamento ' + fmtN(r.impFat, 2) + '%</p>' +
+      '<h4>Itens da proposta</h4><table class="cx-print"><thead><tr><th>Descrição</th><th class="n">Qtd</th><th class="n">Valor unit.</th><th class="n">Total</th></tr></thead><tbody>' +
+      (p.itens || []).map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td class="n">' + esc(i.qtd) + '</td><td class="n">' + brl(i.valor) + '</td><td class="n">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
+      '<tr><td><b>Total da proposta</b></td><td></td><td></td><td class="n"><b>' + brl(p.total) + '</b></td></tr></tbody></table>' +
+      '</div>';
+    window.print();
   }
 
   function formProposta(p) {
@@ -678,6 +874,8 @@
       '<button class="btn sec peq" id="p-add-item" style="margin-top:6px">+ Item</button>' +
       '<div class="total" id="p-total"></div>' +
       (modelo && modelo.referencia ? '<div class="muted" style="text-align:right">' + textoFaixa(modelo) + '</div>' : '') +
+      '<details id="p-calc"' + (p.calculo ? ' open' : '') + ' style="margin-top:10px"><summary><b>Memória de cálculo</b> (interna, não sai na proposta do cliente)' + (p.calculo && p.calculo.resultado ? ' · ' + brl(p.calculo.resultado.final) : '') + '</summary>' +
+      calcHtml(p.calculo || calcPadrao()) + '</details>' +
       '<details id="p-textos"' + (temTexto ? ' open' : '') + ' style="margin-top:10px"><summary><b>Texto da proposta</b> (objetivo, escopo, fornecimentos, prazo)</summary>' +
       TEXTOS.map(function (t) { return '<label>' + t[1] + '</label><textarea id="p-' + t[0] + '" rows="' + t[2] + '">' + esc(p[t[0]]) + '</textarea>'; }).join('') +
       '</details>' +
@@ -688,7 +886,23 @@
         return { descricao: tr.querySelector('.i-desc').value.trim(), qtd: num(tr.querySelector('.i-qtd').value), valor: num(tr.querySelector('.i-valor').value) };
       }).filter(function (i) { return i.descricao; });
     }
-    function atualizarTotal() { $('p-total').textContent = 'Total: ' + brl(totalItens(lerItens())); }
+    var atualizarCalc = null;
+    function atualizarTotal() { $('p-total').textContent = 'Total: ' + brl(totalItens(lerItens())); if (atualizarCalc) atualizarCalc(); }
+    // o cálculo só é gravado se foi aberto/mexido (proposta sem cálculo continua sem)
+    var usouCalc = !!p.calculo;
+    atualizarCalc = ligarCalculo($('p-calc'), function () { return totalItens(lerItens()); });
+    $('p-calc').addEventListener('input', function () { usouCalc = true; });
+    $('p-calc').addEventListener('click', function (e) { if (e.target.closest('button')) usouCalc = true; });
+    $('cx-aplicar').onclick = function (e) {
+      e.preventDefault();
+      var alvo = calcular(lerCalculo($('p-calc'))).final, it = lerItens();
+      if (!alvo) { toast('O cálculo ainda está zerado.'); return; }
+      var r = repartirPreco(it, alvo);
+      if (!r) { toast('Inclua os itens (com quantidade) antes de aplicar o preço.'); return; }
+      $('p-itens').innerHTML = r.itens.map(linhaItem).join('');
+      atualizarTotal();
+      toast(r.sobra ? 'Preço repartido nos itens. Sobrou ' + brl(r.sobra) + ' de arredondamento: ajuste um item.' : 'Preço repartido nos itens, na mesma proporção que eles tinham.');
+    };
     atualizarTotal();
     if ($('p-modelo')) $('p-modelo').onchange = function () {
       var m = porId('modelos', this.value), cid = $('p-cliente').value;
@@ -707,6 +921,7 @@
       var d = { clienteId: cid, clienteNome: nomeCliente(cid), titulo: $('p-titulo').value.trim(), data: $('p-data').value, validade: $('p-validade').value, sistema: $('p-sistema').value, itens: it, total: totalItens(it), condicoes: $('p-condicoes').value.trim(), updatedAt: agora() };
       TEXTOS.forEach(function (t) { d[t[0]] = $('p-' + t[0]).value.trim(); });
       if (p.modeloId) { d.modeloId = p.modeloId; d.modeloNome = p.modeloNome || ''; }
+      if (usouCalc) d.calculo = limparCalculo(lerCalculo($('p-calc')));
       if (p.id) await salvar(function () { return banco.atualizar('propostas', p.id, d); }, 'Proposta atualizada.');
       else {
         d.ano = parseInt((d.data || hoje()).slice(0, 4), 10);
@@ -726,7 +941,9 @@
     if (p.status === 'rascunho') botoes.push('<button class="btn" id="pv-enviar">Marcar como enviada</button>');
     if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn sec" id="pv-editar">Editar</button>', '<button class="btn perigo" id="pv-recusar">Recusada</button>');
     if (p.status === 'recusada' || p.status === 'semretorno') botoes.push('<button class="btn sec" id="pv-reabrir">Reabrir</button>');
-    botoes.push('<button class="btn sec" id="pv-imprimir">Imprimir / PDF</button>', '<button class="btn sec" id="pv-copiar">Duplicar</button>', '<button class="btn sec" id="pv-modelo">Salvar como modelo</button>');
+    botoes.push('<button class="btn sec" id="pv-imprimir">Imprimir / PDF</button>', '<button class="btn sec" id="pv-imprimir-valores">PDF com valor por item</button>');
+    if (p.calculo) botoes.push('<button class="btn sec" id="pv-calculo">Memória de cálculo</button>');
+    botoes.push('<button class="btn sec" id="pv-copiar">Duplicar</button>', '<button class="btn sec" id="pv-modelo">Salvar como modelo</button>');
     if (p.status !== 'aprovada') botoes.push('<button class="btn perigo" id="pv-excluir">Excluir</button>');
     botoes.push('<button class="btn sec" id="pv-fechar">Fechar</button>');
     abrirModal('<h3>' + codProposta(p) + ' ' + tag('proposta', p.status) + '</h3>' +
@@ -735,6 +952,8 @@
       '<div class="tabela" style="margin-top:10px"><table><thead><tr><th>Item</th><th class="num">Qtd</th><th class="num">Unit.</th><th class="num">Total</th></tr></thead><tbody>' +
       (p.itens || []).map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td class="num">' + esc(i.qtd) + '</td><td class="num">' + brl(i.valor) + '</td><td class="num">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
       '</tbody></table></div><div class="total">Total: ' + brl(p.total) + '</div>' +
+      (p.calculo && p.calculo.resultado ? '<p class="muted">Memória de cálculo: ' + brl(p.calculo.resultado.final) + ' (BDI ' + fmtN(p.calculo.resultado.bdi, 4) + ')' +
+        (Math.abs(p.calculo.resultado.final - num(p.total)) >= 0.01 ? ' · <span class="neg">diferente do total da proposta</span>' : '') + '</p>' : '') +
       (p.modeloNome ? '<p class="muted">Feita a partir do modelo ' + esc(p.modeloNome) + '</p>' : '') +
       (p.objetivo ? '<p class="muted">' + esc(p.objetivo) + '</p>' : (p.escopo ? '<p class="muted" style="white-space:pre-wrap">' + esc(p.escopo) + '</p>' : '')) +
       (os ? '<p>Gerou a <b>OS ' + esc(codOS(os)) + '</b> ' + tag('os', statusOS(os)) + ' <a href="#" id="pv-ver-os">ver OS</a></p>' : '') +
@@ -743,8 +962,11 @@
     ligar('pv-fechar', fecharModal);
     ligar('pv-editar', function () { formProposta(p); });
     ligar('pv-imprimir', function () { imprimirProposta(p); });
+    ligar('pv-imprimir-valores', function () { imprimirProposta(p, true); });
+    ligar('pv-calculo', function () { imprimirCalculo(p); });
     ligar('pv-modelo', function () {
       var m = { nome: p.titulo, titulo: p.titulo, sistema: p.sistema, condicoes: p.condicoes, validadeDias: p.data && p.validade ? diasEntre(p.data, p.validade) : 30, itens: p.itens };
+      if (p.calculo) m.calculo = p.calculo;
       TEXTOS.forEach(function (t) { m[t[0]] = p[t[0]] || ''; });
       formModelo(m);
     });
@@ -805,7 +1027,8 @@
   function linhas(t) { return String(t || '').split('\n').map(function (l) { return l.trim(); }).filter(Boolean); }
   function diasEntre(a, b) { return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5); }
 
-  function imprimirProposta(p) {
+  // comValores: mostra o valor de cada item (por padrão sai só o valor global, como a Idealle envia)
+  function imprimirProposta(p, comValores) {
     var c = porId('empresas', p.clienteId) || { nome: p.clienteNome };
     var n = 0;
     function secao(titulo, corpo) { n++; return '<h4>' + n + '. ' + titulo + '</h4>' + corpo; }
@@ -814,8 +1037,9 @@
     var dias = p.data && p.validade ? diasEntre(p.data, p.validade) : 30;
     var corpo = '';
     corpo += secao('OBJETIVO DOS TRABALHOS', par(p.objetivo || p.titulo));
-    corpo += secao('OBJETO DA INSPEÇÃO', '<table class="itens-print"><thead><tr><th>Item</th><th>Descrição</th><th class="n">Qtd</th><th class="n">Valor unit.</th><th class="n">Total</th></tr></thead><tbody>' +
-      (p.itens || []).filter(function (i) { return num(i.qtd); }).map(function (i, k) { return '<tr><td>2.' + (k + 1) + '</td><td>' + esc(i.descricao) + '</td><td class="n">' + esc(i.qtd) + '</td><td class="n">' + brl(i.valor) + '</td><td class="n">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') + '</tbody></table>');
+    corpo += secao('OBJETO DA INSPEÇÃO', '<table class="itens-print"><thead><tr><th>Item</th><th>Descrição</th><th class="n">Qtd</th>' + (comValores ? '<th class="n">Valor unit.</th><th class="n">Total</th>' : '') + '</tr></thead><tbody>' +
+      (p.itens || []).filter(function (i) { return num(i.qtd); }).map(function (i, k) { return '<tr><td>2.' + (k + 1) + '</td><td>' + esc(i.descricao) + '</td><td class="n">' + esc(i.qtd) + '</td>' + (comValores ? '<td class="n">' + brl(i.valor) + '</td><td class="n">' + brl(num(i.qtd) * num(i.valor)) + '</td>' : '') + '</tr>'; }).join('') +
+      (comValores ? '<tr><td></td><td><b>Total</b></td><td></td><td></td><td class="n"><b>' + brl(p.total) + '</b></td></tr>' : '') + '</tbody></table>');
     corpo += secao('LOCAL DE EXECUÇÃO DOS SERVIÇOS', par(p.local || 'Nas instalações do cliente, conforme endereço acima.'));
     if (p.escopo) corpo += secao('ESCOPO DA INSPEÇÃO', '<p>A fim de podermos atender o objetivo do trabalho, propomos a execução dos seguintes itens, os quais serão definidos para cada equipamento inspecionado:</p>' + lista(p.escopo, n + 1) +
       '<p>Todos os prontuários, relatórios e certificados emitidos serão encaminhados no formato digital com armazenamento em nuvem para download.</p>');
@@ -892,6 +1116,7 @@
       }).filter(function (i) { return i.descricao; });
       var d = { nome: $('m-nome').value.trim(), titulo: $('m-titulo').value.trim(), validadeDias: parseInt($('m-validade').value, 10) || 30, sistema: $('m-sistema').value, itens: it, condicoes: $('m-condicoes').value.trim(), updatedAt: agora() };
       TEXTOS.forEach(function (t) { d[t[0]] = $('m-' + t[0]).value.trim(); });
+      if (m.calculo && !m.id) d.calculo = m.calculo;
       if (m.id) await salvar(function () { return banco.atualizar('modelos', m.id, d); }, 'Modelo atualizado.');
       else { d.createdAt = agora(); await salvar(function () { return banco.criar('modelos', d); }, 'Modelo criado.'); }
       fecharModal(); mostrar('modelos');

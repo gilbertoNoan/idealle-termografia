@@ -82,3 +82,15 @@ Coleções novas no Firestore: `contas` (bancos), `lancamentos` (despesas, outra
 `financas` ao `importacao-idealle.json` (rode depois do `build.py`). Na importação: bancos e saldo inicial, contas
 a pagar (pagas e em aberto) e, das contas a receber, o que bate com uma nota fiscal marca a nota como recebida
 com a data e o banco reais. O arquivo tem valores da empresa: não coloque no GitHub.
+
+## Memória de cálculo da proposta
+Na proposta, a seção **Memória de cálculo** faz a mesma conta da planilha de cálculo de orçamentos da Idealle
+(abas Inicial e Planilha): tipo de serviço (preenche lucro, administração, ferramental e encargos), impostos,
+mão de obra R/D, materiais, apoio (ART), deslocamento e diárias, coordenação, BDI e preço final calculado e definitivo.
+
+- Fica gravada na proposta (campo `calculo`) e é só interna: o PDF do cliente não mostra.
+- **Usar este preço nos itens** reparte o preço final entre os itens, na proporção que eles já têm.
+- **Imprimir / PDF** sai só com o valor global; **PDF com valor por item** é para quando o cliente pede.
+- **Memória de cálculo** (na proposta salva) imprime a planilha da proposta para arquivo interno.
+- Duplicar e Salvar como modelo levam o cálculo junto.
+
