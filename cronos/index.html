@@ -752,13 +752,12 @@
   function calcHtml(c) {
     var tipos = CALC_TIPOS.map(function (t) { return t[0]; });
     if (c.tipo && tipos.indexOf(c.tipo) < 0) tipos.push(c.tipo);
-    return '<label>Tipo de serviço (preenche lucro, administração, ferramental e encargos)</label><select id="cx-tipo">' + tipos.map(function (t) { return '<option' + (t === c.tipo ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select>' +
-      '<div class="cx-par">' + CALC_PARAMS.map(function (p) {
-        if (p[0] === 'encFin') {
-          var v = num(c.encFin), op = CALC_PRAZOS.slice();
-          if (!op.some(function (x) { return x[1] === v; })) op.push([null, v]);
-          return '<div><label>' + esc(p[1]) + '</label><select data-p="encFin">' + op.map(function (x) { return '<option value="' + x[1] + '"' + (x[1] === v ? ' selected' : '') + '>' + (x[0] ? x[0] + ' dias · ' : 'Outro · ') + fmtN(x[1], 1) + '%</option>'; }).join('') + '</select></div>';
-        }
+    var v = num(c.encFin), prazos = CALC_PRAZOS.slice();
+    if (!prazos.some(function (x) { return x[1] === v; })) prazos.push([null, v]);
+    // Tipo de serviço e prazo de pagamento em destaque no topo; o prazo define o encargo financeiro (como na planilha)
+    return '<div class="linha"><div><label>Tipo de serviço (preenche lucro, administração, ferramental e encargos)</label><select id="cx-tipo">' + tipos.map(function (t) { return '<option' + (t === c.tipo ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select></div>' +
+      '<div><label><b>Prazo de pagamento</b> (encargo financeiro)</label><select data-p="encFin">' + prazos.map(function (x) { return '<option value="' + x[1] + '"' + (x[1] === v ? ' selected' : '') + '>' + (x[0] ? x[0] + ' dias · ' : 'Outro · ') + fmtN(x[1], 1) + '%</option>'; }).join('') + '</select></div></div>' +
+      '<div class="cx-par">' + CALC_PARAMS.filter(function (p) { return p[0] !== 'encFin'; }).map(function (p) {
         return '<div><label' + (p[2] ? ' title="' + esc(p[2]) + '"' : '') + '>' + esc(p[1]) + '</label><input data-p="' + p[0] + '" inputmode="decimal" value="' + esc(numCampo(c[p[0]])) + '"></div>'; }).join('') + '</div>' +
       Object.keys(CALC_SECOES).map(function (s) {
         var S = CALC_SECOES[s];
