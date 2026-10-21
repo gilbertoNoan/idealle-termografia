@@ -966,6 +966,34 @@
     };
   }
 
+  // Nova revisão: guarda a versão atual (itens, valores, textos e memória de cálculo) e reabre a proposta para editar.
+  // base = uma revisão anterior que serve de ponto de partida (o conteúdo dela vai para o formulário).
+  var CAMPOS_VERSAO = ['titulo', 'itens', 'total', 'condicoes', 'calculo'];
+  async function novaRevisao(p, base) {
+    var prox = (p.rev || 0) + 1;
+    var motivo = prompt('Nova revisão ' + codProposta(p) + ' Rev. ' + prox + (base ? ', a partir da Rev. ' + base.rev : '') + '.\nMotivo (opcional, ex.: cliente pediu revisão de valor):', base ? 'Baseada na Rev. ' + base.rev : '');
+    if (motivo === null) return;
+    var foto = { rev: p.rev || 0, data: p.data || '', validade: p.validade || '', titulo: p.titulo || '', itens: p.itens || [], total: num(p.total), condicoes: p.condicoes || '', status: p.status || '', guardadaEm: agora() };
+    TEXTOS.forEach(function (t) { foto[t[0]] = p[t[0]] || ''; });
+    if (p.calculo) foto.calculo = p.calculo;
+    // cada versão guarda o motivo que a criou (motivoRevisao); a Rev. 0 não tem
+    foto.motivo = p.motivoRevisao || '';
+    var mud = { rev: prox, revisoes: (p.revisoes || []).concat([foto]), motivoRevisao: motivo.trim(), data: hoje(), validade: somarDias(hoje(), p.data && p.validade ? diasEntre(p.data, p.validade) : 30), status: 'rascunho', updatedAt: agora() };
+    if (base) {
+      CAMPOS_VERSAO.concat(TEXTOS.map(function (t) { return t[0]; })).forEach(function (k) { mud[k] = base[k] != null ? JSON.parse(JSON.stringify(base[k])) : (k === 'calculo' ? null : ''); });
+    }
+    await salvar(function () { return banco.atualizar('propostas', p.id, mud); }, 'Rev. ' + prox + ' criada' + (base ? ' a partir da Rev. ' + base.rev : '') + '. A Rev. ' + foto.rev + ' ficou guardada.');
+    formProposta(Object.assign({}, p, mud));
+  }
+  // Duplicar (proposta atual ou revisão anterior): proposta nova, com número novo e sem OS, mesmo cliente, itens, textos e cálculo
+  function duplicarProposta(v) {
+    var c = JSON.parse(JSON.stringify(v));
+    ['id', 'osId', 'numero', 'ano', 'status', 'codigo', 'rev', 'revisoes', 'motivoRevisao', 'motivo', 'guardadaEm', 'createdAt', 'enviadaEm', 'aprovadaEm', 'recusadaEm', 'motivoRecusa'].forEach(function (k) { delete c[k]; });
+    c.data = hoje(); c.validade = somarDias(hoje(), v.data && v.validade ? diasEntre(v.data, v.validade) : 30);
+    formProposta(c);
+    toast('Cópia de ' + codRev(v) + ': confira e salve para criar a proposta nova.');
+  }
+
   // Revisão anterior em modo leitura: itens, textos e memória de cálculo como estavam naquela versão
   function verRevisao(p, v) {
     var r = v.calculo ? calcular(v.calculo) : null;
@@ -982,8 +1010,11 @@
         '<tr><td>Margem de negociação</td><td></td><td class="num">' + textoMargem(r) + '</td></tr></tbody></table></div>' +
         '<div class="muted">' + esc(v.calculo.tipo || '') + ' · BDI ' + fmtN(r.bdi, 4) + ' · prazo ' + textoPrazo(v.calculo.encFin) + '</div>' : '') +
       TEXTOS.concat([['condicoes', '9. Condições de pagamento']]).filter(function (t) { return v[t[0]]; }).map(function (t) { return '<label>' + esc(t[1]) + '</label><div style="white-space:pre-wrap">' + esc(v[t[0]]) + '</div>'; }).join('') +
-      '<div class="acoes"><button class="btn sec" id="rv-voltar">← Voltar à proposta</button><button class="btn sec" id="rv-pdf">PDF</button><button class="btn sec" id="rv-valores">PDF com valor por item</button>' + (v.calculo ? '<button class="btn sec" id="rv-calc">Memória de cálculo</button>' : '') + '</div>');
+      '<div class="acoes">' + (p.status !== 'aprovada' ? '<button class="btn" id="rv-editar">Editar (vira a Rev. ' + ((p.rev || 0) + 1) + ')</button>' : '') + '<button class="btn" id="rv-duplicar">Duplicar como nova proposta</button>' +
+      '<button class="btn sec" id="rv-voltar">← Voltar à proposta</button><button class="btn sec" id="rv-pdf">PDF</button><button class="btn sec" id="rv-valores">PDF com valor por item</button>' + (v.calculo ? '<button class="btn sec" id="rv-calc">Memória de cálculo</button>' : '') + '</div>');
     $('rv-voltar').onclick = function () { verProposta(p.id); };
+    if ($('rv-editar')) $('rv-editar').onclick = function () { novaRevisao(p, v); };
+    $('rv-duplicar').onclick = function () { duplicarProposta(v); };
     $('rv-pdf').onclick = function () { imprimirProposta(v); };
     $('rv-valores').onclick = function () { imprimirProposta(v, true); };
     if ($('rv-calc')) $('rv-calc').onclick = function () { imprimirCalculo(v); };
@@ -1000,7 +1031,7 @@
     if (p.status !== 'aprovada') botoes.push('<button class="btn" id="pv-revisao">Nova revisão (Rev. ' + ((p.rev || 0) + 1) + ')</button>');
     botoes.push('<button class="btn sec" id="pv-imprimir">Imprimir / PDF</button>', '<button class="btn sec" id="pv-imprimir-valores">PDF com valor por item</button>');
     if (p.calculo) botoes.push('<button class="btn sec" id="pv-calculo">Memória de cálculo</button>');
-    botoes.push('<button class="btn sec" id="pv-copiar">Duplicar</button>', '<button class="btn sec" id="pv-modelo">Salvar como modelo</button>');
+    botoes.push('<button class="btn sec" id="pv-copiar">Duplicar como nova proposta</button>', '<button class="btn sec" id="pv-modelo">Salvar como modelo</button>');
     if (p.status !== 'aprovada') botoes.push('<button class="btn perigo" id="pv-excluir">Excluir</button>');
     botoes.push('<button class="btn sec" id="pv-fechar">Fechar</button>');
     var revs = (p.revisoes || []).slice().sort(function (a, b) { return b.rev - a.rev; });
@@ -1045,19 +1076,8 @@
       };
     });
     // Nova revisão: guarda a versão atual (itens, valores, textos e memória de cálculo) e reabre a proposta para editar
-    ligar('pv-revisao', async function () {
-      var motivo = prompt('Nova revisão ' + codProposta(p) + ' Rev. ' + ((p.rev || 0) + 1) + '.\nMotivo (opcional, ex.: cliente pediu revisão de valor):');
-      if (motivo === null) return;
-      var foto = { rev: p.rev || 0, data: p.data || '', validade: p.validade || '', titulo: p.titulo || '', itens: p.itens || [], total: num(p.total), condicoes: p.condicoes || '', status: p.status || '', guardadaEm: agora() };
-      TEXTOS.forEach(function (t) { foto[t[0]] = p[t[0]] || ''; });
-      if (p.calculo) foto.calculo = p.calculo;
-      // cada versão guarda o motivo que a criou (motivoRevisao); a Rev. 0 não tem
-      foto.motivo = p.motivoRevisao || '';
-      var mud = { rev: (p.rev || 0) + 1, revisoes: (p.revisoes || []).concat([foto]), motivoRevisao: motivo.trim(), data: hoje(), validade: somarDias(hoje(), p.data && p.validade ? diasEntre(p.data, p.validade) : 30), status: 'rascunho', updatedAt: agora() };
-      await salvar(function () { return banco.atualizar('propostas', p.id, mud); }, 'Rev. ' + mud.rev + ' criada. A Rev. ' + foto.rev + ' ficou guardada.');
-      formProposta(Object.assign({}, p, mud));
-    });
-    ligar('pv-copiar', function () { var c = Object.assign({}, p); delete c.id; delete c.osId; delete c.numero; delete c.status; delete c.codigo; delete c.rev; delete c.revisoes; delete c.motivoRevisao; c.data = hoje(); c.validade = somarDias(hoje(), 30); formProposta(c); });
+    ligar('pv-revisao', function () { novaRevisao(p); });
+    ligar('pv-copiar', function () { duplicarProposta(p); });
     ligar('pv-enviar', async function () { await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'enviada', enviadaEm: agora() }); }, 'Proposta marcada como enviada.'); verProposta(p.id); });
     ligar('pv-recusar', async function () { var motivo = prompt('Motivo da recusa (opcional):'); if (motivo === null) return; await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'recusada', motivoRecusa: motivo, recusadaEm: agora() }); }, 'Proposta marcada como recusada.'); verProposta(p.id); });
     ligar('pv-reabrir', async function () { await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'enviada' }); }, 'Proposta reaberta.'); verProposta(p.id); });
