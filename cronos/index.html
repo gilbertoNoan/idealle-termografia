@@ -662,9 +662,22 @@
     $('c-editar').onclick = function () { formCliente(c); };
     $('c-proposta').onclick = function () { formProposta({ clienteId: c.id }); };
     $('c-excluir').onclick = async function () {
-      if (ps.length || os.length || fs.length) { toast('Este cliente tem propostas, OS ou faturas. Não dá para excluir.'); return; }
-      if (!confirm('Excluir o cliente ' + c.nome + '?')) return;
-      await salvar(function () { return banco.excluir('empresas', c.id); }, 'Cliente excluído.'); fecharModal();
+      var osIds = os.map(function (o) { return o.id; });
+      var fsTodas = cache.faturas.filter(function (f) { return f.clienteId === c.id || osIds.indexOf(f.osId) >= 0; });
+      var ls = cache.lancamentos.filter(function (l) { return l.clienteId === c.id || (l.osId && osIds.indexOf(l.osId) >= 0); });
+      if (ps.length || os.length || fsTodas.length || ls.length) {
+        var itens = [[ps.length, 'proposta(s)'], [os.length, 'OS'], [fsTodas.length, 'fatura(s)'], [ls.length, 'lançamento(s) do Financeiro']].filter(function (x) { return x[0]; }).map(function (x) { return x[0] + ' ' + x[1]; }).join(', ');
+        if (!confirm('O cliente ' + c.nome + ' tem ' + itens + '.\n\nTudo isso será excluído junto e deixa de contar no faturamento, no painel e no financeiro. Não dá para desfazer.\n\nUse só para cadastros de teste ou duplicados. Continuar?')) return;
+        if ((prompt('Para confirmar, digite EXCLUIR') || '').trim().toUpperCase() !== 'EXCLUIR') { toast('Nada foi excluído.'); return; }
+      } else if (!confirm('Excluir o cliente ' + c.nome + '?')) return;
+      await salvar(async function () {
+        for (var i = 0; i < ls.length; i++) await banco.excluir('lancamentos', ls[i].id);
+        for (var j = 0; j < fsTodas.length; j++) await banco.excluir('faturas', fsTodas[j].id);
+        for (var k = 0; k < os.length; k++) await banco.excluir('ordens', os[k].id);
+        for (var m = 0; m < ps.length; m++) await banco.excluir('propostas', ps[m].id);
+        await banco.excluir('empresas', c.id);
+      }, 'Cliente ' + c.nome + ' excluído' + (ps.length || os.length || fsTodas.length || ls.length ? ' com tudo o que estava ligado a ele.' : '.'));
+      fecharModal();
     };
   }
 
@@ -1373,7 +1386,7 @@
     if (st !== 'faturada') b.push('<button class="btn sec" id="ov-editar">Editar</button>');
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn perigo" id="ov-cancelar">Cancelar OS</button>');
     if (st === 'cancelada') b.push('<button class="btn sec" id="ov-reabrir">Reabrir</button>');
-    b.push('<button class="btn sec" id="ov-fechar">Fechar</button>');
+    b.push('<button class="btn perigo" id="ov-excluir">Excluir OS</button>', '<button class="btn sec" id="ov-fechar">Fechar</button>');
     abrirModal('<h3>OS ' + esc(codOS(o)) + ' ' + tag('os', st) + '</h3>' +
       '<div><b>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '</b></div><div>' + esc(o.descricao || '') + '</div>' +
       '<div class="ciclo">' + ['Proposta', 'OS aberta', 'Execução', 'Concluída', 'Faturada', 'Recebida'].map(function (e, i) {
@@ -1401,6 +1414,27 @@
     ligar('ov-reabrir', async function () { await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'aberta' }); }, 'OS reaberta.'); verOS(o.id); });
     ligar('ov-faturar', function () { formFatura(o); });
     ligar('ov-nota', function () { prepararNota(o, f && !f.nf ? f : null); });
+    ligar('ov-excluir', function () { excluirOS(o); });
+  }
+
+  // Excluir de vez (OS de teste ou duplicada). A fatura da OS vai junto para não contar no faturamento;
+  // a proposta de origem volta a "enviada" e os laudos da Termografia ficam lá, sem a OS.
+  async function excluirOS(o) {
+    var fs = cache.faturas.filter(function (f) { return f.osId === o.id || f.id === o.faturaId; });
+    var ls = cache.lancamentos.filter(function (l) { return l.osId === o.id; });
+    var p = o.propostaId ? porId('propostas', o.propostaId) : null;
+    var msg = 'Excluir a OS ' + codOS(o) + ' (' + nomeCliente(o.empresaId, o.empresaNome) + ')?';
+    if (fs.length) msg += '\n\nA fatura ' + fs.map(codFatura).join(', ') + ' será excluída junto e deixa de contar no faturamento e no financeiro.';
+    if (p) msg += '\n\nA proposta ' + codProposta(p) + ' continua e volta para "enviada".';
+    if (!confirm(msg + '\n\nNão dá para desfazer.')) return;
+    var apagarLanc = ls.length && confirm('Há ' + ls.length + ' lançamento(s) do Financeiro ligados a esta OS.\n\nOK = excluir também\nCancelar = manter, só sem a OS');
+    await salvar(async function () {
+      for (var i = 0; i < ls.length; i++) { if (apagarLanc) await banco.excluir('lancamentos', ls[i].id); else await banco.atualizar('lancamentos', ls[i].id, { osId: '' }); }
+      for (var j = 0; j < fs.length; j++) await banco.excluir('faturas', fs[j].id);
+      if (p && p.osId === o.id) await banco.atualizar('propostas', p.id, { osId: '', status: 'enviada' });
+      await banco.excluir('ordens', o.id);
+    }, 'OS ' + codOS(o) + ' excluída.');
+    fecharModal();
   }
 
   // ===================== FATURAMENTO =====================
