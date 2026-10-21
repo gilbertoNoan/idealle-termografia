@@ -699,14 +699,14 @@
     mo: { titulo: '1) Mão de obra direta', cols: [['d', 'Profissional', 't'], ['q', 'Qtd prof.'], ['h', 'Horas/prof.'], ['v', 'Valor hora'], ['t', 'Tipo', 'RD']], total: function (r) { return num(r.q) * num(r.h) * num(r.v); } },
     mat: { titulo: '2a) Materiais', cols: [['d', 'Descrição', 't'], ['i', 'IPI %'], ['q', 'Quant.'], ['v', 'Valor unit.']], total: function (r) { return num(r.q) * num(r.v) * (1 + num(r.i) / 100); } },
     apoio: { titulo: '2b) Serviços de apoio e infraestrutura', cols: [['d', 'Descrição', 't'], ['i', 'Imp. %'], ['q', 'Quant.'], ['v', 'Valor unit.']], total: function (r) { return num(r.q) * num(r.v) * (1 + num(r.i) / 100); } },
-    desp: { titulo: '3) Deslocamento, estadias e diárias', cols: [['d', 'Descrição', 't'], ['q', 'Quant.'], ['u', 'Diárias/unid.'], ['v', 'Valor unit.']], total: function (r) { return num(r.q) * num(r.u) * num(r.v); } },
+    desp: { titulo: '3) Deslocamento, estadias e diárias', cols: [['d', 'Descrição', 't'], ['q', 'Quant.'], ['u', 'Dias / km / vezes'], ['v', 'Valor unit.']], total: function (r) { return num(r.q) * num(r.u) * num(r.v); } },
     coord: { titulo: '4) Coordenação', cols: [['d', 'Profissional', 't'], ['q', 'Qtd prof.'], ['h', 'Horas/prof.'], ['v', 'Valor hora']], total: function (r) { return num(r.q) * num(r.h) * num(r.v); } }
   };
   function calcPadrao() {
     var t = CALC_TIPOS[6];
     return { tipo: t[0], iss: 4.8, cofins: 3, pis: 0.65, csll: t[5], ir: 5, outros: 0, lucro: t[2], adm: t[3], ferram: t[1], encFin: 3, giro: 1, encSoc: 132.57808, encD: t[4], admMat: 15, admApoio: 15, admDesp: 15,
       mo: [{ d: 'Inspetor', q: 1, h: '', v: 25, t: 'D' }, { d: 'Auxiliar', q: 1, h: '', v: 9, t: 'D' }, { d: 'Relatórios', q: 1, h: '', v: 9, t: 'R' }],
-      mat: [], apoio: [{ d: 'ART', i: 0, q: 1, v: 108 }], desp: [{ d: 'Deslocamento (km)', q: 1, u: '', v: 0.85 }, { d: 'Diárias', q: 1, u: '', v: 20 }], coord: [],
+      mat: [], apoio: [{ d: 'ART', i: 0, q: 1, v: 108 }], desp: [{ d: 'Deslocamento (km)', q: 1, u: '', v: 0.85 }, { d: 'Diárias de alimentação (pessoas × dias)', q: 1, u: '', v: 20 }, { d: 'Pedágio (viagens × praças)', q: 1, u: '', v: '' }, { d: 'Hospedagem (pessoas × noites)', q: 1, u: '', v: '' }, { d: 'Estacionamento', q: 1, u: '', v: '' }], coord: [],
       def: {}, correcao: '' };
   }
   function calcular(c) {
@@ -874,7 +874,7 @@
       '<button class="btn sec peq" id="p-add-item" style="margin-top:6px">+ Item</button>' +
       '<div class="total" id="p-total"></div>' +
       (modelo && modelo.referencia ? '<div class="muted" style="text-align:right">' + textoFaixa(modelo) + '</div>' : '') +
-      '<details id="p-calc"' + (p.calculo ? ' open' : '') + ' style="margin-top:10px"><summary><b>Memória de cálculo</b> (interna, não sai na proposta do cliente)' + (p.calculo && p.calculo.resultado ? ' · ' + brl(p.calculo.resultado.final) : '') + '</summary>' +
+      '<details id="p-calc" open style="margin-top:10px"><summary><b>Memória de cálculo</b> (interna, não sai na proposta do cliente · clique aqui para recolher)' + (p.calculo && p.calculo.resultado ? ' · ' + brl(p.calculo.resultado.final) : '') + '</summary>' +
       calcHtml(p.calculo || calcPadrao()) + '</details>' +
       '<details id="p-textos"' + (temTexto ? ' open' : '') + ' style="margin-top:10px"><summary><b>Texto da proposta</b> (objetivo, escopo, fornecimentos, prazo)</summary>' +
       TEXTOS.map(function (t) { return '<label>' + t[1] + '</label><textarea id="p-' + t[0] + '" rows="' + t[2] + '">' + esc(p[t[0]]) + '</textarea>'; }).join('') +
