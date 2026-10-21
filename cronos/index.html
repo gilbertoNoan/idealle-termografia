@@ -690,10 +690,13 @@
   ];
   var CALC_PARAMS = [
     ['iss', 'ISS %', '4,1 · 4,2 · 4,3 · 4,8'], ['cofins', 'Cofins %'], ['pis', 'PIS %'], ['csll', 'Contr. social %'], ['ir', 'IR PJ %'], ['outros', 'Outros impostos %'],
-    ['lucro', 'Lucro %'], ['adm', 'Administração %'], ['ferram', 'Ferramental %'], ['encFin', 'Encargos financ. %', '15 dias 2 · 30 dias 3 · 60 dias 4'], ['giro', 'Capital de giro %'],
+    ['lucro', 'Lucro %'], ['adm', 'Administração %'], ['ferram', 'Ferramental %'], ['encFin', 'Prazo de pagamento'], ['giro', 'Capital de giro %'],
     ['encSoc', 'Encargos sociais "R" %', 'Grupos A+B+C+D da planilha'], ['encD', 'Encargos "D" (R$/h)'],
     ['admMat', 'Adm. materiais %'], ['admApoio', 'Adm. apoio %'], ['admDesp', 'Adm. deslocam. %']
   ];
+  // Encargos financeiros pelo prazo de pagamento da proposta: [dias, %]
+  var CALC_PRAZOS = [[15, 2], [30, 3], [60, 4], [90, 5]];
+  function textoPrazo(v) { var x = CALC_PRAZOS.find(function (x) { return x[1] === num(v); }); return (x ? x[0] + ' dias · ' : '') + fmtN(v, 1) + '%'; }
   // Colunas de cada bloco: [campo, título, tipo] (t = texto, RD = registrado/subcontratado, vazio = número)
   var CALC_SECOES = {
     mo: { titulo: '1) Mão de obra direta', cols: [['d', 'Profissional', 't'], ['q', 'Qtd prof.'], ['h', 'Horas/prof.'], ['v', 'Valor hora'], ['t', 'Tipo', 'RD']], total: function (r) { return num(r.q) * num(r.h) * num(r.v); } },
@@ -750,7 +753,13 @@
     var tipos = CALC_TIPOS.map(function (t) { return t[0]; });
     if (c.tipo && tipos.indexOf(c.tipo) < 0) tipos.push(c.tipo);
     return '<label>Tipo de serviço (preenche lucro, administração, ferramental e encargos)</label><select id="cx-tipo">' + tipos.map(function (t) { return '<option' + (t === c.tipo ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select>' +
-      '<div class="cx-par">' + CALC_PARAMS.map(function (p) { return '<div><label' + (p[2] ? ' title="' + esc(p[2]) + '"' : '') + '>' + esc(p[1]) + '</label><input data-p="' + p[0] + '" inputmode="decimal" value="' + esc(numCampo(c[p[0]])) + '"></div>'; }).join('') + '</div>' +
+      '<div class="cx-par">' + CALC_PARAMS.map(function (p) {
+        if (p[0] === 'encFin') {
+          var v = num(c.encFin), op = CALC_PRAZOS.slice();
+          if (!op.some(function (x) { return x[1] === v; })) op.push([null, v]);
+          return '<div><label>' + esc(p[1]) + '</label><select data-p="encFin">' + op.map(function (x) { return '<option value="' + x[1] + '"' + (x[1] === v ? ' selected' : '') + '>' + (x[0] ? x[0] + ' dias · ' : 'Outro · ') + fmtN(x[1], 1) + '%</option>'; }).join('') + '</select></div>';
+        }
+        return '<div><label' + (p[2] ? ' title="' + esc(p[2]) + '"' : '') + '>' + esc(p[1]) + '</label><input data-p="' + p[0] + '" inputmode="decimal" value="' + esc(numCampo(c[p[0]])) + '"></div>'; }).join('') + '</div>' +
       Object.keys(CALC_SECOES).map(function (s) {
         var S = CALC_SECOES[s];
         return '<div class="cx-sec"><b>' + S.titulo + '</b><div class="tabela"><table class="itens cx"><thead><tr>' + S.cols.map(function (k) { return '<th>' + k[1] + '</th>'; }).join('') + '<th class="num">Total</th><th></th></tr></thead>' +
@@ -843,7 +852,7 @@
     $('print').innerHTML = '<div class="pp">' +
       '<div class="pp-topo"><div><b>MEMÓRIA DE CÁLCULO</b><div>Uso interno · não enviar ao cliente</div></div><div style="text-align:right"><b>' + codProposta(p) + '</b><div>' + data(p.data) + '</div></div></div>' +
       '<p><b>Cliente:</b> ' + esc(cli) + '<br><b>Serviço:</b> ' + esc(p.titulo) + '<br><b>Tipo:</b> ' + esc(c.tipo || '') + '</p>' +
-      '<table class="cx-print"><tbody>' + [0, 4, 8, 12].map(function (i) { return '<tr>' + CALC_PARAMS.slice(i, i + 4).map(function (q) { return '<td>' + esc(q[1]) + '</td><td class="n">' + fmtN(c[q[0]], 2) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>' +
+      '<table class="cx-print"><tbody>' + [0, 4, 8, 12].map(function (i) { return '<tr>' + CALC_PARAMS.slice(i, i + 4).map(function (q) { return '<td>' + esc(q[1]) + '</td><td class="n">' + (q[0] === 'encFin' ? textoPrazo(c.encFin) : fmtN(c[q[0]], 2)) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>' +
       Object.keys(CALC_SECOES).map(tab).join('') +
       '<h4>Preço final</h4><table class="cx-print"><thead><tr><th></th><th class="n">Calculado</th><th class="n">Definitivo</th></tr></thead><tbody>' +
       r.linhas.map(function (l) { return '<tr><td>' + l[0] + ') ' + l[1] + '</td><td class="n">' + brl(l[3]) + '</td><td class="n">' + (def[l[0]] != null ? brl(def[l[0]]) : '') + '</td></tr>'; }).join('') +
