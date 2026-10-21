@@ -882,7 +882,6 @@
     p = p || {};
     var itens = p.itens && p.itens.length ? p.itens : [null];
     var modelo = p.modeloId ? porId('modelos', p.modeloId) : null;
-    var temTexto = TEXTOS.some(function (t) { return p[t[0]]; });
     var modelos = cache.modelos.slice().sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; });
     abrirModal('<h3>' + (p.id ? 'Editar proposta ' + codProposta(p) : 'Nova proposta') + '</h3>' +
       (!p.id && modelos.length ? '<label>Começar de um modelo</label><select id="p-modelo"><option value="">Proposta em branco</option>' +
@@ -897,12 +896,12 @@
       '<button class="btn sec peq" id="p-add-item" style="margin-top:6px">+ Item</button>' +
       '<div class="total" id="p-total"></div>' +
       (modelo && modelo.referencia ? '<div class="muted" style="text-align:right">' + textoFaixa(modelo) + '</div>' : '') +
-      '<details id="p-calc" open style="margin-top:10px"><summary><b>Memória de cálculo</b> (interna, não sai na proposta do cliente · clique aqui para recolher)' + (p.calculo && p.calculo.resultado ? ' · ' + brl(p.calculo.resultado.final) : '') + '</summary>' +
-      calcHtml(p.calculo || calcPadrao()) + '</details>' +
-      '<details id="p-textos"' + (temTexto ? ' open' : '') + ' style="margin-top:10px"><summary><b>Texto da proposta</b> (objetivo, escopo, fornecimentos, prazo)</summary>' +
+      '<details id="p-textos" open style="margin-top:10px"><summary><b>Texto da proposta</b> (todos os pontos que saem no PDF: referência, objetivo, local, escopo, fornecimentos, prazo, observações · clique aqui para recolher)</summary>' +
       TEXTOS.map(function (t) { return '<label>' + t[1] + '</label><textarea id="p-' + t[0] + '" rows="' + t[2] + '">' + esc(p[t[0]]) + '</textarea>'; }).join('') +
       '</details>' +
       '<label>9. Condições de pagamento</label><textarea id="p-condicoes" rows="2">' + esc(p.condicoes || CONDICOES_PADRAO) + '</textarea>' +
+      '<details id="p-calc" open style="margin-top:10px"><summary><b>Memória de cálculo</b> (interna, não sai na proposta do cliente · clique aqui para recolher)' + (p.calculo && p.calculo.resultado ? ' · ' + brl(p.calculo.resultado.final) : '') + '</summary>' +
+      calcHtml(p.calculo || calcPadrao()) + '</details>' +
       '<div class="acoes"><button class="btn" id="p-salvar">Salvar</button><button class="btn sec" id="p-cancelar">Cancelar</button></div>');
     function lerItens() {
       return Array.prototype.map.call(document.querySelectorAll('#p-itens tr'), function (tr) {
