@@ -94,3 +94,20 @@ mão de obra R/D, materiais, apoio (ART), deslocamento e diárias, coordenação
 - **Memória de cálculo** (na proposta salva) imprime a planilha da proposta para arquivo interno.
 - Duplicar e Salvar como modelo levam o cálculo junto.
 
+
+## Nota fiscal (GissOnline / Emissor Nacional)
+Na OS concluída, botão **Preparar nota fiscal** (no Faturamento, **Preparar NF** nas faturas ainda sem número).
+A tela monta tudo o que se digita no GissOnline, com um botão **Copiar** em cada campo:
+
+- **Tomador**: CNPJ (copia só os números), razão social e e-mail, da última nota do cliente ou do cadastro.
+- **Serviço**: código de tributação nacional, código municipal e NBS, escolhidos pela nota anterior do mesmo cliente
+  com o mesmo tipo de serviço (calibração 14.01, inspeção/laudo 17.08, engenharia 07.01, treinamento 08.02).
+  Dá para trocar na lista. Local da prestação vem da última nota do cliente.
+- **Descrição**: o texto que o cliente já recebeu na nota anterior, o nº do pedido e os dados de pagamento com o
+  prazo da proposta (15/30/60/90 dias). O texto de pagamento fica em `config/nota` e pode ser editado na própria tela.
+- **Depois de emitir**: digite o número da nota e o código de verificação. O Cronos cria a fatura com os dados da nota
+  (e a OS fica faturada); a próxima nota daquele cliente já sai com esses códigos.
+
+A partir de 1º/11/2026 as empresas do Simples Nacional de Guarulhos emitem no Emissor Nacional (nfse.gov.br). Os campos
+são os mesmos; a tela tem os dois links. Os códigos das notas antigas entram pelo arquivo de complemento
+(`complemento-idealle.json`, Painel › Importar planilhas antigas), que só preenche campos vazios.

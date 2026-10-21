@@ -111,6 +111,10 @@
   .modal-fundo.aberto { display: flex; }
   .modal { background: var(--card); border-radius: 12px; width: 100%; max-width: 760px; padding: 18px; }
   .modal h3 { margin: 0 0 8px; }
+  a.btn { text-decoration: none; display: inline-block; }
+  .nn-titulo { margin: 14px 0 0; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+  .nn-linha { display: flex; gap: 6px; align-items: center; } .nn-linha input { flex: 1; min-width: 0; }
+  .nn-campo textarea + .btn { margin-top: 4px; }
   .detalhe dt { color: var(--muted); font-size: 12px; margin-top: 8px; } .detalhe dd { margin: 2px 0 0; }
   .ciclo { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
   #tela-login { max-width: 380px; margin: 60px auto; }
@@ -1349,7 +1353,7 @@
     var b = [];
     if (st === 'aberta') b.push('<button class="btn" id="ov-iniciar">Iniciar execução</button>');
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn ok" id="ov-concluir">Concluir serviço</button>');
-    if (st === 'concluida') b.push('<button class="btn ok" id="ov-faturar">Faturar</button>');
+    if (st === 'concluida') b.push('<button class="btn ok" id="ov-nota">Preparar nota fiscal</button>', '<button class="btn sec" id="ov-faturar">Faturar sem preparar</button>');
     if (st !== 'faturada') b.push('<button class="btn sec" id="ov-editar">Editar</button>');
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn perigo" id="ov-cancelar">Cancelar OS</button>');
     if (st === 'cancelada') b.push('<button class="btn sec" id="ov-reabrir">Reabrir</button>');
@@ -1380,6 +1384,7 @@
     ligar('ov-cancelar', async function () { if (!confirm('Cancelar a OS ' + codOS(o) + '?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'cancelada' }); }, 'OS cancelada.'); verOS(o.id); });
     ligar('ov-reabrir', async function () { await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'aberta' }); }, 'OS reaberta.'); verOS(o.id); });
     ligar('ov-faturar', function () { formFatura(o); });
+    ligar('ov-nota', function () { prepararNota(o); });
   }
 
   // ===================== FATURAMENTO =====================
@@ -1408,7 +1413,7 @@
     $('lista-faturas').innerHTML = '<table><thead><tr><th>Fatura</th><th>Cliente / OS</th><th>NF</th><th>Vencimento</th><th class="num">Valor</th><th>Status</th><th></th></tr></thead><tbody>' +
       lista.map(function (f) {
         return '<tr><td><b>' + codFatura(f) + '</b><div class="muted">' + data(f.emissao) + '</div></td><td>' + esc(nomeCliente(f.clienteId, f.clienteNome)) + '<div class="muted">' + esc(f.osCodigo || ('OS-' + f.osNumero)) + ' · ' + esc(f.descricao || '') + '</div></td><td>' + (f.nf ? '<a href="#" data-vernf="' + f.id + '" title="Ver os dados da nota">' + esc(f.nf) + '</a>' : '—') + '</td><td>' + data(f.vencimento) + '</td><td class="num">' + brl(f.valor) + '</td><td>' + tag('fatura', f.status, f.vencimento) + (f.dataPagamento ? '<div class="muted">' + data(f.dataPagamento) + '</div>' : (f.recebimentoPresumido ? '<div class="muted">presumido</div>' : '')) + '</td><td>' +
-          (f.status === 'pendente' ? '<button class="btn ok peq" data-pagar="' + f.id + '">Recebido</button> <button class="btn sec peq" data-nf="' + f.id + '">NF</button>' : '') + '</td></tr>';
+          (f.status === 'pendente' ? '<button class="btn ok peq" data-pagar="' + f.id + '">Recebido</button> ' + (f.nf ? '<button class="btn sec peq" data-nf="' + f.id + '">NF</button>' : '<button class="btn sec peq" data-preparar="' + f.id + '" title="Montar os dados para o GissOnline">Preparar NF</button>') : '') + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
   // Dados da nota fiscal (vindos do PDF da nota pelo complemento, ou só o número digitado)
@@ -1420,6 +1425,8 @@
       lin('Valor da nota', f.valorServico != null ? brl(f.valorServico) + (div ? ' <span class="tag t-warn">diferente</span>' : '') : '') +
       lin('Tomador', esc(f.tomador || '')) + lin('CNPJ', esc(f.tomadorCnpj || '')) + lin('Município', esc(f.tomadorMunicipio || '')) +
       lin('ISS', f.aliquotaISS != null ? String(f.aliquotaISS).replace('.', ',') + '%' + (f.valorISS ? ' · ' + brl(f.valorISS) : '') + (f.issRetido ? ' · retido' : '') : '') +
+      lin('Código do serviço', esc([f.codServico, f.codMunicipal].filter(Boolean).join(' / ')) + (f.codDescricao ? '<div class="muted">' + esc(f.codDescricao) + '</div>' : '')) + lin('NBS', esc(f.nbs || '')) +
+      lin('Local da prestação', esc(f.localPrestacao || '')) + lin('E-mail do tomador', esc(f.tomadorEmail || '')) +
       lin('Código de verificação', esc(f.codVerificacao || '')) + lin('Pedido', esc(f.pedido || f.pedidoNF || '')) +
       lin('Substitui a NF', esc(f.substituiNF || '')) + lin('Situação na prefeitura', f.situacao ? esc(f.situacao) : '') + lin('Arquivo', esc(f.arquivo || '')) + '</dl>' +
       (f.discriminacao ? '<label>Discriminação dos serviços</label><div style="white-space:pre-wrap">' + esc(f.discriminacao) + '</div>' : '<p class="muted">Sem os dados do PDF da nota. Eles entram pelo arquivo de complemento (Painel › Importar planilhas antigas).</p>') +
@@ -1430,10 +1437,157 @@
       await salvar(function () { return banco.atualizar('faturas', f.id, { valor: num(f.valorServico) }); }, 'Valor da NF ' + f.nf + ' atualizado.'); fecharModal();
     };
   }
+  // ===================== PREPARAR A NOTA (GissOnline / Emissor Nacional) =====================
+  // Monta os campos da nota a partir da OS e das notas anteriores do mesmo cliente, cada um com botão de copiar.
+  // Depois de emitir, o número da nota volta para o Cronos e vira a fatura.
+  var EMISSORES = [['Abrir GissOnline', 'https://guarulhos.giss.com.br/'], ['Abrir Emissor Nacional', 'https://www.nfse.gov.br/EmissorNacional']];
+  // Códigos que a Idealle já usou, para cliente sem nota anterior (a palavra da descrição escolhe o código)
+  var CODIGOS_NF = [
+    { codServico: '14.01', codMunicipal: '331210200', nbs: '120015000', codDescricao: 'Manutenção e reparação de aparelhos e instrumentos de medida, teste e controle', chave: /calibra|manuten|valvula|manometro|instrumento/ },
+    { codServico: '17.08', codMunicipal: '711200005', nbs: '120015000', codDescricao: 'Serviços de perícias, laudos, exames técnicos e análises técnicas de engenharia', chave: /inspe|laudo|nr-?13|termogra|estanque|pmta|prontuario|ensaio|tubulac|tanque/ },
+    { codServico: '07.01', codMunicipal: '711200001', nbs: '120015000', codDescricao: 'Serviços de engenharia', chave: /engenharia|projeto/ },
+    { codServico: '08.02', codMunicipal: '859960400', nbs: '', codDescricao: 'Treinamento em desenvolvimento profissional e gerencial', chave: /treinamento|curso|capacita|consultoria/ }
+  ];
+  var CAMPOS_COD = ['codServico', 'codNacional', 'codMunicipal', 'nbs', 'codDescricao'];
+  function soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
+  function cfgNota() { return porId('config', 'nota') || {}; }
+  // Notas já emitidas para o cliente (pelo id ou pelo CNPJ), da mais nova para a mais antiga
+  function notasDoCliente(cid, cnpj) {
+    var cn = soDigitos(cnpj);
+    return cache.faturas.filter(function (f) { return f.nf && f.status !== 'cancelada' && f.situacao !== 'cancelada' && ((cid && f.clienteId === cid) || (cn && soDigitos(f.tomadorCnpj) === cn)); })
+      .sort(function (a, b) { return String(b.emissao || '') < String(a.emissao || '') ? -1 : 1; });
+  }
+  // Todos os códigos de serviço conhecidos: os das notas (mais usados primeiro) e os padrões
+  function codigosConhecidos() {
+    var m = {};
+    cache.faturas.forEach(function (f) {
+      if (!f.codServico) return;
+      var k = f.codServico + '/' + (f.codMunicipal || '');
+      if (!m[k]) m[k] = { codServico: f.codServico, codMunicipal: f.codMunicipal || '', nbs: f.nbs || '', codDescricao: f.codDescricao || '', usos: 0 };
+      m[k].usos++; if (!m[k].nbs && f.nbs) m[k].nbs = f.nbs;
+    });
+    CODIGOS_NF.forEach(function (c) { var k = c.codServico + '/' + c.codMunicipal; if (!m[k]) m[k] = Object.assign({ usos: 0 }, c); else if (!m[k].nbs) m[k].nbs = c.nbs; });
+    return Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.usos - a.usos; });
+  }
+  function chaveCodigo(c) { var p = CODIGOS_NF.find(function (x) { return x.codServico === c.codServico; }); return p ? p.chave : null; }
+  // Nota anterior que serve de modelo: a do cliente com o mesmo tipo de serviço; senão a mais recente dele
+  function notaModelo(hist, texto) {
+    var t = normal(texto), comCod = hist.filter(function (f) { return f.codServico; });
+    return comCod.find(function (f) { var ch = chaveCodigo(f); return ch && ch.test(t); }) || comCod[0] || hist[0] || null;
+  }
+  // Tira da discriminação antiga o pedido, os dados de pagamento e o solicitante: sobra a descrição do serviço
+  function baseDiscriminacao(txt) {
+    var out = [];
+    String(txt || '').split('\n').some(function (l) {
+      if (/^\s*(dados\s*(de\s*)?pagamento|banco\b|ag[:\s]|c\/c|pix|idealle\b|vencimento|n[uú]mero do pedido|pedido|solicitante)/i.test(l)) return true;
+      if (l.trim()) out.push(l.trim()); return false;
+    });
+    return out.join('\n');
+  }
+  function diasPagamento(o, modelo) {
+    var p = o && o.propostaId ? porId('propostas', o.propostaId) : null;
+    if (p && p.calculo && p.calculo.encFin != null) { var x = CALC_PRAZOS.find(function (x) { return x[1] === num(p.calculo.encFin); }); if (x && x[0]) return x[0]; }
+    var m = /vencimento\s*(\d{2,3})\s*d/i.exec(modelo && modelo.discriminacao || ''); if (m) return parseInt(m[1], 10);
+    return 30;
+  }
+  function copiarTexto(t) {
+    function plano() { var a = document.createElement('textarea'); a.value = t; a.style.position = 'fixed'; a.style.opacity = '0'; document.body.appendChild(a); a.select(); try { document.execCommand('copy'); } catch (e) {} a.remove(); }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).catch(plano); else plano();
+  }
+
+  function prepararNota(o, f) {
+    o = o || {}; f = f || null;
+    var cid = (f && f.clienteId) || o.empresaId, cli = porId('empresas', cid) || {};
+    var hist = notasDoCliente(cid, cli.cnpj), texto = [o.descricao, f && f.descricao, o.sistema].join(' ');
+    var mod = notaModelo(hist, texto), ult = hist[0] || {};
+    var cod = mod && mod.codServico ? mod : (CODIGOS_NF.find(function (c) { return c.chave.test(normal(texto)); }) || codigosConhecidos()[0] || {});
+    var dias = diasPagamento(o, mod), pedido = o.pedido || (f && f.pedido) || '';
+    var base = (mod && baseDiscriminacao(mod.discriminacao)) || o.descricao || (f && f.descricao) || '';
+    var pag = (cfgNota().pagamento || '').replace('{dias}', dias);
+    var disc = [base, pedido ? 'Numero do Pedido: ' + pedido : '', pag].filter(Boolean).join('\n');
+    var valor = f ? f.valor : o.valor;
+    var cods = codigosConhecidos(), codIdx = Math.max(0, cods.findIndex(function (c) { return c.codServico === cod.codServico && (c.codMunicipal || '') === (cod.codMunicipal || ''); }));
+    var ret = mod && mod.retencoes ? Object.keys(mod.retencoes).map(function (k) { return k.toUpperCase() + ' ' + brl(mod.retencoes[k]); }).join(' · ') : '';
+    var aliq = mod && mod.aliquotaISS != null ? String(mod.aliquotaISS).replace('.', ',') + '%' : '';
+    function campo(id, rotulo, v, extra) {
+      return '<div class="nn-campo"><label>' + rotulo + (extra || '') + '</label><div class="nn-linha"><input id="' + id + '" value="' + esc(v) + '"><button class="btn sec peq" data-copiar="' + id + '" title="Copiar">Copiar</button></div></div>';
+    }
+    var novo = hoje() >= '2026-11-01';
+    abrirModal('<div id="nn-corpo"><h3>Preparar nota fiscal' + (o.id ? ' · OS ' + esc(codOS(o)) : '') + '</h3>' +
+      '<div>' + esc(nomeCliente(cid, (f && f.clienteNome) || o.empresaNome)) + (hist.length ? ' <span class="muted">· ' + hist.length + ' nota(s) anterior(es); modelo: NF ' + esc(mod ? mod.nf : '') + ' de ' + data(mod && mod.emissao) + '</span>' : ' <span class="muted">· primeira nota deste cliente</span>') + '</div>' +
+      '<div class="aviso" style="margin-top:8px">' + (novo ? 'Empresas do Simples Nacional em Guarulhos emitem a nota no Emissor Nacional desde 1º/11/2026.' : 'Até 31/10/2026 a nota sai pelo GissOnline. A partir de 1º/11/2026 as empresas do Simples Nacional de Guarulhos passam a emitir no Emissor Nacional.') + ' Os campos abaixo servem para os dois. Clique em Copiar e cole no campo de mesmo nome.</div>' +
+      '<div class="acoes" style="margin:0 0 6px">' + EMISSORES.map(function (e, i) { return '<a class="btn' + ((i === 1) === novo ? '' : ' sec') + ' peq" href="' + e[1] + '" target="_blank" rel="noopener">' + e[0] + '</a>'; }).join('') + '<button class="btn sec peq" id="nn-tudo">Copiar tudo</button></div>' +
+      '<h4 class="nn-titulo">Tomador</h4><div class="linha">' +
+      campo('nn-cnpj', 'CNPJ', (cli.cnpj || ult.tomadorCnpj || ''), ' <span class="muted">(copia só os números)</span>') +
+      campo('nn-nome', 'Razão social', ult.tomador || cli.nome || '') + campo('nn-email', 'E-mail para envio da nota', ult.tomadorEmail || cli.email || '') + '</div>' +
+      '<h4 class="nn-titulo">Serviço</h4>' +
+      '<label>Código do serviço</label><select id="nn-cod">' + cods.map(function (c, i) { return '<option value="' + i + '"' + (i === codIdx ? ' selected' : '') + '>' + esc(c.codServico + ' / ' + (c.codMunicipal || '—') + ' · ' + c.codDescricao.slice(0, 70)) + (c.usos ? ' (' + c.usos + ' nota' + (c.usos > 1 ? 's' : '') + ')' : '') + '</option>'; }).join('') + '</select>' +
+      '<div class="linha">' + campo('nn-cnac', 'Código de tributação nacional', '') + campo('nn-cmun', 'Código municipal', '') + campo('nn-nbs', 'Código NBS', '') +
+      campo('nn-local', 'Local da prestação', ult.localPrestacao || (mod && mod.localPrestacao) || [cli.cidade, cli.uf].filter(Boolean).join(' - ').toUpperCase()) + '</div>' +
+      '<div class="nn-campo"><label>Descrição do serviço (discriminação)</label><textarea id="nn-disc" rows="5">' + esc(disc) + '</textarea><button class="btn sec peq" data-copiar="nn-disc">Copiar</button></div>' +
+      '<div class="linha">' + campo('nn-pedido', 'Nº do pedido do cliente', pedido) + campo('nn-valor', 'Valor do serviço (R$)', valor != null ? fmtN(valor, 2).replace(/\./g, '') : '') + '</div>' +
+      '<dl class="detalhe linha">' +
+      '<div><dt>ISS</dt><dd>' + (aliq ? 'Alíquota ' + aliq + ' · ' : '') + 'retido: ' + (mod && mod.issRetido ? '<b>Sim</b>' : 'Não') + '</dd></div>' +
+      '<div><dt>Retenções federais</dt><dd>' + (ret ? '<b>' + esc(ret) + '</b>' : 'Nenhuma nas notas anteriores') + '</dd></div>' +
+      '<div><dt>Regime</dt><dd>Simples Nacional</dd></div></dl>' +
+      '<details style="margin-top:8px"><summary>Texto dos dados de pagamento</summary><p class="muted">Vai no fim da descrição. Use {dias} para o prazo (' + dias + ' dias nesta nota).</p><textarea id="nn-pag" rows="2">' + esc(cfgNota().pagamento || '') + '</textarea><button class="btn sec peq" id="nn-pag-salvar">Salvar como padrão</button></details>' +
+      '<h4 class="nn-titulo">Depois de emitir</h4><p class="muted" style="margin-top:0">Anote aqui o número que o GissOnline (ou o Emissor Nacional) deu à nota. ' + (f ? 'A fatura ' + esc(codFatura(f)) + ' é atualizada.' : 'A fatura é criada e a OS fica faturada.') + '</p>' +
+      '<div class="linha"><div><label>Nº da nota *</label><input id="nn-nf" value="' + esc(f && f.nf || '') + '"></div><div><label>Código de verificação</label><input id="nn-ver" value="' + esc(f && f.codVerificacao || '') + '"></div>' +
+      '<div><label>Emissão</label><input id="nn-emissao" type="date" value="' + esc(f && f.emissao || hoje()) + '"></div><div><label>Vencimento</label><input id="nn-venc" type="date" value="' + esc(f && f.vencimento || somarDias(hoje(), dias)) + '"></div></div>' +
+      '<div class="acoes"><button class="btn ok" id="nn-registrar">Registrar nota emitida</button><button class="btn sec" id="nn-fechar">Fechar</button></div></div>');
+
+    function porCodigo() {
+      var c = cods[$('nn-cod').value] || {};
+      $('nn-cnac').value = c.codServico || ''; $('nn-cmun').value = c.codMunicipal || ''; $('nn-nbs').value = c.nbs || '';
+    }
+    porCodigo();
+    $('nn-cod').onchange = porCodigo;
+    $('nn-emissao').onchange = function () { $('nn-venc').value = somarDias(this.value || hoje(), dias); };
+    function valorCampo(id) { var v = $(id).value; return id === 'nn-cnpj' ? soDigitos(v) : v; }
+    $('nn-corpo').onclick = function (e) {
+      var b = e.target.closest('[data-copiar]'); if (!b) return;
+      copiarTexto(valorCampo(b.dataset.copiar)); b.textContent = 'Copiado ✓'; setTimeout(function () { b.textContent = 'Copiar'; }, 1500);
+    };
+    $('nn-tudo').onclick = function () {
+      var c = cods[$('nn-cod').value] || {};
+      copiarTexto(['CNPJ do tomador: ' + valorCampo('nn-cnpj'), 'Tomador: ' + $('nn-nome').value, 'E-mail: ' + $('nn-email').value,
+        'Código de tributação nacional: ' + $('nn-cnac').value + ' (' + (c.codDescricao || '') + ')', 'Código municipal: ' + $('nn-cmun').value, 'NBS: ' + $('nn-nbs').value,
+        'Local da prestação: ' + $('nn-local').value, 'Valor: R$ ' + $('nn-valor').value, '', $('nn-disc').value].join('\n'));
+      toast('Dados da nota copiados.');
+    };
+    $('nn-pag-salvar').onclick = async function () {
+      var t = $('nn-pag').value.trim();
+      await salvar(function () { return banco.atualizar('config', 'nota', { pagamento: t, updatedAt: agora() }); }, 'Texto de pagamento salvo.');
+      var d = $('nn-disc').value, antigo = pag; pag = t.replace('{dias}', dias);
+      $('nn-disc').value = antigo && d.indexOf(antigo) >= 0 ? d.replace(antigo, pag) : d + (pag ? '\n' + pag : '');
+    };
+    $('nn-fechar').onclick = fecharModal;
+    $('nn-registrar').onclick = async function () {
+      var nf = $('nn-nf').value.trim(); if (!nf) { toast('Informe o número da nota.'); $('nn-nf').focus(); return; }
+      var v = num($('nn-valor').value); if (!v) { toast('Informe o valor.'); return; }
+      var c = cods[$('nn-cod').value] || {};
+      var d = { nf: /^\d+$/.test(nf) ? pad(nf, 4) : nf, codVerificacao: $('nn-ver').value.trim(), emissao: $('nn-emissao').value, vencimento: $('nn-venc').value, valor: v, valorServico: v,
+        tomador: $('nn-nome').value.trim(), tomadorCnpj: $('nn-cnpj').value.trim(), tomadorEmail: $('nn-email').value.trim(), discriminacao: $('nn-disc').value.trim(), pedido: $('nn-pedido').value.trim(),
+        codServico: $('nn-cnac').value.trim(), codMunicipal: $('nn-cmun').value.trim(), nbs: $('nn-nbs').value.trim(), codDescricao: c.codDescricao || '', localPrestacao: $('nn-local').value.trim(),
+        issRetido: !!(mod && mod.issRetido), updatedAt: agora() };
+      if (mod && mod.aliquotaISS != null) d.aliquotaISS = mod.aliquotaISS;
+      if (cache.faturas.some(function (x) { return x.nf === d.nf && (!f || x.id !== f.id); }) && !confirm('Já existe uma fatura com a NF ' + d.nf + '. Registrar mesmo assim?')) return;
+      if (f) await salvar(function () { return banco.atualizar('faturas', f.id, d); }, 'NF ' + d.nf + ' registrada.');
+      else {
+        Object.assign(d, { numero: proximoNumero(cache.faturas, 'numero'), clienteId: o.empresaId, clienteNome: nomeCliente(o.empresaId, o.empresaNome), osId: o.id, osNumero: o.numero, osCodigo: codOS(o),
+          descricao: o.descricao || '', forma: 'Boleto', obs: '', status: 'pendente', createdAt: agora() });
+        var fid = await salvar(function () { return banco.criar('faturas', d); });
+        await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'faturada', faturaId: fid, pedido: d.pedido }); }, 'NF ' + d.nf + ' registrada. OS faturada.');
+      }
+      fecharModal(); mostrar('faturas');
+    };
+  }
+
   $('lista-faturas').addEventListener('click', async function (e) {
     var a = e.target.closest('[data-vernf]'); if (a) { e.preventDefault(); verNota(porId('faturas', a.dataset.vernf)); return; }
     var b = e.target.closest('button'); if (!b) return;
     if (b.dataset.pagar) formBaixa(movFatura(porId('faturas', b.dataset.pagar), contaPrincipal()));
+    if (b.dataset.preparar) { var fp = porId('faturas', b.dataset.preparar); prepararNota(fp.osId ? porId('ordens', fp.osId) : null, fp); return; }
     if (b.dataset.nf) {
       var f = porId('faturas', b.dataset.nf), nf = prompt('Número da nota fiscal:', f.nf || ''); if (nf === null) return;
       await salvar(function () { return banco.atualizar('faturas', f.id, { nf: nf.trim() }); }, 'NF registrada.');
@@ -1681,7 +1835,8 @@
   // ===================== COMPLEMENTO (TEXTOS DAS PROPOSTAS E DADOS DAS NOTAS) =====================
   // Arquivo gerado a partir dos documentos das propostas e dos PDFs das notas fiscais na nuvem.
   // Só preenche o que está vazio: valor, status e o que já foi editado aqui no Cronos não mudam.
-  var CAMPOS_NF = ['codVerificacao', 'tomador', 'tomadorCnpj', 'tomadorMunicipio', 'discriminacao', 'valorServico', 'aliquotaISS', 'valorISS', 'issRetido', 'valorLiquido', 'pedidoNF', 'substituiNF', 'situacao', 'arquivo'];
+  var CAMPOS_NF = ['codVerificacao', 'tomador', 'tomadorCnpj', 'tomadorMunicipio', 'discriminacao', 'valorServico', 'aliquotaISS', 'valorISS', 'issRetido', 'valorLiquido', 'pedidoNF', 'substituiNF', 'situacao', 'arquivo',
+    'codServico', 'codNacional', 'codMunicipal', 'nbs', 'codDescricao', 'localPrestacao', 'tomadorEmail', 'retencoes'];
   function acharProposta(c, porNum) {
     var l = porNum[c.numero + '/' + c.ano] || [];
     if (l.length === 1) return l[0];
@@ -1723,7 +1878,7 @@
     abrirModal('<h3>Completar propostas e notas</h3><p class="muted">' + esc(d.fonte || '') + '</p>' +
       '<div class="tabela"><table><tbody>' +
       '<tr><td>Propostas com texto a preencher</td><td class="num">' + pAt + '</td><td class="muted">de ' + d.propostas.length + ' documentos lidos · ' + pIt + ' com os itens do objeto</td></tr>' +
-      '<tr><td>Notas fiscais com dados a completar</td><td class="num">' + fAt + '</td><td class="muted">tomador, CNPJ, discriminação, ISS, código de verificação</td></tr>' +
+      '<tr><td>Notas fiscais com dados a completar</td><td class="num">' + fAt + '</td><td class="muted">tomador, CNPJ, discriminação, ISS, código do serviço, NBS, local da prestação</td></tr>' +
       '<tr><td>Notas que ainda não estão no Cronos</td><td class="num">' + fNova + '</td><td class="muted">entram como a receber</td></tr>' +
       '</tbody></table></div>' +
       '<p class="muted">Só os campos vazios são preenchidos. Valor, status e o que você já editou no Cronos ficam como estão. Nas propostas, o valor global continua no total; no PDF com valores ele aparece no primeiro item.</p>' +
@@ -1764,6 +1919,7 @@
       CAMPOS_NF.forEach(function (k) { if (n[k] != null && n[k] !== '') doc[k] = n[k]; });
       await banco.criar('faturas', doc); nN++;
     }, aviso, 'Notas fiscais');
+    if (d.nota && d.nota.pagamento && !cfgNota().pagamento) await banco.atualizar('config', 'nota', { pagamento: d.nota.pagamento, updatedAt: agora() });
     return nP + ' propostas completadas, ' + nF + ' notas completadas e ' + nN + ' notas criadas.';
   }
 
