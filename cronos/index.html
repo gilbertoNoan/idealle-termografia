@@ -737,11 +737,14 @@
       ['g', 'Deslocamento, estadias e diárias', 'Desp. + adm. + impostos', bruto(desp, P('admDesp'))]
     ];
     var def = c.def || {}, corr = num(c.correcao);
-    var calculado = corr, final = corr;
+    // a correção/desconto entra só no definitivo, para a margem de negociação já descontar o que foi dado
+    var calculado = 0, final = corr;
     linhas.forEach(function (l) { calculado += l[3]; final += def[l[0]] !== '' && def[l[0]] != null ? num(def[l[0]]) : l[3]; });
     return { linhas: linhas, bdi: bdi, fES: fES, impFat: impFat, horasD: horasD, custos: { moR: moR, moD: moD, mat: mat, apoio: apoio, desp: desp, coord: coord },
       correcao: corr, calculado: Math.round(calculado * 100) / 100, final: Math.round(final * 100) / 100 };
   }
+  // Quanto o preço definitivo está acima (ou abaixo) do calculado: é a folga para negociar
+  function textoMargem(r) { var m = Math.round((r.final - r.calculado) * 100) / 100; return (m > 0 ? '+' : '') + brl(m) + (r.calculado ? ' (' + (m > 0 ? '+' : '') + fmtN(m / r.calculado * 100, 1) + '%)' : ''); }
   function fmtN(v, d) { return (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }); }
   function calcLinhaHtml(s, r) {
     r = r || {};
@@ -769,7 +772,8 @@
       '<div class="cx-sec"><b>Preço final</b> <span class="muted">(deixe "Definitivo" vazio para usar o calculado)</span><div class="tabela"><table class="cx-res"><thead><tr><th></th><th class="num">Calculado</th><th class="num">Definitivo</th></tr></thead><tbody>' +
       calcular(c).linhas.map(function (l) { var v = (c.def || {})[l[0]]; return '<tr><td>' + l[0] + ') ' + l[1] + '<div class="muted">' + l[2] + '</div></td><td class="num" id="cx-r-' + l[0] + '"></td><td class="num"><input data-def="' + l[0] + '" inputmode="decimal" value="' + esc(numCampo(v)) + '"></td></tr>'; }).join('') +
       '<tr><td>h) Correções e descontos <div class="muted">negativo para desconto</div></td><td></td><td class="num"><input id="cx-correcao" inputmode="decimal" value="' + esc(numCampo(c.correcao)) + '"></td></tr>' +
-      '<tr class="forte"><td>PREÇO TOTAL FINAL</td><td class="num" id="cx-calculado"></td><td class="num" id="cx-final"></td></tr></tbody></table></div>' +
+      '<tr class="forte"><td>PREÇO TOTAL FINAL</td><td class="num" id="cx-calculado"></td><td class="num" id="cx-final"></td></tr>' +
+      '<tr class="forte"><td>Margem de negociação<div class="muted">definitivo − calculado</div></td><td></td><td class="num" id="cx-margem"></td></tr></tbody></table></div>' +
       '<div class="muted" id="cx-resumo"></div></div>' +
       '<div class="acoes"><button class="btn peq" id="cx-aplicar">Usar este preço nos itens</button><span class="muted" id="cx-dif" style="align-self:center"></span></div>';
   }
@@ -805,6 +809,8 @@
       r.linhas.forEach(function (l) { box.querySelector('#cx-r-' + l[0]).textContent = brl(l[3]); });
       box.querySelector('#cx-calculado').textContent = brl(r.calculado);
       box.querySelector('#cx-final').textContent = brl(r.final);
+      var mg = box.querySelector('#cx-margem');
+      mg.textContent = textoMargem(r); mg.className = 'num ' + (r.final - r.calculado < 0 ? 'neg' : 'pos');
       box.querySelector('#cx-resumo').textContent = 'BDI ' + fmtN(r.bdi, 4) + ' · fator de encargos sociais ' + fmtN(r.fES, 3) + ' · impostos sobre faturamento ' + fmtN(r.impFat, 2) + '%' +
         ' · custo direto ' + brl(r.custos.moR + r.custos.moD + r.custos.coord + r.custos.mat + r.custos.apoio + r.custos.desp) + (r.bdi ? '' : ' · a soma dos percentuais passou de 100%');
       var dif = Math.round((itensTotal() - r.final) * 100) / 100;
@@ -858,7 +864,8 @@
       '<h4>Preço final</h4><table class="cx-print"><thead><tr><th></th><th class="n">Calculado</th><th class="n">Definitivo</th></tr></thead><tbody>' +
       r.linhas.map(function (l) { return '<tr><td>' + l[0] + ') ' + l[1] + '</td><td class="n">' + brl(l[3]) + '</td><td class="n">' + (def[l[0]] != null ? brl(def[l[0]]) : '') + '</td></tr>'; }).join('') +
       (r.correcao ? '<tr><td>h) Correções e descontos</td><td></td><td class="n">' + brl(r.correcao) + '</td></tr>' : '') +
-      '<tr><td><b>PREÇO TOTAL FINAL</b></td><td class="n"><b>' + brl(r.calculado) + '</b></td><td class="n"><b>' + brl(r.final) + '</b></td></tr></tbody></table>' +
+      '<tr><td><b>PREÇO TOTAL FINAL</b></td><td class="n"><b>' + brl(r.calculado) + '</b></td><td class="n"><b>' + brl(r.final) + '</b></td></tr>' +
+      '<tr><td><b>Margem de negociação</b> (definitivo − calculado)</td><td></td><td class="n"><b>' + textoMargem(r) + '</b></td></tr></tbody></table>' +
       '<p>BDI ' + fmtN(r.bdi, 4) + ' · fator de encargos sociais ' + fmtN(r.fES, 3) + ' · impostos sobre faturamento ' + fmtN(r.impFat, 2) + '%</p>' +
       '<h4>Itens da proposta</h4><table class="cx-print"><thead><tr><th>Descrição</th><th class="n">Qtd</th><th class="n">Valor unit.</th><th class="n">Total</th></tr></thead><tbody>' +
       (p.itens || []).map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td class="n">' + esc(i.qtd) + '</td><td class="n">' + brl(i.valor) + '</td><td class="n">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
