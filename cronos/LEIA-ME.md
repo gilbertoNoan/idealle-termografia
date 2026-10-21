@@ -96,7 +96,7 @@ mão de obra R/D, materiais, apoio (ART), deslocamento e diárias, coordenação
 
 
 ## Nota fiscal (GissOnline / Emissor Nacional)
-Na OS concluída, botão **Preparar nota fiscal** (no Faturamento, **Preparar NF** nas faturas ainda sem número).
+Botão **Emitir nota fiscal** no topo do Faturamento e das OS (escolhe a OS), ou **Preparar nota fiscal** dentro da OS (aberta, em execução, concluída ou faturada sem número de nota). No Faturamento, **Preparar NF** nas faturas ainda sem número.
 A tela monta tudo o que se digita no GissOnline, com um botão **Copiar** em cada campo:
 
 - **Tomador**: CNPJ (copia só os números), razão social e e-mail, da última nota do cliente ou do cadastro.

@@ -220,7 +220,7 @@
 
   <!-- ORDENS -->
   <section class="view" id="v-ordens">
-    <h2>Ordens de Serviço <button class="btn" id="btn-nova-os">+ Nova OS</button></h2>
+    <h2>Ordens de Serviço <button class="btn" id="btn-nova-os">+ Nova OS</button> <button class="btn sec" id="btn-emitir-nf-os">Emitir nota fiscal</button></h2>
     <div class="busca">
       <input id="busca-os" placeholder="Buscar por número, cliente, descrição…">
       <select id="filtro-os"><option value="">Todos os status</option></select>
@@ -230,7 +230,7 @@
 
   <!-- FATURAS -->
   <section class="view" id="v-faturas">
-    <h2>Faturamento</h2>
+    <h2>Faturamento <button class="btn" id="btn-emitir-nf">Emitir nota fiscal</button></h2>
     <div class="busca">
       <input id="busca-fatura" placeholder="Buscar por número, cliente, NF…">
       <select id="filtro-fatura"><option value="">Todos os status</option></select>
@@ -1368,7 +1368,8 @@
     var b = [];
     if (st === 'aberta') b.push('<button class="btn" id="ov-iniciar">Iniciar execução</button>');
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn ok" id="ov-concluir">Concluir serviço</button>');
-    if (st === 'concluida') b.push('<button class="btn ok" id="ov-nota">Preparar nota fiscal</button>', '<button class="btn sec" id="ov-faturar">Faturar sem preparar</button>');
+    if (st !== 'cancelada' && (st === 'faturada' ? f && !f.nf : !(f && f.nf))) b.push('<button class="btn ok" id="ov-nota">Preparar nota fiscal</button>');
+    if (st === 'concluida') b.push('<button class="btn sec" id="ov-faturar">Faturar sem preparar</button>');
     if (st !== 'faturada') b.push('<button class="btn sec" id="ov-editar">Editar</button>');
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn perigo" id="ov-cancelar">Cancelar OS</button>');
     if (st === 'cancelada') b.push('<button class="btn sec" id="ov-reabrir">Reabrir</button>');
@@ -1399,7 +1400,7 @@
     ligar('ov-cancelar', async function () { if (!confirm('Cancelar a OS ' + codOS(o) + '?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'cancelada' }); }, 'OS cancelada.'); verOS(o.id); });
     ligar('ov-reabrir', async function () { await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'aberta' }); }, 'OS reaberta.'); verOS(o.id); });
     ligar('ov-faturar', function () { formFatura(o); });
-    ligar('ov-nota', function () { prepararNota(o); });
+    ligar('ov-nota', function () { prepararNota(o, f && !f.nf ? f : null); });
   }
 
   // ===================== FATURAMENTO =====================
@@ -1592,11 +1593,32 @@
         Object.assign(d, { numero: proximoNumero(cache.faturas, 'numero'), clienteId: o.empresaId, clienteNome: nomeCliente(o.empresaId, o.empresaNome), osId: o.id, osNumero: o.numero, osCodigo: codOS(o),
           descricao: o.descricao || '', forma: 'Boleto', obs: '', status: 'pendente', createdAt: agora() });
         var fid = await salvar(function () { return banco.criar('faturas', d); });
-        await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'faturada', faturaId: fid, pedido: d.pedido }); }, 'NF ' + d.nf + ' registrada. OS faturada.');
+        await salvar(function () { return banco.atualizar('ordens', o.id, Object.assign({ status: 'faturada', faturaId: fid, pedido: d.pedido }, o.dataConclusao ? {} : { dataConclusao: d.emissao || hoje() })); }, 'NF ' + d.nf + ' registrada. OS faturada.');
       }
       fecharModal(); mostrar('faturas');
     };
   }
+
+  // Atalho no Faturamento e nas OS: escolher a OS (ou a fatura sem número) e preparar a nota
+  function escolherNota() {
+    var ops = [];
+    cache.ordens.filter(function (o) { var st = statusOS(o), f = o.faturaId ? porId('faturas', o.faturaId) : null; return st !== 'cancelada' && !(f && f.nf) && !(st === 'faturada' && !f); })
+      .sort(function (a, b) { return ['concluida', 'execucao', 'aberta', 'faturada'].indexOf(statusOS(a)) - ['concluida', 'execucao', 'aberta', 'faturada'].indexOf(statusOS(b)) || (parseInt(b.numero, 10) || 0) - (parseInt(a.numero, 10) || 0); })
+      .forEach(function (o) { ops.push(['o:' + o.id, codOS(o) + ' · ' + nomeCliente(o.empresaId, o.empresaNome) + ' · ' + (o.descricao || '').slice(0, 50) + ' · ' + (STATUS.os[statusOS(o)] || [statusOS(o)])[0] + (o.valor ? ' · ' + brl(o.valor) : '')]); });
+    cache.faturas.filter(function (f) { return f.status === 'pendente' && !f.nf && !(f.osId && porId('ordens', f.osId)); })
+      .forEach(function (f) { ops.push(['f:' + f.id, codFatura(f) + ' · ' + nomeCliente(f.clienteId, f.clienteNome) + ' · ' + (f.descricao || '').slice(0, 50) + ' · ' + brl(f.valor)]); });
+    abrirModal('<h3>Emitir nota fiscal</h3><p class="muted" style="margin-top:0">Escolha a OS do serviço. O Cronos monta os dados para copiar no GissOnline (ou no Emissor Nacional).</p>' +
+      (ops.length ? '<label>OS</label><select id="en-os">' + ops.map(function (x) { return '<option value="' + x[0] + '">' + esc(x[1]) + '</option>'; }).join('') + '</select>' : '<div class="vazio">Nenhuma OS sem nota. Abra uma OS (ou aprove a proposta) primeiro.</div>') +
+      '<div class="acoes">' + (ops.length ? '<button class="btn ok" id="en-ok">Preparar nota fiscal</button>' : '') + '<button class="btn sec" id="en-cancelar">Cancelar</button></div>');
+    $('en-cancelar').onclick = fecharModal;
+    if ($('en-ok')) $('en-ok').onclick = function () {
+      var v = $('en-os').value, id = v.slice(2);
+      if (v[0] === 'o') { var o = porId('ordens', id), f = o.faturaId ? porId('faturas', o.faturaId) : null; prepararNota(o, f && !f.nf ? f : null); }
+      else prepararNota(null, porId('faturas', id));
+    };
+  }
+  $('btn-emitir-nf').addEventListener('click', escolherNota);
+  $('btn-emitir-nf-os').addEventListener('click', escolherNota);
 
   $('lista-faturas').addEventListener('click', async function (e) {
     var a = e.target.closest('[data-vernf]'); if (a) { e.preventDefault(); verNota(porId('faturas', a.dataset.vernf)); return; }
