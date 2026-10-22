@@ -44,6 +44,22 @@
   .funil .etapa b { display: block; font-size: 22px; }
   .funil .etapa span { color: var(--muted); font-size: 13px; }
   .funil .seta { align-self: center; color: var(--muted); }
+  .prev-topo { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .prev-op { display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; }
+  .prev-op input { width: auto; }
+  .prev-meses { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
+  .prev-mes { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
+  .prev-mes .nome { color: var(--muted); font-size: 13px; }
+  .prev-mes .total { text-align: left; font-size: 20px; font-weight: 700; margin: 2px 0 8px; }
+  .prev-barra { height: 120px; display: flex; flex-direction: column-reverse; border-radius: 6px; background: var(--gray-2); overflow: hidden; margin-bottom: 8px; }
+  .prev-barra div { width: 100%; }
+  .prev-mes dl { margin: 0; font-size: 13px; }
+  .prev-mes dl div { display: flex; justify-content: space-between; gap: 6px; padding: 1px 0; }
+  .prev-mes dt { color: var(--muted); display: flex; align-items: center; gap: 5px; }
+  .prev-mes dd { margin: 0; text-align: right; white-space: nowrap; }
+  .prev-cor { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+  .prev-c1 { background: var(--ok); } .prev-c2 { background: var(--pri); } .prev-c3 { background: var(--warn); opacity: .75; }
+  .prev-nota { color: var(--muted); font-size: 13px; margin-top: 10px; }
   label { display: block; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
   input, select, textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; }
   textarea { min-height: 70px; resize: vertical; }
@@ -187,6 +203,10 @@
     <input type="file" id="arquivo-importacao" accept=".json,application/json" style="display:none">
     <div class="funil" id="funil"></div>
     <div class="grid" id="kpis" style="margin-top:12px"></div>
+    <div class="card" style="margin-top:12px">
+      <div class="prev-topo"><b>Previsão de entradas</b><label class="prev-op"><input type="checkbox" id="prev-propostas"> contar propostas em aberto (× taxa de aprovação)</label></div>
+      <div id="previsao"></div>
+    </div>
     <div class="card" style="margin-top:12px">
       <b>Precisa de atenção</b>
       <div id="atencao" class="tabela"></div>
@@ -1702,6 +1722,8 @@
       ['Clientes', cache.empresas.length, 'cadastro único', 'clientes', '']
     ].map(function (k) { return '<div class="card kpi" data-ir="' + k[3] + '" data-filtro="' + k[4] + '"><div class="rotulo">' + k[0] + '</div><div class="valor">' + k[1] + '</div><div class="sub">' + k[2] + '</div></div>'; }).join('');
 
+    renderPrevisao(M, oConcl, pAbertas, taxa);
+
     var at = [];
     pagV.forEach(function (x) { at.push([x.vencimento, 'Conta a pagar vencida em ' + data(x.vencimento) + ': ' + x.descricao, x.pessoa, brl(x.valor)]); });
     fVenc.forEach(function (f) { at.push([f.vencimento, 'Fatura ' + codFatura(f) + ' vencida em ' + data(f.vencimento), nomeCliente(f.clienteId, f.clienteNome), brl(f.valor)]); });
@@ -1710,6 +1732,56 @@
     P.filter(function (p) { return p.status === 'enviada' && p.validade && p.validade < h; }).forEach(function (p) { at.push([p.validade, 'Proposta ' + codProposta(p) + ' vencida sem resposta', nomeCliente(p.clienteId, p.clienteNome), brl(p.total)]); });
     at.sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
     $('atencao').innerHTML = at.length ? '<table><tbody>' + at.map(function (a) { return '<tr><td>' + esc(a[1]) + '</td><td>' + esc(a[2]) + '</td><td class="num">' + a[3] + '</td></tr>'; }).join('') + '</tbody></table>' : '<div class="vazio">Tudo em dia.</div>';
+  }
+  // Previsão de entradas: mês atual (o que falta) + 3 meses seguintes, em três camadas:
+  // certo = contas a receber pelo vencimento; estimado = OS concluídas a faturar (faturadas hoje + prazo de pagamento);
+  // provável = propostas em aberto × taxa de aprovação (aprovação e execução em ~30 dias + prazo de pagamento).
+  var prevPropostas = true;
+  try { prevPropostas = localStorage.getItem('cronos-prev-propostas') !== '0'; } catch (e) {}
+  $('prev-propostas').checked = prevPropostas;
+  $('prev-propostas').addEventListener('change', function () {
+    prevPropostas = this.checked;
+    try { localStorage.setItem('cronos-prev-propostas', prevPropostas ? '1' : '0'); } catch (e) {}
+    renderPainel();
+  });
+  function renderPrevisao(M, oConcl, pAbertas, taxa) {
+    var h = hoje(), d0 = new Date(h + 'T12:00:00'), meses = [];
+    for (var i = 0; i < 4; i++) {
+      var d = new Date(d0.getFullYear(), d0.getMonth() + i, 1, 12);
+      var nome = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      meses.push({ chave: d.getFullYear() + '-' + pad(d.getMonth() + 1, 2), nome: (i ? '' : 'Resto de ') + (i ? nome.charAt(0).toUpperCase() + nome.slice(1) : nome), v: [0, 0, 0], n: [0, 0, 0] });
+    }
+    function lancar(dataIso, camada, valor) {
+      var m = meses.find(function (x) { return x.chave === String(dataIso).slice(0, 7); });
+      if (m && valor) { m.v[camada] += valor; m.n[camada]++; }
+    }
+    var atraso = 0, nAtraso = 0;
+    M.filter(function (x) { return x.sentido > 0 && emAberto(x); }).forEach(function (x) {
+      if (x.vencimento && x.vencimento < h) { atraso += x.valor; nAtraso++; } else lancar(x.vencimento || h, 0, x.valor);
+    });
+    oConcl.forEach(function (o) { lancar(somarDias(h, diasPagamento(o)), 1, num(o.valor)); });
+    var tx = taxa == null ? 0 : taxa / 100, nPropVenc = 0;
+    if (prevPropostas) pAbertas.forEach(function (p) {
+      if (p.status === 'enviada' && p.validade && p.validade < h) { nPropVenc++; return; }
+      var dias = 30, x = p.calculo && p.calculo.encFin != null ? CALC_PRAZOS.find(function (x) { return x[1] === num(p.calculo.encFin); }) : null;
+      if (x && x[0]) dias = x[0];
+      lancar(somarDias(h, 30 + dias), 2, num(p.total) * tx);
+    });
+    var max = Math.max.apply(null, meses.map(function (m) { return m.v[0] + m.v[1] + m.v[2]; }).concat([1]));
+    var camadas = [['Certo', 'prev-c1', 'conta(s) a receber'], ['Estimado', 'prev-c2', 'OS a faturar'], ['Provável', 'prev-c3', 'proposta(s)']];
+    var total4 = 0;
+    $('previsao').innerHTML = '<div class="prev-meses">' + meses.map(function (m) {
+      var t = m.v[0] + m.v[1] + m.v[2]; total4 += t;
+      return '<div class="prev-mes"><div class="nome">' + esc(m.nome) + '</div><div class="total">' + brl(t) + '</div>' +
+        '<div class="prev-barra" title="' + esc(m.nome) + '">' + m.v.map(function (v, c) { return v ? '<div class="' + camadas[c][1] + '" style="height:' + (100 * v / max).toFixed(1) + '%"></div>' : ''; }).join('') + '</div>' +
+        '<dl>' + camadas.map(function (c, k) {
+          if (k === 2 && !prevPropostas) return '';
+          return '<div title="' + m.n[k] + ' ' + c[2] + '"><dt><span class="prev-cor ' + c[1] + '"></span>' + c[0] + '</dt><dd>' + brl(m.v[k]) + '</dd></div>';
+        }).join('') + '</dl></div>';
+    }).join('') + '</div>' +
+      '<div class="prev-nota">Total previsto: <b>' + brl(total4) + '</b>. <b>Certo</b>: faturas e receitas a receber pelo vencimento. <b>Estimado</b>: OS concluídas, como se fossem faturadas hoje, pelo prazo de pagamento da proposta (30 dias se não tiver). ' +
+      (prevPropostas ? '<b>Provável</b>: propostas em aberto × ' + (taxa == null ? '0' : taxa) + '% de aprovação, contando ~30 dias para aprovar e executar mais o prazo de pagamento' + (nPropVenc ? ' (' + nPropVenc + ' proposta(s) com validade vencida ficaram fora)' : '') + '. ' : '') +
+      (nAtraso ? '<span style="color:var(--bad)">Fora da previsão: ' + brl(atraso) + ' em ' + nAtraso + ' conta(s) a receber já vencida(s).</span>' : '') + '</div>';
   }
   $('v-painel').addEventListener('click', function (e) {
     var el = e.target.closest('[data-ir]'); if (!el) return;
