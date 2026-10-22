@@ -2117,7 +2117,7 @@
     return { id: f.id, fonte: 'fatura', f: f, sentido: 1, grupo: f.grupo || GRUPO_FATURA, categoria: f.categoria || 'Serviços (OS)',
       descricao: codFatura(f) + (f.osCodigo ? ' · ' + f.osCodigo : '') + (f.descricao ? ' · ' + f.descricao : ''), pessoa: nomeCliente(f.clienteId, f.clienteNome),
       clienteId: f.clienteId || '', osId: f.osId || '', valor: num(f.valor), competencia: f.emissao || f.vencimento || '', vencimento: f.vencimento || f.emissao || '',
-      pagamento: f.status === 'paga' ? (f.dataPagamento || f.vencimento || f.emissao || '') : '', contaId: f.contaId || principal, presumido: !!f.recebimentoPresumido };
+      pagamento: f.status === 'paga' ? (f.dataPagamento || f.vencimento || f.emissao || '') : '', contaId: f.contaId || principal, presumido: !!f.recebimentoPresumido, codServico: codigoNota(f) };
   }
   // Todos os movimentos: faturas + lançamentos. Transferência vira uma saída e uma entrada (interno: fora do resultado).
   function movimentos() {
@@ -2427,33 +2427,61 @@
   // Impostos: estimativa do DAS do Simples Nacional (tabelas da LC 123, vigentes desde 2018).
   // Alíquota efetiva = (RBT12 × alíquota da faixa − parcela a deduzir) / RBT12, sobre o faturamento do mês.
   // Fator R (folha 12 meses ÷ receita 12 meses) ≥ 28% leva serviços de engenharia ao Anexo III; abaixo, Anexo V.
+  // Cada nota vai ao anexo do seu código de serviço: manutenção e calibração (14.xx) e treinamento (08.xx) ficam sempre no Anexo III;
+  // engenharia, laudos e perícias (07.xx, 17.xx) e o que não tem código dependem do Fator R. A faixa usa a receita total de 12 meses.
   var ANEXOS = {
     III: [[180000, 0.06, 0], [360000, 0.112, 9360], [720000, 0.135, 17640], [1800000, 0.16, 35640], [3600000, 0.21, 125640], [4800000, 0.33, 648000]],
     V: [[180000, 0.155, 0], [360000, 0.18, 4500], [720000, 0.195, 9900], [1800000, 0.205, 17100], [3600000, 0.23, 62100], [4800000, 0.305, 540000]]
   };
   var FOLHA = /pr[oó][- ]?labore|folha|sal[aá]rio|inss|fgts|f[eé]rias|13/i;
+  function codigoNota(f) {
+    if (f.codServico) return f.codServico;
+    var o = f.osId ? porId('ordens', f.osId) : null, t = normal([f.descricao, f.discriminacao, f.codDescricao, o && o.descricao, o && o.sistema].join(' '));
+    var c = CODIGOS_NF.find(function (c) { return c.chave.test(t); });
+    return c ? '~' + c.codServico : '';
+  }
+  function anexoFixoIII(cod) { return /^~?(14|08)\./.test(cod || ''); }
+  function aliqAnexo(anexo, base) {
+    var faixa = ANEXOS[anexo].find(function (f) { return base <= f[0]; }) || ANEXOS[anexo][5];
+    return base ? Math.max(0, (base * faixa[1] - faixa[2]) / base) : faixa[1];
+  }
   function cfgImp() { return Object.assign({ regime: 'simples', anexo: 'auto', percentual: 0, diaVenc: 20 }, cfgFin().impostos || {}); }
   function ehDAS(x) { return x.sentido < 0 && dreGrupo(x.grupo, -1) === 'deducao' && /\bDAS\b|simples/i.test([x.categoria, x.descricao].join(' ')); }
   function apuracao(M, ym) {
     var cfg = cfgImp(), ini12 = somarMeses(ym + '-01', -12).slice(0, 7);
     function noPeriodo(x) { var m = x.competencia.slice(0, 7); return m >= ini12 && m < ym; }
     var receitaBruta = function (x) { return !x.interno && x.sentido > 0 && dreGrupo(x.grupo, 1) === 'receita'; };
-    var fat = somaV(M.filter(function (x) { return receitaBruta(x) && x.competencia.slice(0, 7) === ym; }));
+    var doMes = M.filter(function (x) { return receitaBruta(x) && x.competencia.slice(0, 7) === ym; }), fat = somaV(doMes);
     var rbt12 = somaV(M.filter(function (x) { return receitaBruta(x) && noPeriodo(x); }));
     var folha = somaV(M.filter(function (x) { return !x.interno && x.sentido < 0 && noPeriodo(x) && (FOLHA.test(x.categoria) || (dreGrupo(x.grupo, -1) === 'despesa' && FOLHA.test(x.descricao))); }));
-    var r = { ym: ym, fat: fat, rbt12: rbt12, folha: folha, fatorR: rbt12 ? folha / rbt12 : null };
-    if (cfg.regime === 'percentual') { r.anexo = '—'; r.aliq = num(cfg.percentual) / 100; }
+    var r = { ym: ym, fat: fat, rbt12: rbt12, folha: folha, fatorR: rbt12 ? folha / rbt12 : null, partes: [], semCodigo: 0 };
+    if (cfg.regime === 'percentual') { r.anexo = '—'; r.aliq = num(cfg.percentual) / 100; r.imposto = Math.round(100 * fat * r.aliq) / 100; }
     else {
-      r.anexo = cfg.anexo !== 'auto' ? cfg.anexo : (r.fatorR != null && r.fatorR >= 0.28 ? 'III' : 'V');
-      var base = rbt12 || fat * 12, faixa = ANEXOS[r.anexo].find(function (f) { return base <= f[0]; }) || ANEXOS[r.anexo][5];
-      r.aliq = base ? Math.max(0, (base * faixa[1] - faixa[2]) / base) : faixa[1];
+      var anexoR = r.fatorR != null && r.fatorR >= 0.28 ? 'III' : 'V', base = rbt12 || fat * 12, grupos = {};
+      doMes.forEach(function (x) {
+        var fixo = anexoFixoIII(x.codServico), anexo = cfg.anexo !== 'auto' ? cfg.anexo : (fixo ? 'III' : anexoR);
+        var k = fixo ? 'manut' : 'eng';
+        if (!grupos[k]) grupos[k] = { rotulo: fixo ? 'Calibração, manutenção e treinamento' : 'Laudos, inspeção, engenharia e outros', anexo: anexo, fat: 0 };
+        grupos[k].fat += x.valor;
+        if (!x.codServico || x.codServico[0] === '~') r.semCodigo++;
+      });
+      r.partes = ['manut', 'eng'].filter(function (k) { return grupos[k]; }).map(function (k) {
+        var g = grupos[k]; g.aliq = aliqAnexo(g.anexo, base); g.imposto = g.fat * g.aliq; return g;
+      });
+      var anexos = r.partes.map(function (g) { return g.anexo; }).filter(function (a, i, l) { return l.indexOf(a) === i; });
+      r.anexo = anexos.length ? anexos.join(' e ') : (cfg.anexo !== 'auto' ? cfg.anexo : anexoR);
+      r.imposto = Math.round(100 * r.partes.reduce(function (s, g) { return s + g.imposto; }, 0)) / 100;
+      r.aliq = fat ? r.imposto / fat : aliqAnexo(r.anexo === 'V' ? 'V' : 'III', base);
     }
-    r.imposto = Math.round(100 * fat * r.aliq) / 100;
     r.vencimento = somarMeses(ym + '-01', 1).slice(0, 8) + pad(cfg.diaVenc || 20, 2);
     // DAS já lançado: despesa de DAS com vencimento no mês seguinte ao faturamento
     var mesVenc = r.vencimento.slice(0, 7);
     r.lancados = M.filter(function (x) { return ehDAS(x) && x.fonte === 'lanc' && !(x.l && x.l.parcela) && x.vencimento.slice(0, 7) === mesVenc; });
     return r;
+  }
+  function partesAnexo(r) {
+    if (r.partes.length < 2) return '';
+    return r.partes.map(function (g) { return '<div class="muted" style="font-size:12px">Anexo ' + g.anexo + ': ' + brl(g.fat) + '</div>'; }).join('');
   }
   function finImpostos(M) {
     var cfg = cfgImp(), ano = String(fin.ano), mesAtual = hoje().slice(0, 7), linhas = '', tot = { fat: 0, imp: 0 };
@@ -2461,25 +2489,25 @@
       var ym = ano + '-' + pad(i, 2); if (ym > mesAtual) break;
       var r = apuracao(M, ym), lanc = somaV(r.lancados), pago = r.lancados.length && r.lancados.every(function (x) { return x.pagamento; });
       tot.fat += r.fat; tot.imp += r.imposto;
-      linhas += '<tr><td><b>' + nomeMes(ym) + '</b><div class="muted">vence ' + data(r.vencimento) + '</div></td><td class="num">' + brl(r.fat) + '</td><td class="num">' + brl(r.rbt12) + '</td><td class="num">' + (cfg.regime === 'percentual' ? '—' : (r.fatorR == null ? '—' : Math.round(1000 * r.fatorR) / 10 + '%') + '<div class="muted">Anexo ' + r.anexo + '</div>') + '</td><td class="num">' + (Math.round(10000 * r.aliq) / 100).toLocaleString('pt-BR') + '%</td><td class="num"><b>' + brl(r.imposto) + '</b></td><td>' +
+      linhas += '<tr><td><b>' + nomeMes(ym) + '</b><div class="muted">vence ' + data(r.vencimento) + '</div></td><td class="num">' + brl(r.fat) + partesAnexo(r) + '</td><td class="num">' + brl(r.rbt12) + '</td><td class="num">' + (cfg.regime === 'percentual' ? '—' : (r.fatorR == null ? '—' : Math.round(1000 * r.fatorR) / 10 + '%') + '<div class="muted">Anexo ' + r.anexo + '</div>') + '</td><td class="num">' + (Math.round(10000 * r.aliq) / 100).toLocaleString('pt-BR') + '%</td><td class="num"><b>' + brl(r.imposto) + '</b></td><td>' +
         (r.lancados.length ? '<span class="tag ' + (pago ? 't-ok' : 't-blue') + '">' + (pago ? 'Pago' : 'Lançado') + ' ' + brl(lanc) + '</span>' : (r.imposto && r.vencimento >= somarDias(hoje(), -40) ? '<button class="btn sec peq" data-das="' + ym + '">Lançar a pagar</button>' : '')) + '</td></tr>';
     }
     var atual = apuracao(M, mesAtual);
     return '<div class="busca"><select id="fin-ano">' + opcoesAnos(fin.ano) + '</select><button class="btn sec" id="fin-cfg-imp">Configurar regime</button></div>' +
       '<div class="grid"><div class="card kpi"><div class="rotulo">DAS estimado de ' + nomeMes(mesAtual) + '</div><div class="valor">' + brl(atual.imposto) + '</div><div class="sub">vence ' + data(atual.vencimento) + ' · cresce conforme as notas do mês</div></div>' +
-      '<div class="card kpi"><div class="rotulo">Alíquota efetiva agora</div><div class="valor">' + (Math.round(10000 * atual.aliq) / 100).toLocaleString('pt-BR') + '%</div><div class="sub">' + (cfg.regime === 'percentual' ? 'percentual fixo informado' : 'Simples Nacional · Anexo ' + atual.anexo) + '</div></div>' +
+      '<div class="card kpi"><div class="rotulo">Alíquota efetiva agora</div><div class="valor">' + (Math.round(10000 * atual.aliq) / 100).toLocaleString('pt-BR') + '%</div><div class="sub">' + (cfg.regime === 'percentual' ? 'percentual fixo informado' : 'Simples Nacional · Anexo ' + atual.anexo + (atual.partes.length > 1 ? ' (média das notas do mês)' : '')) + '</div></div>' +
       (cfg.regime === 'percentual' ? '' : '<div class="card kpi"><div class="rotulo">Fator R</div><div class="valor">' + (atual.fatorR == null ? '—' : Math.round(1000 * atual.fatorR) / 10 + '%') + '</div><div class="sub">folha ' + brl(atual.folha) + ' em 12 meses. Com 28% ou mais, cai no Anexo III (mais barato)</div></div>') + '</div>' +
       '<div class="card tabela"><table><thead><tr><th>Mês</th><th class="num">Faturado</th><th class="num">Receita 12 meses</th><th class="num">Fator R</th><th class="num">Alíquota</th><th class="num">Imposto</th><th></th></tr></thead><tbody>' + (linhas || '<tr><td colspan="7" class="vazio">Nada neste ano.</td></tr>') +
       '<tr class="forte"><td>Total</td><td class="num">' + brl(tot.fat) + '</td><td colspan="3"></td><td class="num">' + brl(tot.imp) + '</td><td></td></tr></tbody></table></div>' +
-      '<p class="muted">É uma estimativa para planejar o caixa: a guia oficial sai do PGDAS da contabilidade. Conta como faturado o valor das notas pela data de emissão; a folha (pró-labore, salários, INSS, FGTS) vem das despesas lançadas. "Lançar a pagar" cria o DAS em Contas a pagar.</p>';
+      '<p class="muted">É uma estimativa para planejar o caixa: a guia oficial sai do PGDAS da contabilidade. Conta como faturado o valor das notas pela data de emissão. Cada nota entra no anexo do seu código de serviço: calibração e manutenção (14.01) e treinamento (08.02) ficam sempre no Anexo III; laudos, inspeção e engenharia (17.08, 07.01) ficam no Anexo III se o Fator R for 28% ou mais, senão no Anexo V. Nota sem código é classificada pela descrição do serviço. A folha (pró-labore, salários, INSS, FGTS) vem das despesas lançadas. "Lançar a pagar" cria o DAS em Contas a pagar.</p>';
   }
   function formImpostos() {
     var c = cfgImp();
     abrirModal('<h3>Regime de impostos</h3>' +
       '<label>Regime</label><select id="fi-regime"><option value="simples"' + (c.regime === 'simples' ? ' selected' : '') + '>Simples Nacional (calcula pela tabela)</option><option value="percentual"' + (c.regime === 'percentual' ? ' selected' : '') + '>Percentual fixo sobre o faturamento</option></select>' +
-      '<div class="linha"><div><label>Anexo do Simples</label><select id="fi-anexo"><option value="auto"' + (c.anexo === 'auto' ? ' selected' : '') + '>Automático pelo Fator R (III ou V)</option><option value="III"' + (c.anexo === 'III' ? ' selected' : '') + '>Sempre Anexo III</option><option value="V"' + (c.anexo === 'V' ? ' selected' : '') + '>Sempre Anexo V</option></select></div>' +
+      '<div class="linha"><div><label>Anexo do Simples</label><select id="fi-anexo"><option value="auto"' + (c.anexo === 'auto' ? ' selected' : '') + '>Automático: pelo código de cada nota e pelo Fator R</option><option value="III"' + (c.anexo === 'III' ? ' selected' : '') + '>Sempre Anexo III</option><option value="V"' + (c.anexo === 'V' ? ' selected' : '') + '>Sempre Anexo V</option></select></div>' +
       '<div><label>Percentual fixo (%)</label><input id="fi-perc" inputmode="decimal" value="' + (c.percentual ? String(c.percentual).replace('.', ',') : '') + '"></div><div><label>Dia do vencimento</label><input id="fi-dia" type="number" min="1" max="28" value="' + (c.diaVenc || 20) + '"></div></div>' +
-      '<p class="muted">Na dúvida, pergunte à contabilidade qual anexo aparece no PGDAS. Engenharia e inspeção normalmente usam o Fator R.</p>' +
+      '<p class="muted">Na dúvida, pergunte à contabilidade qual anexo aparece no PGDAS. Calibração e manutenção (14.01) é sempre Anexo III; laudos, inspeção e engenharia dependem do Fator R.</p>' +
       '<div class="acoes"><button class="btn" id="fi-salvar">Salvar</button><button class="btn sec" id="fi-cancelar">Cancelar</button></div>');
     $('fi-cancelar').onclick = fecharModal;
     $('fi-salvar').onclick = async function () {

@@ -66,7 +66,9 @@ Menu **Financeiro**: a saúde da empresa no estilo da planilha de controle finan
 - **Faturamento**: mensal, trimestral, semestral ou anual, comparando até 10 anos, por data da nota ou do
   recebimento, de todos os clientes ou de um só. O botão *Imprimir / PDF* gera o relatório.
 - **Impostos**: estimativa do DAS do Simples Nacional de cada mês (receita dos últimos 12 meses, Fator R,
-  Anexo III ou V, alíquota efetiva) e botão para lançar o DAS em Contas a pagar. Em *Configurar regime* dá para
+  Anexo III ou V, alíquota efetiva) e botão para lançar o DAS em Contas a pagar. Cada nota entra no anexo do seu
+  código de serviço: 14.xx (calibração, manutenção) e 08.xx (treinamento) sempre no Anexo III; 17.08, 07.01 e
+  notas sem código pelo Fator R (sem código, o Cronos deduz pela descrição). Em *Configurar regime* dá para
   fixar o anexo ou usar um percentual fixo. É estimativa para planejar; a guia oficial vem do PGDAS.
 - **Bancos nos recebimentos**: ao receber, o Cronos sugere o banco que aquele cliente usou da última vez.
   Em Relatórios aparece quanto entrou e saiu por banco.
