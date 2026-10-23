@@ -1294,7 +1294,8 @@
     var html = '<div class="pp">' +
       '<div class="pp-topo">' + logoIdealle() + '<div style="text-align:right"><b>PROPOSTA COMERCIAL</b><div>' + codRev(p) + '</div></div></div>' +
       '<p style="text-align:right">' + esc(EMPRESA.cidade) + ', ' + dataExtenso(p.data) + '.</p>' +
-      '<div class="abertura"><p>À<br><b>' + esc(c.nome) + '</b>' + (c.cnpj ? '<br>CNPJ ' + esc(c.cnpj) : '') + (c.endereco || c.cidade ? '<br>' + esc([c.endereco, c.cidade, c.uf].filter(Boolean).join(' - ')) : '') + '</p>' +
+      '<div class="abertura"><p>À<br><b>' + esc(c.nome) + '</b>' + (c.cnpj ? '<br>CNPJ ' + esc(c.cnpj) : '') + (c.endereco ? '<br>' + esc(c.endereco) : '') +
+        (c.cidade || c.uf || c.cep ? '<br>' + esc([[c.cidade, c.uf].filter(Boolean).join('/'), c.cep ? 'CEP ' + c.cep : ''].filter(Boolean).join(' - ')) : '') + '</p>' +
       (c.contato ? '<p>At.: ' + esc(c.contato) + (c.email ? ' · ' + esc(c.email) : '') + '</p>' : '') +
       '<p><b>REF.:</b> ' + esc(p.ref || ('PROPOSTA PARA A PRESTAÇÃO DE SERVIÇOS DE ' + p.titulo).toUpperCase()) + '</p>' +
       '<p><b>N/REF.:</b> ' + codRev(p) + '</p></div>' +
@@ -1801,7 +1802,7 @@
     var leitor = new FileReader();
     leitor.onload = function () {
       var d; try { d = JSON.parse(leitor.result); } catch (e) { toast('Arquivo inválido.'); return; }
-      if (d.tipo === 'complemento') { ['propostas', 'faturas', 'avisos'].forEach(function (k) { d[k] = d[k] || []; }); conferirComplemento(d); return; }
+      if (d.tipo === 'complemento') { ['propostas', 'faturas', 'clientes', 'avisos'].forEach(function (k) { d[k] = d[k] || []; }); conferirComplemento(d); return; }
       if (!(d.clientes && d.propostas && d.ordens && d.faturas) && !d.modelos && !d.financas) { toast('Este arquivo não é uma importação do Cronos.'); return; }
       ['clientes', 'propostas', 'ordens', 'faturas', 'modelos', 'avisos'].forEach(function (k) { d[k] = d[k] || []; });
       conferirImportacao(d);
@@ -2007,6 +2008,23 @@
     if (n.situacao === 'cancelada' && f.status === 'pendente') upd.status = 'cancelada';
     return upd;
   }
+  // Cadastro do cliente a partir do tomador das notas: usa a nota mais recente do cliente
+  // (ou a do mesmo CNPJ, se o cliente já tem um) e só preenche o que está vazio
+  function mudancasClientes(d, porNF) {
+    var por = {};
+    d.clientes.forEach(function (x) { var f = porNF[x.nf]; if (f && f.clienteId) (por[f.clienteId] = por[f.clienteId] || []).push(x); });
+    var res = {};
+    Object.keys(por).forEach(function (id) {
+      var c = porId('empresas', id); if (!c) return;
+      var l = por[id].sort(function (a, b) { return (b.emissao || '') < (a.emissao || '') ? -1 : 1; });
+      var cn = soDigitos(c.cnpj), x = cn ? l.filter(function (y) { return soDigitos(y.cnpj) === cn; })[0] : l[0];
+      if (!x) return;
+      var u = {};
+      ['cnpj', 'endereco', 'cidade', 'uf', 'cep'].forEach(function (k) { if (!c[k] && x[k]) u[k] = x[k]; });
+      if (Object.keys(u).length) res[id] = u;
+    });
+    return res;
+  }
   function conferirComplemento(d) {
     var porNum = {}, porNF = {};
     cache.propostas.forEach(function (p) { (porNum[p.numero + '/' + p.ano] = porNum[p.numero + '/' + p.ano] || []).push(p); });
@@ -2018,11 +2036,13 @@
       var u = mudancasProposta(p, c); if (Object.keys(u).length) pAt++; if (u.itens) pIt++;
     });
     d.faturas.forEach(function (n) { var f = porNF[n.nf]; if (!f) fNova++; else if (Object.keys(mudancasNota(f, n)).length) fAt++; });
-    abrirModal('<h3>Completar propostas e notas</h3><p class="muted">' + esc(d.fonte || '') + '</p>' +
-      '<div class="tabela"><table><tbody>' +
-      '<tr><td>Propostas com texto a preencher</td><td class="num">' + pAt + '</td><td class="muted">de ' + d.propostas.length + ' documentos lidos · ' + pIt + ' com os itens do objeto</td></tr>' +
+    var cAt = Object.keys(mudancasClientes(d, porNF)).length;
+    abrirModal('<h3>' + (d.propostas.length || d.faturas.length ? 'Completar propostas e notas' : 'Completar cadastro dos clientes') + '</h3><p class="muted">' + esc(d.fonte || '') + '</p>' +
+      '<div class="tabela"><table><tbody>' + (d.propostas.length ?
+      '<tr><td>Propostas com texto a preencher</td><td class="num">' + pAt + '</td><td class="muted">de ' + d.propostas.length + ' documentos lidos · ' + pIt + ' com os itens do objeto</td></tr>' : '') + (d.faturas.length ?
       '<tr><td>Notas fiscais com dados a completar</td><td class="num">' + fAt + '</td><td class="muted">tomador, CNPJ, discriminação, ISS, código do serviço, NBS, local da prestação</td></tr>' +
-      '<tr><td>Notas que ainda não estão no Cronos</td><td class="num">' + fNova + '</td><td class="muted">entram como a receber</td></tr>' +
+      '<tr><td>Notas que ainda não estão no Cronos</td><td class="num">' + fNova + '</td><td class="muted">entram como a receber</td></tr>' : '') +
+      (d.clientes.length ? '<tr><td>Clientes com cadastro a completar</td><td class="num">' + cAt + '</td><td class="muted">CNPJ, endereço, cidade, UF e CEP da nota mais recente</td></tr>' : '') +
       '</tbody></table></div>' +
       '<p class="muted">Só os campos vazios são preenchidos. Valor, status e o que você já editou no Cronos ficam como estão. Nas propostas, o valor global continua no total; no PDF com valores ele aparece no primeiro item.</p>' +
       (pSem.length ? '<details><summary>Propostas do arquivo que não foram achadas no Cronos (' + pSem.length + ')</summary><div class="muted">' + esc(pSem.join(' · ')) + '</div></details>' : '') +
@@ -2062,8 +2082,10 @@
       CAMPOS_NF.forEach(function (k) { if (n[k] != null && n[k] !== '') doc[k] = n[k]; });
       await banco.criar('faturas', doc); nN++;
     }, aviso, 'Notas fiscais');
+    var nC = 0, mc = mudancasClientes(d, porNF);
+    await emLotes(Object.keys(mc), async function (id) { var u = mc[id]; u.updatedAt = agora(); await banco.atualizar('empresas', id, u); nC++; }, aviso, 'Clientes');
     if (d.nota && d.nota.pagamento && !cfgNota().pagamento) await banco.atualizar('config', 'nota', { pagamento: d.nota.pagamento, updatedAt: agora() });
-    return nP + ' propostas completadas, ' + nF + ' notas completadas e ' + nN + ' notas criadas.';
+    return nP + ' propostas completadas, ' + nF + ' notas completadas, ' + nN + ' notas criadas e ' + nC + ' clientes completados.';
   }
 
   // ===================== FINANÇAS =====================
