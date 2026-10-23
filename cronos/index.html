@@ -651,8 +651,7 @@
   function formCliente(c) {
     c = c || {};
     // CNPJ da nota mais recente do cliente, para quando o cadastro ainda não tem
-    var nfCnpj = c.id ? cache.faturas.filter(function (f) { return f.clienteId === c.id && f.tomadorCnpj; })
-      .sort(function (a, b) { return (b.emissao || '') < (a.emissao || '') ? -1 : 1; })[0] : null;
+    var nfCnpj = c.id ? cnpjDasNotas(c.id) : null;
     abrirModal('<h3>' + (c.id ? 'Editar cliente ' + esc(c.codigo || '') : 'Novo cliente') + '</h3>' +
       '<label>Nome / Razão social *</label><input id="f-nome" value="' + esc(c.nome) + '">' +
       '<div class="linha"><div><label>CNPJ / CPF</label><input id="f-cnpj" value="' + esc(c.cnpj || (nfCnpj ? nfCnpj.tomadorCnpj : '')) + '"></div><div><label>Inscrição estadual</label><input id="f-ie" value="' + esc(c.ie) + '"></div></div>' +
@@ -692,6 +691,30 @@
     };
   }
 
+  // CNPJ que mais aparece nas notas do cliente (empate: a nota mais recente); devolve a nota de referência
+  function cnpjDasNotas(id) {
+    var fs = cache.faturas.filter(function (f) { return f.clienteId === id && soDigitos(f.tomadorCnpj).length === 14 && f.status !== 'cancelada'; })
+      .sort(function (a, b) { return (b.emissao || '') < (a.emissao || '') ? -1 : 1; });
+    var cont = {}; fs.forEach(function (f) { var k = soDigitos(f.tomadorCnpj); cont[k] = (cont[k] || 0) + 1; });
+    return fs.sort(function (a, b) { return cont[soDigitos(b.tomadorCnpj)] - cont[soDigitos(a.tomadorCnpj)]; })[0] || null;
+  }
+  // Antes de gerar a proposta: cliente sem endereço é completado sozinho pelo CNPJ (do cadastro ou das notas)
+  // na consulta da Receita, e o cadastro fica salvo. Se não der, a proposta sai com o que houver.
+  async function completarCliente(c) {
+    if (!c || !c.id || (c.endereco && c.cnpj)) return c;
+    var nf = cnpjDasNotas(c.id), cn = soDigitos(c.cnpj) || (nf ? soDigitos(nf.tomadorCnpj) : '');
+    if (cn.length !== 14) return c;
+    try {
+      toast('Buscando o endereço do cliente pelo CNPJ…');
+      var r = await Promise.race([buscarCnpj(cn), new Promise(function (_, n) { setTimeout(function () { n(new Error('tempo')); }, 8000); })]);
+      var u = {};
+      if (!c.cnpj) u.cnpj = fmtCnpj(cn);
+      ['endereco', 'cidade', 'uf', 'cep'].forEach(function (k) { if (!c[k] && r[k]) u[k] = r[k]; });
+      if (!Object.keys(u).length) return c;
+      u.updatedAt = agora(); await banco.atualizar('empresas', c.id, u);
+      return Object.assign({}, c, u);
+    } catch (e) { console.warn('CNPJ', e); return c; }
+  }
   function fmtCnpj(cn) { return cn.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5'); }
   // Consulta pública de CNPJ (BrasilAPI, dados da Receita Federal)
   async function buscarCnpj(cn) {
@@ -1334,8 +1357,9 @@
   function diasEntre(a, b) { return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5); }
 
   // comValores: mostra o valor de cada item (por padrão sai só o valor global, como a Idealle envia)
-  function imprimirProposta(p, comValores) {
-    var c = porId('empresas', p.clienteId) || { nome: p.clienteNome };
+  async function imprimirProposta(p, comValores) {
+    var ver = pdfVer;
+    var c = await completarCliente(porId('empresas', p.clienteId)) || { nome: p.clienteNome };
     var n = 0;
     function secao(titulo, corpo) { n++; return '<div class="pq-tit"><span>' + n + '.</span>' + titulo + '</div><div class="pq-corpo">' + corpo + '</div>'; }
     function itens(l, pre) { return '<ol class="pl">' + l.map(function (t, i) { return '<li><span>' + pre + '.' + (i + 1) + '.</span><div>' + t + '</div></li>'; }).join('') + '</ol>'; }
@@ -1379,7 +1403,7 @@
       corpo +
       '<div class="pq-assin">' + EMPRESA.assinaturas.map(function (a) { return '<div><div class="nome">' + esc(a[0]) + '</div><i>' + esc(a[1]) + '</i></div>'; }).join('') + '</div>' +
       '</div>';
-    baixarPdf(html, nomePdf(p, comValores ? 'valores' : ''), null, true);
+    pdfVer = ver; baixarPdf(html, nomePdf(p, comValores ? 'valores' : ''), null, true); pdfVer = false;
   }
 
   // ===================== MODELOS DE PROPOSTA =====================
