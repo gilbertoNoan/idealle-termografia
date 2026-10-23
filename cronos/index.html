@@ -627,15 +627,32 @@
 
   function formCliente(c) {
     c = c || {};
+    // CNPJ da nota mais recente do cliente, para quando o cadastro ainda não tem
+    var nfCnpj = c.id ? cache.faturas.filter(function (f) { return f.clienteId === c.id && f.tomadorCnpj; })
+      .sort(function (a, b) { return (b.emissao || '') < (a.emissao || '') ? -1 : 1; })[0] : null;
     abrirModal('<h3>' + (c.id ? 'Editar cliente ' + esc(c.codigo || '') : 'Novo cliente') + '</h3>' +
       '<label>Nome / Razão social *</label><input id="f-nome" value="' + esc(c.nome) + '">' +
-      '<div class="linha"><div><label>CNPJ / CPF</label><input id="f-cnpj" value="' + esc(c.cnpj) + '"></div><div><label>Inscrição estadual</label><input id="f-ie" value="' + esc(c.ie) + '"></div></div>' +
+      '<div class="linha"><div><label>CNPJ / CPF</label><input id="f-cnpj" value="' + esc(c.cnpj || (nfCnpj ? nfCnpj.tomadorCnpj : '')) + '"></div><div><label>Inscrição estadual</label><input id="f-ie" value="' + esc(c.ie) + '"></div></div>' +
+      (!c.cnpj && nfCnpj ? '<div class="muted">CNPJ tirado da NF ' + esc(nfCnpj.nf) + '. Confira e salve.</div>' : '') +
+      '<button class="btn sec peq" id="f-buscar" style="margin-top:6px">Buscar endereço pelo CNPJ</button> <span class="muted" id="f-buscar-msg"></span>' +
       '<div class="linha"><div><label>Contato</label><input id="f-contato" value="' + esc(c.contato) + '"></div><div><label>Telefone</label><input id="f-telefone" value="' + esc(c.telefone) + '"></div><div><label>E-mail</label><input id="f-email" type="email" value="' + esc(c.email) + '"></div></div>' +
       '<label>Endereço</label><input id="f-endereco" value="' + esc(c.endereco) + '">' +
       '<div class="linha"><div><label>Cidade</label><input id="f-cidade" value="' + esc(c.cidade) + '"></div><div><label>UF</label><input id="f-uf" maxlength="2" value="' + esc(c.uf) + '"></div><div><label>CEP</label><input id="f-cep" value="' + esc(c.cep) + '"></div></div>' +
       '<label>Observações</label><textarea id="f-obs">' + esc(c.obs) + '</textarea>' +
       '<div class="acoes"><button class="btn" id="f-salvar">Salvar</button><button class="btn sec" id="f-cancelar">Cancelar</button></div>');
     $('f-cancelar').onclick = fecharModal;
+    $('f-buscar').onclick = async function () {
+      var cn = soDigitos($('f-cnpj').value);
+      if (cn.length !== 14) { toast('Digite o CNPJ do cliente (14 números).'); return; }
+      var b = this; b.disabled = true; $('f-buscar-msg').textContent = 'Buscando na Receita…';
+      try {
+        var r = await buscarCnpj(cn);
+        $('f-endereco').value = r.endereco; $('f-cidade').value = r.cidade; $('f-uf').value = r.uf; $('f-cep').value = r.cep;
+        if (!$('f-cnpj').value.trim() || soDigitos($('f-cnpj').value) === $('f-cnpj').value.trim()) $('f-cnpj').value = fmtCnpj(cn);
+        $('f-buscar-msg').textContent = 'Endereço preenchido' + (r.razao ? ' (' + r.razao + ')' : '') + '. Confira e salve.';
+      } catch (e) { $('f-buscar-msg').textContent = 'Não achei esse CNPJ agora. Confira o número ou preencha à mão.'; }
+      b.disabled = false;
+    };
     $('f-salvar').onclick = async function () {
       var d = { nome: $('f-nome').value.trim(), cnpj: $('f-cnpj').value.trim(), ie: $('f-ie').value.trim(), contato: $('f-contato').value.trim(), telefone: $('f-telefone').value.trim(), email: $('f-email').value.trim(), endereco: $('f-endereco').value.trim(), cidade: $('f-cidade').value.trim(), uf: $('f-uf').value.trim().toUpperCase(), cep: $('f-cep').value.trim(), obs: $('f-obs').value.trim(), updatedAt: agora() };
       if (!d.nome) { toast('Informe o nome do cliente.'); return; }
@@ -650,6 +667,20 @@
       }
       fecharModal();
     };
+  }
+
+  function fmtCnpj(cn) { return cn.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5'); }
+  // Consulta pública de CNPJ (BrasilAPI, dados da Receita Federal)
+  async function buscarCnpj(cn) {
+    var r = await fetch('https://brasilapi.com.br/api/cnpj/v1/' + cn);
+    if (!r.ok) throw new Error('CNPJ ' + r.status);
+    var j = await r.json();
+    function t(s) { return String(s || '').toLowerCase().replace(/(^|[\s\/-])(\S)/g, function (m, a, l) { return a + l.toUpperCase(); }).replace(/ (De|Da|Do|Das|Dos|E) /g, function (m) { return m.toLowerCase(); }); }
+    var rua = [t(j.descricao_tipo_de_logradouro), t(j.logradouro)].filter(Boolean).join(' ');
+    if (j.descricao_tipo_de_logradouro && normal(t(j.logradouro)).indexOf(normal(t(j.descricao_tipo_de_logradouro))) === 0) rua = t(j.logradouro);
+    var end = [rua + (j.numero ? ', ' + j.numero : ''), t(j.complemento), t(j.bairro)].filter(Boolean).join(' - ');
+    var cep = soDigitos(j.cep);
+    return { endereco: end, cidade: t(j.municipio), uf: String(j.uf || '').toUpperCase(), cep: cep.length === 8 ? cep.slice(0, 5) + '-' + cep.slice(5) : (j.cep || ''), razao: j.razao_social || '' };
   }
 
   // Os documentos guardam também o nome (a Termografia exibe e filtra por ele), então mantemos em dia.
