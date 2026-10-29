@@ -25,6 +25,14 @@ resultados: {
 
 E pode mudar `status`: `execucao` quando começa o trabalho e `concluida` (com `dataConclusao`) quando termina. A OS concluída aparece no Cronos pronta para faturar. Nunca grave sem `merge: true`, para não apagar os campos do Cronos.
 
+## 2.1 Serviços da OS e pendências por TAG
+
+Na OS se marcam os serviços contratados, em `servicos: { relatorio, prontuario, calibracao }` (true/false). Com isso o Cronos e o Relatório NR-13 mostram o que falta em cada TAG, sem marcação à mão:
+
+- O Relatório NR-13 manda em `resultados["Relatório NR-13"].vasos` um item por vaso: `tag`, `laudo` (etapa), `laudoPronto`, `prontuario` (`abertura`, `periodica` ou `nenhum`), `faltaProntuario` (campos vazios), `pmta` (`ok`, `pendente` ou `nao_exige`), `manometro` e `valvula` (`exige`, `tags`, `numeros`, e `quantidade` na válvula). TAGs e números vão em maiúsculas, só letras e números.
+- O Gerador de Certificados manda em `resultados["Gerador de Certificados"].itens` um item por certificado: `tag`, `numero` e `tipo` (`manometer` ou `valve`).
+- O certificado é do manômetro (ou da válvula) do vaso quando a TAG dele é a do instrumento no laudo, quando o número é o que o laudo anotou, ou quando foi emitido com a TAG do próprio vaso e o tipo certo. A conta está em `pendenciasVaso` (aqui) e em `src/services/pendencias.ts` (Relatório NR-13).
+
 ## 3. Cadastro único de clientes
 
 Os clientes ficam em `empresas` do Cronos. Ao abrir, cada sistema lê essa coleção inteira e:
