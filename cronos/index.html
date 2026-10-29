@@ -347,6 +347,65 @@
     var niveis = NIVEIS_TERMO.filter(function (n) { return r.porNivel && r.porNivel[n[0]]; }).map(function (n) { return '<span class="tag ' + n[2] + '">' + r.porNivel[n[0]] + ' ' + n[1] + '</span>'; }).join(' ');
     return '<p><b>Termografia:</b> ' + r.qtdLaudos + ' laudo(s) ' + niveis + ' <span class="muted">atualizado em ' + data(r.atualizadoEm) + '</span></p>';
   }
+  // ===================== SERVIÇOS DA OS E PENDÊNCIAS POR TAG =====================
+  // Na OS se marca o que foi contratado (o.servicos). Cada sistema devolve o que já fez em o.resultados:
+  // o Relatório NR-13 manda a situação de cada vaso (resultados['Relatório NR-13'].vasos) e o Gerador de
+  // Certificados manda cada certificado (resultados['Gerador de Certificados'].itens: tag, número, tipo).
+  // A mesma conta é feita no Relatório NR-13 (src/services/pendencias.ts) para o aviso na TAG.
+  var SERVICOS_OS = [['relatorio', 'Relatório NR-13'], ['prontuario', 'Abertura de prontuário (com PMTA)'], ['calibracao', 'Certificado de calibração']];
+  function temServicos(o) { return !!(o.servicos && SERVICOS_OS.some(function (s) { return o.servicos[s[0]]; })); }
+  function chaveTag(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+  function certificadosOS(o) {
+    var c = (o.resultados || {})['Gerador de Certificados'] || {};
+    if (Array.isArray(c.itens)) return c.itens.map(function (i) { var t = String(i.tipo || '').toLowerCase(); return { tag: i.tag || '', numero: i.numero || '', tipo: t === 'manometer' || t === 'manometro' ? 'manometro' : t ? 'valvula' : '' }; });
+    return (c.tags || []).map(function (t) { return { tag: t, numero: '', tipo: '' }; });
+  }
+  // Certificado do manômetro (ou da válvula) do vaso: mesma TAG do instrumento, mesmo número anotado no laudo,
+  // ou emitido com a TAG do próprio vaso e o tipo certo
+  function certsDoVaso(v, certs, tipo) {
+    var ins = v[tipo] || {}, tags = ins.tags || [], nums = ins.numeros || [], tagVaso = chaveTag(v.tag);
+    return certs.filter(function (c) {
+      if (c.tipo && c.tipo !== tipo) return false;
+      var t = chaveTag(c.tag), n = chaveTag(c.numero);
+      return (t && tags.indexOf(t) >= 0) || (n && nums.indexOf(n) >= 0) || (c.tipo && t && t === tagVaso);
+    });
+  }
+  function pendenciasVaso(o, v, certs) {
+    var sv = o.servicos || {}, it = [];
+    it.push({ nome: 'Laudo', ok: !!v.laudoPronto, detalhe: v.laudo || '' });
+    var falta = v.faltaProntuario || [];
+    if (sv.prontuario && v.prontuario === 'nenhum') it.push({ nome: 'Documentos do prontuário', ok: false, detalhe: 'escolher no laudo' });
+    else if (v.prontuario && v.prontuario !== 'nenhum') it.push({ nome: v.prontuario === 'abertura' ? 'Prontuário' : 'Registro de Ocorrência', ok: !falta.length, detalhe: falta.length ? 'falta ' + falta.slice(0, 3).join(', ') + (falta.length > 3 ? '...' : '') : 'completo' });
+    if (v.pmta && v.pmta !== 'nao_exige') it.push({ nome: 'PMTA', ok: v.pmta === 'ok', detalhe: v.pmta === 'ok' ? 'calculada' : 'pendente' });
+    if (sv.calibracao || (!temServicos(o) && certs.length)) {
+      var nums = function (l) { return l.map(function (c) { return c.numero || c.tag; }).filter(Boolean).join(', '); };
+      if (v.manometro && v.manometro.exige) { var m = certsDoVaso(v, certs, 'manometro'); it.push({ nome: 'Cert. manômetro', ok: m.length > 0, detalhe: m.length ? nums(m) : 'pendente' }); }
+      if (v.valvula && v.valvula.exige) { var q = v.valvula.quantidade || 1, va = certsDoVaso(v, certs, 'valvula'); it.push({ nome: q > 1 ? 'Cert. válvulas' : 'Cert. válvula', ok: va.length >= q, detalhe: va.length ? nums(va) + (va.length < q ? ' (falta ' + (q - va.length) + ')' : '') : 'pendente' }); }
+    }
+    return it;
+  }
+  // Tudo o que falta na OS: por vaso e, quando ainda não chegou nada de um serviço contratado, o serviço inteiro
+  function pendenciasOS(o) {
+    var sv = o.servicos || {}, res = o.resultados || {}, nr = res['Relatório NR-13'] || {}, vasos = nr.vasos || [], certs = certificadosOS(o);
+    var linhas = vasos.map(function (v) { return { tag: v.tag || 'S/TAG', itens: pendenciasVaso(o, v, certs) }; });
+    var gerais = [];
+    if ((sv.relatorio || sv.prontuario) && !vasos.length) gerais.push(nr.qtdLaudos ? 'Relatório NR-13: abra o sistema para enviar a situação dos vasos' : 'Relatório NR-13: nenhum laudo ainda');
+    if (sv.calibracao && !certs.length) gerais.push('Certificados de calibração: nenhum emitido ainda');
+    var qtd = gerais.length + linhas.reduce(function (n, l) { return n + l.itens.filter(function (i) { return !i.ok; }).length; }, 0);
+    return { linhas: linhas, gerais: gerais, qtd: qtd };
+  }
+  function quadroPendencias(o) {
+    if (!temServicos(o) && !((o.resultados || {})['Relatório NR-13'] || {}).vasos) return '';
+    var p = pendenciasOS(o), sv = o.servicos || {};
+    var cab = '<div class="muted" style="margin:12px 0 6px"><b>Serviços:</b> ' + (temServicos(o) ? SERVICOS_OS.filter(function (s) { return sv[s[0]]; }).map(function (s) { return esc(s[1]); }).join(' · ') : 'não marcados (edite a OS)') +
+      ' — ' + (p.qtd ? '<span class="tag t-warn">' + p.qtd + ' pendência(s)</span>' : '<span class="tag t-ok">tudo feito</span>') + '</div>';
+    var gerais = p.gerais.map(function (g) { return '<div class="muted">○ ' + esc(g) + '</div>'; }).join('');
+    var tabela = p.linhas.length ? '<div class="tabela"><table><thead><tr><th>TAG</th><th>Situação</th></tr></thead><tbody>' + p.linhas.map(function (l) {
+      return '<tr><td><b>' + esc(l.tag) + '</b></td><td>' + l.itens.map(function (i) { return '<span class="tag ' + (i.ok ? 't-ok' : 't-warn') + '" title="' + esc(i.detalhe || '') + '">' + (i.ok ? '✓ ' : '○ ') + esc(i.nome) + (i.ok ? '' : ': ' + esc(i.detalhe || 'pendente')) + '</span>'; }).join(' ') + '</td></tr>';
+    }).join('') + '</tbody></table></div>' : '';
+    return cab + gerais + tabela;
+  }
+
   // Dados impressos nas propostas (cabeçalho, rodapé, faturamento e assinaturas)
   // Quem pode entrar com Google: e-mails ou domínios (ex.: '@ideallesp.com.br'). Lista vazia = qualquer conta Google.
   var ACESSO_GOOGLE = [];
@@ -1444,7 +1503,7 @@
     $('lista-ordens').innerHTML = '<table><thead><tr><th>OS</th><th>Cliente / Serviço</th><th>Abertura</th><th>Prazo</th><th>Sistema</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>' +
       lista.map(function (o) {
         var atrasada = o.prazo && o.prazo < hoje() && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0;
-        return '<tr class="clicavel" data-os="' + o.id + '"><td><b>' + esc(codOS(o)) + '</b></td><td>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '<div class="muted">' + esc(o.descricao || '') + (o.responsavel ? ' · ' + esc(o.responsavel) : '') + '</div></td><td>' + data(o.dataAbertura) + '</td><td>' + data(o.prazo) + (atrasada ? ' <span class="tag t-bad">atrasada</span>' : '') + '</td><td>' + esc(o.sistema || '—') + (o.resultados && o.resultados[o.sistema] ? '<div class="muted">' + o.resultados[o.sistema].qtdLaudos + ' laudo(s)</div>' : '') + '</td><td class="num">' + (o.valor != null ? brl(o.valor) : '—') + '</td><td>' + tag('os', statusOS(o)) + '</td></tr>';
+        return '<tr class="clicavel" data-os="' + o.id + '"><td><b>' + esc(codOS(o)) + '</b></td><td>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '<div class="muted">' + esc(o.descricao || '') + (o.responsavel ? ' · ' + esc(o.responsavel) : '') + '</div></td><td>' + data(o.dataAbertura) + '</td><td>' + data(o.prazo) + (atrasada ? ' <span class="tag t-bad">atrasada</span>' : '') + '</td><td>' + esc(o.sistema || '—') + (o.resultados && o.resultados[o.sistema] ? '<div class="muted">' + o.resultados[o.sistema].qtdLaudos + ' laudo(s)</div>' : '') + (temServicos(o) && ['aberta', 'execucao', 'concluida'].indexOf(statusOS(o)) >= 0 ? (function (n) { return '<div>' + (n ? '<span class="tag t-warn">' + n + ' pendência(s)</span>' : '<span class="tag t-ok">serviços em dia</span>') + '</div>'; })(pendenciasOS(o).qtd) : '') + '</td><td class="num">' + (o.valor != null ? brl(o.valor) : '—') + '</td><td>' + tag('os', statusOS(o)) + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
   $('lista-ordens').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-os]'); if (tr) verOS(tr.dataset.os); });
@@ -1457,6 +1516,9 @@
       '<label>Descrição do serviço *</label><input id="o-desc" value="' + esc(o.descricao) + '">' +
       '<div class="linha"><div><label>Abertura</label><input id="o-abertura" type="date" value="' + esc(o.dataAbertura || hoje()) + '"></div><div><label>Prazo</label><input id="o-prazo" type="date" value="' + esc(o.prazo) + '"></div><div><label>Responsável</label><input id="o-resp" value="' + esc(o.responsavel) + '"></div></div>' +
       '<div class="linha"><div><label>Sistema de execução</label><select id="o-sistema">' + opcoesSistemas(o.sistema) + '</select></div><div><label>Valor (R$)</label><input id="o-valor" inputmode="decimal" value="' + esc(o.valor != null ? String(o.valor).replace('.', ',') : '') + '"></div></div>' +
+      '<label>Serviços desta OS</label><div style="display:flex;flex-wrap:wrap;gap:6px 18px">' + SERVICOS_OS.map(function (sv) {
+        return '<label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:normal"><input type="checkbox" id="o-sv-' + sv[0] + '" style="width:auto"' + (o.servicos && o.servicos[sv[0]] ? ' checked' : '') + '> ' + esc(sv[1]) + '</label>';
+      }).join('') + '</div><div class="muted" style="font-size:.8em">Os sistemas mostram o que falta em cada TAG conforme o que estiver marcado aqui.</div>' +
       '<label>Observações</label><textarea id="o-obs">' + esc(o.obs) + '</textarea>' +
       '<div class="acoes"><button class="btn" id="o-salvar">Salvar</button><button class="btn sec" id="o-cancelar">Cancelar</button></div>');
     $('o-cancelar').onclick = fecharModal;
@@ -1465,6 +1527,7 @@
       if (!cid) { toast('Selecione o cliente.'); return; }
       if (!$('o-desc').value.trim()) { toast('Descreva o serviço.'); return; }
       var d = { empresaId: cid, empresaNome: nomeCliente(cid), descricao: $('o-desc').value.trim(), dataAbertura: $('o-abertura').value, prazo: $('o-prazo').value, responsavel: $('o-resp').value.trim(), sistema: $('o-sistema').value, valor: $('o-valor').value.trim() ? num($('o-valor').value) : null, obs: $('o-obs').value.trim(), updatedAt: agora() };
+      d.servicos = {}; SERVICOS_OS.forEach(function (sv) { d.servicos[sv[0]] = $('o-sv-' + sv[0]).checked; });
       if (o.id) await salvar(function () { return banco.atualizar('ordens', o.id, d); }, 'OS atualizada.');
       else { d.numero = proximoID(); d.codigo = codID(d.numero, (d.dataAbertura || hoje()).slice(0, 4)); d.status = 'aberta'; d.createdAt = agora(); await salvar(function () { return banco.criar('ordens', d); }, 'OS ' + d.codigo + ' aberta.'); }
       fecharModal();
@@ -1498,6 +1561,7 @@
       (f ? '<div><dt>Fatura</dt><dd>' + codFatura(f) + ' ' + tag('fatura', f.status, f.vencimento) + '</dd></div>' : '') +
       '</dl>' + (o.obs ? '<p class="muted">' + esc(o.obs) + '</p>' : '') +
       (resumoResultado(o) || '<p class="muted">Nenhum laudo lançado ainda nesta OS.</p>') +
+      quadroPendencias(o) +
       (st !== 'cancelada' ? botoesSistemas(o) : '') +
       '<div class="acoes">' + b.join('') + '</div>');
     function ligar(id, fn) { var x = $(id); if (x) x.onclick = fn; }
@@ -1505,7 +1569,7 @@
     ligar('ov-editar', function () { formOS(o); });
     ligar('ov-ver-proposta', function (e) { e.preventDefault(); verProposta(p.id); });
     ligar('ov-iniciar', async function () { await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'execucao', dataInicio: hoje() }); }, 'OS em execução.'); verOS(o.id); });
-    ligar('ov-concluir', async function () { if (!confirm('Marcar a OS ' + codOS(o) + ' como concluída?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'concluida', dataConclusao: hoje() }); }, 'OS concluída. Pronta para faturar.'); verOS(o.id); });
+    ligar('ov-concluir', async function () { var pend = temServicos(o) ? pendenciasOS(o).qtd : 0; if (!confirm((pend ? 'A OS ainda tem ' + pend + ' pendência(s) nos serviços marcados.\n' : '') + 'Marcar a OS ' + codOS(o) + ' como concluída?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'concluida', dataConclusao: hoje() }); }, 'OS concluída. Pronta para faturar.'); verOS(o.id); });
     ligar('ov-cancelar', async function () { if (!confirm('Cancelar a OS ' + codOS(o) + '?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'cancelada' }); }, 'OS cancelada.'); verOS(o.id); });
     ligar('ov-reabrir', async function () { await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'aberta' }); }, 'OS reaberta.'); verOS(o.id); });
     ligar('ov-faturar', function () { formFatura(o); });
