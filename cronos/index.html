@@ -657,6 +657,12 @@
   function codFatura(f) { return (f.nf ? 'NF ' + f.nf : 'F-' + pad(f.numero, 4)) + (f.parcela ? ' (' + f.parcela + ')' : ''); }
   // Próximo número pela sequência Idealle (ID-0298/2026). Só conta propostas e OS com esse código:
   // OS criadas direto nos sistemas técnicos têm numeração própria e jogavam a sequência para ID-2027.
+  // Mais recente primeiro: data de abertura e, no mesmo dia, o número da OS (ID-, IDE-, OS- ou só número).
+  function ordemOS(a, b) {
+    var da = String(a.dataAbertura || a.createdAt || '').slice(0, 10), db = String(b.dataAbertura || b.createdAt || '').slice(0, 10);
+    if (da !== db) return da < db ? 1 : -1;
+    return (numeroID(b) || parseInt(b.numero, 10) || 0) - (numeroID(a) || parseInt(a.numero, 10) || 0);
+  }
   function numeroID(x) { var m = /(\d{1,5})\/\d{4}\s*$/.exec(x.codigo || x.propostaCodigo || ''); return m ? parseInt(m[1], 10) : (x.ano ? parseInt(x.numero, 10) || 0 : 0); }
   function proximoID() { var m = 0; cache.propostas.concat(cache.ordens).forEach(function (x) { var n = numeroID(x); if (n > m) m = n; }); return m + 1; }
   function codRev(p) { return codProposta(p) + ' Rev. ' + (p.rev || 0); }
@@ -789,7 +795,7 @@
       '<div><dt>A receber / Recebido</dt><dd>' + brl(aReceber) + ' / ' + brl(recebido) + '</dd></div></dl>' +
       (c.obs ? '<p class="muted">' + esc(c.obs) + '</p>' : '') +
       '<p><b>Propostas</b></p>' + (ps.length ? ps.map(function (p) { return '<div>' + codProposta(p) + ' · ' + esc(p.titulo) + ' · ' + brl(p.total) + ' ' + tag('proposta', p.status) + '</div>'; }).join('') : '<div class="muted">Nenhuma.</div>') +
-      '<p><b>Ordens de Serviço</b></p>' + (os.length ? os.map(function (o) { return '<div>' + esc(codOS(o)) + ' · ' + esc(o.descricao || '') + ' ' + tag('os', statusOS(o)) + '</div>'; }).join('') : '<div class="muted">Nenhuma.</div>') +
+      '<p><b>Ordens de Serviço</b></p>' + (os.length ? os.slice().sort(ordemOS).map(function (o) { return '<div>' + esc(codOS(o)) + ' · ' + esc(o.descricao || '') + ' ' + tag('os', statusOS(o)) + '</div>'; }).join('') : '<div class="muted">Nenhuma.</div>') +
       '<div class="acoes"><button class="btn" id="c-proposta">+ Proposta para este cliente</button><button class="btn sec" id="c-editar">Editar</button><button class="btn perigo" id="c-excluir">Excluir</button><button class="btn sec" id="c-fechar">Fechar</button></div>');
     $('c-fechar').onclick = fecharModal;
     $('c-editar').onclick = function () { formCliente(c); };
@@ -1502,7 +1508,7 @@
     var q = normal($('busca-os').value), st = $('filtro-os').value;
     var lista = cache.ordens.filter(function (o) {
       return (!st || statusOS(o) === st) && (!q || normal([codOS(o), nomeCliente(o.empresaId, o.empresaNome), o.descricao, o.responsavel].join(' ')).indexOf(q) >= 0);
-    }).sort(function (a, b) { return (parseInt(b.numero, 10) || 0) - (parseInt(a.numero, 10) || 0); });
+    }).sort(ordemOS);
     if (!lista.length) { $('lista-ordens').innerHTML = '<div class="vazio">Nenhuma OS' + (q || st ? ' encontrada' : ' ainda') + '.</div>'; return; }
     $('lista-ordens').innerHTML = '<table><thead><tr><th>OS</th><th>Cliente / Serviço</th><th>Abertura</th><th>Prazo</th><th>Sistema</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>' +
       lista.map(function (o) {
