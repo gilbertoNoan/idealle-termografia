@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.30-2" />
+<meta name="app-version" content="2026.10.30-3" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -105,6 +105,10 @@
     background: var(--cinza); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-size: 12.5px;
   }
   .laudo-check-all { font-weight: 600; }
+  .sev-chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; width:100%; margin-bottom:4px; }
+  .sev-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 9px; border-radius:14px; border:1.5px solid var(--borda,#ccc); font-size:12px; font-weight:600; cursor:pointer; background:#fff; color:#222; }
+  .sev-chip input { width:15px; height:15px; margin:0; cursor:pointer; }
+  .sev-chip i { width:10px; height:10px; border-radius:50%; display:inline-block; border:1px solid rgba(0,0,0,.25); }
   .os-laudos-toolbar button { font-size: 12px; padding: 6px 10px; }
   .os-laudo-titulo { font-size: 13px; font-weight: 600; }
   .os-laudo-item .ponto-actions { margin-top: 6px; }
@@ -782,6 +786,30 @@
   var dashSel = {};          // laudos marcados na lista do Dashboard / portal do cliente
   var dashVisiveis = [];     // laudos atualmente listados
   var filtroCliente = null;   // filtro de criticidade no portal do cliente
+  var SEV_ORDEM = ['normal', 'observar', 'programar', 'urgencia', 'emergencia'];
+  var SEV_COR = { normal: '#92D050', observar: '#FFFF00', programar: '#FFA500', urgencia: '#FF6600', emergencia: '#C00000' };
+  var sevSel = {};   // criticidades marcadas para download: chave = escopo + '|' + sev
+  function chipsSeveridade(escopo, lista) {
+    var cont = {};
+    lista.forEach(function (p) { var k = classificarPrincipal(p).key; cont[k] = (cont[k] || 0) + 1; });
+    return '<div class="sev-chips"><span style="font-size:12px;font-weight:600;">Baixar por criticidade:</span>' +
+      SEV_ORDEM.map(function (k) {
+        return '<label class="sev-chip"><input type="checkbox" class="sev-check" data-escopo="' + escopo + '" data-sev="' + k + '"' + (sevSel[escopo + '|' + k] ? ' checked' : '') + '><i style="background:' + SEV_COR[k] + '"></i>' + SEVERIDADE_LABEL[k] + ' (' + (cont[k] || 0) + ')</label>';
+      }).join('') +
+      '<button class="btn-secondary" type="button" data-action="sev-baixar-pdf" data-escopo="' + escopo + '">📄 PDF único</button>' +
+      '<button class="btn-secondary" type="button" data-action="sev-baixar-zip" data-escopo="' + escopo + '">⬇ ZIP</button></div>';
+  }
+  function filtrarPorSevMarcada(escopo, lista) {
+    var ativos = SEV_ORDEM.filter(function (k) { return sevSel[escopo + '|' + k]; });
+    if (!ativos.length) return null;
+    return lista.filter(function (p) { return ativos.indexOf(classificarPrincipal(p).key) !== -1; });
+  }
+  function baixarPorSev(escopo, lista, nomeBase, modo) {
+    var sel = filtrarPorSevMarcada(escopo, lista);
+    if (sel === null) { toast('Marque ao menos uma criticidade.'); return; }
+    if (!sel.length) { toast('Nenhum laudo nas criticidades marcadas.'); return; }
+    if (modo === 'pdf') baixarPdfUnico(sel, nomeBase + '.pdf'); else baixarVariosPdfs(sel, nomeBase + '.zip');
+  }
   var SEVERIDADE_LABEL = { normal: 'Normal', observar: 'Observar', programar: 'Programar', urgencia: 'Urgência', emergencia: 'Emergência' };
   function pontosDaEmpresa(empId) {
     return pontosCache.filter(function (p) {
@@ -1781,7 +1809,7 @@
     var semOs = (!MODO_CLIENTE && ordensCarregadas) ? visiveis.filter(function (p) { return p.osId && !ordensCache.some(function (o) { return o.id === p.osId; }); }).length : 0;
     var qtdSelDash = visiveis.filter(function (p) { return dashSel[p.id]; }).length;
     var todosMarcados = visiveis.length > 0 && qtdSelDash === visiveis.length;
-    var html = (semOs ? '<div class="ajuda-campo" style="color:var(--texto-suave);margin:0 0 8px;">ℹ️ ' + semOs + ' laudo(s) abaixo pertencem a uma OS que já foi excluída.</div>' : '') + '<div class="os-laudos-toolbar">' +
+    var html = (semOs ? '<div class="ajuda-campo" style="color:var(--texto-suave);margin:0 0 8px;">ℹ️ ' + semOs + ' laudo(s) abaixo pertencem a uma OS que já foi excluída.</div>' : '') + '<div class="os-laudos-toolbar">' + chipsSeveridade('dash', visiveis) +
       '<label class="laudo-check laudo-check-all"><input type="checkbox" id="dash-check-all"' + (todosMarcados ? ' checked' : '') + '> Selecionar todos</label>' +
       '<button class="btn-secondary" type="button" data-action="dash-baixar-sel">⬇ Baixar selecionados' + (qtdSelDash ? ' (' + qtdSelDash + ')' : '') + '</button>' +
       '<button class="btn-secondary" type="button" data-action="dash-baixar-pdf">📄 Baixar todos em um PDF (' + visiveis.length + ')</button>' +
@@ -1814,6 +1842,7 @@
   });
   document.getElementById('lista').addEventListener('change', function (e) {
     var t = e.target;
+    if (t.classList && t.classList.contains('sev-check')) { sevSel[t.getAttribute('data-escopo') + '|' + t.getAttribute('data-sev')] = t.checked; return; }
     if (t.id === 'dash-check-all') {
       dashVisiveis.forEach(function (p) { if (t.checked) dashSel[p.id] = true; else delete dashSel[p.id]; });
       renderLista();
@@ -1827,6 +1856,10 @@
     var btn = e.target.closest('button[data-action]');
     if (!btn) return;
     var act0 = btn.getAttribute('data-action');
+    if (act0 === 'sev-baixar-pdf' || act0 === 'sev-baixar-zip') {
+      baixarPorSev('dash', dashVisiveis, 'Laudos_por_criticidade', act0 === 'sev-baixar-pdf' ? 'pdf' : 'zip');
+      return;
+    }
     if (act0 === 'dash-baixar-sel') {
       var sel = dashVisiveis.filter(function (p) { return dashSel[p.id]; });
       if (!sel.length) { toast('Marque ao menos um laudo para baixar.'); return; }
@@ -2296,7 +2329,7 @@
           }).join('');
         }
         var toolbarHtml = laudos.length ?
-          '<div class="os-laudos-toolbar">' +
+          '<div class="os-laudos-toolbar">' + chipsSeveridade('os' + o.id, laudos) +
             '<label class="laudo-check laudo-check-all"><input type="checkbox" class="os-check-all" data-os-id="' + o.id + '"> Selecionar todos</label>' +
             '<button class="btn-secondary" data-action="baixar-selecionados" data-os-id="' + o.id + '">⬇ Baixar selecionados</button>' +
             '<button class="btn-secondary" data-action="baixar-os-pdf" data-os-id="' + o.id + '">📄 Baixar OS em um PDF (' + laudos.length + ')</button>' +
@@ -2422,6 +2455,17 @@
       baixarVariosPdfs(pontosDaOs, 'OS-' + (osRef ? osRef.numero : osIdTodos) + '_laudos.zip');
       return;
     }
+    var btnSev = e.target.closest('button[data-action^="sev-baixar-"]');
+    if (btnSev) {
+      var esc = btnSev.getAttribute('data-escopo');
+      var osIdSev = esc.replace(/^os/, '');
+      var osRefSev = ordensCache.find(function (o) { return o.id === osIdSev; });
+      var pontosOsSev = aplicarFiltroSeveridade(pontosCache.filter(function (p) { return p.osId === osIdSev; }));
+      baixarPorSev(esc, pontosOsSev, 'OS-' + (osRefSev ? osRefSev.numero : osIdSev) + '_por_criticidade', btnSev.getAttribute('data-action') === 'sev-baixar-pdf' ? 'pdf' : 'zip');
+      return;
+    }
+    var chkSev = e.target.closest('input.sev-check');
+    if (chkSev) { sevSel[chkSev.getAttribute('data-escopo') + '|' + chkSev.getAttribute('data-sev')] = chkSev.checked; return; }
     var btnSel = e.target.closest('button[data-action="baixar-selecionados"]');
     if (btnSel) {
       var osIdSel = btnSel.getAttribute('data-os-id');
