@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.30-3" />
+<meta name="app-version" content="2026.10.30-4" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -13,6 +13,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap">
 <style>
   :root {
     --azul: #1F3864;
@@ -156,7 +157,7 @@
     background: #1657D6; color: #fff; padding: 9px 14px; font-size: 13px;
   }
   .aviso-atualizacao button { background: #fff; color: #1657D6; padding: 6px 12px; font-size: 12.5px; border-radius: 8px; }
-  .sidebar-versao { margin-top: auto; padding: 10px 16px 4px; font-size: 11px; color: #8fa2c4; }
+  .sidebar-versao { margin-top: 0; padding: 10px 16px 4px; font-size: 11px; color: #8fa2c4; }
   .status-banco {
     background: #fdecea; color: #8a1c14; border-bottom: 1px solid #f5c2be;
     padding: 10px 14px; font-size: 13px; line-height: 1.45;
@@ -431,6 +432,57 @@
   }
   @media (min-width: 861px) { #fab-novo-laudo { right: calc(30px + env(safe-area-inset-right, 0px)); bottom: 30px; } }
   .dash-card.dash-ativo { outline: 3px solid var(--azul); outline-offset: 2px; transform: translateY(-2px); }
+  /* ===== Visual moderno (escuro com brilho) ===== */
+  :root { --glass: var(--cartao); --glass-borda: var(--borda); --bg-grad: var(--fundo); --glow: 0px; --fonte-num: 'Space Grotesk', -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --glass: rgba(255,255,255,.05); --glass-borda: rgba(255,255,255,.11); --glow: 20px;
+      --bg-grad: radial-gradient(900px 500px at 85% -10%, rgba(60,110,255,.30), transparent), radial-gradient(700px 500px at -5% 105%, rgba(255,102,0,.14), transparent), #070D1F;
+    }
+  }
+  :root[data-theme="dark"] {
+    --glass: rgba(255,255,255,.05); --glass-borda: rgba(255,255,255,.11); --glow: 20px;
+    --bg-grad: radial-gradient(900px 500px at 85% -10%, rgba(60,110,255,.30), transparent), radial-gradient(700px 500px at -5% 105%, rgba(255,102,0,.14), transparent), #070D1F;
+  }
+  body { background: var(--bg-grad) fixed; }
+  .app-content { background: transparent; }
+  .card { background: var(--glass); border: 1px solid var(--glass-borda); border-radius: 18px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: surgir .45s ease both; }
+  .sidebar { background: linear-gradient(180deg, rgba(16,32,70,.92), rgba(8,16,38,.96)); border-right: 1px solid var(--glass-borda); }
+  .nav-item { border-radius: 10px; margin: 0 8px; transition: background .15s, transform .15s; }
+  .nav-item:hover { transform: translateX(3px); }
+  .nav-item.active { background: linear-gradient(90deg, rgba(76,141,255,.45), rgba(76,141,255,.12)); box-shadow: inset 3px 0 0 #7CACFF; }
+  header { background: linear-gradient(90deg, #0F2A5C, #1F3864); border-bottom: 1px solid var(--glass-borda); }
+  .dash-card { position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,.14); border-radius: 16px; padding: 16px 8px 14px; transition: transform .2s ease, box-shadow .2s ease; animation: surgir .5s ease both; }
+  .dash-card:hover { transform: translateY(-5px); }
+  .dash-card:active { opacity: 1; transform: translateY(-2px) scale(.98); }
+  .dash-num, .dash-total .dash-num { font-family: var(--fonte-num); font-weight: 700; font-size: 30px; }
+  .dash-label { opacity: .9; letter-spacing: .08em; }
+  .dash-total { background: linear-gradient(135deg, #1E4FD8, #0F2A5C); box-shadow: 0 0 var(--glow) rgba(60,110,255,.45); padding: 20px 10px; }
+  .dash-total .dash-num { font-size: 56px; background: linear-gradient(90deg, #fff, #9CC0FF); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .dash-normal { box-shadow: 0 0 var(--glow) rgba(146,208,80,.55); }
+  .dash-observar { box-shadow: 0 0 var(--glow) rgba(255,230,0,.5); }
+  .dash-programar { box-shadow: 0 0 var(--glow) rgba(255,165,0,.55); }
+  .dash-urgencia { box-shadow: 0 0 var(--glow) rgba(255,102,0,.6); }
+  .dash-emergencia { box-shadow: 0 0 var(--glow) rgba(255,50,50,.6); }
+  .dash-prop { height: 5px; border-radius: 3px; background: rgba(0,0,0,.22); margin: 10px 6px 0; overflow: hidden; }
+  .dash-prop i { display: block; height: 100%; width: 0; background: currentColor; border-radius: 3px; transition: width .8s cubic-bezier(.2,.8,.2,1); opacity: .85; }
+  .dash-total .dash-prop { display: none; }
+  .dash-grid5 .dash-card:nth-child(2) { animation-delay: .05s; } .dash-grid5 .dash-card:nth-child(3) { animation-delay: .1s; }
+  .dash-grid5 .dash-card:nth-child(4) { animation-delay: .15s; } .dash-grid5 .dash-card:nth-child(5) { animation-delay: .2s; }
+  .ponto { background: var(--glass); border-color: var(--glass-borda); border-radius: 14px; transition: background .15s, border-color .15s, transform .15s; }
+  .ponto:hover { border-color: rgba(124,172,255,.55); transform: translateX(3px); }
+  .badge { font-weight: 700; padding: 4px 12px; border-radius: 999px; }
+  button { transition: transform .1s, filter .15s, background .15s; }
+  button:active { transform: scale(.97); }
+  .btn-secondary:hover { filter: brightness(1.15); }
+  .sync-status { margin: auto 16px 6px; font-size: 11.5px; color: #8fd6a8; display: flex; align-items: center; gap: 7px; }
+  .sync-status[hidden] { display: none; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #3DDC84; box-shadow: 0 0 8px #3DDC84; animation: pulsar 1.8s infinite; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .card h2 { color: #CFE0FF; } }
+  :root[data-theme="dark"] .card h2 { color: #CFE0FF; }
+  @keyframes pulsar { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+  @keyframes surgir { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
@@ -445,6 +497,7 @@
   <button class="nav-item" data-view="ordens">🗂 Ordens de Serviço</button>
   <button class="nav-item" data-view="empresas">🏢 Empresas</button>
   <button class="nav-item" data-view="laudos">📁 Laudos Salvos</button>
+  <div class="sync-status" id="sync-status" hidden><span class="sync-dot"></span>Sincronizado em tempo real</div>
   <div class="sidebar-versao">Versão <span id="versao-app"></span></div>
 </nav>
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
@@ -485,22 +538,27 @@
       <div class="dash-card dash-normal" data-severidade="normal">
         <div class="dash-num" id="dash-normal">0</div>
         <div class="dash-label">Normal</div>
+        <div class="dash-prop"><i id="prop-normal"></i></div>
       </div>
       <div class="dash-card dash-observar" data-severidade="observar">
         <div class="dash-num" id="dash-observar">0</div>
         <div class="dash-label">Observar</div>
+        <div class="dash-prop"><i id="prop-observar"></i></div>
       </div>
       <div class="dash-card dash-programar" data-severidade="programar">
         <div class="dash-num" id="dash-programar">0</div>
         <div class="dash-label">Programar</div>
+        <div class="dash-prop"><i id="prop-programar"></i></div>
       </div>
       <div class="dash-card dash-urgencia" data-severidade="urgencia">
         <div class="dash-num" id="dash-urgencia">0</div>
         <div class="dash-label">Urgência</div>
+        <div class="dash-prop"><i id="prop-urgencia"></i></div>
       </div>
       <div class="dash-card dash-emergencia" data-severidade="emergencia">
         <div class="dash-num" id="dash-emergencia">0</div>
         <div class="dash-label">Emergência</div>
+        <div class="dash-prop"><i id="prop-emergencia"></i></div>
       </div>
     </div>
   </div>
@@ -1650,7 +1708,11 @@
       cont[k]++;
     });
     animarNumero(document.getElementById('dash-total'), lista.length);
-    Object.keys(cont).forEach(function (k) { animarNumero(document.getElementById('dash-' + k), cont[k]); });
+    Object.keys(cont).forEach(function (k) {
+      animarNumero(document.getElementById('dash-' + k), cont[k]);
+      var pb = document.getElementById('prop-' + k);
+      if (pb) pb.style.width = (lista.length ? Math.max(cont[k] ? 4 : 0, Math.round(cont[k] / lista.length * 100)) : 0) + '%';
+    });
   }
 
   // ---------- Laudos salvos: lista geral com busca, filtros e seleção ----------
@@ -3606,6 +3668,7 @@
             });
             if (ordenarLocal) pontosCache.sort(function (a, b) { return (b.numero || 0) - (a.numero || 0); });
             limparErroBanco();
+            var se = document.getElementById('sync-status'); if (se) se.hidden = false;
             renderLista();
           } catch (innerErr) {
             console.error('Erro processando pontos:', innerErr);
@@ -3613,6 +3676,7 @@
           }
         }, function (err) {
           console.error('Erro de sincronização:', err);
+          var se2 = document.getElementById('sync-status'); if (se2) se2.hidden = true;
           mostrarErroBanco(err, 'carregar laudos');
           toast(MODO_CLIENTE ? ('Não foi possível carregar os laudos agora' + (err && err.message ? (': ' + err.message) : '') + '.') : 'Sincronização indisponível.');
           if (MODO_CLIENTE) {
