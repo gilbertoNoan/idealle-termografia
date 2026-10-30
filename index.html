@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.30-5" />
+<meta name="app-version" content="2026.10.30-6" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -484,6 +484,11 @@
   @keyframes pulsar { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
   @keyframes surgir { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  .nav-item { display: flex; align-items: center; gap: 12px; }
+  .nav-item .ico { width: 20px; height: 20px; flex: none; opacity: .85; transition: transform .2s, color .2s, opacity .2s; }
+  .nav-item:hover .ico { transform: scale(1.12); opacity: 1; }
+  .nav-item.active .ico { color: #7CACFF; opacity: 1; }
+  .card h2 .ico { width: 20px; height: 20px; flex: none; color: #7CACFF; }
 </style>
 </head>
 <body>
@@ -493,11 +498,11 @@
     <span class="h-logo"><img id="app-logo-img2" alt="IDEALLE"></span>
     <span class="sidebar-brand-text">IDEALLE</span>
   </div>
-  <button class="nav-item active" data-view="dashboard">📊 Dashboard</button>
-  <button class="nav-item" data-view="novo">📋 Novo Laudo</button>
-  <button class="nav-item" data-view="ordens">🗂 Ordens de Serviço</button>
-  <button class="nav-item" data-view="empresas">🏢 Empresas</button>
-  <button class="nav-item" data-view="laudos">📁 Laudos Salvos</button>
+  <button class="nav-item active" data-view="dashboard"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="9" rx="2"/><rect x="13.5" y="3" width="7.5" height="5.5" rx="2"/><rect x="13.5" y="12" width="7.5" height="9" rx="2"/><rect x="3" y="15.5" width="7.5" height="5.5" rx="2"/></svg><span>Dashboard</span></button>
+  <button class="nav-item" data-view="novo"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9 14h6"/></svg><span>Novo Laudo</span></button>
+  <button class="nav-item" data-view="ordens"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/></svg><span>Ordens de Serviço</span></button>
+  <button class="nav-item" data-view="empresas"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 10h1M14 10h1M9 14h1M14 14h1M10.5 21v-3.5h3V21"/></svg><span>Empresas</span></button>
+  <button class="nav-item" data-view="laudos"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>Laudos Salvos</span></button>
   <div class="sync-status" id="sync-status" hidden><span class="sync-dot"></span>Sincronizado em tempo real</div>
   <div class="sidebar-versao">Versão <span id="versao-app"></span></div>
 </nav>
@@ -524,7 +529,7 @@
 
   <section class="view" id="view-dashboard">
   <div class="card">
-    <h2>📊 Painel <span id="dash-cliente-nome" class="contador"></span></h2>
+    <h2><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="9" rx="2"/><rect x="13.5" y="3" width="7.5" height="5.5" rx="2"/><rect x="13.5" y="12" width="7.5" height="9" rx="2"/><rect x="3" y="15.5" width="7.5" height="5.5" rx="2"/></svg> Painel <span id="dash-cliente-nome" class="contador"></span></h2>
     <div class="dash-empresa-bar" id="dash-empresa-bar">
       <label for="dash-empresa">🏢 Empresa</label>
       <select id="dash-empresa"><option value="">Todas as empresas</option></select>
@@ -565,7 +570,7 @@
   </div>
 
   <div class="card" id="card-lista">
-    <h2 id="titulo-lista">📑 Pontos registrados <span class="contador" id="contador"></span></h2>
+    <h2 id="titulo-lista"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg> Pontos registrados <span class="contador" id="contador"></span></h2>
     <div id="lista"><div class="vazio">Nenhum ponto registrado ainda.</div></div>
   </div>
   </section>
@@ -573,7 +578,7 @@
   <section class="view" id="view-novo" style="display:none;">
   <div class="voltar-bar"><button class="btn-secondary btn-voltar-dashboard" type="button">← Voltar para o Dashboard</button></div>
   <div class="card" id="card-form">
-    <h2>📋 Novo ponto</h2>
+    <h2><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9 14h6"/></svg> Novo ponto</h2>
 
     <div class="subhead">Identificação</div>
     <label>Empresa</label>
@@ -701,7 +706,7 @@
     </div>
   </div>
   <div class="card" id="card-nova-empresa">
-    <h2 id="titulo-form-empresa">🏢 Nova empresa</h2>
+    <h2 id="titulo-form-empresa"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 10h1M14 10h1M9 14h1M14 14h1M10.5 21v-3.5h3V21"/></svg> Nova empresa</h2>
     <label>Nome da empresa</label>
     <input type="text" id="emp-nome" placeholder="Ex.: Fábrica ABC Ltda" />
     <div class="row2">
@@ -714,7 +719,7 @@
     <button class="btn-secondary" id="btn-cancelar-edicao-empresa" style="display:none; width:100%; margin-top:8px;">Cancelar edição</button>
   </div>
   <div class="card">
-    <h2 id="titulo-lista-empresas">📇 Empresas cadastradas <span class="contador" id="contador-empresas"></span></h2>
+    <h2 id="titulo-lista-empresas"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 10h1M14 10h1M9 14h1M14 14h1M10.5 21v-3.5h3V21"/></svg> Empresas cadastradas <span class="contador" id="contador-empresas"></span></h2>
     <div id="lista-empresas"><div class="vazio">Nenhuma empresa cadastrada ainda.</div></div>
   </div>
   </section>
@@ -723,14 +728,14 @@
   <div class="voltar-bar"><button class="btn-secondary btn-voltar-dashboard" type="button">← Voltar para o Dashboard</button></div>
   <div class="card" id="card-ordens-filtro" style="display:none;">
     <button class="btn-secondary" id="btn-voltar-empresas">← Voltar para Empresas</button>
-    <h2 style="margin-top:10px;">🗂 OS de <span id="ordens-filtro-nome"></span></h2>
+    <h2 style="margin-top:10px;"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/></svg> OS de <span id="ordens-filtro-nome"></span></h2>
     <div class="filtro-bar" id="ordens-filtro-severidade-bar" style="display:none;">
       <span>Mostrando só quadros: <span class="filtro-badge" id="filtro-ordens-badge"></span></span>
       <button class="btn-secondary" id="btn-limpar-filtro-ordens">✕ Limpar filtro</button>
     </div>
   </div>
   <div class="card" id="card-nova-os">
-    <h2>🗂 Nova ordem de serviço</h2>
+    <h2><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/></svg> Nova ordem de serviço</h2>
     <label>Empresa</label>
     <select id="os-empresa"><option value="">Selecione a empresa…</option></select>
     <p class="ajuda-campo" id="aviso-sem-empresa" style="display:none;">Cadastre uma empresa primeiro na aba "Empresas".</p>
@@ -743,7 +748,7 @@
     <button class="btn-primary" id="btn-salvar-os">Salvar OS</button>
   </div>
   <div class="card">
-    <h2 id="titulo-lista-ordens">📑 Ordens de serviço <span class="contador" id="contador-ordens"></span></h2>
+    <h2 id="titulo-lista-ordens"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg> Ordens de serviço <span class="contador" id="contador-ordens"></span></h2>
     <div id="lista-ordens"><div class="vazio">Nenhuma OS cadastrada ainda.</div></div>
   </div>
   </section>
@@ -751,7 +756,7 @@
   <section class="view" id="view-laudos" style="display:none;">
   <div class="voltar-bar"><button class="btn-secondary btn-voltar-dashboard" type="button">← Voltar para o Dashboard</button></div>
   <div class="card">
-    <h2>📁 Laudos salvos <span class="contador" id="contador-laudos-salvos"></span></h2>
+    <h2><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> Laudos salvos <span class="contador" id="contador-laudos-salvos"></span></h2>
     <input type="text" id="ls-busca" placeholder="🔎 Buscar por quadro, local, empresa, OS, tipo..." autocomplete="off" />
     <div class="row3">
       <div><label>Empresa</label><select id="ls-empresa"><option value="">Todas</option></select></div>
@@ -1858,7 +1863,7 @@
     });
     var tituloEl = document.getElementById('titulo-lista');
     if (tituloEl && MODO_CLIENTE) {
-      tituloEl.innerHTML = '📑 Laudos disponíveis' + (filtroCliente ? ' — ' + escapeHtml(SEVERIDADE_LABEL[filtroCliente] || '') + ' <button class="btn-secondary" id="btn-limpar-filtro-cliente" type="button" style="margin-left:6px;">✕ Mostrar todos</button>' : '') + ' <span class="contador" id="contador"></span>';
+      tituloEl.innerHTML = '<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg> Laudos disponíveis' + (filtroCliente ? ' — ' + escapeHtml(SEVERIDADE_LABEL[filtroCliente] || '') + ' <button class="btn-secondary" id="btn-limpar-filtro-cliente" type="button" style="margin-left:6px;">✕ Mostrar todos</button>' : '') + ' <span class="contador" id="contador"></span>';
     }
     var lista = document.getElementById('lista');
     var contador = document.getElementById('contador');
