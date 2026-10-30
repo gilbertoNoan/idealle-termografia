@@ -654,7 +654,7 @@
   function codID(n, ano) { return 'ID-' + pad(n, 4) + '/' + ano; }
   function codProposta(p) { return p.codigo || codID(p.numero, p.ano || ''); }
   function codOS(o) { return o.codigo || ('OS-' + o.numero); }
-  function codFatura(f) { return f.nf ? 'NF ' + f.nf : 'F-' + pad(f.numero, 4); }
+  function codFatura(f) { return (f.nf ? 'NF ' + f.nf : 'F-' + pad(f.numero, 4)) + (f.parcela ? ' (' + f.parcela + ')' : ''); }
   // Próximo número pela sequência Idealle (ID-0298/2026). Só conta propostas e OS com esse código:
   // OS criadas direto nos sistemas técnicos têm numeração própria e jogavam a sequência para ID-2027.
   function numeroID(x) { var m = /(\d{1,5})\/\d{4}\s*$/.exec(x.codigo || x.propostaCodigo || ''); return m ? parseInt(m[1], 10) : (x.ano ? parseInt(x.numero, 10) || 0 : 0); }
@@ -2234,53 +2234,86 @@
     return nP + ' propostas completadas, ' + nF + ' notas completadas, ' + nN + ' notas criadas e ' + nC + ' clientes completados.';
   }
 
-  // ===================== STATUS DAS NOTAS (CORES DA PLANILHA DE NOTAS) =====================
-  // Arquivo gerado a partir da cor das linhas da planilha de notas: azul = recebida, branca = a receber, vermelha = cancelada.
-  // Diferente do complemento, aqui o status muda; cada mudança aparece numa lista para conferir antes de gravar.
+  // ===================== STATUS DAS NOTAS E DAS OS (CORES DAS PLANILHAS) =====================
+  // Arquivo gerado a partir da cor das linhas: notas azul = recebida, branca = a receber, vermelha = cancelada;
+  // OS verde = nota enviada (faturada), branca = falta enviar nota. Diferente do complemento, aqui o status muda;
+  // cada mudança aparece numa lista para conferir antes de gravar.
+  // Recebimentos sem data real ficam "presumidos" e não entram no saldo dos bancos (o dinheiro já está no saldo informado).
+  function codigoOS(c) { var m = /(\d+)\s*\/\s*(\d{4})/.exec(String(c || '')); return m ? Number(m[1]) + '/' + m[2] : ''; }
   function planoStatusNotas(d) {
-    var porNF = {}, achadas = {}, mud = [], novas = [];
-    d.faturas.forEach(function (n) { (porNF[n.nf] = porNF[n.nf] || []).push(n); });
-    cache.faturas.forEach(function (f) {
-      var l = porNF[f.nf]; if (!f.nf || !l) return;
-      achadas[f.nf] = true;
-      // A mesma NF pode estar duas vezes (cancelada e reemitida com o mesmo número): vale a de valor mais próximo
-      var n = l.slice().sort(function (a, b) { return Math.abs(num(a.valor) - num(f.valor)) - Math.abs(num(b.valor) - num(f.valor)); })[0];
-      var u = {};
-      if (f.status !== n.status) {
-        u.status = n.status;
-        if (n.status === 'paga') { u.dataPagamento = f.dataPagamento || n.vencimento || f.vencimento || n.emissao || f.emissao || hoje(); if (!f.dataPagamento) u.recebimentoPresumido = true; }
-        if (n.status === 'pendente') { u.dataPagamento = ''; u.recebimentoPresumido = false; }
-      }
-      if (n.status !== 'cancelada' && !num(f.valor) && num(n.valor)) u.valor = n.valor;
-      // Recebida aqui no Cronos (com data e banco) e branca na planilha: pode ser que a planilha ainda não foi pintada
-      if (Object.keys(u).length) mud.push({ f: f, n: n, u: u, marcar: !(f.status === 'paga' && !f.recebimentoPresumido && n.status === 'pendente') });
+    var porNF = {}, mud = [], novas = [], h = hoje();
+    d.faturas.forEach(function (n) { (porNF[n.nf] = porNF[n.nf] || { p: [], c: [] }).p.push(n); });
+    cache.faturas.forEach(function (f) { if (f.nf && porNF[f.nf]) porNF[f.nf].c.push(f); });
+    var ultima = d.faturas.map(function (n) { return n.emissao || ''; }).sort().pop() || '';
+    Object.keys(porNF).forEach(function (nf) {
+      // Cada nota do Cronos fica com uma linha da planilha: mesmo vencimento primeiro (parcelas), depois o valor mais próximo
+      var g = porNF[nf], pares = [], usoP = {}, usoC = {};
+      g.c.forEach(function (f, i) { g.p.forEach(function (n, j) { pares.push([((n.vencimento || '') === (f.vencimento || '') ? 0 : 1e9) + Math.abs(num(n.valor) - num(f.valor)), i, j]); }); });
+      pares.sort(function (a, b) { return a[0] - b[0]; }).forEach(function (x) {
+        if (usoC[x[1]] || usoP[x[2]]) return; usoC[x[1]] = usoP[x[2]] = true;
+        var f = g.c[x[1]], n = g.p[x[2]], u = {};
+        if (f.status !== n.status) {
+          u.status = n.status;
+          if (n.status === 'paga') { if (!f.dataPagamento) { u.dataPagamento = [n.vencimento || f.vencimento || n.emissao || f.emissao || h, h].sort()[0]; u.recebimentoPresumido = true; } }
+          if (n.status === 'pendente') { u.dataPagamento = ''; u.recebimentoPresumido = false; }
+        }
+        if (n.status !== 'cancelada' && !num(f.valor) && num(n.valor)) u.valor = n.valor;
+        if (n.status === 'pendente' && !f.vencimento && n.vencimento) u.vencimento = n.vencimento;
+        if (n.parcela && f.parcela !== n.parcela) { u.parcela = n.parcela; if (n.vencimento && n.vencimento !== f.vencimento) u.vencimento = n.vencimento; }
+        // Recebida aqui no Cronos (com data e banco) e branca na planilha: pode ser que a planilha ainda não foi pintada
+        if (Object.keys(u).length) mud.push({ f: f, n: n, u: u, marcar: !(f.status === 'paga' && !f.recebimentoPresumido && n.status === 'pendente') });
+      });
+      g.p.forEach(function (n, j) { if (!usoP[j] && n.status !== 'cancelada') novas.push({ n: n, marcar: true }); });
     });
-    var vistas = {};
-    d.faturas.forEach(function (n) { if (!achadas[n.nf] && !vistas[n.nf] && n.status !== 'cancelada') { vistas[n.nf] = true; novas.push({ n: n, marcar: true }); } });
-    return { mud: mud, novas: novas };
+    // A receber no Cronos sem estar na planilha: as antigas passam a recebidas; as emitidas depois da planilha ficam desmarcadas
+    var fora = cache.faturas.filter(function (f) { return f.status === 'pendente' && !(f.nf && porNF[f.nf]); }).map(function (f) {
+      return { f: f, n: { nf: f.nf || '(sem nº)', status: 'paga', emissao: f.emissao, vencimento: f.vencimento }, fora: true,
+        u: { status: 'paga', dataPagamento: [f.vencimento || f.emissao || h, h].sort()[0], recebimentoPresumido: true }, marcar: !!(f.nf && f.emissao && f.emissao <= ultima) };
+    });
+    return { mud: mud.concat(fora), novas: novas, ultima: ultima };
+  }
+  var OS_PLANILHA = { faturada: 'Faturada', naofaturada: 'Falta enviar nota', cancelada: 'Cancelada' };
+  function planoStatusOS(d) {
+    var porCod = {}, res = [], vistas = {};
+    (d.ordens || []).forEach(function (o) { var k = o.numero + '/' + o.ano; (porCod[k] = porCod[k] || []).push(o); });
+    cache.ordens.forEach(function (o) {
+      var k = codigoOS(o.codigo), l = porCod[k]; if (!l) return; vistas[k] = true;
+      var p = l.filter(function (x) { return normal(x.empresaNome) === normal(o.empresaNome); })[0] || l[0], u = {};
+      if (p.status === 'faturada' && o.status !== 'faturada') { u.status = 'faturada'; if (!o.dataConclusao) u.dataConclusao = o.dataAbertura || ''; }
+      if (p.status === 'naofaturada' && o.status === 'faturada') u.status = 'concluida';
+      if (p.status === 'cancelada' && o.status !== 'cancelada') u.status = 'cancelada';
+      if (Object.keys(u).length) res.push({ o: o, p: p, u: u, marcar: true });
+    });
+    var faltam = Object.keys(porCod).filter(function (k) { return !vistas[k]; }).map(function (k) { return porCod[k][0].codigo; });
+    return { mud: res, faltam: faltam };
   }
   function conferirStatusNotas(d) {
-    var pl = planoStatusNotas(d), nomes = { paga: 'Recebida', pendente: 'A receber', cancelada: 'Cancelada' };
-    var grupos = [['paga', 'Passam a recebida'], ['pendente', 'Voltam para a receber'], ['cancelada', 'Passam a cancelada'], ['', 'Só o valor (estava zerado)']];
+    var pl = planoStatusNotas(d), po = planoStatusOS(d), nomes = { paga: 'Recebida', pendente: 'A receber', cancelada: 'Cancelada' };
+    var grupos = [['paga', 'Notas que passam a recebida'], ['pendente', 'Notas que voltam para a receber'], ['cancelada', 'Notas que passam a cancelada'], ['', 'Notas com valor ou parcela a acertar']];
     function linha(x, i, nova) {
       var f = x.f || {}, n = x.n;
-      return '<tr><td><input type="checkbox" data-st="' + (nova ? 'n' : 'm') + i + '"' + (x.marcar ? ' checked' : '') + ' style="width:auto"></td><td><b>' + esc(n.nf) + '</b><div class="muted">' + data(n.emissao) + '</div></td><td>' +
-        esc(nova ? n.clienteNome : nomeCliente(f.clienteId, f.clienteNome)) + '<div class="muted">' + esc(n.osCodigo || '') + '</div></td><td class="num">' + brl(x.u && x.u.valor || f.valor || n.valor) + '</td><td>' + data(n.vencimento || f.vencimento) + '</td><td>' +
+      return '<tr><td><input type="checkbox" data-st="' + (nova ? 'n' : 'm') + i + '"' + (x.marcar ? ' checked' : '') + ' style="width:auto"></td><td><b>' + esc(n.nf) + '</b>' + (n.parcela ? ' <span class="muted">parcela ' + esc(n.parcela) + '</span>' : '') + '<div class="muted">' + data(n.emissao) + '</div></td><td>' +
+        esc(nova ? n.clienteNome : nomeCliente(f.clienteId, f.clienteNome)) + '<div class="muted">' + esc(n.osCodigo || f.osCodigo || '') + '</div></td><td class="num">' + brl(x.u && x.u.valor || f.valor || n.valor) + '</td><td>' + data((x.u && x.u.vencimento) || n.vencimento || f.vencimento) + '</td><td>' +
         (nova ? 'não está no Cronos' : esc(nomes[f.status] || f.status) + (f.status === 'paga' && !f.recebimentoPresumido ? ' (marcada aqui' + (f.dataPagamento ? ' em ' + data(f.dataPagamento) : '') + ')' : f.recebimentoPresumido ? ' (presumida)' : '')) +
-        ' → <b>' + esc(nomes[n.status]) + '</b></td></tr>';
+        ' → <b>' + esc(nomes[n.status]) + '</b>' + (x.fora ? '<div class="muted">não está na planilha</div>' : '') + '</td></tr>';
+    }
+    function bloco(titulo, l, html, soma) {
+      return l.length ? '<details' + (l.length <= 15 ? ' open' : '') + '><summary><b>' + titulo + ' (' + l.length + ')</b>' + (soma != null ? ' · ' + brl(soma) : '') + '</summary><div class="tabela"><table><tbody>' + html + '</tbody></table></div></details>' : '';
     }
     var html = grupos.map(function (g) {
       var l = pl.mud.map(function (x, i) { return [x, i]; }).filter(function (p) { return (p[0].u.status || '') === g[0]; });
-      if (!l.length) return '';
-      return '<details' + (l.length <= 15 ? ' open' : '') + '><summary><b>' + g[1] + ' (' + l.length + ')</b> · ' + brl(l.reduce(function (s, p) { return s + num(p[0].u.valor || p[0].f.valor); }, 0)) + '</summary><div class="tabela"><table><tbody>' +
-        l.map(function (p) { return linha(p[0], p[1]); }).join('') + '</tbody></table></div></details>';
-    }).join('') + (pl.novas.length ? '<details open><summary><b>Notas da planilha que não estão no Cronos (' + pl.novas.length + ')</b> · entram com o status da planilha</summary><div class="tabela"><table><tbody>' +
-      pl.novas.map(function (x, i) { return linha(x, i, true); }).join('') + '</tbody></table></div></details>' : '');
+      return bloco(g[1], l, l.map(function (p) { return linha(p[0], p[1]); }).join(''), l.reduce(function (s, p) { return s + num(p[0].u.valor || p[0].f.valor); }, 0));
+    }).join('') + bloco('Notas da planilha que não estão no Cronos', pl.novas, pl.novas.map(function (x, i) { return linha(x, i, true); }).join(''), pl.novas.reduce(function (s, x) { return s + num(x.n.valor); }, 0)) +
+      bloco('Ordens de Serviço', po.mud, po.mud.map(function (x, i) {
+        return '<tr><td><input type="checkbox" data-st="o' + i + '" checked style="width:auto"></td><td><b>' + esc(x.o.codigo) + '</b></td><td>' + esc(nomeCliente(x.o.empresaId, x.o.empresaNome)) + '<div class="muted">' + esc(x.o.descricao || '') + '</div></td><td class="num">' + brl(x.o.valor) + '</td><td>' +
+          esc((STATUS.os[x.o.status] || [x.o.status])[0]) + ' → <b>' + esc((STATUS.os[x.u.status] || [x.u.status])[0]) + '</b><div class="muted">planilha: ' + esc(OS_PLANILHA[x.p.status]) + '</div></td></tr>';
+      }).join(''));
     var manuais = pl.mud.filter(function (x) { return !x.marcar; }).length;
-    abrirModal('<h3>Atualizar status das notas</h3><p class="muted">' + esc(d.fonte || '') + '</p>' +
-      (html || '<p>Nada a mudar: o status de todas as notas já está igual ao da planilha.</p>') +
-      (manuais ? '<p class="muted">' + manuais + ' nota(s) recebida(s) aqui no Cronos estão brancas na planilha e ficaram desmarcadas. Marque se quiser voltar para a receber.</p>' : '') +
-      '<p class="muted">Recebidas sem data de recebimento ficam com a data do vencimento, marcadas como presumidas, no banco principal. Ajuste no Faturamento se souber a data e o banco.</p>' +
+    abrirModal('<h3>Atualizar status das notas e das OS</h3><p class="muted">' + esc(d.fonte || '') + '</p>' +
+      (html || '<p>Nada a mudar: notas e OS já estão iguais às planilhas.</p>') +
+      (manuais ? '<p class="muted">' + manuais + ' nota(s) ficaram desmarcadas: recebidas aqui no Cronos mas brancas na planilha, ou a receber no Cronos e emitidas depois da última nota da planilha (' + data(pl.ultima) + '). Marque as que quiser mudar.</p>' : '') +
+      '<p class="muted">Recebidas sem data ficam com a data do vencimento, marcadas como presumidas, e não somam no saldo dos bancos: esse dinheiro já está no saldo que você informa em Financeiro › Bancos e categorias.</p>' +
+      (po.faltam.length ? '<details><summary>OS da planilha que não estão no Cronos (' + po.faltam.length + ')</summary><div class="muted">' + esc(po.faltam.join(' · ')) + '</div></details>' : '') +
       (d.avisos.length ? '<details><summary>Avisos (' + d.avisos.length + ')</summary><div class="muted">' + d.avisos.map(function (a) { return '<div>' + esc(a) + '</div>'; }).join('') + '</div></details>' : '') +
       '<p id="imp-progresso" class="muted"></p>' +
       '<div class="acoes">' + (html ? '<button class="btn ok" id="imp-ok">Atualizar marcadas</button>' : '') + '<button class="btn sec" id="imp-cancelar">' + (html ? 'Cancelar' : 'Fechar') + '</button></div>');
@@ -2288,31 +2321,33 @@
     if (!html) return;
     $('imp-ok').onclick = async function () {
       var sel = {}; $('modal').querySelectorAll('[data-st]').forEach(function (c) { sel[c.dataset.st] = c.checked; });
-      var mud = pl.mud.filter(function (x, i) { return sel['m' + i]; }), novas = pl.novas.filter(function (x, i) { return sel['n' + i]; });
+      var mud = pl.mud.filter(function (x, i) { return sel['m' + i]; }), novas = pl.novas.filter(function (x, i) { return sel['n' + i]; }), os = po.mud.filter(function (x, i) { return sel['o' + i]; });
       this.disabled = true; $('imp-cancelar').disabled = true; importando = true;
       try {
-        var r = await executarStatusNotas(mud, novas, function (msg) { $('imp-progresso').textContent = msg; });
-        $('imp-progresso').textContent = 'Concluído: ' + r; toast('Status das notas atualizado.');
+        var r = await executarStatusNotas(mud, novas, os, function (msg) { $('imp-progresso').textContent = msg; });
+        $('imp-progresso').textContent = 'Concluído: ' + r; toast('Status atualizado.');
       } catch (e) { console.error(e); $('imp-progresso').textContent = 'Parou: ' + (e.message || e) + '. Pode rodar de novo: só o que ainda está diferente muda.'; }
       importando = false; renderTudo();
       $('imp-cancelar').disabled = false; $('imp-cancelar').textContent = 'Fechar';
     };
   }
-  async function executarStatusNotas(mud, novas, aviso) {
-    var nM = 0, nN = 0, porNomeCli = {};
+  async function executarStatusNotas(mud, novas, os, aviso) {
+    var nM = 0, nN = 0, nO = 0, porNomeCli = {}, h = hoje();
     cache.empresas.forEach(function (c) { porNomeCli[normal(c.nome)] = c; });
     await emLotes(mud, async function (x) { var u = Object.assign({}, x.u, { updatedAt: agora() }); await banco.atualizar('faturas', x.f.id, u); nM++; }, aviso, 'Notas atualizadas');
     var seq = proximoNumero(cache.faturas, 'numero');
     await emLotes(novas, async function (x) {
       var n = x.n, cli = porNomeCli[normal(n.clienteNome)] || porNomeCli[normal(n.clienteNomeNF)] || null;
-      var os = cache.ordens.filter(function (o) { return Number(o.numero) === Number(n.osNumero) && String(o.codigo || '').indexOf('/' + n.osAno) >= 0; })[0];
-      var doc = { numero: seq++, nf: n.nf, clienteId: cli ? cli.id : (os ? os.empresaId : ''), clienteNome: cli ? cli.nome : (os ? os.empresaNome : n.clienteNome), osId: os ? os.id : '', osNumero: n.osNumero, osCodigo: n.osCodigo,
-        descricao: os ? os.descricao || '' : '', pedido: n.pedido || '', valor: n.valor || 0, emissao: n.emissao || '', vencimento: n.vencimento || '', status: n.status, origem: 'planilha', createdAt: agora() };
-      if (n.status === 'paga') { doc.dataPagamento = n.vencimento || n.emissao || hoje(); doc.recebimentoPresumido = true; }
+      var o = cache.ordens.filter(function (o) { return codigoOS(o.codigo) === n.osNumero + '/' + n.osAno; })[0];
+      var doc = { numero: seq++, nf: n.nf, clienteId: cli ? cli.id : (o ? o.empresaId : ''), clienteNome: cli ? cli.nome : (o ? o.empresaNome : n.clienteNome), osId: o ? o.id : '', osNumero: n.osNumero, osCodigo: n.osCodigo,
+        descricao: o ? o.descricao || '' : '', pedido: n.pedido || '', valor: n.valor || 0, emissao: n.emissao || '', vencimento: n.vencimento || '', status: n.status, origem: 'planilha', createdAt: agora() };
+      if (n.parcela) doc.parcela = n.parcela;
+      if (n.status === 'paga') { doc.dataPagamento = [n.vencimento || n.emissao || h, h].sort()[0]; doc.recebimentoPresumido = true; }
       var fid = await banco.criar('faturas', doc); nN++;
-      if (os && !os.faturaId) await banco.atualizar('ordens', os.id, { faturaId: fid });
+      if (o && !o.faturaId) await banco.atualizar('ordens', o.id, { faturaId: fid });
     }, aviso, 'Notas criadas');
-    return nM + ' notas atualizadas e ' + nN + ' criadas.';
+    await emLotes(os, async function (x) { await banco.atualizar('ordens', x.o.id, Object.assign({}, x.u, { updatedAt: agora() })); nO++; }, aviso, 'OS atualizadas');
+    return nM + ' notas atualizadas, ' + nN + ' notas criadas e ' + nO + ' OS atualizadas.';
   }
 
   // ===================== FINANÇAS =====================
@@ -2382,8 +2417,9 @@
     });
     return m;
   }
-  // O saldo de um banco é o saldo informado no início do dia "dataSaldo" mais o que entrou e saiu dali em diante
-  function noCaixa(x) { if (!x.pagamento || !x.contaId) return false; var c = porId('contas', x.contaId); return !!c && x.pagamento >= (c.dataSaldo || ''); }
+  // O saldo de um banco é o saldo informado no início do dia "dataSaldo" mais o que entrou e saiu dali em diante.
+  // Recebimento presumido (nota antiga marcada recebida sem data real) não soma: esse dinheiro já está no saldo informado.
+  function noCaixa(x) { if (!x.pagamento || !x.contaId || x.presumido) return false; var c = porId('contas', x.contaId); return !!c && x.pagamento >= (c.dataSaldo || ''); }
   function saldoConta(c, ate, M) {
     return num(c.saldoInicial) + M.filter(function (x) { return x.contaId === c.id && noCaixa(x) && (!ate || x.pagamento <= ate); }).reduce(function (s, x) { return s + x.sentido * x.valor; }, 0);
   }
