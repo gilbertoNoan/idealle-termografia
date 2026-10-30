@@ -1450,7 +1450,7 @@
     var html = '<div class="pq">' +
       '<p class="pq-data">' + esc(EMPRESA.cidade) + ', ' + dt + '.</p>' +
       '<p class="pq-dest">À<br>' + esc(c.nome) + (c.cnpj ? '<br>CNPJ ' + esc(c.cnpj) : '') + (c.endereco ? '<br>' + esc(c.endereco) : '') +
-        (c.cidade || c.uf ? '<br>' + esc([c.cidade, c.uf].filter(Boolean).join('- ')) : '') + (c.cep ? '<br>' + esc(c.cep) : '') + '</p>' +
+        (c.cidade || c.uf ? '<br>' + esc([c.cidade, c.uf].filter(Boolean).join(' - ')) : '') + (c.cep ? '<br>' + esc(c.cep) : '') + '</p>' +
       (c.contato ? '<div class="pq-lin"><span>At.:</span><div>' + esc(String(c.contato).toUpperCase()) + (c.email ? '<br><span style="font-weight:normal">' + esc(c.email) + '</span>' : '') + '</div></div>' : '') +
       '<div class="pq-lin"><span>REF.:</span><div>' + esc((p.ref || ('PROPOSTA PARA A PRESTAÇÃO DE SERVIÇOS DE ' + p.titulo)).toUpperCase()) + '</div></div>' +
       '<div class="pq-lin"><span>N/REF.:</span><div>' + codProposta(p) + (p.rev ? ' Rev. ' + p.rev : '') + '</div></div>' +
@@ -2158,7 +2158,9 @@
     await emLotes(d.clientes, async function (c) {
       var ex = porNome[normal(c.nome)] || (c.grafiasAntigas || []).map(function (g) { return porNome[normal(g)]; }).filter(Boolean)[0];
       if (ex) {
-        var upd = { contatos: c.contatos || [], updatedAt: agora() };
+        var upd = { updatedAt: agora() };
+        // arquivo só com endereços (sem contatos) não apaga os contatos do cadastro
+        if (c.contatos) upd.contatos = c.contatos;
         ['contato', 'email', 'telefone', 'cnpj'].forEach(function (k) { if (!ex[k] && c[k]) upd[k] = c[k]; });
         // endereço entra como bloco (rua, cidade, UF, CEP) quando o cadastro ainda não tem rua: corrige cidade/UF soltas como "SP"
         if (c.endereco && !ex.endereco) ['endereco', 'cidade', 'uf', 'cep'].forEach(function (k) { if (c[k]) upd[k] = c[k]; });
