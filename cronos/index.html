@@ -2159,12 +2159,14 @@
       var ex = porNome[normal(c.nome)] || (c.grafiasAntigas || []).map(function (g) { return porNome[normal(g)]; }).filter(Boolean)[0];
       if (ex) {
         var upd = { contatos: c.contatos || [], updatedAt: agora() };
-        ['contato', 'email', 'telefone'].forEach(function (k) { if (!ex[k] && c[k]) upd[k] = c[k]; });
+        ['contato', 'email', 'telefone', 'cnpj'].forEach(function (k) { if (!ex[k] && c[k]) upd[k] = c[k]; });
+        // endereço entra como bloco (rua, cidade, UF, CEP) quando o cadastro ainda não tem rua: corrige cidade/UF soltas como "SP"
+        if (c.endereco && !ex.endereco) ['endereco', 'cidade', 'uf', 'cep'].forEach(function (k) { if (c[k]) upd[k] = c[k]; });
         if (!ex.codigo) upd.codigo = 'CLI-' + pad(++codN, 4);
         await banco.atualizar('empresas', ex.id, upd);
         idCliente[c.nome] = ex.id;
       } else {
-        var doc = { nome: c.nome, codigo: 'CLI-' + pad(++codN, 4), contato: c.contato || '', email: c.email || '', telefone: c.telefone || '', contatos: c.contatos || [], origem: 'planilha', createdAt: agora(), updatedAt: agora() };
+        var doc = { nome: c.nome, codigo: 'CLI-' + pad(++codN, 4), contato: c.contato || '', email: c.email || '', telefone: c.telefone || '', contatos: c.contatos || [], cnpj: c.cnpj || '', endereco: c.endereco || '', cidade: c.cidade || '', uf: c.uf || '', cep: c.cep || '', origem: 'planilha', createdAt: agora(), updatedAt: agora() };
         idCliente[c.nome] = await banco.criar('empresas', doc); criados.clientes++;
       }
     }, aviso, 'Clientes');
