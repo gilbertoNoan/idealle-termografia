@@ -1480,8 +1480,8 @@
     var dt = dataExtenso(p.data).replace(/^(\d) /, '0$1 ').replace(/ de (\S)/, function (m, l) { return ' de ' + l.toUpperCase(); });
     var html = '<div class="pq">' +
       '<p class="pq-data">' + esc(EMPRESA.cidade) + ', ' + dt + '.</p>' +
-      '<p class="pq-dest">À<br>' + esc(c.nome) + (c.cnpj ? '<br>CNPJ ' + esc(c.cnpj) : '') + (c.endereco ? '<br>' + esc(c.endereco) : '') +
-        (c.cidade || c.uf ? '<br>' + esc([c.cidade, c.uf].filter(Boolean).join(' - ')) : '') + (c.cep ? '<br>' + esc(c.cep) : '') + '</p>' +
+      '<p class="pq-dest">À<br>' + esc(c.nome) + (c.endereco ? '<br>' + esc(c.endereco) : '') +
+        (c.cidade || c.uf ? '<br>' + esc([c.cidade, c.uf].filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join(' - ')) : '') + (c.cep ? '<br>' + esc(c.cep) : '') + '</p>' +
       (c.contato ? '<div class="pq-lin"><span>At.:</span><div>' + esc(String(c.contato).toUpperCase()) + (c.setor ? '<br>' + esc(String(c.setor).toUpperCase()) : '') + '</div></div>' : '') +
       '<div class="pq-lin"><span>REF.:</span><div>' + esc((p.ref || ('PROPOSTA PARA A PRESTAÇÃO DE SERVIÇOS DE ' + p.titulo)).toUpperCase()) + '</div></div>' +
       '<div class="pq-lin"><span>N/REF.:</span><div>' + codProposta(p) + ' – Rev.' + pad(p.rev || 0, 2) + '</div></div>' +
