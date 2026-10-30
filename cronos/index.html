@@ -1515,25 +1515,42 @@
 
   function formOS(o) {
     o = o || {};
+    var f = o.faturaId ? porId('faturas', o.faturaId) : null, temConclusao = ['concluida', 'faturada'].indexOf(statusOS(o)) >= 0;
     abrirModal('<h3>' + (o.id ? 'Editar OS ' + esc(codOS(o)) : 'Nova OS (sem proposta)') + '</h3>' +
       '<label>Cliente *</label><select id="o-cliente">' + opcoesClientes(o.empresaId) + '</select>' +
       '<label>Descrição do serviço *</label><input id="o-desc" value="' + esc(o.descricao) + '">' +
       '<div class="linha"><div><label>Abertura</label><input id="o-abertura" type="date" value="' + esc(o.dataAbertura || hoje()) + '"></div><div><label>Prazo</label><input id="o-prazo" type="date" value="' + esc(o.prazo) + '"></div><div><label>Responsável</label><input id="o-resp" value="' + esc(o.responsavel) + '"></div></div>' +
-      '<div class="linha"><div><label>Sistema de execução</label><select id="o-sistema">' + opcoesSistemas(o.sistema) + '</select></div><div><label>Valor (R$)</label><input id="o-valor" inputmode="decimal" value="' + esc(o.valor != null ? String(o.valor).replace('.', ',') : '') + '"></div></div>' +
+      '<div class="linha"><div><label>Sistema de execução</label><select id="o-sistema">' + opcoesSistemas(o.sistema) + '</select></div><div><label>Valor (R$)</label><input id="o-valor" inputmode="decimal" value="' + esc(o.valor != null ? String(o.valor).replace('.', ',') : '') + '"></div>' +
+      (temConclusao ? '<div><label>Concluída em</label><input id="o-conclusao" type="date" value="' + esc(o.dataConclusao) + '"></div>' : '') + '</div>' +
+      (f ? '<label>Fatura desta OS</label><div class="linha"><div><label>Nº da nota fiscal</label><input id="o-nf" value="' + esc(f.nf) + '" placeholder="Sem NF ainda"></div><div><label>Valor da fatura (R$)</label><input id="o-fvalor" inputmode="decimal" value="' + esc(f.valor != null ? String(f.valor).replace('.', ',') : '') + '"></div><div><label>Vencimento</label><input id="o-fvenc" type="date" value="' + esc(f.vencimento) + '"></div></div>' +
+        '<div class="muted" style="font-size:.8em">Cliente e serviço da fatura acompanham a OS. Se mudar só o valor da OS, o sistema pergunta se a fatura muda junto.</div>' : '') +
       '<label>Serviços desta OS</label><div style="display:flex;flex-wrap:wrap;gap:6px 18px">' + SERVICOS_OS.map(function (sv) {
         return '<label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:normal"><input type="checkbox" id="o-sv-' + sv[0] + '" style="width:auto"' + (o.servicos && o.servicos[sv[0]] ? ' checked' : '') + '> ' + esc(sv[1]) + '</label>';
       }).join('') + '</div><div class="muted" style="font-size:.8em">Os sistemas mostram o que falta em cada TAG conforme o que estiver marcado aqui.</div>' +
       '<label>Observações</label><textarea id="o-obs">' + esc(o.obs) + '</textarea>' +
       '<div class="acoes"><button class="btn" id="o-salvar">Salvar</button><button class="btn sec" id="o-cancelar">Cancelar</button></div>');
-    $('o-cancelar').onclick = fecharModal;
+    $('o-cancelar').onclick = function () { if (o.id) verOS(o.id); else fecharModal(); };
     $('o-salvar').onclick = async function () {
       var cid = $('o-cliente').value;
       if (!cid) { toast('Selecione o cliente.'); return; }
       if (!$('o-desc').value.trim()) { toast('Descreva o serviço.'); return; }
       var d = { empresaId: cid, empresaNome: nomeCliente(cid), descricao: $('o-desc').value.trim(), dataAbertura: $('o-abertura').value, prazo: $('o-prazo').value, responsavel: $('o-resp').value.trim(), sistema: $('o-sistema').value, valor: $('o-valor').value.trim() ? num($('o-valor').value) : null, obs: $('o-obs').value.trim(), updatedAt: agora() };
       d.servicos = {}; SERVICOS_OS.forEach(function (sv) { d.servicos[sv[0]] = $('o-sv-' + sv[0]).checked; });
-      if (o.id) await salvar(function () { return banco.atualizar('ordens', o.id, d); }, 'OS atualizada.');
-      else { d.numero = proximoID(); d.codigo = codID(d.numero, (d.dataAbertura || hoje()).slice(0, 4)); d.status = 'aberta'; d.createdAt = agora(); await salvar(function () { return banco.criar('ordens', d); }, 'OS ' + d.codigo + ' aberta.'); }
+      if ($('o-conclusao')) d.dataConclusao = $('o-conclusao').value;
+      if (o.id) {
+        var df = null;
+        if (f) {
+          var nf = $('o-nf').value.trim(), fv = $('o-fvalor').value.trim() ? num($('o-fvalor').value) : f.valor;
+          if (nf && nf !== (f.nf || '') && cache.faturas.some(function (x) { return x.nf === nf && x.id !== f.id; }) && !confirm('Já existe outra fatura com a NF ' + nf + '. Salvar mesmo assim?')) return;
+          df = { clienteId: d.empresaId, clienteNome: d.empresaNome, descricao: d.descricao, nf: nf, valor: fv, vencimento: $('o-fvenc').value, updatedAt: agora() };
+          if (fv === f.valor && d.valor != null && d.valor !== o.valor && d.valor !== f.valor && confirm('O valor da OS mudou para ' + brl(d.valor) + '.\n\nAtualizar também a fatura ' + codFatura(f) + ' (hoje ' + brl(f.valor) + ')?')) df.valor = d.valor;
+        }
+        await salvar(async function () {
+          await banco.atualizar('ordens', o.id, d);
+          if (df) await banco.atualizar('faturas', f.id, df);
+        }, 'OS atualizada.');
+        verOS(o.id); return;
+      } else { d.numero = proximoID(); d.codigo = codID(d.numero, (d.dataAbertura || hoje()).slice(0, 4)); d.status = 'aberta'; d.createdAt = agora(); await salvar(function () { return banco.criar('ordens', d); }, 'OS ' + d.codigo + ' aberta.'); }
       fecharModal();
     };
   }
@@ -1546,7 +1563,7 @@
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn ok" id="ov-concluir">Concluir serviço</button>');
     if (st !== 'cancelada' && (st === 'faturada' ? f && !f.nf : !(f && f.nf))) b.push('<button class="btn ok" id="ov-nota">Preparar nota fiscal</button>');
     if (st === 'concluida') b.push('<button class="btn sec" id="ov-faturar">Faturar sem preparar</button>');
-    if (st !== 'faturada') b.push('<button class="btn sec" id="ov-editar">Editar</button>');
+    b.push('<button class="btn sec" id="ov-editar">Editar</button>');
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn perigo" id="ov-cancelar">Cancelar OS</button>');
     if (st === 'cancelada') b.push('<button class="btn sec" id="ov-reabrir">Reabrir</button>');
     b.push('<button class="btn perigo" id="ov-excluir">Excluir OS</button>', '<button class="btn sec" id="ov-fechar">Fechar</button>');
