@@ -37,6 +37,11 @@ No Painel, botão **Importar planilhas antigas** → escolha o arquivo `importac
 O Cronos mostra um resumo para conferir antes de gravar. Rodar de novo não duplica nada.
 O arquivo tem dados de clientes: não coloque no GitHub.
 
+**Status das notas pela cor da planilha.** O arquivo `status-notas-idealle.json` (gerado pela cor das linhas da planilha de notas:
+azul = recebida, branca = a receber, vermelha = cancelada) entra pelo mesmo botão. Diferente do complemento, ele muda o status:
+o Cronos lista cada nota que vai mudar (de → para) para conferir e desmarcar antes de gravar. Notas recebidas aqui no Cronos
+que estão brancas na planilha vêm desmarcadas. Recebidas sem data ficam com a do vencimento, marcadas como presumidas.
+
 ## Modelos de proposta
 Menu **Modelos**: textos e itens com preço prontos por tipo de serviço (NR-13 periódica, reconstituição
 de prontuário, calibração, tubulação de gás, tanque de combustível, termografia). Os modelos da Idealle
