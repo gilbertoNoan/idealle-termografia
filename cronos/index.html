@@ -1642,16 +1642,25 @@
   function formFatura(o) {
     var ja = faturadoOS(o), saldo = o.valor != null ? saldoOS(o) : null, sugerido = ja && saldo != null ? saldo : o.valor;
     abrirModal('<h3>Faturar OS ' + esc(codOS(o)) + '</h3><div>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + ' · ' + esc(o.descricao || '') + '</div>' +
-      (o.valor != null ? '<div class="aviso" style="margin-top:8px">Valor da OS: <b>' + brl(o.valor) + '</b>' + (ja ? ' · já faturado: <b>' + brl(ja) + '</b> · saldo: <b>' + brl(saldo) + '</b>' : '') + '. Para faturar só uma parte, digite o valor desta fatura: a OS fica <b>Faturada parcial</b> até o total ser faturado.</div>' : '') +
-      (o.valor ? '<div class="acoes" style="margin:0">' + [['Metade', 0.5], ['Saldo todo', 1]].map(function (x) { return '<button class="btn sec peq" data-fa-parte="' + x[1] + '">' + x[0] + '</button>'; }).join('') + '</div>' : '') +
+      (o.valor != null ? '<div class="aviso" style="margin-top:8px">Valor da OS: <b>' + brl(o.valor) + '</b>' + (ja ? ' · já faturado: <b>' + brl(ja) + '</b> · saldo a faturar: <b>' + brl(saldo) + '</b>' : '') + '</div>' : '') +
+      (o.valor ? '<label>Como faturar</label><div style="display:flex;flex-wrap:wrap;gap:8px 20px;margin-bottom:4px">' +
+        '<label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:normal"><input type="radio" name="fa-modo" value="total" style="width:auto" checked> ' + (ja ? 'Faturar o saldo (' + brl(saldo) + ')' : 'Faturar o valor total (' + brl(o.valor) + ')') + '</label>' +
+        '<label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:normal"><input type="radio" name="fa-modo" value="parcial" style="width:auto"> <b>Faturar parcialmente</b> (digitar o valor)</label></div>' +
+        '<div id="fa-parcial-dica" class="muted" style="display:none;font-size:.85em">Digite abaixo o valor desta fatura' + (ja ? '' : ' (<a href="#" id="fa-metade">usar metade: ' + brl(Math.round(num(o.valor) * 50) / 100) + '</a>)') + '. A OS fica <b>Faturada parcial</b> até faturar o total.</div>' : '') +
       '<div class="linha"><div><label>Valor desta fatura (R$) *</label><input id="fa-valor" inputmode="decimal" value="' + esc(sugerido != null ? String(sugerido).replace('.', ',') : '') + '"></div><div><label>Emissão</label><input id="fa-emissao" type="date" value="' + hoje() + '"></div><div><label>Vencimento</label><input id="fa-venc" type="date" value="' + somarDias(hoje(), 30) + '"></div></div>' +
       '<div class="linha"><div><label>Nº da nota fiscal</label><input id="fa-nf"></div><div><label>Forma de pagamento</label><select id="fa-forma"><option>Boleto</option><option>PIX</option><option>Transferência</option><option>Outro</option></select></div></div>' +
       '<label>Observações</label><textarea id="fa-obs"></textarea>' +
       '<div class="acoes"><button class="btn ok" id="fa-salvar">Gerar fatura</button><button class="btn sec" id="fa-cancelar">Cancelar</button></div>');
     $('fa-cancelar').onclick = function () { verOS(o.id); };
-    document.querySelectorAll('[data-fa-parte]').forEach(function (bt) {
-      bt.onclick = function () { var x = parseFloat(bt.dataset.faParte), v = x === 1 ? saldo : Math.round(num(o.valor) * x * 100) / 100; $('fa-valor').value = String(Math.min(v, saldo)).replace('.', ','); };
+    document.querySelectorAll('input[name="fa-modo"]').forEach(function (rd) {
+      rd.onchange = function () {
+        var parc = rd.value === 'parcial' && rd.checked;
+        $('fa-parcial-dica').style.display = parc ? '' : 'none';
+        $('fa-valor').value = parc ? '' : String(saldo).replace('.', ',');
+        if (parc) $('fa-valor').focus();
+      };
     });
+    if ($('fa-metade')) $('fa-metade').onclick = function (e) { e.preventDefault(); $('fa-valor').value = String(Math.round(num(o.valor) * 50) / 100).replace('.', ','); };
     $('fa-salvar').onclick = async function () {
       var v = num($('fa-valor').value); if (!v) { toast('Informe o valor.'); return; }
       if (saldo != null && v > saldo + 0.01 && !confirm('O valor ' + brl(v) + ' passa do saldo a faturar (' + brl(saldo) + '). Gerar mesmo assim?')) return;
