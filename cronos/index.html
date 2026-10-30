@@ -444,7 +444,7 @@
   function pad(n, t) { n = String(n); while (n.length < t) n = '0' + n; return n; }
 
   var STATUS = {
-    proposta: { rascunho: ['Rascunho', 't-gray'], enviada: ['Enviada', 't-blue'], aprovada: ['Aprovada', 't-ok'], recusada: ['Recusada', 't-bad'], semretorno: ['Sem retorno', 't-gray'] },
+    proposta: { rascunho: ['Rascunho', 't-gray'], enviada: ['Enviada', 't-blue'], aprovada: ['Aprovada', 't-ok'], recusada: ['Recusada', 't-bad'], perdida: ['Perdida', 't-warn'], semretorno: ['Sem retorno', 't-gray'] },
     os: { aberta: ['Aberta', 't-blue'], execucao: ['Em execução', 't-warn'], concluida: ['Concluída', 't-ok'], faturada: ['Faturada', 't-gray'], cancelada: ['Cancelada', 't-bad'] },
     fatura: { pendente: ['A receber', 't-warn'], paga: ['Recebida', 't-ok'], cancelada: ['Cancelada', 't-bad'] }
   };
@@ -1245,7 +1245,7 @@
   // Duplicar (proposta atual ou revisão anterior): proposta nova, com número novo e sem OS, mesmo cliente, itens, textos e cálculo
   function duplicarProposta(v) {
     var c = JSON.parse(JSON.stringify(v));
-    ['id', 'osId', 'numero', 'ano', 'status', 'codigo', 'rev', 'revisoes', 'motivoRevisao', 'motivo', 'guardadaEm', 'createdAt', 'enviadaEm', 'aprovadaEm', 'recusadaEm', 'motivoRecusa'].forEach(function (k) { delete c[k]; });
+    ['id', 'osId', 'numero', 'ano', 'status', 'codigo', 'rev', 'revisoes', 'motivoRevisao', 'motivo', 'guardadaEm', 'createdAt', 'enviadaEm', 'aprovadaEm', 'recusadaEm', 'motivoRecusa', 'perdidaEm', 'motivoPerda'].forEach(function (k) { delete c[k]; });
     c.data = hoje(); c.validade = somarDias(hoje(), v.data && v.validade ? diasEntre(v.data, v.validade) : 30);
     formProposta(c);
     toast('Cópia de ' + codRev(v) + ': confira e salve para criar a proposta nova.');
@@ -1284,8 +1284,8 @@
     var botoes = [];
     if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn ok" id="pv-aprovar">Aprovada pelo cliente → gerar OS</button>');
     if (p.status === 'rascunho') botoes.push('<button class="btn" id="pv-enviar">Marcar como enviada</button>');
-    if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn sec" id="pv-editar">Editar</button>', '<button class="btn perigo" id="pv-recusar">Recusada</button>');
-    if (p.status === 'recusada' || p.status === 'semretorno') botoes.push('<button class="btn sec" id="pv-reabrir">Reabrir</button>');
+    if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn sec" id="pv-editar">Editar</button>', '<button class="btn perigo" id="pv-recusar">Recusada</button>', '<button class="btn perigo" id="pv-perder">Perdida</button>');
+    if (['recusada', 'perdida', 'semretorno'].indexOf(p.status) >= 0) botoes.push('<button class="btn sec" id="pv-reabrir">Reabrir</button>');
     if (p.status !== 'aprovada') botoes.push('<button class="btn" id="pv-revisao">Nova revisão (Rev. ' + ((p.rev || 0) + 1) + ')</button>');
     botoes.push('<button class="btn sec" id="pv-ver-pdf">Ver PDF</button>', '<button class="btn sec" id="pv-imprimir">Baixar PDF</button>', '<button class="btn sec" id="pv-imprimir-valores">Baixar PDF com valor por item</button>');
     if (p.calculo) botoes.push('<button class="btn sec" id="pv-calculo">Baixar memória de cálculo</button>');
@@ -1296,6 +1296,8 @@
     abrirModal('<h3>' + codRev(p) + ' ' + tag('proposta', p.status) + '</h3>' +
       '<div><b>' + esc(nomeCliente(p.clienteId, p.clienteNome)) + '</b></div><div>' + esc(p.titulo) + '</div>' +
       '<div class="muted">Data ' + data(p.data) + ' · validade ' + data(p.validade) + (p.sistema ? ' · executa em ' + esc(p.sistema) : '') + '</div>' +
+      (p.status === 'recusada' && p.motivoRecusa ? '<div class="muted">Motivo da recusa: ' + esc(p.motivoRecusa) + '</div>' : '') +
+      (p.status === 'perdida' ? '<div class="muted">Perdida' + (p.perdidaEm ? ' em ' + data(String(p.perdidaEm).slice(0, 10)) : '') + (p.motivoPerda ? ': ' + esc(p.motivoPerda) : '') + '</div>' : '') +
       (p.rev && p.motivoRevisao ? '<div class="muted">Motivo da Rev. ' + p.rev + ': ' + esc(p.motivoRevisao) + '</div>' : '') +
       '<div class="tabela" style="margin-top:10px"><table><thead><tr><th>Item</th><th class="num">Qtd</th><th class="num">Unit.</th><th class="num">Total</th></tr></thead><tbody>' +
       (p.itens || []).map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td class="num">' + esc(i.qtd) + '</td><td class="num">' + brl(i.valor) + '</td><td class="num">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
@@ -1339,6 +1341,8 @@
     ligar('pv-copiar', function () { duplicarProposta(p); });
     ligar('pv-enviar', async function () { await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'enviada', enviadaEm: agora() }); }, 'Proposta marcada como enviada.'); verProposta(p.id); });
     ligar('pv-recusar', async function () { var motivo = prompt('Motivo da recusa (opcional):'); if (motivo === null) return; await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'recusada', motivoRecusa: motivo, recusadaEm: agora() }); }, 'Proposta marcada como recusada.'); verProposta(p.id); });
+    // Perdida: o cliente fechou com outra empresa (ou desistiu do serviço); diferente de Recusada
+    ligar('pv-perder', async function () { var motivo = prompt('Por que perdemos? (opcional, ex.: concorrente mais barato, cliente desistiu)'); if (motivo === null) return; await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'perdida', motivoPerda: motivo, perdidaEm: agora() }); }, 'Proposta marcada como perdida.'); verProposta(p.id); });
     ligar('pv-reabrir', async function () { await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'enviada' }); }, 'Proposta reaberta.'); verProposta(p.id); });
     ligar('pv-excluir', async function () { if (!confirm('Excluir a proposta ' + codProposta(p) + '?')) return; await salvar(function () { return banco.excluir('propostas', p.id); }, 'Proposta excluída.'); fecharModal(); });
     ligar('pv-aprovar', async function () {
@@ -1838,7 +1842,8 @@
     var fVenc = fPend.filter(function (f) { return f.vencimento && f.vencimento < h; });
     var fMes = F.filter(function (f) { return f.status === 'paga' && String(f.dataPagamento || '').slice(0, 7) === mes; });
     var aprovMes = P.filter(function (p) { return p.status === 'aprovada' && String(p.aprovadaEm || '').slice(0, 7) === mes; });
-    var decididas = P.filter(function (p) { return ['aprovada', 'recusada', 'semretorno'].indexOf(p.status) >= 0; });
+    var decididas = P.filter(function (p) { return ['aprovada', 'recusada', 'perdida', 'semretorno'].indexOf(p.status) >= 0; });
+    var perdidasAno = P.filter(function (p) { return p.status === 'perdida' && String(p.perdidaEm || p.data || '').slice(0, 4) === h.slice(0, 4); });
     var taxa = decididas.length ? Math.round(100 * P.filter(function (p) { return p.status === 'aprovada'; }).length / decididas.length) : null;
 
     var etapas = [
@@ -1859,6 +1864,7 @@
       ['Vencido', brl(soma(fVenc, 'valor')), fVenc.length + ' fatura(s) em atraso', 'faturas', 'pendente'],
       ['Aprovado no mês', brl(soma(aprovMes, 'total')), aprovMes.length + ' proposta(s)', 'propostas', 'aprovada'],
       ['Taxa de aprovação', taxa == null ? '—' : taxa + '%', decididas.length + ' proposta(s) decididas', 'propostas', ''],
+      ['Perdidas no ano', brl(soma(perdidasAno, 'total')), perdidasAno.length + ' proposta(s)', 'propostas', 'perdida'],
       ['Clientes', cache.empresas.length, 'cadastro único', 'clientes', '']
     ].map(function (k) { return '<div class="card kpi" data-ir="' + k[3] + '" data-filtro="' + k[4] + '"><div class="rotulo">' + k[0] + '</div><div class="valor">' + k[1] + '</div><div class="sub">' + k[2] + '</div></div>'; }).join('');
 
