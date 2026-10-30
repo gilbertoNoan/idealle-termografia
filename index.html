@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.30-1" />
+<meta name="app-version" content="2026.10.30-2" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -1584,12 +1584,7 @@
   var dashEmpresaId = '';
   function pontosAtivos() {
     if (MODO_CLIENTE) return pontosCache;
-    var lista = pontosCache;
-    if (ordensCarregadas) {
-      lista = lista.filter(function (p) {
-        return !p.osId || ordensCache.some(function (o) { return o.id === p.osId; });
-      });
-    }
+    var lista = pontosCache;   // nunca esconde laudos: os de OS já excluída continuam contando (e são avisados na lista)
     if (dashEmpresaId) {
       lista = lista.filter(function (p) { return empresaIdDoPonto(p) === dashEmpresaId; });
     }
@@ -1783,9 +1778,10 @@
     }
     contador.textContent = '(' + visiveis.length + ')';
     dashVisiveis = visiveis;
+    var semOs = (!MODO_CLIENTE && ordensCarregadas) ? visiveis.filter(function (p) { return p.osId && !ordensCache.some(function (o) { return o.id === p.osId; }); }).length : 0;
     var qtdSelDash = visiveis.filter(function (p) { return dashSel[p.id]; }).length;
     var todosMarcados = visiveis.length > 0 && qtdSelDash === visiveis.length;
-    var html = '<div class="os-laudos-toolbar">' +
+    var html = (semOs ? '<div class="ajuda-campo" style="color:var(--texto-suave);margin:0 0 8px;">ℹ️ ' + semOs + ' laudo(s) abaixo pertencem a uma OS que já foi excluída.</div>' : '') + '<div class="os-laudos-toolbar">' +
       '<label class="laudo-check laudo-check-all"><input type="checkbox" id="dash-check-all"' + (todosMarcados ? ' checked' : '') + '> Selecionar todos</label>' +
       '<button class="btn-secondary" type="button" data-action="dash-baixar-sel">⬇ Baixar selecionados' + (qtdSelDash ? ' (' + qtdSelDash + ')' : '') + '</button>' +
       '<button class="btn-secondary" type="button" data-action="dash-baixar-pdf">📄 Baixar todos em um PDF (' + visiveis.length + ')</button>' +
