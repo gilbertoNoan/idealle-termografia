@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.14-12" />
+<meta name="app-version" content="2026.10.30-1" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -246,6 +246,10 @@
   .dash-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; margin-top: 2px; opacity: .8; }
   .dash-total { background: var(--azul); color: #fff; grid-column: 1 / -1; }
   .voltar-bar { margin-bottom: 12px; }
+  .os-historico { margin-top: 10px; border-top: 1px dashed var(--borda); padding-top: 8px; font-size: 12.5px; }
+  .os-historico summary { cursor: pointer; font-weight: 700; color: var(--texto-suave); font-size: 11.5px; text-transform: uppercase; letter-spacing: .02em; }
+  .hist-item { background: var(--cinza); border-radius: 8px; padding: 7px 10px; margin-top: 6px; }
+  .hist-campos { color: var(--texto-suave); margin-top: 2px; }
   .dash-empresa-bar { margin: 0 0 12px; }
   .dash-empresa-bar label { margin: 0 0 4px; }
   .dash-grid + .dash-grid { margin-top: 8px; }
@@ -1784,7 +1788,8 @@
     var html = '<div class="os-laudos-toolbar">' +
       '<label class="laudo-check laudo-check-all"><input type="checkbox" id="dash-check-all"' + (todosMarcados ? ' checked' : '') + '> Selecionar todos</label>' +
       '<button class="btn-secondary" type="button" data-action="dash-baixar-sel">⬇ Baixar selecionados' + (qtdSelDash ? ' (' + qtdSelDash + ')' : '') + '</button>' +
-      '<button class="btn-secondary" type="button" data-action="dash-baixar-todos">⬇ Baixar todos (' + visiveis.length + ')</button>' +
+      '<button class="btn-secondary" type="button" data-action="dash-baixar-pdf">📄 Baixar todos em um PDF (' + visiveis.length + ')</button>' +
+      '<button class="btn-secondary" type="button" data-action="dash-baixar-todos">⬇ Baixar todos em ZIP (' + visiveis.length + ')</button>' +
       '</div>';
     visiveis.forEach(function (p) {
       var c = classificarPrincipal(p);
@@ -1830,6 +1835,10 @@
       var sel = dashVisiveis.filter(function (p) { return dashSel[p.id]; });
       if (!sel.length) { toast('Marque ao menos um laudo para baixar.'); return; }
       baixarVariosPdfs(sel, 'Laudos_selecionados.zip');
+      return;
+    }
+    if (act0 === 'dash-baixar-pdf') {
+      baixarPdfUnico(dashVisiveis.slice(), 'Laudos_todos.pdf');
       return;
     }
     if (act0 === 'dash-baixar-todos') {
@@ -1924,10 +1933,62 @@
     renderLista();
   }
 
+
+  // ---------- Histórico de alterações dentro da OS ----------
+  var historicoCache = [];
+  var historicoAberto = {};
+  var ROTULOS_CAMPOS = {
+    osId: 'OS', local: 'Local', quadro: 'Quadro', tipo: 'Tipo', parte: 'Parte', funcao: 'Função',
+    dataHora: 'Data/hora', faseR: 'Ponto 1', faseS: 'Ponto 2', ambiente: 'Temp. ambiente', emissividade: 'Emissividade',
+    bx1Max: 'Bx1 Máx', bx1Med: 'Bx1 Méd', bx1Min: 'Bx1 Mín', observacao: 'Observação', conclusao: 'Conclusão',
+    detalhesAdicionais: 'Detalhes adicionais', classificacao: 'Severidade', fotoVisualDataUrl: 'Foto visual',
+    fotoTermicaDataUrl: 'Foto termográfica', fotosExtras: 'Fotos extras'
+  };
+  function camposAlterados(antes, depois) {
+    var lista = [];
+    Object.keys(ROTULOS_CAMPOS).forEach(function (k) {
+      var a = antes[k], b = depois[k];
+      if (a === undefined) a = null; if (b === undefined) b = null;
+      if (k === 'fotosExtras') { a = JSON.stringify(a || []); b = JSON.stringify(b || []); }
+      if (a === '') a = null; if (b === '') b = null;
+      if (a !== b) lista.push(ROTULOS_CAMPOS[k]);
+    });
+    return lista;
+  }
+  function registrarHistorico(entrada) {
+    if (!db || MODO_CLIENTE) return;
+    entrada.dataHora = new Date().toISOString();
+    try {
+      db.collection('historico').add(entrada).catch(function (e) { console.error('Histórico não salvo:', e); });
+    } catch (e) { console.error(e); }
+  }
+  function historicoHtml(osId) {
+    var itens = historicoCache.filter(function (h) { return h.osId === osId; });
+    var aberto = historicoAberto[osId] ? ' open' : '';
+    var corpo;
+    if (!itens.length) {
+      corpo = '<div class="os-laudos-vazio">Nenhuma alteração registrada ainda.</div>';
+    } else {
+      corpo = itens.map(function (h) {
+        var quando = '';
+        try { quando = new Date(h.dataHora).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) {}
+        var txt = h.acao === 'alterado' ? 'alterado' : (h.acao === 'excluido' ? 'excluído' : 'criado');
+        return '<div class="hist-item"><b>' + quando + '</b> — Laudo #' + escapeHtml(String(h.laudoNumero || '')) + (h.quadro ? ' (' + escapeHtml(h.quadro) + ')' : '') + ' ' + txt +
+          (h.campos && h.campos.length ? '<div class="hist-campos">Campos: ' + escapeHtml(h.campos.join(', ')) + '</div>' : '') + '</div>';
+      }).join('');
+    }
+    return '<details class="os-historico" data-os-id="' + osId + '"' + aberto + '><summary>🕘 Histórico de alterações (' + itens.length + ')</summary>' + corpo + '</details>';
+  }
+  document.addEventListener('toggle', function (e) {
+    var d = e.target;
+    if (d && d.classList && d.classList.contains('os-historico')) historicoAberto[d.getAttribute('data-os-id')] = d.open;
+  }, true);
+
   async function excluirPonto(ponto) {
     if (db) {
       try {
         await db.collection('pontos').doc(ponto.id).delete();
+        registrarHistorico({ osId: ponto.osId || '', osNumero: ponto.osNumero || '', laudoNumero: ponto.numero, quadro: ponto.quadro || '', acao: 'excluido', campos: [] });
         toast('Ponto excluído.');
         devolverParaCronos(ponto.osId);
       } catch (err) {
@@ -2242,12 +2303,14 @@
           '<div class="os-laudos-toolbar">' +
             '<label class="laudo-check laudo-check-all"><input type="checkbox" class="os-check-all" data-os-id="' + o.id + '"> Selecionar todos</label>' +
             '<button class="btn-secondary" data-action="baixar-selecionados" data-os-id="' + o.id + '">⬇ Baixar selecionados</button>' +
-            '<button class="btn-secondary" data-action="baixar-todos-os" data-os-id="' + o.id + '">⬇ Baixar toda a OS (' + laudos.length + ')</button>' +
+            '<button class="btn-secondary" data-action="baixar-os-pdf" data-os-id="' + o.id + '">📄 Baixar OS em um PDF (' + laudos.length + ')</button>' +
+            '<button class="btn-secondary" data-action="baixar-todos-os" data-os-id="' + o.id + '">⬇ Baixar toda a OS em ZIP (' + laudos.length + ')</button>' +
           '</div>' : '';
         return '<div class="os-item" data-id="' + o.id + '">' +
           '<div class="nome">' + escapeHtml(rotuloOS(o)) + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">' + (STATUS_OS_LABEL[o.status] || 'Aberta') + '</span></div>' +
           '<div class="sub">' + escapeHtml(o.descricao || 'Sem descrição') + (o.dataAbertura ? ' · ' + o.dataAbertura : '') + '</div>' +
           '<div class="os-laudos"><div class="os-laudos-titulo">Laudos' + (filtroSeveridade ? ' ' + SEVERIDADE_LABEL[filtroSeveridade] : '') + ' desta OS (' + laudos.length + ')</div>' + toolbarHtml + laudosHtml + '</div>' +
+          (filtroSeveridade ? '' : historicoHtml(o.id)) +
           (filtroSeveridade ? '' : '<div class="ponto-actions">' + ((!o.status || o.status === 'aberta' || o.status === 'execucao') ? '<button class="btn-secondary" data-action="concluir-os" data-id="' + o.id + '">✓ Concluir OS</button>' : '') + '<button class="btn-secondary" data-action="link-cliente-os" data-id="' + o.id + '">🔗 Link do cliente</button><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir OS</button></div>') +
         '</div>';
       }).join('');
@@ -2345,6 +2408,14 @@
           toast('OS excluída.');
         }
       });
+      return;
+    }
+    var btnPdfOs = e.target.closest('button[data-action="baixar-os-pdf"]');
+    if (btnPdfOs) {
+      var osIdPdf = btnPdfOs.getAttribute('data-os-id');
+      var osRefPdf = ordensCache.find(function (o) { return o.id === osIdPdf; });
+      var pontosPdf = aplicarFiltroSeveridade(pontosCache.filter(function (p) { return p.osId === osIdPdf; }));
+      baixarPdfUnico(pontosPdf, (osRefPdf ? rotuloOS(osRefPdf) : 'OS') + '_laudos.pdf');
       return;
     }
     var btnTodos = e.target.closest('button[data-action="baixar-todos-os"]');
@@ -2576,6 +2647,8 @@
       if (editando) {
         if (db) {
           await comTimeout(db.collection('pontos').doc(editandoPontoId).set(doc), 20000, 'atualizar laudo');
+          var camposMud = camposAlterados(editandoPontoOriginal || {}, doc);
+          if (camposMud.length) registrarHistorico({ osId: osId, osNumero: osSelecionada.numero, laudoNumero: numero, quadro: quadro, acao: 'alterado', campos: camposMud });
         } else {
           doc.id = editandoPontoId;
           try {
@@ -2591,6 +2664,7 @@
         toast('Ponto #' + numero + ' atualizado.');
       } else if (db) {
         await comTimeout(db.collection('pontos').add(doc), 20000, 'salvar laudo');
+        registrarHistorico({ osId: osId, osNumero: osSelecionada.numero, laudoNumero: numero, quadro: quadro, acao: 'criado', campos: [] });
         toast('Ponto #' + numero + ' salvo.');
       } else {
         doc.id = 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
@@ -2846,16 +2920,22 @@
     return ry;
   }
 
-  async function construirPdf(ponto) {
+  async function construirPdf(ponto, ctx) {
     if (!window.jspdf || !window.jspdf.jsPDF) { throw new Error('Biblioteca de PDF ainda carregando, tente novamente em instantes.'); }
     var jsPDF = window.jspdf.jsPDF;
-    var doc = new jsPDF('p', 'mm', 'a4');
+    // ctx = { doc, primeiro }: junta vários laudos num mesmo PDF (cada laudo começa em folha nova)
+    var doc = (ctx && ctx.doc) ? ctx.doc : new jsPDF('p', 'mm', 'a4');
+    if (ctx && ctx.doc && !ctx.primeiro) doc.addPage();
+    var paginaInicial = doc.internal.getNumberOfPages();
 
     // todo texto passa por um filtro: símbolos sem suporte na fonte (Δ, ≤, ⚠...) viram equivalentes
-    var _split = doc.splitTextToSize.bind(doc);
-    doc.splitTextToSize = function (t, w, o) { return _split(quebrarLongas(pdfTxt(t), 40), w, o); };
-    var _text = doc.text.bind(doc);
-    doc.text = function (t, x, yy, o) { return _text(Array.isArray(t) ? t.map(pdfTxt) : pdfTxt(t), x, yy, o); };
+    if (!doc.__filtroPdf) {
+      doc.__filtroPdf = true;
+      var _split = doc.splitTextToSize.bind(doc);
+      doc.splitTextToSize = function (t, w, o) { return _split(quebrarLongas(pdfTxt(t), 40), w, o); };
+      var _text = doc.text.bind(doc);
+      doc.text = function (t, x, yy, o) { return _text(Array.isArray(t) ? t.map(pdfTxt) : pdfTxt(t), x, yy, o); };
+    }
 
     // ---- medidas (em mm) — respeitam a área que a impressora consegue imprimir ----
     var pageW = 210, pageH = 297, margin = 12, W = pageW - margin * 2;
@@ -3124,8 +3204,9 @@
     }
 
     // ---- rodapé em TODAS as folhas + numeração ----
-    var totalPaginas = doc.internal.getNumberOfPages();
-    for (var pg = 1; pg <= totalPaginas; pg++) {
+    var ultimaPagina = doc.internal.getNumberOfPages();
+    var totalPaginas = ultimaPagina - paginaInicial + 1;   // páginas deste laudo
+    for (var pg = paginaInicial; pg <= ultimaPagina; pg++) {
       doc.setPage(pg);
       doc.setDrawColor(217, 217, 217); doc.setLineWidth(0.2);
       doc.line(margin, rodapeTop - 2.5, pageW - margin, rodapeTop - 2.5);
@@ -3143,10 +3224,11 @@
       }
       if (totalPaginas > 1) {
         doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(120, 120, 120);
-        doc.text('Página ' + pg + ' de ' + totalPaginas, pageW - margin, rodapeTop + rodapeH / 2 + 1, { align: 'right' });
+        doc.text('Página ' + (pg - paginaInicial + 1) + ' de ' + totalPaginas, pageW - margin, rodapeTop + rodapeH / 2 + 1, { align: 'right' });
       }
     }
 
+    if (ctx && ctx.doc) return { doc: doc };
     var blob = doc.output('blob');
     var filename = 'Ponto_' + ponto.numero + '_' + (ponto.quadro || 'quadro').replace(/[^a-zA-Z0-9-_]/g, '') + '.pdf';
     return { blob: blob, filename: filename };
@@ -3328,6 +3410,25 @@
     }
   }
 
+  // Todos os laudos num único arquivo PDF (um laudo por folha, em ordem de número)
+  async function baixarPdfUnico(pontos, nomeArquivo) {
+    if (!pontos.length) { toast('Nenhum laudo para baixar.'); return; }
+    if (pontos.length === 1) { await baixarPdf(pontos[0]); return; }
+    toast('Gerando PDF com ' + pontos.length + ' laudos...');
+    try {
+      var ordenados = pontos.slice().sort(function (a, b) { return (a.numero || 0) - (b.numero || 0); });
+      var ctx = { doc: new window.jspdf.jsPDF('p', 'mm', 'a4'), primeiro: true };
+      for (var i = 0; i < ordenados.length; i++) {
+        ctx.primeiro = (i === 0);
+        await construirPdf(ordenados[i], ctx);
+      }
+      await salvarBlobComoArquivo(ctx.doc.output('blob'), nomeArquivo, 'PDF único com ' + ordenados.length + ' laudos gerado.');
+    } catch (err) {
+      console.error('Erro ao gerar PDF único:', err);
+      toast('Erro ao gerar o PDF único.');
+    }
+  }
+
   async function baixarVariosPdfs(pontos, nomeZip) {
     if (!pontos.length) { toast('Nenhum laudo para baixar.'); return; }
     if (pontos.length === 1) { await baixarPdf(pontos[0]); return; }
@@ -3430,6 +3531,13 @@
           atualizarDashboard();
           aplicarOsDoCronos();
         }, function (err) { mostrarErroBanco(err, 'carregar OS'); });
+      } catch (e) { console.error(e); }
+      try {
+        db.collection('historico').onSnapshot(function (snap) {
+          historicoCache = snap.docs.map(function (d) { var x = d.data ? d.data() : d; x = x || {}; var c = {}; for (var k in x) c[k] = x[k]; c.id = d.id; return c; })
+            .sort(function (a, b) { return (b.dataHora || '').localeCompare(a.dataHora || ''); });
+          renderOrdens();
+        }, function (err) { console.error('Histórico indisponível:', err); });
       } catch (e) { console.error(e); }
     } else if (!MODO_CLIENTE) {
       renderEmpresas();
