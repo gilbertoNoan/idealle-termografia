@@ -1941,6 +1941,7 @@
     var leitor = new FileReader();
     leitor.onload = function () {
       var d; try { d = JSON.parse(leitor.result); } catch (e) { toast('Arquivo inválido.'); return; }
+      if (d.tipo === 'status-notas') { d.faturas = d.faturas || []; d.avisos = d.avisos || []; conferirStatusNotas(d); return; }
       if (d.tipo === 'complemento') { ['propostas', 'faturas', 'clientes', 'avisos'].forEach(function (k) { d[k] = d[k] || []; }); conferirComplemento(d); return; }
       if (!(d.clientes && d.propostas && d.ordens && d.faturas) && !d.modelos && !d.financas) { toast('Este arquivo não é uma importação do Cronos.'); return; }
       ['clientes', 'propostas', 'ordens', 'faturas', 'modelos', 'avisos'].forEach(function (k) { d[k] = d[k] || []; });
@@ -2225,6 +2226,87 @@
     await emLotes(Object.keys(mc), async function (id) { var u = mc[id]; u.updatedAt = agora(); await banco.atualizar('empresas', id, u); nC++; }, aviso, 'Clientes');
     if (d.nota && d.nota.pagamento && !cfgNota().pagamento) await banco.atualizar('config', 'nota', { pagamento: d.nota.pagamento, updatedAt: agora() });
     return nP + ' propostas completadas, ' + nF + ' notas completadas, ' + nN + ' notas criadas e ' + nC + ' clientes completados.';
+  }
+
+  // ===================== STATUS DAS NOTAS (CORES DA PLANILHA DE NOTAS) =====================
+  // Arquivo gerado a partir da cor das linhas da planilha de notas: azul = recebida, branca = a receber, vermelha = cancelada.
+  // Diferente do complemento, aqui o status muda; cada mudança aparece numa lista para conferir antes de gravar.
+  function planoStatusNotas(d) {
+    var porNF = {}, achadas = {}, mud = [], novas = [];
+    d.faturas.forEach(function (n) { (porNF[n.nf] = porNF[n.nf] || []).push(n); });
+    cache.faturas.forEach(function (f) {
+      var l = porNF[f.nf]; if (!f.nf || !l) return;
+      achadas[f.nf] = true;
+      // A mesma NF pode estar duas vezes (cancelada e reemitida com o mesmo número): vale a de valor mais próximo
+      var n = l.slice().sort(function (a, b) { return Math.abs(num(a.valor) - num(f.valor)) - Math.abs(num(b.valor) - num(f.valor)); })[0];
+      var u = {};
+      if (f.status !== n.status) {
+        u.status = n.status;
+        if (n.status === 'paga') { u.dataPagamento = f.dataPagamento || n.vencimento || f.vencimento || n.emissao || f.emissao || hoje(); if (!f.dataPagamento) u.recebimentoPresumido = true; }
+        if (n.status === 'pendente') { u.dataPagamento = ''; u.recebimentoPresumido = false; }
+      }
+      if (n.status !== 'cancelada' && !num(f.valor) && num(n.valor)) u.valor = n.valor;
+      // Recebida aqui no Cronos (com data e banco) e branca na planilha: pode ser que a planilha ainda não foi pintada
+      if (Object.keys(u).length) mud.push({ f: f, n: n, u: u, marcar: !(f.status === 'paga' && !f.recebimentoPresumido && n.status === 'pendente') });
+    });
+    var vistas = {};
+    d.faturas.forEach(function (n) { if (!achadas[n.nf] && !vistas[n.nf] && n.status !== 'cancelada') { vistas[n.nf] = true; novas.push({ n: n, marcar: true }); } });
+    return { mud: mud, novas: novas };
+  }
+  function conferirStatusNotas(d) {
+    var pl = planoStatusNotas(d), nomes = { paga: 'Recebida', pendente: 'A receber', cancelada: 'Cancelada' };
+    var grupos = [['paga', 'Passam a recebida'], ['pendente', 'Voltam para a receber'], ['cancelada', 'Passam a cancelada'], ['', 'Só o valor (estava zerado)']];
+    function linha(x, i, nova) {
+      var f = x.f || {}, n = x.n;
+      return '<tr><td><input type="checkbox" data-st="' + (nova ? 'n' : 'm') + i + '"' + (x.marcar ? ' checked' : '') + ' style="width:auto"></td><td><b>' + esc(n.nf) + '</b><div class="muted">' + data(n.emissao) + '</div></td><td>' +
+        esc(nova ? n.clienteNome : nomeCliente(f.clienteId, f.clienteNome)) + '<div class="muted">' + esc(n.osCodigo || '') + '</div></td><td class="num">' + brl(x.u && x.u.valor || f.valor || n.valor) + '</td><td>' + data(n.vencimento || f.vencimento) + '</td><td>' +
+        (nova ? 'não está no Cronos' : esc(nomes[f.status] || f.status) + (f.status === 'paga' && !f.recebimentoPresumido ? ' (marcada aqui' + (f.dataPagamento ? ' em ' + data(f.dataPagamento) : '') + ')' : f.recebimentoPresumido ? ' (presumida)' : '')) +
+        ' → <b>' + esc(nomes[n.status]) + '</b></td></tr>';
+    }
+    var html = grupos.map(function (g) {
+      var l = pl.mud.map(function (x, i) { return [x, i]; }).filter(function (p) { return (p[0].u.status || '') === g[0]; });
+      if (!l.length) return '';
+      return '<details' + (l.length <= 15 ? ' open' : '') + '><summary><b>' + g[1] + ' (' + l.length + ')</b> · ' + brl(l.reduce(function (s, p) { return s + num(p[0].u.valor || p[0].f.valor); }, 0)) + '</summary><div class="tabela"><table><tbody>' +
+        l.map(function (p) { return linha(p[0], p[1]); }).join('') + '</tbody></table></div></details>';
+    }).join('') + (pl.novas.length ? '<details open><summary><b>Notas da planilha que não estão no Cronos (' + pl.novas.length + ')</b> · entram com o status da planilha</summary><div class="tabela"><table><tbody>' +
+      pl.novas.map(function (x, i) { return linha(x, i, true); }).join('') + '</tbody></table></div></details>' : '');
+    var manuais = pl.mud.filter(function (x) { return !x.marcar; }).length;
+    abrirModal('<h3>Atualizar status das notas</h3><p class="muted">' + esc(d.fonte || '') + '</p>' +
+      (html || '<p>Nada a mudar: o status de todas as notas já está igual ao da planilha.</p>') +
+      (manuais ? '<p class="muted">' + manuais + ' nota(s) recebida(s) aqui no Cronos estão brancas na planilha e ficaram desmarcadas. Marque se quiser voltar para a receber.</p>' : '') +
+      '<p class="muted">Recebidas sem data de recebimento ficam com a data do vencimento, marcadas como presumidas, no banco principal. Ajuste no Faturamento se souber a data e o banco.</p>' +
+      (d.avisos.length ? '<details><summary>Avisos (' + d.avisos.length + ')</summary><div class="muted">' + d.avisos.map(function (a) { return '<div>' + esc(a) + '</div>'; }).join('') + '</div></details>' : '') +
+      '<p id="imp-progresso" class="muted"></p>' +
+      '<div class="acoes">' + (html ? '<button class="btn ok" id="imp-ok">Atualizar marcadas</button>' : '') + '<button class="btn sec" id="imp-cancelar">' + (html ? 'Cancelar' : 'Fechar') + '</button></div>');
+    $('imp-cancelar').onclick = fecharModal;
+    if (!html) return;
+    $('imp-ok').onclick = async function () {
+      var sel = {}; $('modal').querySelectorAll('[data-st]').forEach(function (c) { sel[c.dataset.st] = c.checked; });
+      var mud = pl.mud.filter(function (x, i) { return sel['m' + i]; }), novas = pl.novas.filter(function (x, i) { return sel['n' + i]; });
+      this.disabled = true; $('imp-cancelar').disabled = true; importando = true;
+      try {
+        var r = await executarStatusNotas(mud, novas, function (msg) { $('imp-progresso').textContent = msg; });
+        $('imp-progresso').textContent = 'Concluído: ' + r; toast('Status das notas atualizado.');
+      } catch (e) { console.error(e); $('imp-progresso').textContent = 'Parou: ' + (e.message || e) + '. Pode rodar de novo: só o que ainda está diferente muda.'; }
+      importando = false; renderTudo();
+      $('imp-cancelar').disabled = false; $('imp-cancelar').textContent = 'Fechar';
+    };
+  }
+  async function executarStatusNotas(mud, novas, aviso) {
+    var nM = 0, nN = 0, porNomeCli = {};
+    cache.empresas.forEach(function (c) { porNomeCli[normal(c.nome)] = c; });
+    await emLotes(mud, async function (x) { var u = Object.assign({}, x.u, { updatedAt: agora() }); await banco.atualizar('faturas', x.f.id, u); nM++; }, aviso, 'Notas atualizadas');
+    var seq = proximoNumero(cache.faturas, 'numero');
+    await emLotes(novas, async function (x) {
+      var n = x.n, cli = porNomeCli[normal(n.clienteNome)] || porNomeCli[normal(n.clienteNomeNF)] || null;
+      var os = cache.ordens.filter(function (o) { return Number(o.numero) === Number(n.osNumero) && String(o.codigo || '').indexOf('/' + n.osAno) >= 0; })[0];
+      var doc = { numero: seq++, nf: n.nf, clienteId: cli ? cli.id : (os ? os.empresaId : ''), clienteNome: cli ? cli.nome : (os ? os.empresaNome : n.clienteNome), osId: os ? os.id : '', osNumero: n.osNumero, osCodigo: n.osCodigo,
+        descricao: os ? os.descricao || '' : '', pedido: n.pedido || '', valor: n.valor || 0, emissao: n.emissao || '', vencimento: n.vencimento || '', status: n.status, origem: 'planilha', createdAt: agora() };
+      if (n.status === 'paga') { doc.dataPagamento = n.vencimento || n.emissao || hoje(); doc.recebimentoPresumido = true; }
+      var fid = await banco.criar('faturas', doc); nN++;
+      if (os && !os.faturaId) await banco.atualizar('ordens', os.id, { faturaId: fid });
+    }, aviso, 'Notas criadas');
+    return nM + ' notas atualizadas e ' + nN + ' criadas.';
   }
 
   // ===================== FINANÇAS =====================
