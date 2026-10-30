@@ -1427,13 +1427,14 @@
     function itens(l, pre) { return '<ol class="pl">' + l.map(function (t, i) { return '<li><span>' + pre + '.' + (i + 1) + '.</span><div>' + t + '</div></li>'; }).join('') + '</ol>'; }
     function lista(t, pre) { return itens(linhas(t).map(esc), pre); }
     function par(t) { return linhas(t).map(function (l) { return '<p>' + esc(l) + '</p>'; }).join(''); }
-    // Tópicos como no modelo (Proposta 0302/2026): marcador e texto em negrito; "Equipamento | serviço" vira duas colunas
+    // Tópicos como no modelo (Proposta 0302/2026): marcador e texto em negrito; "Equipamento | serviço" vira duas colunas.
+    // Lista colada do Word (marcador e TAB entre as colunas) também vira tópico.
     function topicos(l) { return '<table class="pq-top"><tbody>' + l.map(function (t) { return '<tr><td>•</td>' + t + '</tr>'; }).join('') + '</tbody></table>'; }
     function objeto(t) {
       var out = '', top = [];
       linhas(t).forEach(function (l) {
-        var m = l.match(/^[-•*]\s*(.*)$/);
-        if (m) { var c = m[1].split('|'); top.push(c.length > 1 ? '<td>' + esc(c[0].trim()) + '</td><td>' + esc(c.slice(1).join('|').trim()) + '</td>' : '<td colspan="2">' + esc(m[1]) + '</td>'); return; }
+        var m = l.match(/^[-•*·]\s*(.*)$/) || (/\t/.test(l) ? [l, l] : null);
+        if (m) { var c = m[1].split(/\s*\|\s*|\t+/).filter(Boolean); top.push(c.length > 1 ? '<td>' + esc(c[0].trim()) + '</td><td>' + esc(c.slice(1).join(' ').trim()) + '</td>' : '<td colspan="2">' + esc(m[1].trim()) + '</td>'); return; }
         if (top.length) { out += topicos(top); top = []; }
         out += '<p>' + esc(l) + '</p>';
       });
@@ -2192,9 +2193,9 @@
         var upd = { updatedAt: agora() };
         // arquivo só com endereços (sem contatos) não apaga os contatos do cadastro
         if (c.contatos) upd.contatos = c.contatos;
-        ['contato', 'email', 'telefone', 'cnpj'].forEach(function (k) { if (!ex[k] && c[k]) upd[k] = c[k]; });
-        // endereço entra como bloco (rua, cidade, UF, CEP) quando o cadastro ainda não tem rua: corrige cidade/UF soltas como "SP"
-        if (c.endereco && !ex.endereco) ['endereco', 'cidade', 'uf', 'cep'].forEach(function (k) { if (c[k]) upd[k] = c[k]; });
+        ['contato', 'setor', 'email', 'telefone', 'cnpj'].forEach(function (k) { if (!ex[k] && c[k]) upd[k] = c[k]; });
+        // endereço entra como bloco (rua, cidade, UF, CEP) quando o cadastro ainda não tem rua (sem número, ex.: só "SP")
+        if (c.endereco && !/\d/.test(ex.endereco || '')) ['endereco', 'cidade', 'uf', 'cep'].forEach(function (k) { if (c[k]) upd[k] = c[k]; });
         if (!ex.codigo) upd.codigo = 'CLI-' + pad(++codN, 4);
         await banco.atualizar('empresas', ex.id, upd);
         idCliente[c.nome] = ex.id;
@@ -2216,6 +2217,11 @@
         var doc = Object.assign({}, p, { clienteId: cid, sistema: /termogra/i.test(p.titulo) ? 'Termografia' : '', createdAt: agora(), updatedAt: agora() });
         if (doc.status === 'aprovada') doc.aprovadaEm = doc.data || '';
         id = await banco.criar('propostas', doc); criados.propostas++;
+      } else {
+        // proposta que já existe: só completa os textos que estão vazios no Cronos (ex.: o objeto da inspeção)
+        var ep = porId('propostas', id), comp = {};
+        TEXTOS.forEach(function (t) { if (p[t[0]] && ep && !ep[t[0]]) comp[t[0]] = p[t[0]]; });
+        if (Object.keys(comp).length) await banco.atualizar('propostas', id, comp);
       }
       propPorID[chaveID(p.numero, p.ano, cid)] = { id: id, p: p };
     }, aviso, 'Propostas');
