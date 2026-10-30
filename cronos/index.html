@@ -112,26 +112,32 @@
   .pp .cx-print th, .pp .cx-print td { padding: 3px 5px; }
   .pp .cx-print .n { text-align: right; white-space: nowrap; }
   .pp-assin { display: flex; justify-content: space-around; margin-top: 32px; text-align: center; break-inside: avoid; }
-  /* Proposta no modelo da Idealle (Proposta NR-13 0296/2026): Calibri 10pt, títulos numerados com recuo de 10 mm */
+  /* Proposta no modelo da Idealle (Proposta 0302/2026): Calibri 10pt, títulos numerados com recuo de 15,5 mm */
   .pq { font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif; font-size: 10pt; line-height: 11pt; color: #000; }
   .pq p { margin: 0 0 11pt; text-align: justify; break-inside: avoid; }
-  .pq .pq-data { text-align: right; font-weight: bold; margin-bottom: 0; }
+  .pq .pq-data { text-align: right; margin-bottom: 0; }
   .pq .pq-dest { font-weight: bold; text-transform: uppercase; text-align: left; }
   .pq .pq-lin { display: flex; font-weight: bold; margin: 0 0 11pt; break-inside: avoid; }
-  .pq .pq-lin > span { width: 20mm; flex: none; }
+  .pq .pq-lin > span { width: 27mm; flex: none; }
   .pq .pq-lin > div { flex: 1; text-align: justify; }
   .pq .pq-tit { display: flex; font-weight: bold; padding-bottom: 13mm; margin: 0 0 -9.1mm; break-inside: avoid; }
-  .pq .pq-tit > span { width: 10mm; flex: none; }
-  .pq .pq-corpo { margin-left: 10mm; }
+  .pq .pq-tit > span { width: 15.5mm; flex: none; }
+  .pq .pq-corpo { margin-left: 15.5mm; }
   .pq ol.pl { list-style: none; padding: 0; margin: 0 0 11pt; }
   .pq ol.pl li { display: flex; text-align: justify; break-inside: avoid; }
-  .pq ol.pl li > span { width: 10mm; flex: none; }
+  .pq ol.pl li > span { width: 11mm; flex: none; }
   .pq ol.pl li > div { flex: 1; }
   .pq .pq-centro { text-align: center; font-weight: bold; }
+  .pq table.pq-top { width: auto; border-collapse: collapse; margin: 0 0 11pt; font-weight: bold; }
+  .pdf-render .pq table.pq-top td { border: 0; padding: 0 4mm 0 0; vertical-align: top; font-size: 10pt; }
+  .pq table.pq-top td:first-child { width: 7mm; padding: 0; text-align: center; }
   .pq .itens-print { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 11pt; }
   .pq .itens-print th { text-align: left; }
   .pq .itens-print .n { text-align: right; white-space: nowrap; }
-  .pq .pq-assin { display: flex; margin: 22pt 0 0 10mm; break-inside: avoid; }
+  .pq .pq-fim { margin-left: 15.5mm; break-inside: avoid; }
+  .pq .pq-fim p { margin-bottom: 0; }
+  .pq .pq-assin { display: flex; }
+  .pq .pq-assin > div:first-child { flex: none; width: 100mm; }
   .pq .pq-assin > div { flex: 1; }
   .pq .pq-assin .nome { font-family: "Segoe Script", "Brush Script MT", "URW Chancery L", cursive; font-size: 13pt; line-height: 20pt; color: #2b3a55; }
   .pq .pq-assin i { font-weight: bold; }
@@ -733,7 +739,7 @@
       '<div class="linha"><div><label>CNPJ / CPF</label><input id="f-cnpj" value="' + esc(c.cnpj || (nfCnpj ? nfCnpj.tomadorCnpj : '')) + '"></div><div><label>Inscrição estadual</label><input id="f-ie" value="' + esc(c.ie) + '"></div></div>' +
       (!c.cnpj && nfCnpj ? '<div class="muted">CNPJ tirado da NF ' + esc(nfCnpj.nf) + '. Confira e salve.</div>' : '') +
       '<button class="btn sec peq" id="f-buscar" style="margin-top:6px">Buscar endereço pelo CNPJ</button> <span class="muted" id="f-buscar-msg"></span>' +
-      '<div class="linha"><div><label>Contato</label><input id="f-contato" value="' + esc(c.contato) + '"></div><div><label>Telefone</label><input id="f-telefone" value="' + esc(c.telefone) + '"></div><div><label>E-mail</label><input id="f-email" type="email" value="' + esc(c.email) + '"></div></div>' +
+      '<div class="linha"><div><label>Contato</label><input id="f-contato" value="' + esc(c.contato) + '"></div><div><label>Setor / cargo do contato</label><input id="f-setor" value="' + esc(c.setor) + '" placeholder="Ex.: Engenharia de Manutenção"></div><div><label>Telefone</label><input id="f-telefone" value="' + esc(c.telefone) + '"></div><div><label>E-mail</label><input id="f-email" type="email" value="' + esc(c.email) + '"></div></div>' +
       '<label>Endereço</label><input id="f-endereco" value="' + esc(c.endereco) + '">' +
       '<div class="linha"><div><label>Cidade</label><input id="f-cidade" value="' + esc(c.cidade) + '"></div><div><label>UF</label><input id="f-uf" maxlength="2" value="' + esc(c.uf) + '"></div><div><label>CEP</label><input id="f-cep" value="' + esc(c.cep) + '"></div></div>' +
       '<label>Observações</label><textarea id="f-obs">' + esc(c.obs) + '</textarea>' +
@@ -752,7 +758,7 @@
       b.disabled = false;
     };
     $('f-salvar').onclick = async function () {
-      var d = { nome: $('f-nome').value.trim(), cnpj: $('f-cnpj').value.trim(), ie: $('f-ie').value.trim(), contato: $('f-contato').value.trim(), telefone: $('f-telefone').value.trim(), email: $('f-email').value.trim(), endereco: $('f-endereco').value.trim(), cidade: $('f-cidade').value.trim(), uf: $('f-uf').value.trim().toUpperCase(), cep: $('f-cep').value.trim(), obs: $('f-obs').value.trim(), updatedAt: agora() };
+      var d = { nome: $('f-nome').value.trim(), cnpj: $('f-cnpj').value.trim(), ie: $('f-ie').value.trim(), contato: $('f-contato').value.trim(), setor: $('f-setor').value.trim(), telefone: $('f-telefone').value.trim(), email: $('f-email').value.trim(), endereco: $('f-endereco').value.trim(), cidade: $('f-cidade').value.trim(), uf: $('f-uf').value.trim().toUpperCase(), cep: $('f-cep').value.trim(), obs: $('f-obs').value.trim(), updatedAt: agora() };
       if (!d.nome) { toast('Informe o nome do cliente.'); return; }
       var dup = cache.empresas.find(function (x) { return x.id !== c.id && ((d.cnpj && soDigitos(x.cnpj) === soDigitos(d.cnpj)) || normal(x.nome) === normal(d.nome)); });
       if (dup) { toast('Já existe um cliente com esse ' + (normal(dup.nome) === normal(d.nome) ? 'nome' : 'CNPJ') + ': ' + dup.nome); return; }
@@ -853,7 +859,8 @@
 
   // Seções de texto da proposta, na ordem em que saem impressas (mesmo padrão das propostas da Idealle)
   var TEXTOS = [
-    ['ref', 'Referência (REF.)', 2], ['objetivo', '1. Objetivo dos trabalhos', 3], ['local', '3. Local de execução', 1],
+    ['ref', 'Referência (REF.)', 2], ['objetivo', '1. Objetivo dos trabalhos', 3],
+    ['objeto', '2. Objeto da inspeção (opcional; linha com "-" vira tópico e "|" separa equipamento e serviço. Vazio = lista dos itens)', 4], ['local', '3. Local de execução', 1],
     ['escopo', '4. Escopo (um item por linha)', 6], ['fornIdealle', '5. Fornecimento Idealle (um por linha)', 3],
     ['fornCliente', '6. Fornecimento do cliente (um por linha)', 3], ['prazoExecucao', '7. Prazo de execução', 1],
     ['obsPreco', 'Observações do preço (uma por linha)', 3]
@@ -1076,7 +1083,7 @@
     toast('Gerando o PDF…');
     try { await carregarHtml2pdf(); } catch (e) { toast('Não deu para carregar o gerador de PDF. Confira a internet e tente de novo.'); return; }
     var el = document.createElement('div'); el.className = 'pdf-render'; el.innerHTML = html;
-    var mg = modelo ? [27, 20, 30, 19] : [12, 14, rodape ? 20 : 12, 14];
+    var mg = modelo ? [27, 14, 24, 13] : [12, 14, rodape ? 20 : 12, 14];
     el.style.width = (210 - mg[1] - mg[3] - 4) + 'mm';
     var opt = { margin: mg, filename: nome, image: { type: 'jpeg', quality: 0.95 },
       html2canvas: { scale: 2, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -1088,10 +1095,10 @@
           pdf.setPage(i); pdf.setFontSize(7.5); pdf.setTextColor(60);
           if (modelo) {
             pdf.addImage(LOGO_PROP, 'JPEG', 24, 5, 78, 16.9);
-            pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(60); pdf.text(EMPRESA.nome + ' - Referência em Inspeções NR-13', 32.7, h - 17.5);
+            pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(60); pdf.text('Idealle - ' + EMPRESA.slogan, 32.7, h - 17.5);
             pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(90); pdf.text(EMPRESA.endereco + ' - Tel. ' + EMPRESA.telefone, 32.7, h - 13.8);
             pdf.setFont('helvetica', 'bold'); pdf.setTextColor(233, 156, 38); pdf.text(EMPRESA.site, 32.7, h - 10.3);
-            pdf.addImage(SELO_CREA, 'JPEG', 154.7, h - 20.5, 39.5, 9.6);
+            if (i === n) pdf.addImage(SELO_CREA, 'JPEG', 154.7, h - 20.5, 39.5, 9.6);
             pdf.setFont('helvetica', 'normal'); pdf.setTextColor(60); pdf.setFontSize(7.5);
             continue;
           }
@@ -1420,6 +1427,29 @@
     function itens(l, pre) { return '<ol class="pl">' + l.map(function (t, i) { return '<li><span>' + pre + '.' + (i + 1) + '.</span><div>' + t + '</div></li>'; }).join('') + '</ol>'; }
     function lista(t, pre) { return itens(linhas(t).map(esc), pre); }
     function par(t) { return linhas(t).map(function (l) { return '<p>' + esc(l) + '</p>'; }).join(''); }
+    // Tópicos como no modelo (Proposta 0302/2026): marcador e texto em negrito; "Equipamento | serviço" vira duas colunas
+    function topicos(l) { return '<table class="pq-top"><tbody>' + l.map(function (t) { return '<tr><td>•</td>' + t + '</tr>'; }).join('') + '</tbody></table>'; }
+    function objeto(t) {
+      var out = '', top = [];
+      linhas(t).forEach(function (l) {
+        var m = l.match(/^[-•*]\s*(.*)$/);
+        if (m) { var c = m[1].split('|'); top.push(c.length > 1 ? '<td>' + esc(c[0].trim()) + '</td><td>' + esc(c.slice(1).join('|').trim()) + '</td>' : '<td colspan="2">' + esc(m[1]) + '</td>'); return; }
+        if (top.length) { out += topicos(top); top = []; }
+        out += '<p>' + esc(l) + '</p>';
+      });
+      return out + (top.length ? topicos(top) : '');
+    }
+    // Observações do preço: linha terminada em ";" continua no mesmo parágrafo (como a lista do "Não estão inclusos");
+    // a frase de dias úteis/horário comercial sai em negrito
+    function obsPreco(t) {
+      var ps = [];
+      linhas(t).forEach(function (l) {
+        l = l.replace(/^\*\s*/, '');
+        var h = /hor[aá]rio comercial/i.test(l) ? '<b>' + esc(l) + '</b>' : esc(l);
+        if (ps.length && /;$/.test(ps[ps.length - 1].fim)) { ps[ps.length - 1].h += '<br>' + h; ps[ps.length - 1].fim = l; } else ps.push({ h: h, fim: l });
+      });
+      return ps.map(function (x) { return '<p>' + x.h + '</p>'; }).join('');
+    }
     function tituloCaso(t) { return t.replace(/(^|\s)(\S)/g, function (m, a, l) { return a + l.toUpperCase(); }).replace(/ (E|De|Do|Da|Com) /g, function (m) { return m.toLowerCase(); }); }
     var dias = p.data && p.validade ? diasEntre(p.data, p.validade) : 30;
     var its = (p.itens || []).filter(function (i) { return num(i.qtd); });
@@ -1429,15 +1459,16 @@
       '<table class="itens-print"><thead><tr><th>Item</th><th>Descrição</th><th class="n">Qtd</th><th class="n">Valor unit.</th><th class="n">Total</th></tr></thead><tbody>' +
         its.map(function (i, k) { return '<tr><td>2.' + (k + 1) + '</td><td>' + esc(i.descricao) + '</td><td class="n">' + esc(i.qtd) + '</td><td class="n">' + brl(i.valor) + '</td><td class="n">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
         '<tr><td></td><td><b>Total</b></td><td></td><td></td><td class="n"><b>' + brl(p.total) + '</b></td></tr></tbody></table>' :
+      p.objeto ? objeto(p.objeto) :
       its.length === 1 && num(its[0].qtd) === 1 ? par(its[0].descricao) :
-      itens(its.map(function (i) { return esc(i.descricao) + (num(i.qtd) !== 1 ? ' <b>(' + esc(i.qtd) + ')</b>' : ''); }), 2));
+      topicos(its.map(function (i) { return '<td colspan="2">' + esc(i.descricao) + (num(i.qtd) !== 1 ? ' (' + esc(i.qtd) + ')' : '') + '</td>'; })));
     corpo += secao('LOCAL DE EXECUÇÃO DOS SERVIÇOS', par(p.local || 'Nas instalações do Cliente conforme endereço acima.'));
     if (p.escopo) corpo += secao('ESCOPO DA INSPEÇÃO', '<p>A fim de podermos atender o objetivo do trabalho, propomos a execução dos seguintes itens, os quais serão definidos para cada equipamento inspecionado:</p>' + lista(p.escopo, n + 1));
     if (p.fornIdealle) corpo += secao('FORNECIMENTO IDEALLE', lista(p.fornIdealle, n + 1));
     if (p.fornCliente) corpo += secao('FORNECIMENTO DO CLIENTE', lista(p.fornCliente, n + 1));
     if (p.prazoExecucao) corpo += secao('PRAZOS DE EXECUÇÃO', par(p.prazoExecucao));
     corpo += secao('PREÇOS E CONDIÇÕES DE FORNECIMENTO', '<p>O preço global para execução dos serviços propostos é de <b>' + brl(p.total) + ' (' + esc(tituloCaso(extenso(p.total))) + ').</b></p>' +
-      linhas(p.obsPreco).map(function (l) { return '<p>' + esc(l.replace(/^\*\s*/, '')) + '</p>'; }).join(''));
+      obsPreco(p.obsPreco));
     // A frase da multa sai em destaque depois do endereço de faturamento, como no modelo
     var cond = p.condicoes || CONDICOES_PADRAO, multa = (cond.match(/Após o vencimento[^.]*\./i) || [''])[0];
     corpo += secao('CONDIÇÕES DE PAGAMENTO', par(multa ? cond.replace(multa, '') : cond) +
@@ -1445,18 +1476,18 @@
       '<p class="pq-centro">' + esc(EMPRESA.razao) + '<br>' + esc(EMPRESA.endereco) + '<br>CNPJ nº ' + esc(EMPRESA.cnpj) + ' e I. E. nº ' + esc(EMPRESA.ie) + '</p>' +
       (multa ? '<p class="pq-centro">' + esc(multa) + '</p>' : ''));
     corpo += secao('VALIDADE DA PROPOSTA', '<p>Esta proposta é válida por ' + dias + ' dias, a partir da data de sua emissão, após o que estará sujeita a confirmação. ' +
-      'Desde já agradecemos a oportunidade de participar desta tomada de preços e permaneceremos a sua inteira disposição para quaisquer esclarecimentos que se fizerem necessários.</p><p>Atenciosamente,</p>');
+      'Desde já agradecemos a oportunidade de participar desta tomada de preços e permaneceremos a sua inteira disposição para quaisquer esclarecimentos que se fizerem necessários.</p>');
     var dt = dataExtenso(p.data).replace(/^(\d) /, '0$1 ').replace(/ de (\S)/, function (m, l) { return ' de ' + l.toUpperCase(); });
     var html = '<div class="pq">' +
       '<p class="pq-data">' + esc(EMPRESA.cidade) + ', ' + dt + '.</p>' +
-      '<p class="pq-dest">À<br>' + esc(c.nome) + (c.cnpj ? '<br>CNPJ ' + esc(c.cnpj) : '') + (c.endereco ? '<br>' + esc(c.endereco) : '') +
-        (c.cidade || c.uf ? '<br>' + esc([c.cidade, c.uf].filter(Boolean).join(' - ')) : '') + (c.cep ? '<br>' + esc(c.cep) : '') + '</p>' +
-      (c.contato ? '<div class="pq-lin"><span>At.:</span><div>' + esc(String(c.contato).toUpperCase()) + (c.email ? '<br><span style="font-weight:normal">' + esc(c.email) + '</span>' : '') + '</div></div>' : '') +
+      '<p class="pq-dest">À<br>' + esc(c.nome) + (c.endereco ? '<br>' + esc(c.endereco) : '') +
+        (c.cidade || c.uf ? '<br>' + esc([c.cidade, c.uf].filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join(' - ')) : '') + (c.cep ? '<br>' + esc(c.cep) : '') + '</p>' +
+      (c.contato ? '<div class="pq-lin"><span>At.:</span><div>' + esc(String(c.contato).toUpperCase()) + (c.setor ? '<br>' + esc(String(c.setor).toUpperCase()) : '') + '</div></div>' : '') +
       '<div class="pq-lin"><span>REF.:</span><div>' + esc((p.ref || ('PROPOSTA PARA A PRESTAÇÃO DE SERVIÇOS DE ' + p.titulo)).toUpperCase()) + '</div></div>' +
-      '<div class="pq-lin"><span>N/REF.:</span><div>' + codProposta(p) + (p.rev ? ' Rev. ' + p.rev : '') + '</div></div>' +
+      '<div class="pq-lin"><span>N/REF.:</span><div>' + codProposta(p) + ' – Rev.' + pad(p.rev || 0, 2) + '</div></div>' +
       '<p>Prezados Senhores,<br>Atendendo solicitação de V.S.as, apresentamos nossas melhores condições técnicas e comerciais para a execução do serviço em referência, conforme segue:</p>' +
       corpo +
-      '<div class="pq-assin">' + EMPRESA.assinaturas.map(function (a) { return '<div><div class="nome">' + esc(a[0]) + '</div><i>' + esc(a[1]) + '</i></div>'; }).join('') + '</div>' +
+      '<div class="pq-fim"><p>Atenciosamente,</p><div class="pq-assin">' + EMPRESA.assinaturas.map(function (a) { return '<div><div class="nome">' + esc(a[0]) + '</div><i>' + esc(a[1]) + '</i></div>'; }).join('') + '</div></div>' +
       '</div>';
     baixarPdf(html, nomePdf(p, comValores ? 'valores' : ''), null, true);
   }

@@ -54,8 +54,10 @@ já cobrou naquele tipo de serviço.
 
 - **Nova proposta → Começar de um modelo** preenche título, itens, objetivo, escopo, fornecimentos, prazo
   e condições; tudo pode ser ajustado antes de salvar.
-- **Imprimir / PDF** gera a proposta no padrão Idealle (seções 1 a 10, valor por extenso, dados de
-  faturamento e assinaturas).
+- **Imprimir / PDF** gera a proposta no modelo da Idealle (Proposta 0302/2026: logo, destinatário com endereço e CEP,
+  At. com setor do contato, seções 1 a 10, valor por extenso, dados de faturamento, assinaturas e rodapé com selo CREA-SP).
+  No texto "2. Objeto da inspeção", linhas com "-" viram tópicos em negrito e "|" separa equipamento e serviço
+  (ex.: `- Compressor Air ZAP | Calibração 02 Manômetros e 01 Válvula;`). Vazio, o objeto lista os itens da proposta.
 - **Salvar como modelo** numa proposta transforma ela em modelo novo.
 - Reimportar não sobrescreve modelos já importados (para não desfazer ajustes feitos no Cronos).
 
