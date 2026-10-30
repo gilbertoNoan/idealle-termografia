@@ -263,7 +263,7 @@
 
   <!-- ORDENS -->
   <section class="view" id="v-ordens">
-    <h2>Ordens de Serviço <button class="btn" id="btn-nova-os">+ Nova OS</button> <button class="btn sec" id="btn-emitir-nf-os">Emitir nota fiscal</button></h2>
+    <h2>Ordens de Serviço <button class="btn" id="btn-nova-os">+ Nova OS</button> <button class="btn sec" id="btn-emitir-nf-os">Emitir nota fiscal</button> <button class="btn sec" id="btn-baixa-os">Dar baixa em OS antigas</button></h2>
     <div class="busca">
       <input id="busca-os" placeholder="Buscar por número, cliente, descrição…">
       <select id="filtro-os"><option value="">Todos os status</option></select>
@@ -1834,6 +1834,34 @@
   }
   $('btn-emitir-nf').addEventListener('click', escolherNota);
   $('btn-emitir-nf-os').addEventListener('click', escolherNota);
+
+  // OS antigas que ficaram abertas: marca como faturadas, sem mexer nas notas nem no caixa
+  $('btn-baixa-os').addEventListener('click', function () {
+    var limite = somarDias(hoje(), -60);
+    var l = cache.ordens.filter(function (o) { return o.status !== 'faturada' && o.status !== 'cancelada'; })
+      .sort(function (a, b) { return (a.dataAbertura || '') < (b.dataAbertura || '') ? 1 : -1; });
+    if (!l.length) { toast('Nenhuma OS em aberto.'); return; }
+    abrirModal('<h3>Dar baixa em OS antigas</h3><p class="muted">As marcadas passam a faturadas. Nada muda no caixa nem nas notas. Vêm marcadas as abertas há mais de 60 dias: confira antes.</p>' +
+      '<div class="tabela"><table><tbody>' + l.map(function (o, i) {
+        return '<tr><td><input type="checkbox" data-bx="' + i + '"' + (!o.dataAbertura || o.dataAbertura < limite ? ' checked' : '') + ' style="width:auto"></td><td><b>' + esc(o.codigo || ('OS-' + o.numero)) + '</b><div class="muted">' + data(o.dataAbertura) + '</div></td><td>' +
+          esc(nomeCliente(o.empresaId, o.empresaNome)) + '<div class="muted">' + esc(o.descricao || '') + '</div></td><td class="num">' + brl(o.valor) + '</td><td>' + tag('os', o.status) + '</td></tr>';
+      }).join('') + '</tbody></table></div><p id="bx-progresso" class="muted"></p>' +
+      '<div class="acoes"><button class="btn ok" id="bx-os-ok">Dar baixa nas marcadas</button><button class="btn sec" id="bx-os-cancelar">Cancelar</button></div>');
+    $('bx-os-cancelar').onclick = fecharModal;
+    $('bx-os-ok').onclick = async function () {
+      var sel = l.filter(function (o, i) { return $('modal').querySelector('[data-bx="' + i + '"]').checked; }), h = hoje();
+      if (!sel.length) return;
+      this.disabled = true; $('bx-os-cancelar').disabled = true; importando = true;
+      try {
+        await emLotes(sel, async function (o) {
+          await banco.atualizar('ordens', o.id, { status: 'faturada', dataConclusao: o.dataConclusao || o.dataAbertura || h, updatedAt: agora() });
+        }, function (m) { $('bx-progresso').textContent = m; }, 'OS');
+        $('bx-progresso').textContent = 'Concluído: ' + sel.length + ' OS faturadas.'; toast('Baixa feita.');
+      } catch (e) { console.error(e); $('bx-progresso').textContent = 'Parou: ' + (e.message || e) + '. Pode rodar de novo.'; }
+      importando = false; renderTudo();
+      $('bx-os-cancelar').disabled = false; $('bx-os-cancelar').textContent = 'Fechar';
+    };
+  });
 
   $('lista-faturas').addEventListener('click', async function (e) {
     var a = e.target.closest('[data-vernf]'); if (a) { e.preventDefault(); verNota(porId('faturas', a.dataset.vernf)); return; }
