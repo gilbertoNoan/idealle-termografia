@@ -1632,7 +1632,8 @@
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn ok" id="ov-concluir">Concluir serviço</button>');
     if (st === 'parcial') b.push('<button class="btn ok" id="ov-nota-saldo">Preparar nota ' + (o.contrato ? 'da entrega' : 'do saldo') + '</button>', '<button class="btn sec" id="ov-faturar">' + (o.contrato ? 'Faturar entrega' : 'Faturar saldo') + '</button>');
     else if (st !== 'cancelada' && (st === 'faturada' ? f && !f.nf : !(f && f.nf))) b.push('<button class="btn ok" id="ov-nota">Preparar nota fiscal</button>');
-    if (['aberta', 'execucao', 'concluida'].indexOf(st) >= 0) b.push('<button class="btn sec" id="ov-faturar">' + (o.contrato ? 'Faturar entrega' : st === 'concluida' ? 'Faturar sem preparar' : 'Faturar parte') + '</button>');
+    if (['aberta', 'execucao', 'concluida'].indexOf(st) >= 0 || (o.contrato && st === 'faturada')) b.push('<button class="btn sec" id="ov-faturar">' + (o.contrato ? 'Faturar entrega' : st === 'concluida' ? 'Faturar sem preparar' : 'Faturar parte') + '</button>');
+    if (o.contrato) b.push('<button class="btn sec" id="ov-vincular">Notas do contrato</button>');
     b.push('<button class="btn sec" id="ov-editar">Editar</button>');
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn perigo" id="ov-cancelar">Cancelar OS</button>');
     if (st === 'cancelada') b.push('<button class="btn sec" id="ov-reabrir">Reabrir</button>');
@@ -1666,6 +1667,7 @@
     ligar('ov-cancelar', async function () { if (!confirm('Cancelar a OS ' + codOS(o) + '?')) return; await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'cancelada' }); }, 'OS cancelada.'); verOS(o.id); });
     ligar('ov-reabrir', async function () { await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'aberta' }); }, 'OS reaberta.'); verOS(o.id); });
     ligar('ov-faturar', function () { formFatura(o); });
+    ligar('ov-vincular', function () { vincularNotas(o); });
     ligar('ov-nota', function () { prepararNota(o, f && !f.nf ? f : null); });
     ligar('ov-nota-saldo', function () { prepararNota(o, null); });
     ligar('ov-excluir', function () { excluirOS(o); });
@@ -1689,6 +1691,38 @@
       await banco.excluir('ordens', o.id);
     }, 'OS ' + codOS(o) + ' excluída.');
     fecharModal();
+  }
+
+  // Contrato: a OS é a mesma o ano todo e cada serviço vira uma nota. Junta as notas do cliente nesta OS;
+  // vêm marcadas as que já estão nela e as importadas com o número da OS no código (ex.: ID-0150/2026-3, "ID-0150/2025 Nota 1").
+  function vincularNotas(o) {
+    var n = numeroID(o) || parseInt(o.numero, 10) || 0, re = n ? new RegExp('(^|\\D)0*' + n + '\\s*/') : null;
+    var l = cache.faturas.filter(function (f) { return f.status !== 'cancelada' && (f.osId === o.id || f.id === o.faturaId || f.clienteId === o.empresaId || normal(f.clienteNome) === normal(o.empresaNome)); })
+      .sort(function (a, b) { return String(a.emissao || '') < String(b.emissao || '') ? -1 : 1; });
+    if (!l.length) { toast('Nenhuma nota deste cliente.'); return; }
+    function nesta(f) { return f.osId === o.id || f.id === o.faturaId; }
+    abrirModal('<h3>Notas do contrato · OS ' + esc(codOS(o)) + '</h3><div>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '</div>' +
+      '<p class="muted">Marque as notas que são entregas deste contrato. Vêm marcadas as que já estão na OS e as que têm o número ' + (n ? pad(n, 4) : '') + ' no código da OS.</p>' +
+      '<table><thead><tr><th></th><th>NF</th><th>Emissão</th><th>OS na nota</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>' + l.map(function (f, i) {
+        var outra = f.osId && f.osId !== o.id ? porId('ordens', f.osId) : null, marcar = nesta(f) || (!outra && re && re.test(f.osCodigo || ''));
+        return '<tr><td><input type="checkbox" data-vn="' + i + '" style="width:auto"' + (marcar ? ' checked' : '') + '></td><td><b>' + esc(f.nf || codFatura(f)) + '</b></td><td>' + data(f.emissao) + '</td><td>' + esc(f.osCodigo || '—') + (outra ? '<div class="muted">hoje na OS ' + esc(codOS(outra)) + '</div>' : '') + '</td><td class="num">' + brl(f.valor) + '</td><td>' + tag('fatura', f.status, f.vencimento) + '</td></tr>';
+      }).join('') + '</tbody></table><div id="vn-soma" class="muted"></div>' +
+      '<div class="acoes"><button class="btn ok" id="vn-salvar">Salvar</button><button class="btn sec" id="vn-voltar">Voltar</button></div>');
+    function marcadas() { return l.filter(function (f, i) { return document.querySelector('[data-vn="' + i + '"]').checked; }); }
+    function soma() { var m = marcadas(), t = m.reduce(function (s, f) { return s + num(f.valor); }, 0); $('vn-soma').innerHTML = m.length + ' nota(s) · <b>' + brl(t) + '</b>' + (o.valor != null ? ' de ' + brl(o.valor) + ' do contrato' + (t > num(o.valor) + 0.01 ? ' · <span style="color:var(--bad)">passou do valor da OS: ajuste o valor do contrato no Editar</span>' : ' · saldo ' + brl(num(o.valor) - t)) : ''); }
+    document.querySelectorAll('[data-vn]').forEach(function (c) { c.onchange = soma; }); soma();
+    $('vn-voltar').onclick = function () { verOS(o.id); };
+    $('vn-salvar').onclick = async function () {
+      var m = marcadas(), t = m.reduce(function (s, f) { return s + num(f.valor); }, 0);
+      await salvar(async function () {
+        for (var i = 0; i < m.length; i++) await banco.atualizar('faturas', m[i].id, { osId: o.id, osNumero: o.numero || n, osCodigo: codOS(o), parcela: (i + 1) + 'ª', updatedAt: agora() });
+        for (var j = 0; j < l.length; j++) if (nesta(l[j]) && m.indexOf(l[j]) < 0) await banco.atualizar('faturas', l[j].id, { osId: '', parcela: '', updatedAt: agora() });
+        var u = { faturaId: m.length ? m[m.length - 1].id : '', updatedAt: agora() };
+        if (m.length) u.status = o.valor && t < num(o.valor) - 0.01 ? 'parcial' : 'faturada';
+        await banco.atualizar('ordens', o.id, u);
+      }, m.length + ' nota(s) no contrato ' + codOS(o) + '.');
+      verOS(o.id);
+    };
   }
 
   // ===================== FATURAMENTO =====================
