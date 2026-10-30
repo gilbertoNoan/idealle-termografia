@@ -112,29 +112,30 @@
   .pp .cx-print th, .pp .cx-print td { padding: 3px 5px; }
   .pp .cx-print .n { text-align: right; white-space: nowrap; }
   .pp-assin { display: flex; justify-content: space-around; margin-top: 32px; text-align: center; break-inside: avoid; }
-  /* Proposta no modelo da Idealle (Proposta 0302/2026): Calibri 10pt, títulos numerados com recuo de 15,5 mm */
-  .pq { font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif; font-size: 10pt; line-height: 11pt; color: #000; }
+  /* Proposta no modelo da Idealle (Proposta 0302/2026): Calibri 9pt com linhas de 11pt, margens 20/19 mm, recuos de 10 mm */
+  .pq { font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif; font-size: 9pt; line-height: 11pt; color: #000; padding-right: 4.34mm; }
   .pq p { margin: 0 0 11pt; text-align: justify; break-inside: avoid; }
   .pq .pq-data { text-align: right; margin-bottom: 0; }
   .pq .pq-dest { font-weight: bold; text-transform: uppercase; text-align: left; }
   .pq .pq-lin { display: flex; font-weight: bold; margin: 0 0 11pt; break-inside: avoid; }
-  .pq .pq-lin > span { width: 27mm; flex: none; }
-  .pq .pq-lin > div { flex: 1; text-align: justify; }
+  .pq .pq-lin > span { width: 20mm; flex: none; }
+  .pq .pq-lin > div { flex: 1; text-align: justify; margin-right: -4.34mm; }
   .pq .pq-tit { display: flex; font-weight: bold; padding-bottom: 13mm; margin: 0 0 -9.1mm; break-inside: avoid; }
-  .pq .pq-tit > span { width: 15.5mm; flex: none; }
-  .pq .pq-corpo { margin-left: 15.5mm; }
+  .pq .pq-tit > span { width: 10mm; flex: none; }
+  .pq .pq-corpo { margin-left: 10mm; }
   .pq ol.pl { list-style: none; padding: 0; margin: 0 0 11pt; }
   .pq ol.pl li { display: flex; text-align: justify; break-inside: avoid; }
-  .pq ol.pl li > span { width: 11mm; flex: none; }
+  .pq ol.pl li > span { width: 10mm; flex: none; }
   .pq ol.pl li > div { flex: 1; }
   .pq .pq-centro { text-align: center; font-weight: bold; }
   .pq table.pq-top { width: auto; border-collapse: collapse; margin: 0 0 11pt; font-weight: bold; }
-  .pdf-render .pq table.pq-top td { border: 0; padding: 0 4mm 0 0; vertical-align: top; font-size: 10pt; }
-  .pq table.pq-top td:first-child { width: 7mm; padding: 0; text-align: center; }
-  .pq .itens-print { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 11pt; }
+  .pdf-render .pq table.pq-top td { border: 0; padding: 0; vertical-align: top; font-size: 9pt; line-height: 11.3pt; }
+  .pq table.pq-top td:nth-child(2):not([colspan]) { width: 40mm; min-width: 40mm; padding-right: 2mm; }
+  .pq table.pq-top td:first-child { width: 6.35mm; }
+  .pq .itens-print { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-bottom: 11pt; }
   .pq .itens-print th { text-align: left; }
   .pq .itens-print .n { text-align: right; white-space: nowrap; }
-  .pq .pq-fim { margin-left: 15.5mm; break-inside: avoid; }
+  .pq .pq-fim { margin-left: 10mm; break-inside: avoid; }
   .pq .pq-fim p { margin-bottom: 0; }
   .pq .pq-assin { display: flex; }
   .pq .pq-assin > div:first-child { flex: none; width: 100mm; }
@@ -1083,7 +1084,7 @@
     toast('Gerando o PDF…');
     try { await carregarHtml2pdf(); } catch (e) { toast('Não deu para carregar o gerador de PDF. Confira a internet e tente de novo.'); return; }
     var el = document.createElement('div'); el.className = 'pdf-render'; el.innerHTML = html;
-    var mg = modelo ? [27, 14, 24, 13] : [12, 14, rodape ? 20 : 12, 14];
+    var mg = modelo ? [28, 20, 25, 10.95] : [12, 14, rodape ? 20 : 12, 14];
     el.style.width = (210 - mg[1] - mg[3] - 4) + 'mm';
     var opt = { margin: mg, filename: nome, image: { type: 'jpeg', quality: 0.95 },
       html2canvas: { scale: 2, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -1094,11 +1095,11 @@
         for (var i = 1; i <= n; i++) {
           pdf.setPage(i); pdf.setFontSize(7.5); pdf.setTextColor(60);
           if (modelo) {
-            pdf.addImage(LOGO_PROP, 'JPEG', 24, 5, 78, 16.9);
-            pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(60); pdf.text('Idealle - ' + EMPRESA.slogan, 32.7, h - 17.5);
-            pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(90); pdf.text(EMPRESA.endereco + ' - Tel. ' + EMPRESA.telefone, 32.7, h - 13.8);
-            pdf.setFont('helvetica', 'bold'); pdf.setTextColor(233, 156, 38); pdf.text(EMPRESA.site, 32.7, h - 10.3);
-            if (i === n) pdf.addImage(SELO_CREA, 'JPEG', 154.7, h - 20.5, 39.5, 9.6);
+            pdf.addImage(LOGO_PROP, 'JPEG', 19.96, 5.2, 83.5, 18.09);
+            pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(60); pdf.text('Idealle - ' + EMPRESA.slogan, 32.7, h - 12.8);
+            pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(90); pdf.text('Rua Três Marias 22, Sala 221 - Vila Madeirense - Guarulhos-SP - CEP:07110-170 - Tel. (11)4280-9111', 32.7, h - 9.0);
+            pdf.setFont('helvetica', 'bold'); pdf.setTextColor(233, 156, 38); pdf.text('www.Ideallesp.com.br', 32.7, h - 5.6);
+            if (i === n) pdf.addImage(SELO_CREA, 'JPEG', 153.9, h - 18.55, 39.5, 9.6);
             pdf.setFont('helvetica', 'normal'); pdf.setTextColor(60); pdf.setFontSize(7.5);
             continue;
           }
@@ -1464,7 +1465,7 @@
       its.length === 1 && num(its[0].qtd) === 1 ? par(its[0].descricao) :
       topicos(its.map(function (i) { return '<td colspan="2">' + esc(i.descricao) + (num(i.qtd) !== 1 ? ' (' + esc(i.qtd) + ')' : '') + '</td>'; })));
     corpo += secao('LOCAL DE EXECUÇÃO DOS SERVIÇOS', par(p.local || 'Nas instalações do Cliente conforme endereço acima.'));
-    if (p.escopo) corpo += secao('ESCOPO DA INSPEÇÃO', '<p>A fim de podermos atender o objetivo do trabalho, propomos a execução dos seguintes itens, os quais serão definidos para cada equipamento inspecionado:</p>' + lista(p.escopo, n + 1));
+    if (p.escopo) corpo += secao('ESCOPO DA INSPEÇÃO', '<p>A fim de podermos atender o objetivo do trabalho, propomos a execução dos seguintes itens,<br>os quais serão definidos para cada equipamento inspecionado:</p>' + lista(p.escopo, n + 1));
     if (p.fornIdealle) corpo += secao('FORNECIMENTO IDEALLE', lista(p.fornIdealle, n + 1));
     if (p.fornCliente) corpo += secao('FORNECIMENTO DO CLIENTE', lista(p.fornCliente, n + 1));
     if (p.prazoExecucao) corpo += secao('PRAZOS DE EXECUÇÃO', par(p.prazoExecucao));
@@ -1476,9 +1477,9 @@
       '<p>Caso venhamos a ser contratados para os serviços descritos nesta proposta, o faturamento será executado pelo endereço:</p>' +
       '<p class="pq-centro">' + esc(EMPRESA.razao) + '<br>' + esc(EMPRESA.endereco) + '<br>CNPJ nº ' + esc(EMPRESA.cnpj) + ' e I. E. nº ' + esc(EMPRESA.ie) + '</p>' +
       (multa ? '<p class="pq-centro">' + esc(multa) + '</p>' : ''));
-    corpo += secao('VALIDADE DA PROPOSTA', '<p>Esta proposta é válida por ' + dias + ' dias, a partir da data de sua emissão, após o que estará sujeita a confirmação. ' +
+    corpo += secao('VALIDADE DA PROPOSTA', '<p>Esta proposta é válida por ' + dias + ' dias, a partir da data de sua emissão, após o que estará sujeita a confirmação.<br>' +
       'Desde já agradecemos a oportunidade de participar desta tomada de preços e permaneceremos a sua inteira disposição para quaisquer esclarecimentos que se fizerem necessários.</p>');
-    var dt = dataExtenso(p.data).replace(/^(\d) /, '0$1 ').replace(/ de (\S)/, function (m, l) { return ' de ' + l.toUpperCase(); });
+    var dt = dataExtenso(p.data).replace(/^(\d) /, '0$1 ').replace(/ de (\S)/, function (m, l) { return ' de ' + l.toUpperCase(); }).replace(/(\d)(\d{3})$/, '$1.$2');
     var html = '<div class="pq">' +
       '<p class="pq-data">' + esc(EMPRESA.cidade) + ', ' + dt + '.</p>' +
       '<p class="pq-dest">À<br>' + esc(c.nome) + (c.endereco ? '<br>' + esc(c.endereco) : '') +
