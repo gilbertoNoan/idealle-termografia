@@ -1522,7 +1522,8 @@
       '<div class="linha"><div><label>Abertura</label><input id="o-abertura" type="date" value="' + esc(o.dataAbertura || hoje()) + '"></div><div><label>Prazo</label><input id="o-prazo" type="date" value="' + esc(o.prazo) + '"></div><div><label>Responsável</label><input id="o-resp" value="' + esc(o.responsavel) + '"></div></div>' +
       '<div class="linha"><div><label>Sistema de execução</label><select id="o-sistema">' + opcoesSistemas(o.sistema) + '</select></div><div><label>Valor (R$)</label><input id="o-valor" inputmode="decimal" value="' + esc(o.valor != null ? String(o.valor).replace('.', ',') : '') + '"></div>' +
       (temConclusao ? '<div><label>Concluída em</label><input id="o-conclusao" type="date" value="' + esc(o.dataConclusao) + '"></div>' : '') + '</div>' +
-      (f ? '<div class="muted" style="font-size:.8em">Esta OS já tem a fatura ' + esc(codFatura(f)) + '. Cliente e serviço são atualizados nela também; se mudar o valor, o sistema pergunta se a fatura muda junto.</div>' : '') +
+      (f ? '<label>Fatura desta OS</label><div class="linha"><div><label>Nº da nota fiscal</label><input id="o-nf" value="' + esc(f.nf) + '" placeholder="Sem NF ainda"></div><div><label>Valor da fatura (R$)</label><input id="o-fvalor" inputmode="decimal" value="' + esc(f.valor != null ? String(f.valor).replace('.', ',') : '') + '"></div><div><label>Vencimento</label><input id="o-fvenc" type="date" value="' + esc(f.vencimento) + '"></div></div>' +
+        '<div class="muted" style="font-size:.8em">Cliente e serviço da fatura acompanham a OS. Se mudar só o valor da OS, o sistema pergunta se a fatura muda junto.</div>' : '') +
       '<label>Serviços desta OS</label><div style="display:flex;flex-wrap:wrap;gap:6px 18px">' + SERVICOS_OS.map(function (sv) {
         return '<label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:normal"><input type="checkbox" id="o-sv-' + sv[0] + '" style="width:auto"' + (o.servicos && o.servicos[sv[0]] ? ' checked' : '') + '> ' + esc(sv[1]) + '</label>';
       }).join('') + '</div><div class="muted" style="font-size:.8em">Os sistemas mostram o que falta em cada TAG conforme o que estiver marcado aqui.</div>' +
@@ -1539,8 +1540,10 @@
       if (o.id) {
         var df = null;
         if (f) {
-          df = { clienteId: d.empresaId, clienteNome: d.empresaNome, descricao: d.descricao };
-          if (d.valor != null && d.valor !== f.valor && confirm('O valor da OS mudou para ' + brl(d.valor) + '.\n\nAtualizar também a fatura ' + codFatura(f) + ' (hoje ' + brl(f.valor) + ')?')) df.valor = d.valor;
+          var nf = $('o-nf').value.trim(), fv = $('o-fvalor').value.trim() ? num($('o-fvalor').value) : f.valor;
+          if (nf && nf !== (f.nf || '') && cache.faturas.some(function (x) { return x.nf === nf && x.id !== f.id; }) && !confirm('Já existe outra fatura com a NF ' + nf + '. Salvar mesmo assim?')) return;
+          df = { clienteId: d.empresaId, clienteNome: d.empresaNome, descricao: d.descricao, nf: nf, valor: fv, vencimento: $('o-fvenc').value, updatedAt: agora() };
+          if (fv === f.valor && d.valor != null && d.valor !== o.valor && d.valor !== f.valor && confirm('O valor da OS mudou para ' + brl(d.valor) + '.\n\nAtualizar também a fatura ' + codFatura(f) + ' (hoje ' + brl(f.valor) + ')?')) df.valor = d.valor;
         }
         await salvar(async function () {
           await banco.atualizar('ordens', o.id, d);
