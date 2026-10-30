@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.30-6" />
+<meta name="app-version" content="2026.10.30-7" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -489,6 +489,8 @@
   .nav-item:hover .ico { transform: scale(1.12); opacity: 1; }
   .nav-item.active .ico { color: #7CACFF; opacity: 1; }
   .card h2 .ico { width: 20px; height: 20px; flex: none; color: #7CACFF; }
+  .ico-i { width: 1.1em; height: 1.1em; vertical-align: -0.18em; margin-right: .3em; flex: none; }
+  .btn-secondary .ico-i, .btn-danger .ico-i { margin-right: .35em; }
 </style>
 </head>
 <body>
@@ -520,7 +522,7 @@
   </div>
 </header>
 <div id="aviso-atualizacao" class="aviso-atualizacao" style="display:none;">
-  <span>🔄 Há uma <b>versão nova</b> do sistema disponível.</span>
+  <span><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14-4L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4l2-2M20 20v-5h-5"/></svg> Há uma <b>versão nova</b> do sistema disponível.</span>
   <button id="btn-atualizar-app" type="button">Atualizar agora</button>
 </div>
 <div id="status-banco" class="status-banco" style="display:none;"></div>
@@ -531,7 +533,7 @@
   <div class="card">
     <h2><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="9" rx="2"/><rect x="13.5" y="3" width="7.5" height="5.5" rx="2"/><rect x="13.5" y="12" width="7.5" height="9" rx="2"/><rect x="3" y="15.5" width="7.5" height="5.5" rx="2"/></svg> Painel <span id="dash-cliente-nome" class="contador"></span></h2>
     <div class="dash-empresa-bar" id="dash-empresa-bar">
-      <label for="dash-empresa">🏢 Empresa</label>
+      <label for="dash-empresa"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 10h1M14 10h1M9 14h1M14 14h1M10.5 21v-3.5h3V21"/></svg> Empresa</label>
       <select id="dash-empresa"><option value="">Todas as empresas</option></select>
     </div>
     <div class="dash-grid">
@@ -625,7 +627,7 @@
       </div>
     </div>
     <div class="temp-admissivel-box" id="temp-admissivel-box" style="display:none;">
-      🌡 <strong>Temperatura admissível de referência:</strong> <span id="valor-temp-admissivel">—</span>
+      <svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/></svg> <strong>Temperatura admissível de referência:</strong> <span id="valor-temp-admissivel">—</span>
     </div>
 
     <div class="subhead">Temperaturas coletadas (°C)</div>
@@ -673,7 +675,7 @@
     </div>
 
     <div id="bloco-critico" style="display:none;">
-      <div class="subhead">⚠️ Detalhamento adicional (item crítico)</div>
+      <div class="subhead"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg> Detalhamento adicional (item crítico)</div>
       <label>Fotos extras</label>
       <div class="foto-wrap" id="foto-wrap-extras">
         <div class="foto-label" id="foto-label-extras">Toque para adicionar uma ou mais fotos</div>
@@ -691,7 +693,7 @@
     <label>Conclusão <span id="conclusao-aviso" class="ajuda-campo" style="display:none;">Preenchimento manual obrigatório para este nível de severidade.</span></label>
     <textarea id="f-conclusao" placeholder="Conclusão técnica do laudo para este ponto..."></textarea>
 
-    <button class="btn-secondary" id="btn-ver-previa" style="width:100%; margin-top:6px;">👁 Ver prévia do relatório</button>
+    <button class="btn-secondary" id="btn-ver-previa" style="width:100%; margin-top:6px;"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg> Ver prévia do relatório</button>
     <button class="btn-primary" id="btn-salvar">Salvar ponto</button>
     <button class="btn-secondary" id="btn-cancelar-edicao" style="display:none; width:100%; margin-top:8px;">Cancelar edição</button>
   </div>
@@ -702,7 +704,7 @@
   <div class="card" id="card-empresas-filtro" style="display:none;">
     <div class="filtro-bar">
       <span>Mostrando empresas com quadros: <span class="filtro-badge" id="filtro-empresas-badge"></span></span>
-      <button class="btn-secondary" id="btn-limpar-filtro-empresas">✕ Limpar filtro</button>
+      <button class="btn-secondary" id="btn-limpar-filtro-empresas"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg> Limpar filtro</button>
     </div>
   </div>
   <div class="card" id="card-nova-empresa">
@@ -731,7 +733,7 @@
     <h2 style="margin-top:10px;"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/></svg> OS de <span id="ordens-filtro-nome"></span></h2>
     <div class="filtro-bar" id="ordens-filtro-severidade-bar" style="display:none;">
       <span>Mostrando só quadros: <span class="filtro-badge" id="filtro-ordens-badge"></span></span>
-      <button class="btn-secondary" id="btn-limpar-filtro-ordens">✕ Limpar filtro</button>
+      <button class="btn-secondary" id="btn-limpar-filtro-ordens"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg> Limpar filtro</button>
     </div>
   </div>
   <div class="card" id="card-nova-os">
@@ -774,8 +776,8 @@
     </div>
     <div class="os-laudos-toolbar" style="margin-top:12px;">
       <label class="laudo-check laudo-check-all"><input type="checkbox" id="ls-check-all"> Selecionar todos</label>
-      <button class="btn-secondary" id="ls-baixar-sel" type="button">⬇ Baixar selecionados</button>
-      <button class="btn-secondary" id="ls-limpar" type="button">✕ Limpar filtros</button>
+      <button class="btn-secondary" id="ls-baixar-sel" type="button"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Baixar selecionados</button>
+      <button class="btn-secondary" id="ls-limpar" type="button"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg> Limpar filtros</button>
     </div>
     <div id="lista-laudos-salvos"><div class="vazio">Nenhum laudo salvo ainda.</div></div>
   </div>
@@ -794,9 +796,9 @@
       <button type="button" class="btn-secondary" id="fe-girar-dir" title="Girar à direita">⟳ Girar</button>
     </div>
     <div class="foto-editor-zoom">
-      <span>🔍−</span>
+      <span><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>−</span>
       <input type="range" id="fe-zoom" min="0.7" max="3" step="0.01" value="1">
-      <span>🔍+</span>
+      <span><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>+</span>
     </div>
     <div class="foto-editor-acoes">
       <button type="button" class="btn-secondary" id="fe-cancelar">Cancelar</button>
@@ -860,8 +862,8 @@
       SEV_ORDEM.map(function (k) {
         return '<label class="sev-chip"><input type="checkbox" class="sev-check" data-escopo="' + escopo + '" data-sev="' + k + '"' + (sevSel[escopo + '|' + k] ? ' checked' : '') + '><i style="background:' + SEV_COR[k] + '"></i>' + SEVERIDADE_LABEL[k] + ' (' + (cont[k] || 0) + ')</label>';
       }).join('') +
-      '<button class="btn-secondary" type="button" data-action="sev-baixar-pdf" data-escopo="' + escopo + '">📄 PDF único</button>' +
-      '<button class="btn-secondary" type="button" data-action="sev-baixar-zip" data-escopo="' + escopo + '">⬇ ZIP</button></div>';
+      '<button class="btn-secondary" type="button" data-action="sev-baixar-pdf" data-escopo="' + escopo + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg> PDF único</button>' +
+      '<button class="btn-secondary" type="button" data-action="sev-baixar-zip" data-escopo="' + escopo + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> ZIP</button></div>';
   }
   function filtrarPorSevMarcada(escopo, lista) {
     var ativos = SEV_ORDEM.filter(function (k) { return sevSel[escopo + '|' + k]; });
@@ -1033,7 +1035,7 @@
       dica = 'Confira no console do Firebase se o <b>Firestore Database</b> foi criado e se as <b>Regras</b> estão publicadas.';
     }
     var banner = document.getElementById('status-banco');
-    banner.innerHTML = '<strong>⚠ Problema com o banco de dados' + (contexto ? ' (' + escapeHtml(contexto) + ')' : '') + '</strong>' +
+    banner.innerHTML = '<strong><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg> Problema com o banco de dados' + (contexto ? ' (' + escapeHtml(contexto) + ')' : '') + '</strong>' +
       dica + '<br><span style="opacity:.8">Detalhe técnico: <code>' + escapeHtml(codigo ? (codigo + ' — ' + mensagem) : mensagem) + '</code></span>';
     banner.style.display = 'block';
     console.error('Erro do banco (' + (contexto || '') + '):', err);
@@ -1535,10 +1537,10 @@
     var html = '';
     fotosExtrasExistentes.forEach(function (f, i) {
       var src = f.dataUrl || f.url || (f.id ? ('/_blob/' + f.id) : '');
-      html += '<div class="extra-item"><img src="' + src + '"><button type="button" class="extra-remove" data-tipo="existente" data-idx="' + i + '">✕</button></div>';
+      html += '<div class="extra-item"><img src="' + src + '"><button type="button" class="extra-remove" data-tipo="existente" data-idx="' + i + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>';
     });
     fotosExtrasNovas.forEach(function (f, i) {
-      html += '<div class="extra-item"><img src="' + f.dataUrl + '"><button type="button" class="extra-remove" data-tipo="nova" data-idx="' + i + '">✕</button></div>';
+      html += '<div class="extra-item"><img src="' + f.dataUrl + '"><button type="button" class="extra-remove" data-tipo="nova" data-idx="' + i + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>';
     });
     grid.innerHTML = html;
     var total = fotosExtrasExistentes.length + fotosExtrasNovas.length;
@@ -1796,9 +1798,9 @@
           '<span class="badge ' + c.key + '">' + c.label + '</span>' +
         '</div>' +
         '<div class="ponto-actions">' +
-          '<button class="btn-secondary" data-action="ver" data-id="' + p.id + '">👁 Visualizar</button>' +
-          '<button class="btn-secondary" data-action="pdf" data-id="' + p.id + '">⬇ Baixar</button>' +
-          '<button class="btn-secondary" data-action="editar" data-id="' + p.id + '">✏️ Editar</button>' +
+          '<button class="btn-secondary" data-action="ver" data-id="' + p.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg> Visualizar</button>' +
+          '<button class="btn-secondary" data-action="pdf" data-id="' + p.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Baixar</button>' +
+          '<button class="btn-secondary" data-action="editar" data-id="' + p.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg> Editar</button>' +
           '<button class="btn-danger" data-action="del" data-id="' + p.id + '">Excluir</button>' +
         '</div>' +
       '</div>';
@@ -1863,7 +1865,7 @@
     });
     var tituloEl = document.getElementById('titulo-lista');
     if (tituloEl && MODO_CLIENTE) {
-      tituloEl.innerHTML = '<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg> Laudos disponíveis' + (filtroCliente ? ' — ' + escapeHtml(SEVERIDADE_LABEL[filtroCliente] || '') + ' <button class="btn-secondary" id="btn-limpar-filtro-cliente" type="button" style="margin-left:6px;">✕ Mostrar todos</button>' : '') + ' <span class="contador" id="contador"></span>';
+      tituloEl.innerHTML = '<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg> Laudos disponíveis' + (filtroCliente ? ' — ' + escapeHtml(SEVERIDADE_LABEL[filtroCliente] || '') + ' <button class="btn-secondary" id="btn-limpar-filtro-cliente" type="button" style="margin-left:6px;"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg> Mostrar todos</button>' : '') + ' <span class="contador" id="contador"></span>';
     }
     var lista = document.getElementById('lista');
     var contador = document.getElementById('contador');
@@ -1879,9 +1881,9 @@
     var todosMarcados = visiveis.length > 0 && qtdSelDash === visiveis.length;
     var html = (semOs ? '<div class="ajuda-campo" style="color:var(--texto-suave);margin:0 0 8px;">ℹ️ ' + semOs + ' laudo(s) abaixo pertencem a uma OS que já foi excluída.</div>' : '') + '<div class="os-laudos-toolbar">' + chipsSeveridade('dash', visiveis) +
       '<label class="laudo-check laudo-check-all"><input type="checkbox" id="dash-check-all"' + (todosMarcados ? ' checked' : '') + '> Selecionar todos</label>' +
-      '<button class="btn-secondary" type="button" data-action="dash-baixar-sel">⬇ Baixar selecionados' + (qtdSelDash ? ' (' + qtdSelDash + ')' : '') + '</button>' +
-      '<button class="btn-secondary" type="button" data-action="dash-baixar-pdf">📄 Baixar todos em um PDF (' + visiveis.length + ')</button>' +
-      '<button class="btn-secondary" type="button" data-action="dash-baixar-todos">⬇ Baixar todos em ZIP (' + visiveis.length + ')</button>' +
+      '<button class="btn-secondary" type="button" data-action="dash-baixar-sel"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Baixar selecionados' + (qtdSelDash ? ' (' + qtdSelDash + ')' : '') + '</button>' +
+      '<button class="btn-secondary" type="button" data-action="dash-baixar-pdf"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg> Baixar todos em um PDF (' + visiveis.length + ')</button>' +
+      '<button class="btn-secondary" type="button" data-action="dash-baixar-todos"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Baixar todos em ZIP (' + visiveis.length + ')</button>' +
       '</div>';
     visiveis.forEach(function (p) {
       var c = classificarPrincipal(p);
@@ -1895,9 +1897,9 @@
           '<span class="badge ' + c.key + '">' + c.label + '</span>' +
         '</div>' +
         '<div class="ponto-actions">' +
-          '<button class="btn-secondary" data-action="ver" data-id="' + p.id + '">👁 Visualizar</button>' +
-          '<button class="btn-secondary" data-action="pdf" data-id="' + p.id + '">⬇ Baixar</button>' +
-          (MODO_CLIENTE ? '' : '<button class="btn-secondary" data-action="editar" data-id="' + p.id + '">✏️ Editar</button>') +
+          '<button class="btn-secondary" data-action="ver" data-id="' + p.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg> Visualizar</button>' +
+          '<button class="btn-secondary" data-action="pdf" data-id="' + p.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Baixar</button>' +
+          (MODO_CLIENTE ? '' : '<button class="btn-secondary" data-action="editar" data-id="' + p.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg> Editar</button>') +
           (MODO_CLIENTE ? '' : '<button class="btn-danger" data-action="del" data-id="' + p.id + '">Excluir</button>') +
         '</div>' +
       '</div>';
@@ -2074,7 +2076,7 @@
           (h.campos && h.campos.length ? '<div class="hist-campos">Campos: ' + escapeHtml(h.campos.join(', ')) + '</div>' : '') + '</div>';
       }).join('');
     }
-    return '<details class="os-historico" data-os-id="' + osId + '"' + aberto + '><summary>🕘 Histórico de alterações (' + itens.length + ')</summary>' + corpo + '</details>';
+    return '<details class="os-historico" data-os-id="' + osId + '"' + aberto + '><summary><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Histórico de alterações (' + itens.length + ')</summary>' + corpo + '</details>';
   }
   document.addEventListener('toggle', function (e) {
     var d = e.target;
@@ -2159,7 +2161,7 @@
       var badge = document.getElementById('filtro-empresas-badge');
       badge.textContent = SEVERIDADE_LABEL[filtroSeveridade] || filtroSeveridade;
       badge.className = 'filtro-badge ' + filtroSeveridade;
-      tituloLista.innerHTML = '📇 Empresas com quadros ' + escapeHtml(SEVERIDADE_LABEL[filtroSeveridade] || '') + ' <span class="contador" id="contador-empresas"></span>';
+      tituloLista.innerHTML = '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg> Empresas com quadros ' + escapeHtml(SEVERIDADE_LABEL[filtroSeveridade] || '') + ' <span class="contador" id="contador-empresas"></span>';
 
       var empresasComMatch = empresasCache.filter(function (e) {
         return aplicarFiltroSeveridade(pontosDaEmpresa(e.id)).length > 0;
@@ -2176,7 +2178,7 @@
             '<div class="nome">' + escapeHtml(e.nome) + '</div>' +
             '<div class="sub">' + qtd + ' quadro(s) ' + escapeHtml(SEVERIDADE_LABEL[filtroSeveridade] || '') + '</div>' +
             '<div class="ponto-actions">' +
-              '<button class="btn-secondary" data-action="ver-os-empresa" data-id="' + e.id + '">🗂 Ver OS</button>' +
+              '<button class="btn-secondary" data-action="ver-os-empresa" data-id="' + e.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> Ver OS</button>' +
             '</div>' +
           '</div>';
         }).join('');
@@ -2186,7 +2188,7 @@
 
     filtroCard.style.display = 'none';
     formCard.style.display = '';
-    tituloLista.innerHTML = '📇 Empresas cadastradas <span class="contador" id="contador-empresas"></span>';
+    tituloLista.innerHTML = '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg> Empresas cadastradas <span class="contador" id="contador-empresas"></span>';
 
     if (!empresasCache.length) {
       lista.innerHTML = '<div class="vazio">Nenhuma empresa cadastrada ainda.</div>';
@@ -2199,8 +2201,8 @@
           '<div class="nome">' + escapeHtml(e.nome) + '</div>' +
           '<div class="sub">' + escapeHtml([e.contato, e.telefone, e.email].filter(Boolean).join(' · ')) + '</div>' +
           '<div class="ponto-actions">' +
-            '<button class="btn-secondary" data-action="ver-os-empresa" data-id="' + e.id + '">🗂 Ver OS (' + qtdOs + ')</button>' +
-            '<button class="btn-secondary" data-action="editar-empresa" data-id="' + e.id + '">✏️ Editar</button>' +
+            '<button class="btn-secondary" data-action="ver-os-empresa" data-id="' + e.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> Ver OS (' + qtdOs + ')</button>' +
+            '<button class="btn-secondary" data-action="editar-empresa" data-id="' + e.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg> Editar</button>' +
             '<button class="btn-danger" data-action="del-empresa" data-id="' + e.id + '">Excluir</button>' +
           '</div>' +
         '</div>';
@@ -2357,14 +2359,14 @@
       var badge = document.getElementById('filtro-ordens-badge');
       badge.textContent = SEVERIDADE_LABEL[filtroSeveridade] || filtroSeveridade;
       badge.className = 'filtro-badge ' + filtroSeveridade;
-      tituloLista.innerHTML = '📑 OS com quadros ' + escapeHtml(SEVERIDADE_LABEL[filtroSeveridade] || '') + ' <span class="contador" id="contador-ordens"></span>';
+      tituloLista.innerHTML = '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg> OS com quadros ' + escapeHtml(SEVERIDADE_LABEL[filtroSeveridade] || '') + ' <span class="contador" id="contador-ordens"></span>';
       ordensFiltradas = ordensFiltradas.filter(function (o) {
         return aplicarFiltroSeveridade(pontosCache.filter(function (p) { return p.osId === o.id; })).length > 0;
       });
     } else {
       formCard.style.display = '';
       sevBar.style.display = 'none';
-      tituloLista.innerHTML = (filtroEmpresaOrdens ? '📑 OS de ' + escapeHtml(filtroEmpresaOrdens.nome) : '📑 Ordens de serviço') + ' <span class="contador" id="contador-ordens"></span>';
+      tituloLista.innerHTML = (filtroEmpresaOrdens ? '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg> OS de ' + escapeHtml(filtroEmpresaOrdens.nome) : '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg> Ordens de serviço') + ' <span class="contador" id="contador-ordens"></span>';
     }
 
     contador = document.getElementById('contador-ordens');
@@ -2388,9 +2390,9 @@
                 '<span class="badge ' + c.key + '">' + c.label + '</span>' +
               '</div>' +
               '<div class="ponto-actions">' +
-                '<button class="btn-secondary" data-action="ver-ponto" data-ponto-id="' + p.id + '">👁 Ver</button>' +
-                '<button class="btn-secondary" data-action="pdf-ponto" data-ponto-id="' + p.id + '">⬇ Baixar</button>' +
-                (filtroSeveridade ? '' : '<button class="btn-secondary" data-action="editar-ponto" data-ponto-id="' + p.id + '">✏️ Editar</button>') +
+                '<button class="btn-secondary" data-action="ver-ponto" data-ponto-id="' + p.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg> Ver</button>' +
+                '<button class="btn-secondary" data-action="pdf-ponto" data-ponto-id="' + p.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Baixar</button>' +
+                (filtroSeveridade ? '' : '<button class="btn-secondary" data-action="editar-ponto" data-ponto-id="' + p.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg> Editar</button>') +
                 (filtroSeveridade ? '' : '<button class="btn-danger" data-action="del-ponto" data-ponto-id="' + p.id + '">Excluir</button>') +
               '</div>' +
             '</div>';
@@ -2399,16 +2401,16 @@
         var toolbarHtml = laudos.length ?
           '<div class="os-laudos-toolbar">' + chipsSeveridade('os' + o.id, laudos) +
             '<label class="laudo-check laudo-check-all"><input type="checkbox" class="os-check-all" data-os-id="' + o.id + '"> Selecionar todos</label>' +
-            '<button class="btn-secondary" data-action="baixar-selecionados" data-os-id="' + o.id + '">⬇ Baixar selecionados</button>' +
-            '<button class="btn-secondary" data-action="baixar-os-pdf" data-os-id="' + o.id + '">📄 Baixar OS em um PDF (' + laudos.length + ')</button>' +
-            '<button class="btn-secondary" data-action="baixar-todos-os" data-os-id="' + o.id + '">⬇ Baixar toda a OS em ZIP (' + laudos.length + ')</button>' +
+            '<button class="btn-secondary" data-action="baixar-selecionados" data-os-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Baixar selecionados</button>' +
+            '<button class="btn-secondary" data-action="baixar-os-pdf" data-os-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg> Baixar OS em um PDF (' + laudos.length + ')</button>' +
+            '<button class="btn-secondary" data-action="baixar-todos-os" data-os-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Baixar toda a OS em ZIP (' + laudos.length + ')</button>' +
           '</div>' : '';
         return '<div class="os-item" data-id="' + o.id + '">' +
           '<div class="nome">' + escapeHtml(rotuloOS(o)) + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">' + (STATUS_OS_LABEL[o.status] || 'Aberta') + '</span></div>' +
           '<div class="sub">' + escapeHtml(o.descricao || 'Sem descrição') + (o.dataAbertura ? ' · ' + o.dataAbertura : '') + '</div>' +
           '<div class="os-laudos"><div class="os-laudos-titulo">Laudos' + (filtroSeveridade ? ' ' + SEVERIDADE_LABEL[filtroSeveridade] : '') + ' desta OS (' + laudos.length + ')</div>' + toolbarHtml + laudosHtml + '</div>' +
           (filtroSeveridade ? '' : historicoHtml(o.id)) +
-          (filtroSeveridade ? '' : '<div class="ponto-actions">' + ((!o.status || o.status === 'aberta' || o.status === 'execucao') ? '<button class="btn-secondary" data-action="concluir-os" data-id="' + o.id + '">✓ Concluir OS</button>' : '') + '<button class="btn-secondary" data-action="link-cliente-os" data-id="' + o.id + '">🔗 Link do cliente</button><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir OS</button></div>') +
+          (filtroSeveridade ? '' : '<div class="ponto-actions">' + ((!o.status || o.status === 'aberta' || o.status === 'execucao') ? '<button class="btn-secondary" data-action="concluir-os" data-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg> Concluir OS</button>' : '') + '<button class="btn-secondary" data-action="link-cliente-os" data-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg> Link do cliente</button><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir OS</button></div>') +
         '</div>';
       }).join('');
     }
@@ -2975,7 +2977,7 @@
 
   // ---------- texto seguro para o PDF (a fonte padrão não tem alguns símbolos) ----------
   var WINANSI_EXTRA = [0x20AC, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x017D, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x017E, 0x0178];
-  var PDF_SUBST = { 'Δ': 'Delta ', 'δ': 'delta ', '≤': '<=', '≥': '>=', '−': '-', '→': '->', '←': '<-', '✓': 'OK', '✔': 'OK', '✕': 'x', '⚠': '', '\u00A0': ' ' };
+  var PDF_SUBST = { 'Δ': 'Delta ', 'δ': 'delta ', '≤': '<=', '≥': '>=', '−': '-', '→': '->', '←': '<-', '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>': 'OK', '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>': 'OK', '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>': 'x', '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg>': '', '\u00A0': ' ' };
   function pdfTxt(s) {
     s = String(s == null ? '' : s);
     var out = '';
@@ -3036,7 +3038,7 @@
     if (ctx && ctx.doc && !ctx.primeiro) doc.addPage();
     var paginaInicial = doc.internal.getNumberOfPages();
 
-    // todo texto passa por um filtro: símbolos sem suporte na fonte (Δ, ≤, ⚠...) viram equivalentes
+    // todo texto passa por um filtro: símbolos sem suporte na fonte (Δ, ≤, <svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg>...) viram equivalentes
     if (!doc.__filtroPdf) {
       doc.__filtroPdf = true;
       var _split = doc.splitTextToSize.bind(doc);
@@ -3458,7 +3460,7 @@
       '</div>' +
       ((extrasImgs.length || (ponto.detalhesAdicionais && ponto.detalhesAdicionais.trim())) ?
         '<div class="lp-extras">' +
-          '<div class="lp-extras-title">⚠ REGISTRO ADICIONAL — SITUAÇÃO CRÍTICA</div>' +
+          '<div class="lp-extras-title"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg> REGISTRO ADICIONAL — SITUAÇÃO CRÍTICA</div>' +
           (extrasImgs.length ? '<div class="lp-extras-grid">' + extrasImgs.map(function (src) {
             return src ? '<img src="' + src + '">' : '<div class="lp-extras-vazio">Sem imagem</div>';
           }).join('') + '</div>' : '') +
@@ -3570,7 +3572,7 @@
       document.getElementById('titulo-app').textContent = 'Portal do Cliente';
       document.getElementById('subtitulo-app').textContent = clienteParam + (osParam ? ' — acesso restrito a uma OS' : '');
       document.getElementById('dash-cliente-nome').textContent = '— ' + clienteParam + (osParam ? ' (OS específica)' : '');
-      document.getElementById('titulo-lista').innerHTML = '📑 Laudos disponíveis <span class="contador" id="contador"></span>';
+      document.getElementById('titulo-lista').innerHTML = '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg> Laudos disponíveis <span class="contador" id="contador"></span>';
       document.getElementById('sidebar').style.display = 'none';
       document.getElementById('btn-hamburger').style.display = 'none';
       document.getElementById('fab-novo-laudo').style.display = 'none';
