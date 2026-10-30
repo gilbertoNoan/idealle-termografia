@@ -2949,11 +2949,12 @@
   function formBaixa(x) {
     abrirModal('<h3>' + (x.sentido > 0 ? 'Registrar recebimento' : 'Registrar pagamento') + '</h3><div>' + esc(x.pessoa) + ' · ' + esc(x.descricao) + '</div><div class="total" style="text-align:left">' + brl(x.valor) + '</div>' +
       '<div class="linha"><div><label>Data</label><input type="date" id="bx-data" value="' + hoje() + '"></div><div><label>' + (x.sentido > 0 ? 'Entrou em' : 'Saiu de') + '</label><select id="bx-conta">' + opcoesContas((x.f && x.f.contaId) || (x.l && x.l.contaId) || ultimoBanco(x) || x.contaId) + '</select></div></div>' +
+      (x.fonte === 'fatura' ? '<label><input type="checkbox" id="bx-antigo" style="width:auto"> Recebimento antigo: o dinheiro já está no saldo do banco (não somar no caixa)</label>' : '') +
       '<div class="acoes"><button class="btn ok" id="bx-ok">Confirmar</button><button class="btn sec" id="bx-cancelar">Cancelar</button></div>');
     $('bx-cancelar').onclick = fecharModal;
     $('bx-ok').onclick = async function () {
       var dt = $('bx-data').value || hoje(), conta = $('bx-conta').value;
-      if (x.fonte === 'fatura') await salvar(function () { return banco.atualizar('faturas', x.id, { status: 'paga', dataPagamento: dt, contaId: conta, recebimentoPresumido: false }); }, 'Recebimento registrado.');
+      if (x.fonte === 'fatura') await salvar(function () { return banco.atualizar('faturas', x.id, { status: 'paga', dataPagamento: dt, contaId: conta, recebimentoPresumido: !!($('bx-antigo') && $('bx-antigo').checked) }); }, 'Recebimento registrado.');
       else await salvar(function () { return banco.atualizar('lancamentos', x.id, { pagamento: dt, contaId: conta, updatedAt: agora() }); }, x.sentido > 0 ? 'Recebimento registrado.' : 'Pagamento registrado.');
       fecharModal();
     };
