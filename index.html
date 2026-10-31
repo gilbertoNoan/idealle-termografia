@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.10.30-7" />
+<meta name="app-version" content="2026.10.31-1" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -491,6 +491,30 @@
   .card h2 .ico { width: 20px; height: 20px; flex: none; color: #7CACFF; }
   .ico-i { width: 1.1em; height: 1.1em; vertical-align: -0.18em; margin-right: .3em; flex: none; }
   .btn-secondary .ico-i, .btn-danger .ico-i { margin-right: .35em; }
+  /* ===== Seletor de empresa pesquisável ===== */
+  .cb { position: relative; width: 100%; }
+  .cb-btn { width: 100%; min-height: 0; height: auto; justify-content: flex-start; line-height: 1.3; display: flex; align-items: center; gap: 10px; text-align: left; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--glass-borda); background: var(--cinza); color: var(--texto); font-size: 15px; font-weight: 500; cursor: pointer; }
+  .cb-btn:hover, .cb.open .cb-btn { border-color: #7CACFF; box-shadow: 0 0 0 3px rgba(124,172,255,.18); }
+  .cb-btn .cb-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cb-btn .cb-txt.cb-ph { color: var(--texto-suave); }
+  .cb-chev { width: 18px; height: 18px; flex: none; transition: transform .2s; color: var(--texto-suave); }
+  .cb.open .cb-chev { transform: rotate(180deg); }
+  .card:has(.cb-panel:not([hidden])) { position: relative; z-index: 50; }
+  .cb-panel { background: #161d2b; position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 60; border-radius: 14px; border: 1px solid var(--glass-borda); box-shadow: 0 18px 40px rgba(0,0,0,.45); overflow: hidden; animation: surgir .15s ease both; }
+  .cb-panel[hidden] { display: none; }
+  .cb-busca { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--glass-borda); }
+  .cb-busca svg { width: 17px; height: 17px; flex: none; color: var(--texto-suave); }
+  .cb-busca input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--texto); font-size: 15px; padding: 2px 0; margin: 0; }
+  .cb-lista { max-height: 320px; overflow-y: auto; padding: 6px; }
+  .cb-item { min-height: 0; height: auto; justify-content: flex-start; display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 10px; border-radius: 10px; background: transparent; color: var(--texto); font-size: 14.5px; font-weight: 500; cursor: pointer; }
+  .cb-item:hover, .cb-item.foco { background: rgba(76,141,255,.2); }
+  .cb-item.sel { background: rgba(76,141,255,.32); font-weight: 700; }
+  .cb-av { width: 28px; height: 28px; border-radius: 8px; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #fff; }
+  .cb-av.todas { background: #3a4660; }
+  .cb-nome { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
+  .cb-ok { width: 16px; height: 16px; color: #7CACFF; flex: none; }
+  .cb-rodape { padding: 7px 14px; font-size: 11.5px; color: var(--texto-suave); border-top: 1px solid var(--glass-borda); }
+  .cb-vazio { padding: 18px; text-align: center; color: var(--texto-suave); font-size: 14px; }
 </style>
 </head>
 <body>
@@ -1701,6 +1725,66 @@
     if (dashEmpresaId && !empresasCache.some(function (e) { return e.id === dashEmpresaId; })) dashEmpresaId = '';
     sel.value = dashEmpresaId;
   }
+
+  // ---------- Seletor de empresa pesquisável (substitui o <select> nativo, mantendo-o por baixo) ----------
+  function melhorarSelectEmpresa(sel) {
+    if (!sel || sel.getAttribute('data-cb')) return;
+    sel.setAttribute('data-cb', '1');
+    var wrap = document.createElement('div'); wrap.className = 'cb';
+    var CHEV = '<svg class="cb-chev" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+    var LUPA = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>';
+    var OK = '<svg class="cb-ok" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+    wrap.innerHTML = '<button type="button" class="cb-btn" aria-haspopup="listbox" aria-expanded="false"><span class="cb-txt"></span>' + CHEV + '</button>' +
+      '<div class="cb-panel" hidden><div class="cb-busca">' + LUPA + '<input type="text" placeholder="Buscar empresa…" aria-label="Buscar empresa" autocomplete="off"></div><div class="cb-lista" role="listbox"></div><div class="cb-rodape"></div></div>';
+    sel.parentNode.insertBefore(wrap, sel); sel.style.display = 'none';
+    var btn = wrap.querySelector('.cb-btn'), txt = wrap.querySelector('.cb-txt'), panel = wrap.querySelector('.cb-panel');
+    var busca = wrap.querySelector('input'), listaEl = wrap.querySelector('.cb-lista'), rodape = wrap.querySelector('.cb-rodape');
+    var foco = 0, itens = [];
+    var CORES = ['#2F6FED', '#0E9F8E', '#B8571A', '#7A4DD8', '#C2386B', '#3C8A2E', '#9A7B00', '#2B7FA6'];
+    function corDe(t) { var h = 0; for (var i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0; return CORES[h % CORES.length]; }
+    function norm(t) { return (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+    function rotulo() { var o = sel.options[sel.selectedIndex]; var vazio = !sel.value; txt.textContent = o ? o.text : ''; txt.className = 'cb-txt' + (vazio ? ' cb-ph' : ''); }
+    function desenhar() {
+      var q = norm(busca.value.trim()); itens = [];
+      var html = '';
+      Array.prototype.forEach.call(sel.options, function (o) {
+        if (q && o.value && norm(o.text).indexOf(q) === -1) return;
+        if (q && !o.value) return;
+        itens.push(o);
+      });
+      itens.forEach(function (o, i) {
+        var ativo = o.value === sel.value;
+        var av = o.value ? '<span class="cb-av" style="background:' + corDe(o.text) + '">' + escapeHtml((o.text.trim().charAt(0) || '?').toUpperCase()) + '</span>' : '<span class="cb-av todas">∗</span>';
+        html += '<button type="button" class="cb-item' + (ativo ? ' sel' : '') + (i === foco ? ' foco' : '') + '" role="option" aria-selected="' + ativo + '" data-i="' + i + '">' + av + '<span class="cb-nome">' + escapeHtml(o.text) + '</span>' + (ativo ? OK : '') + '</button>';
+      });
+      listaEl.innerHTML = html || '<div class="cb-vazio">Nenhuma empresa encontrada.</div>';
+      var total = Math.max(0, sel.options.length - 1);
+      rodape.textContent = q ? (itens.length + ' de ' + total + ' empresas') : (total + ' empresas');
+      var f = listaEl.querySelector('.foco'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'nearest' });
+    }
+    function abrir() { panel.hidden = false; wrap.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); busca.value = ''; foco = Math.max(0, Array.prototype.findIndex ? Array.prototype.findIndex.call(sel.options, function (o) { return o.value === sel.value; }) : 0); desenhar(); setTimeout(function () { busca.focus(); }, 0); }
+    function fechar() { panel.hidden = true; wrap.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+    function escolher(i) {
+      var o = itens[i]; if (!o) return;
+      sel.value = o.value; rotulo(); fechar();
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    btn.addEventListener('click', function () { if (panel.hidden) abrir(); else fechar(); });
+    busca.addEventListener('input', function () { foco = 0; desenhar(); });
+    busca.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); foco = Math.min(itens.length - 1, foco + 1); desenhar(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); foco = Math.max(0, foco - 1); desenhar(); }
+      else if (e.key === 'Enter') { e.preventDefault(); escolher(foco); }
+      else if (e.key === 'Escape') { fechar(); btn.focus(); }
+    });
+    listaEl.addEventListener('click', function (e) { var b = e.target.closest('.cb-item'); if (b) escolher(parseInt(b.getAttribute('data-i'), 10)); });
+    document.addEventListener('mousedown', function (e) { if (!panel.hidden && !wrap.contains(e.target)) fechar(); });
+    new MutationObserver(function () { rotulo(); if (!panel.hidden) desenhar(); }).observe(sel, { childList: true });
+    var ultimo = null;
+    setInterval(function () { if (sel.value !== ultimo) { ultimo = sel.value; rotulo(); } }, 500);
+    rotulo();
+  }
+  ['dash-empresa', 'novo-empresa', 'os-empresa', 'ls-empresa'].forEach(function (id) { melhorarSelectEmpresa(document.getElementById(id)); });
   document.getElementById('dash-empresa').addEventListener('change', function () {
     dashEmpresaId = this.value || '';
     renderLista();
