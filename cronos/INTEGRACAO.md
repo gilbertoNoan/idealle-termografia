@@ -27,10 +27,12 @@ E pode mudar `status`: `execucao` quando começa o trabalho e `concluida` (com `
 
 ## 2.1 Serviços da OS e pendências por TAG
 
-Na OS se marcam os serviços contratados, em `servicos: { relatorio, prontuario, calibracao }` (true/false). Com isso o Cronos e o Relatório NR-13 mostram o que falta em cada TAG, sem marcação à mão:
+Na OS se marcam os serviços contratados, em `servicos: { relatorio, prontuario, calibracao, desenquadramento }` (true/false). A proposta também tem essas caixas e, quando aprovada, passa os serviços para a OS que cria. Com isso o Cronos e o Relatório NR-13 mostram o que falta em cada TAG, sem marcação à mão:
 
 - O Relatório NR-13 manda em `resultados["Relatório NR-13"].vasos` um item por vaso: `tag`, `laudo` (etapa), `laudoPronto`, `prontuario` (`abertura`, `periodica` ou `nenhum`), `faltaProntuario` (campos vazios), `pmta` (`ok`, `pendente` ou `nao_exige`), `manometro` e `valvula` (`exige`, `tags`, `numeros`, e `quantidade` na válvula). TAGs e números vão em maiúsculas, só letras e números.
 - O Gerador de Certificados manda em `resultados["Gerador de Certificados"].itens` um item por certificado: `tag`, `numero` e `tipo` (`manometer` ou `valve`).
+- A Calculadora NR-13 manda em `resultados["Calculadora NR-13"].itens` um item por avaliação de desenquadramento (P·V): `tag`, `enquadrado` (true quando o vaso entra na NR-13), `pv` e `data`. O Cronos põe o desenquadramento na linha da TAG (ou numa linha própria, se o vaso não tem laudo NR-13) e, com o serviço marcado e nenhuma avaliação, mostra a pendência.
+- Os laudos de desenquadramento entram no ZIP da OS do Relatório NR-13 ("Incluir desenquadramento" no Baixar OS): o NR-13 abre a calculadora com `?nr13_desenq=<código da OS>` e as janelas trocam os PDFs por postMessage (`idealle-desenq:pronto/pedido/pdfs`), sem passar pelo banco.
 - O certificado é do manômetro (ou da válvula) do vaso quando a TAG dele é a do instrumento no laudo, quando o número é o que o laudo anotou, ou quando foi emitido com a TAG do próprio vaso e o tipo certo. A conta está em `pendenciasVaso` (aqui) e em `src/services/pendencias.ts` (Relatório NR-13).
 
 ## 3. Cadastro único de clientes

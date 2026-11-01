@@ -358,9 +358,21 @@
   // ===================== SERVIÇOS DA OS E PENDÊNCIAS POR TAG =====================
   // Na OS se marca o que foi contratado (o.servicos). Cada sistema devolve o que já fez em o.resultados:
   // o Relatório NR-13 manda a situação de cada vaso (resultados['Relatório NR-13'].vasos) e o Gerador de
-  // Certificados manda cada certificado (resultados['Gerador de Certificados'].itens: tag, número, tipo).
+  // Certificados manda cada certificado (resultados['Gerador de Certificados'].itens: tag, número, tipo) e a
+  // Calculadora NR-13 manda cada avaliação de desenquadramento (resultados['Calculadora NR-13'].itens: tag, enquadrado).
   // A mesma conta é feita no Relatório NR-13 (src/services/pendencias.ts) para o aviso na TAG.
-  var SERVICOS_OS = [['relatorio', 'Relatório NR-13'], ['prontuario', 'Abertura de prontuário (com PMTA)'], ['calibracao', 'Certificado de calibração']];
+  var SERVICOS_OS = [['relatorio', 'Relatório NR-13'], ['prontuario', 'Abertura de prontuário (com PMTA)'], ['calibracao', 'Certificado de calibração'], ['desenquadramento', 'Desenquadramento (laudo não obrigatório)']];
+  // Caixas dos serviços (formulário da OS 'o-sv-' e da proposta 'p-sv-') e leitura delas
+  function caixasServicos(pref, sv) {
+    return '<div style="display:flex;flex-wrap:wrap;gap:6px 18px">' + SERVICOS_OS.map(function (s) {
+      return '<label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:normal"><input type="checkbox" id="' + pref + s[0] + '" style="width:auto"' + (sv && sv[s[0]] ? ' checked' : '') + '> ' + esc(s[1]) + '</label>';
+    }).join('') + '</div>';
+  }
+  function lerServicos(pref) { var r = {}; SERVICOS_OS.forEach(function (s) { var c = $(pref + s[0]); r[s[0]] = !!(c && c.checked); }); return r; }
+  function desenquadramentosOS(o) {
+    var c = (o.resultados || {})['Calculadora NR-13'] || {};
+    return Array.isArray(c.itens) ? c.itens.map(function (i) { return { tag: i.tag || '', enquadrado: !!i.enquadrado }; }) : [];
+  }
   function temServicos(o) { return !!(o.servicos && SERVICOS_OS.some(function (s) { return o.servicos[s[0]]; })); }
   function chaveTag(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
   function certificadosOS(o) {
@@ -396,14 +408,22 @@
   function pendenciasOS(o) {
     var sv = o.servicos || {}, res = o.resultados || {}, nr = res['Relatório NR-13'] || {}, vasos = nr.vasos || [], certs = certificadosOS(o);
     var linhas = vasos.map(function (v) { return { tag: v.tag || 'S/TAG', itens: pendenciasVaso(o, v, certs) }; });
+    // Desenquadramento: na linha do vaso com a mesma TAG, ou numa linha própria (vaso sem laudo NR-13)
+    var desenq = desenquadramentosOS(o);
+    desenq.forEach(function (d) {
+      var item = { nome: 'Desenquadramento', ok: true, detalhe: d.enquadrado ? 'enquadrado na NR-13' : 'não obrigatório' };
+      var l = linhas.find(function (x) { return d.tag && chaveTag(x.tag) === chaveTag(d.tag); });
+      if (l) l.itens.push(item); else linhas.push({ tag: d.tag || 'S/TAG', itens: [item] });
+    });
     var gerais = [];
     if ((sv.relatorio || sv.prontuario) && !vasos.length) gerais.push(nr.qtdLaudos ? 'Relatório NR-13: abra o sistema para enviar a situação dos vasos' : 'Relatório NR-13: nenhum laudo ainda');
     if (sv.calibracao && !certs.length) gerais.push('Certificados de calibração: nenhum emitido ainda');
+    if (sv.desenquadramento && !desenq.length) gerais.push('Desenquadramento: nenhuma avaliação ainda (Calculadora NR-13)');
     var qtd = gerais.length + linhas.reduce(function (n, l) { return n + l.itens.filter(function (i) { return !i.ok; }).length; }, 0);
     return { linhas: linhas, gerais: gerais, qtd: qtd };
   }
   function quadroPendencias(o) {
-    if (!temServicos(o) && !((o.resultados || {})['Relatório NR-13'] || {}).vasos) return '';
+    if (!temServicos(o) && !((o.resultados || {})['Relatório NR-13'] || {}).vasos && !desenquadramentosOS(o).length) return '';
     var p = pendenciasOS(o), sv = o.servicos || {};
     var cab = '<div class="muted" style="margin:12px 0 6px"><b>Serviços:</b> ' + (temServicos(o) ? SERVICOS_OS.filter(function (s) { return sv[s[0]]; }).map(function (s) { return esc(s[1]); }).join(' · ') : 'não marcados (edite a OS)') +
       ' — ' + (p.qtd ? '<span class="tag t-warn">' + p.qtd + ' pendência(s)</span>' : '<span class="tag t-ok">tudo feito</span>') + '</div>';
@@ -1160,6 +1180,7 @@
       (p.id ? '<div><label>Revisão</label><input value="Rev. ' + (p.rev || 0) + '" disabled></div>' : '') + '</div>' +
       '<label>Título / Serviço *</label><input id="p-titulo" value="' + esc(p.titulo) + '" placeholder="Ex.: Inspeção periódica NR-13 com calibração">' +
       '<div class="linha"><div><label>Data</label><input id="p-data" type="date" value="' + esc(p.data || hoje()) + '"></div><div><label>Validade</label><input id="p-validade" type="date" value="' + esc(p.validade || somarDias(hoje(), 30)) + '"></div><div><label>Sistema de execução</label><select id="p-sistema">' + opcoesSistemas(p.sistema) + '</select></div></div>' +
+      '<label>Serviços (passam para a OS quando a proposta for aprovada)</label>' + caixasServicos('p-sv-', p.servicos) +
       '<label>2. Objeto e preços (itens)</label><div class="tabela"><table class="itens"><thead><tr><th>Descrição</th><th>Qtd</th><th>Valor unit. (R$)</th><th></th></tr></thead><tbody id="p-itens">' + itens.map(linhaItem).join('') + '</tbody></table></div>' +
       '<button class="btn sec peq" id="p-add-item" style="margin-top:6px">+ Item</button>' +
       '<div class="total" id="p-total"></div>' +
@@ -1226,7 +1247,7 @@
         var fin = calcular(lerCalculo($('p-calc'))).final, rp = fin > 0 ? repartirPreco(it, fin) : null;
         if (rp && confirm('Os itens estão sem valor (total R$ 0,00). Usar o preço da memória de cálculo, ' + brl(fin) + ', repartido nos itens?')) { it = rp.itens; $('p-itens').innerHTML = it.map(linhaItem).join(''); }
       }
-      var d = { clienteId: cid, clienteNome: nomeCliente(cid), titulo: $('p-titulo').value.trim(), data: $('p-data').value, validade: $('p-validade').value, sistema: $('p-sistema').value, itens: it, total: totalItens(it), condicoes: $('p-condicoes').value.trim(), updatedAt: agora() };
+      var d = { clienteId: cid, clienteNome: nomeCliente(cid), titulo: $('p-titulo').value.trim(), data: $('p-data').value, validade: $('p-validade').value, sistema: $('p-sistema').value, servicos: lerServicos('p-sv-'), itens: it, total: totalItens(it), condicoes: $('p-condicoes').value.trim(), updatedAt: agora() };
       TEXTOS.forEach(function (t) { d[t[0]] = $('p-' + t[0]).value.trim(); });
       if (p.modeloId) { d.modeloId = p.modeloId; d.modeloNome = p.modeloNome || ''; }
       if (usouCalc) d.calculo = limparCalculo(lerCalculo($('p-calc')));
@@ -1320,6 +1341,7 @@
     abrirModal('<h3>' + codRev(p) + ' ' + tag('proposta', p.status) + '</h3>' +
       '<div><b>' + esc(nomeCliente(p.clienteId, p.clienteNome)) + '</b></div><div>' + esc(p.titulo) + '</div>' +
       '<div class="muted">Data ' + data(p.data) + ' · validade ' + data(p.validade) + (p.sistema ? ' · executa em ' + esc(p.sistema) : '') + '</div>' +
+      (temServicos(p) ? '<div class="muted">Serviços: ' + SERVICOS_OS.filter(function (s) { return p.servicos[s[0]]; }).map(function (s) { return esc(s[1]); }).join(' · ') + '</div>' : '') +
       (p.status === 'recusada' && p.motivoRecusa ? '<div class="muted">Motivo da recusa: ' + esc(p.motivoRecusa) + '</div>' : '') +
       (p.status === 'perdida' ? '<div class="muted">Perdida' + (p.perdidaEm ? ' em ' + data(String(p.perdidaEm).slice(0, 10)) : '') + (p.motivoPerda ? ': ' + esc(p.motivoPerda) : '') + '</div>' : '') +
       (p.rev && p.motivoRevisao ? '<div class="muted">Motivo da Rev. ' + p.rev + ': ' + esc(p.motivoRevisao) + '</div>' : '') +
@@ -1375,7 +1397,7 @@
       // Campos numero/empresaId/empresaNome/descricao/dataAbertura seguem o formato da Termografia,
       // para a OS aparecer lá automaticamente.
       var osId = await salvar(function () {
-        return banco.criar('ordens', { numero: numero, codigo: codProposta(p), empresaId: p.clienteId, empresaNome: nomeCliente(p.clienteId, p.clienteNome), descricao: p.titulo, dataAbertura: hoje(), createdAt: agora(), status: 'aberta', propostaId: p.id, propostaCodigo: codProposta(p), valor: p.total, sistema: p.sistema || '' });
+        return banco.criar('ordens', { numero: numero, codigo: codProposta(p), empresaId: p.clienteId, empresaNome: nomeCliente(p.clienteId, p.clienteNome), descricao: p.titulo, dataAbertura: hoje(), createdAt: agora(), status: 'aberta', propostaId: p.id, propostaCodigo: codProposta(p), valor: p.total, sistema: p.sistema || '', servicos: p.servicos || {} });
       });
       await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'aprovada', aprovadaEm: agora(), osId: osId }); }, 'Proposta aprovada. OS ' + codProposta(p) + ' aberta.');
       fecharModal(); mostrar('ordens');
@@ -1580,9 +1602,7 @@
       }).join('') + '</tbody></table><div class="muted" style="font-size:.8em">Altere a data de recebimento ou o valor de cada parcela. Se a soma ficar menor que o valor da OS, ela volta a Faturada parcial.</div>' : '') +
       (f && fs.length <= 1 ? '<label>Fatura desta OS</label><div class="linha"><div><label>Nº da nota fiscal</label><input id="o-nf" value="' + esc(f.nf) + '" placeholder="Sem NF ainda"></div><div><label>Valor da fatura (R$)</label><input id="o-fvalor" inputmode="decimal" value="' + esc(f.valor != null ? String(f.valor).replace('.', ',') : '') + '"></div><div><label>Vencimento</label><input id="o-fvenc" type="date" value="' + esc(f.vencimento) + '"></div></div>' +
         '<div class="muted" style="font-size:.8em">Cliente e serviço da fatura acompanham a OS. Se mudar só o valor da OS, o sistema pergunta se a fatura muda junto.</div>' : '') +
-      '<label>Serviços desta OS</label><div style="display:flex;flex-wrap:wrap;gap:6px 18px">' + SERVICOS_OS.map(function (sv) {
-        return '<label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:normal"><input type="checkbox" id="o-sv-' + sv[0] + '" style="width:auto"' + (o.servicos && o.servicos[sv[0]] ? ' checked' : '') + '> ' + esc(sv[1]) + '</label>';
-      }).join('') + '</div><div class="muted" style="font-size:.8em">Os sistemas mostram o que falta em cada TAG conforme o que estiver marcado aqui.</div>' +
+      '<label>Serviços desta OS</label>' + caixasServicos('o-sv-', o.servicos) + '<div class="muted" style="font-size:.8em">Os sistemas mostram o que falta em cada TAG conforme o que estiver marcado aqui.</div>' +
       '<label>Observações</label><textarea id="o-obs">' + esc(o.obs) + '</textarea>' +
       '<div class="acoes"><button class="btn" id="o-salvar">Salvar</button><button class="btn sec" id="o-cancelar">Cancelar</button></div>');
     $('o-cancelar').onclick = function () { if (o.id) verOS(o.id); else fecharModal(); };
@@ -1591,7 +1611,7 @@
       if (!cid) { toast('Selecione o cliente.'); return; }
       if (!$('o-desc').value.trim()) { toast('Descreva o serviço.'); return; }
       var d = { empresaId: cid, empresaNome: nomeCliente(cid), descricao: $('o-desc').value.trim(), dataAbertura: $('o-abertura').value, prazo: $('o-prazo').value, responsavel: $('o-resp').value.trim(), sistema: $('o-sistema').value, valor: $('o-valor').value.trim() ? num($('o-valor').value) : null, obs: $('o-obs').value.trim(), updatedAt: agora() };
-      d.servicos = {}; SERVICOS_OS.forEach(function (sv) { d.servicos[sv[0]] = $('o-sv-' + sv[0]).checked; });
+      d.servicos = lerServicos('o-sv-');
       if ($('o-conclusao')) d.dataConclusao = $('o-conclusao').value;
       d.contrato = $('o-contrato').checked;
       if (o.id) {
