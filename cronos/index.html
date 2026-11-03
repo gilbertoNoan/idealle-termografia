@@ -506,7 +506,7 @@
   function pad(n, t) { n = String(n); while (n.length < t) n = '0' + n; return n; }
 
   var STATUS = {
-    proposta: { rascunho: ['Rascunho', 't-gray'], enviada: ['Enviada', 't-blue'], aprovada: ['Aprovada', 't-ok'], recusada: ['Recusada', 't-bad'], perdida: ['Perdida', 't-warn'], semretorno: ['Sem retorno', 't-gray'] },
+    proposta: { rascunho: ['Rascunho', 't-gray'], enviada: ['Fazer follow up', 't-blue'], aprovada: ['Aprovada', 't-ok'], recusada: ['Recusada', 't-bad'], perdida: ['Perdida', 't-warn'], semretorno: ['Sem retorno', 't-gray'] },
     os: { aberta: ['Aberta', 't-blue'], execucao: ['Em execução', 't-warn'], concluida: ['Concluída', 't-ok'], parcial: ['Faturada parcial', 't-parcial'], faturada: ['Faturada', 't-gray'], cancelada: ['Cancelada', 't-bad'] },
     fatura: { pendente: ['A receber', 't-warn'], paga: ['Recebida', 't-ok'], cancelada: ['Cancelada', 't-bad'] }
   };
@@ -1453,7 +1453,7 @@
     var os = p.osId ? porId('ordens', p.osId) : null;
     var botoes = [];
     if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn ok" id="pv-aprovar">Aprovada pelo cliente → gerar OS</button>');
-    if (p.status === 'rascunho') botoes.push('<button class="btn" id="pv-enviar">Marcar como enviada</button>');
+    if (p.status === 'rascunho') botoes.push('<button class="btn" id="pv-enviar">Marcar como enviada (follow up)</button>');
     if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn sec" id="pv-editar">Editar</button>', '<button class="btn perigo" id="pv-recusar">Recusada</button>', '<button class="btn perigo" id="pv-perder">Perdida</button>');
     if (['recusada', 'perdida', 'semretorno'].indexOf(p.status) >= 0) botoes.push('<button class="btn sec" id="pv-reabrir">Reabrir</button>');
     if (p.status !== 'aprovada') botoes.push('<button class="btn" id="pv-revisao">Nova revisão (Rev. ' + ((p.rev || 0) + 1) + ')</button>');
@@ -1510,7 +1510,7 @@
     // Nova revisão: guarda a versão atual (itens, valores, textos e memória de cálculo) e reabre a proposta para editar
     ligar('pv-revisao', function () { novaRevisao(p); });
     ligar('pv-copiar', function () { duplicarProposta(p); });
-    ligar('pv-enviar', async function () { await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'enviada', enviadaEm: agora() }); }, 'Proposta marcada como enviada.'); verProposta(p.id); });
+    ligar('pv-enviar', async function () { await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'enviada', enviadaEm: agora() }); }, 'Proposta enviada. Agora está em Fazer follow up.'); verProposta(p.id); });
     ligar('pv-recusar', async function () { var motivo = prompt('Motivo da recusa (opcional):'); if (motivo === null) return; await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'recusada', motivoRecusa: motivo, recusadaEm: agora() }); }, 'Proposta marcada como recusada.'); verProposta(p.id); });
     // Perdida: o cliente fechou com outra empresa (ou desistiu do serviço); diferente de Recusada
     ligar('pv-perder', async function () { var motivo = prompt('Por que perdemos? (opcional, ex.: concorrente mais barato, cliente desistiu)'); if (motivo === null) return; await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'perdida', motivoPerda: motivo, perdidaEm: agora() }); }, 'Proposta marcada como perdida.'); verProposta(p.id); });
@@ -1829,7 +1829,7 @@
     var p = o.propostaId ? porId('propostas', o.propostaId) : null;
     var msg = 'Excluir a OS ' + codOS(o) + ' (' + nomeCliente(o.empresaId, o.empresaNome) + ')?';
     if (fs.length) msg += '\n\nA fatura ' + fs.map(codFatura).join(', ') + ' será excluída junto e deixa de contar no faturamento e no financeiro.';
-    if (p) msg += '\n\nA proposta ' + codProposta(p) + ' continua e volta para "enviada".';
+    if (p) msg += '\n\nA proposta ' + codProposta(p) + ' continua e volta para "Fazer follow up".';
     if (!confirm(msg + '\n\nNão dá para desfazer.')) return;
     var apagarLanc = ls.length && confirm('Há ' + ls.length + ' lançamento(s) do Financeiro ligados a esta OS.\n\nOK = excluir também\nCancelar = manter, só sem a OS');
     await salvar(async function () {
