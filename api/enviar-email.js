@@ -149,8 +149,13 @@ async function handler(req, res, opcoes) {
   function responder(status, corpo) { res.statusCode = status; res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(corpo)); }
   if (req.method !== 'POST') return responder(405, { erro: 'Use POST.' });
   const e = process.env;
-  if (!e.SMTP_USUARIO || !e.SMTP_SENHA || !e.EMAIL_PERMITIDOS) {
-    return responder(500, { erro: 'Envio de e-mail ainda não configurado na Vercel (SMTP_USUARIO, SMTP_SENHA e EMAIL_PERMITIDOS).' });
+  const CONHECIDAS = ['SMTP_USUARIO', 'SMTP_SENHA', 'EMAIL_PERMITIDOS', 'SMTP_HOST', 'SMTP_PORTA', 'EMAIL_NOME', 'EMAIL_COPIA'];
+  const faltando = ['SMTP_USUARIO', 'SMTP_SENHA', 'EMAIL_PERMITIDOS'].filter(function (n) { return !String(e[n] || '').trim(); });
+  if (faltando.length) {
+    // Só os NOMES das variáveis (nunca valores), para achar erro de digitação ou ambiente errado.
+    const parecidas = Object.keys(e).filter(function (n) { return /SMTP|EMAIL/i.test(n) && CONHECIDAS.indexOf(n) < 0; });
+    return responder(500, { erro: 'Envio de e-mail ainda não configurado na Vercel. Falta: ' + faltando.join(', ') + '.' +
+      (parecidas.length ? ' Variáveis parecidas encontradas: ' + parecidas.join(', ') + ' (confira o nome exato).' : ' Nenhuma variável SMTP/EMAIL chegou: confira se marcou o ambiente Production e fez o Redeploy.') });
   }
   let quem;
   try {
