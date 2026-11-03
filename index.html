@@ -2201,7 +2201,7 @@
     var osId = OS_DO_CRONOS;
     OS_DO_CRONOS = null;
     var os = ordensCache.find(function (o) { return o.id === osId; });
-    if (!os) { toast('A OS aberta pelo Cronos não foi encontrada aqui.'); return; }
+    if (!os) { toast('A OS aberta pela Gestão financeira não foi encontrada aqui.'); return; }
     mostrarView('novo');
     document.getElementById('novo-empresa').value = os.empresaId || '';
     atualizarSelectOsNovo(os.empresaId, false);
@@ -2574,13 +2574,13 @@
     if (btnConcluir) {
       var osC = ordensCache.find(function (x) { return x.id === btnConcluir.getAttribute('data-id'); });
       if (!osC) return;
-      confirmarAcao('Concluir a ' + rotuloOS(osC) + '? Ela fica pronta para faturar no Cronos.').then(async function (ok) {
+      confirmarAcao('Concluir a ' + rotuloOS(osC) + '? Ela fica pronta para faturar na Gestão financeira.').then(async function (ok) {
         if (!ok) return;
         if (!db) { osC.status = 'concluida'; renderOrdens(); toast('OS concluída.'); return; }
         try {
           await devolverParaCronos(osC.id);
           await comTimeout(db.collection('ordens').doc(osC.id).set({ status: 'concluida', dataConclusao: new Date().toISOString().slice(0, 10) }, { merge: true }), 15000, 'concluir OS');
-          toast(rotuloOS(osC) + ' concluída. Já aparece no Cronos para faturar.');
+          toast(rotuloOS(osC) + ' concluída. Já aparece na Gestão financeira para faturar.');
         } catch (err) { mostrarErroBanco(err, 'concluir OS'); toast('Não foi possível concluir a OS.'); }
       });
       return;

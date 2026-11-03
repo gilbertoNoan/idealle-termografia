@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cronos · Ideal LESP</title>
+<title>Gestão financeira · Ideal LESP</title>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.js"></script>
@@ -200,7 +200,7 @@
 
 <header id="cabecalho" style="display:none">
   <div class="top">
-    <div class="marca">Cronos <small>Idealle</small></div>
+    <div class="marca">Gestão financeira <small>Idealle</small></div>
     <div class="usuario"><button class="btn sec peq" id="btn-ocultar">👁 Ocultar valores</button><span id="usuario-nome"></span><button class="btn sec peq" id="btn-sair">Sair</button></div>
   </div>
   <nav id="menu">
@@ -215,7 +215,7 @@
 </header>
 
 <div id="tela-login" class="card" style="display:none">
-  <h2>Cronos</h2>
+  <h2>Gestão financeira</h2>
   <p class="muted">Entre com seu e-mail e senha da Idealle.</p>
   <label>E-mail</label><input id="login-email" type="email" autocomplete="username">
   <label>Senha</label><input id="login-senha" type="password" autocomplete="current-password">
@@ -656,7 +656,7 @@
     };
     auth.getRedirectResult().catch(function (e) { $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message); });
     auth.onAuthStateChanged(function (u) {
-      if (u && !permitido(u)) { auth.signOut(); telaLogin('A conta ' + u.email + ' não tem acesso ao Cronos.'); return; }
+      if (u && !permitido(u)) { auth.signOut(); telaLogin('A conta ' + u.email + ' não tem acesso à Gestão financeira.'); return; }
       if (u) { if (!iniciado) { iniciado = true; iniciarApp(u.email); } }
       else if (iniciado) { location.reload(); }
       else telaLogin();
@@ -1964,7 +1964,7 @@
     function lin(r, v) { return v == null || v === '' ? '' : '<div><dt>' + r + '</dt><dd>' + v + '</dd></div>'; }
     var div = f.valorServico != null && Math.abs(num(f.valorServico) - num(f.valor)) > 0.5;
     abrirModal('<h3>NF ' + esc(f.nf) + ' ' + tag('fatura', f.status, f.vencimento) + '</h3><div>' + esc(nomeCliente(f.clienteId, f.clienteNome)) + (f.osCodigo ? ' · ' + esc(f.osCodigo) : '') + '</div>' +
-      '<dl class="detalhe linha">' + lin('Emissão', data(f.emissao)) + lin('Vencimento', data(f.vencimento)) + lin('Valor no Cronos', brl(f.valor)) +
+      '<dl class="detalhe linha">' + lin('Emissão', data(f.emissao)) + lin('Vencimento', data(f.vencimento)) + lin('Valor no sistema', brl(f.valor)) +
       lin('Valor da nota', f.valorServico != null ? brl(f.valorServico) + (div ? ' <span class="tag t-warn">diferente</span>' : '') : '') +
       lin('Tomador', esc(f.tomador || '')) + lin('CNPJ', esc(f.tomadorCnpj || '')) + lin('Município', esc(f.tomadorMunicipio || '')) +
       lin('ISS', f.aliquotaISS != null ? String(f.aliquotaISS).replace('.', ',') + '%' + (f.valorISS ? ' · ' + brl(f.valorISS) : '') + (f.issRetido ? ' · retido' : '') : '') +
@@ -2135,7 +2135,7 @@
       .forEach(function (o) { ops.push(['o:' + o.id, codOS(o) + ' · ' + nomeCliente(o.empresaId, o.empresaNome) + ' · ' + (o.descricao || '').slice(0, 50) + ' · ' + (STATUS.os[statusOS(o)] || [statusOS(o)])[0] + (o.valor ? ' · ' + brl(o.valor) : '')]); });
     cache.faturas.filter(function (f) { return f.status === 'pendente' && !f.nf && !(f.osId && porId('ordens', f.osId)); })
       .forEach(function (f) { ops.push(['f:' + f.id, codFatura(f) + ' · ' + nomeCliente(f.clienteId, f.clienteNome) + ' · ' + (f.descricao || '').slice(0, 50) + ' · ' + brl(f.valor)]); });
-    abrirModal('<h3>Emitir nota fiscal</h3><p class="muted" style="margin-top:0">Escolha a OS do serviço. O Cronos monta os dados para copiar no GissOnline (ou no Emissor Nacional).</p>' +
+    abrirModal('<h3>Emitir nota fiscal</h3><p class="muted" style="margin-top:0">Escolha a OS do serviço. A Gestão financeira monta os dados para copiar no GissOnline (ou no Emissor Nacional).</p>' +
       (ops.length ? '<label>OS</label><select id="en-os">' + ops.map(function (x) { return '<option value="' + x[0] + '">' + esc(x[1]) + '</option>'; }).join('') + '</select>' : '<div class="vazio">Nenhuma OS sem nota. Abra uma OS (ou aprove a proposta) primeiro.</div>') +
       '<div class="acoes">' + (ops.length ? '<button class="btn ok" id="en-ok">Preparar nota fiscal</button>' : '') + '<button class="btn sec" id="en-cancelar">Cancelar</button></div>');
     $('en-cancelar').onclick = fecharModal;
@@ -2308,7 +2308,7 @@
       var d; try { d = JSON.parse(leitor.result); } catch (e) { toast('Arquivo inválido.'); return; }
       if (d.tipo === 'status-notas') { d.faturas = d.faturas || []; d.avisos = d.avisos || []; conferirStatusNotas(d); return; }
       if (d.tipo === 'complemento') { ['propostas', 'faturas', 'clientes', 'avisos'].forEach(function (k) { d[k] = d[k] || []; }); conferirComplemento(d); return; }
-      if (!(d.clientes && d.propostas && d.ordens && d.faturas) && !d.modelos && !d.financas) { toast('Este arquivo não é uma importação do Cronos.'); return; }
+      if (!(d.clientes && d.propostas && d.ordens && d.faturas) && !d.modelos && !d.financas) { toast('Este arquivo não é uma importação da Gestão financeira.'); return; }
       ['clientes', 'propostas', 'ordens', 'faturas', 'modelos', 'avisos'].forEach(function (k) { d[k] = d[k] || []; });
       conferirImportacao(d);
     };
@@ -2555,11 +2555,11 @@
       '<div class="tabela"><table><tbody>' + (d.propostas.length ?
       '<tr><td>Propostas com texto a preencher</td><td class="num">' + pAt + '</td><td class="muted">de ' + d.propostas.length + ' documentos lidos · ' + pIt + ' com os itens do objeto</td></tr>' : '') + (d.faturas.length ?
       '<tr><td>Notas fiscais com dados a completar</td><td class="num">' + fAt + '</td><td class="muted">tomador, CNPJ, discriminação, ISS, código do serviço, NBS, local da prestação</td></tr>' +
-      '<tr><td>Notas que ainda não estão no Cronos</td><td class="num">' + fNova + '</td><td class="muted">entram como a receber</td></tr>' : '') +
+      '<tr><td>Notas que ainda não estão na Gestão financeira</td><td class="num">' + fNova + '</td><td class="muted">entram como a receber</td></tr>' : '') +
       (d.clientes.length ? '<tr><td>Clientes com cadastro a completar</td><td class="num">' + cAt + '</td><td class="muted">CNPJ, endereço, cidade, UF e CEP da nota mais recente</td></tr>' : '') +
       '</tbody></table></div>' +
-      '<p class="muted">Só os campos vazios são preenchidos. Valor, status e o que você já editou no Cronos ficam como estão. Nas propostas, o valor global continua no total; no PDF com valores ele aparece no primeiro item.</p>' +
-      (pSem.length ? '<details><summary>Propostas do arquivo que não foram achadas no Cronos (' + pSem.length + ')</summary><div class="muted">' + esc(pSem.join(' · ')) + '</div></details>' : '') +
+      '<p class="muted">Só os campos vazios são preenchidos. Valor, status e o que você já editou na Gestão financeira ficam como estão. Nas propostas, o valor global continua no total; no PDF com valores ele aparece no primeiro item.</p>' +
+      (pSem.length ? '<details><summary>Propostas do arquivo que não foram achadas na Gestão financeira (' + pSem.length + ')</summary><div class="muted">' + esc(pSem.join(' · ')) + '</div></details>' : '') +
       (d.avisos.length ? '<details><summary>Avisos (' + d.avisos.length + ')</summary><div class="muted">' + d.avisos.map(function (a) { return '<div>' + esc(a) + '</div>'; }).join('') + '</div></details>' : '') +
       '<p id="imp-progresso" class="muted"></p>' +
       '<div class="acoes"><button class="btn ok" id="imp-ok">Completar</button><button class="btn sec" id="imp-cancelar">Cancelar</button></div>');
@@ -2662,7 +2662,7 @@
       var f = x.f || {}, n = x.n;
       return '<tr><td><input type="checkbox" data-st="' + (nova ? 'n' : 'm') + i + '"' + (x.marcar ? ' checked' : '') + ' style="width:auto"></td><td><b>' + esc(n.nf) + '</b>' + (n.parcela ? ' <span class="muted">parcela ' + esc(n.parcela) + '</span>' : '') + '<div class="muted">' + data(n.emissao) + '</div></td><td>' +
         esc(nova ? n.clienteNome : nomeCliente(f.clienteId, f.clienteNome)) + '<div class="muted">' + esc(n.osCodigo || f.osCodigo || '') + '</div></td><td class="num">' + brl(x.u && x.u.valor || f.valor || n.valor) + '</td><td>' + data((x.u && x.u.vencimento) || n.vencimento || f.vencimento) + '</td><td>' +
-        (nova ? 'não está no Cronos' : esc(nomes[f.status] || f.status) + (f.status === 'paga' && !f.recebimentoPresumido ? ' (marcada aqui' + (f.dataPagamento ? ' em ' + data(f.dataPagamento) : '') + ')' : f.recebimentoPresumido ? ' (presumida)' : '')) +
+        (nova ? 'não está na Gestão financeira' : esc(nomes[f.status] || f.status) + (f.status === 'paga' && !f.recebimentoPresumido ? ' (marcada aqui' + (f.dataPagamento ? ' em ' + data(f.dataPagamento) : '') + ')' : f.recebimentoPresumido ? ' (presumida)' : '')) +
         ' → <b>' + esc(nomes[n.status]) + '</b>' + (x.fora ? '<div class="muted">não está na planilha</div>' : '') + '</td></tr>';
     }
     function bloco(titulo, l, html, soma) {
@@ -2671,7 +2671,7 @@
     var html = grupos.map(function (g) {
       var l = pl.mud.map(function (x, i) { return [x, i]; }).filter(function (p) { return (p[0].u.status || '') === g[0]; });
       return bloco(g[1], l, l.map(function (p) { return linha(p[0], p[1]); }).join(''), l.reduce(function (s, p) { return s + num(p[0].u.valor || p[0].f.valor); }, 0));
-    }).join('') + bloco('Notas da planilha que não estão no Cronos', pl.novas, pl.novas.map(function (x, i) { return linha(x, i, true); }).join(''), pl.novas.reduce(function (s, x) { return s + num(x.n.valor); }, 0)) +
+    }).join('') + bloco('Notas da planilha que não estão na Gestão financeira', pl.novas, pl.novas.map(function (x, i) { return linha(x, i, true); }).join(''), pl.novas.reduce(function (s, x) { return s + num(x.n.valor); }, 0)) +
       bloco('Ordens de Serviço', po.mud, po.mud.map(function (x, i) {
         return '<tr><td><input type="checkbox" data-st="o' + i + '" checked style="width:auto"></td><td><b>' + esc(x.o.codigo) + '</b></td><td>' + esc(nomeCliente(x.o.empresaId, x.o.empresaNome)) + '<div class="muted">' + esc(x.o.descricao || '') + '</div></td><td class="num">' + brl(x.o.valor) + '</td><td>' +
           esc((STATUS.os[x.o.status] || [x.o.status])[0]) + ' → <b>' + esc((STATUS.os[x.u.status] || [x.u.status])[0]) + '</b><div class="muted">planilha: ' + esc(OS_PLANILHA[x.p.status]) + '</div></td></tr>';
@@ -2679,9 +2679,9 @@
     var manuais = pl.mud.filter(function (x) { return !x.marcar; }).length;
     abrirModal('<h3>Atualizar status das notas e das OS</h3><p class="muted">' + esc(d.fonte || '') + '</p>' +
       (html || '<p>Nada a mudar: notas e OS já estão iguais às planilhas.</p>') +
-      (manuais ? '<p class="muted">' + manuais + ' nota(s) ficaram desmarcadas: recebidas aqui no Cronos mas brancas na planilha, ou a receber no Cronos e emitidas depois da última nota da planilha (' + data(pl.ultima) + '). Marque as que quiser mudar.</p>' : '') +
+      (manuais ? '<p class="muted">' + manuais + ' nota(s) ficaram desmarcadas: recebidas aqui na Gestão financeira mas brancas na planilha, ou a receber na Gestão financeira e emitidas depois da última nota da planilha (' + data(pl.ultima) + '). Marque as que quiser mudar.</p>' : '') +
       '<p class="muted">Recebidas sem data ficam com a data do vencimento, marcadas como presumidas, e não somam no saldo dos bancos: esse dinheiro já está no saldo que você informa em Financeiro › Bancos e categorias.</p>' +
-      (po.faltam.length ? '<details><summary>OS da planilha que não estão no Cronos (' + po.faltam.length + ')</summary><div class="muted">' + esc(po.faltam.join(' · ')) + '</div></details>' : '') +
+      (po.faltam.length ? '<details><summary>OS da planilha que não estão na Gestão financeira (' + po.faltam.length + ')</summary><div class="muted">' + esc(po.faltam.join(' · ')) + '</div></details>' : '') +
       (d.avisos.length ? '<details><summary>Avisos (' + d.avisos.length + ')</summary><div class="muted">' + d.avisos.map(function (a) { return '<div>' + esc(a) + '</div>'; }).join('') + '</div></details>' : '') +
       '<p id="imp-progresso" class="muted"></p>' +
       '<div class="acoes">' + (html ? '<button class="btn ok" id="imp-ok">Atualizar marcadas</button>' : '') + '<button class="btn sec" id="imp-cancelar">' + (html ? 'Cancelar' : 'Fechar') + '</button></div>');
@@ -3173,7 +3173,7 @@
     if (!confirm('Lançar o DAS de ' + nomeMes(ym) + ' (' + brl(r.imposto) + ', vence ' + data(r.vencimento) + ') em Contas a pagar?')) return;
     await salvar(function () {
       return banco.criar('lancamentos', { tipo: 'despesa', descricao: 'DAS ' + nomeMes(ym) + ' (estimado)', grupo: 'Deduções sobre Vendas', categoria: 'DAS - Simples Nacional', pessoa: 'Receita Federal',
-        valor: r.imposto, vencimento: r.vencimento, pagamento: '', contaId: contaPrincipal(), documento: 'Boleto', dataDoc: hoje(), obs: 'Valor estimado pelo Cronos. Ajuste para o valor da guia quando ela sair.', createdAt: agora() });
+        valor: r.imposto, vencimento: r.vencimento, pagamento: '', contaId: contaPrincipal(), documento: 'Boleto', dataDoc: hoje(), obs: 'Valor estimado pela Gestão financeira. Ajuste para o valor da guia quando ela sair.', createdAt: agora() });
     }, 'DAS lançado em Contas a pagar.');
   }
 
@@ -3231,7 +3231,7 @@
     var d = dadosFaturamento(movimentos()), cli = fin.fatCliente ? nomeCliente(fin.fatCliente) : '';
     $('print').innerHTML = '<div class="pp"><div class="pp-topo"><div>' + logoIdealle() + '<div>' + esc(EMPRESA.razao) + ' · CNPJ ' + esc(EMPRESA.cnpj) + '</div></div><div style="text-align:right">Relatório de faturamento<br>' + data(hoje()) + '</div></div>' +
       '<h4>Faturamento ' + d.per[0].toLowerCase() + ' · ' + (d.caixa ? 'pela data do recebimento' : 'pela data da nota fiscal') + (cli ? ' · cliente ' + esc(cli) : '') + ' · ' + d.anos[0] + ' a ' + d.anos[d.anos.length - 1] + '</h4>' +
-      tabelaFaturamento(d, true) + '<p style="font-size:9pt;margin-top:10px">A variação compara com o mesmo período do ano anterior. Gerado pelo Cronos.</p></div>';
+      tabelaFaturamento(d, true) + '<p style="font-size:9pt;margin-top:10px">A variação compara com o mesmo período do ano anterior. Gerado pela Gestão financeira.</p></div>';
     window.print();
   }
 
