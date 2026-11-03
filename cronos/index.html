@@ -1262,7 +1262,8 @@
       '<label>9. Condições de pagamento</label><textarea id="p-condicoes" rows="2">' + esc(p.condicoes || CONDICOES_PADRAO) + '</textarea>' +
       '<details id="p-calc" open style="margin-top:10px"><summary><b>Memória de cálculo</b> (interna, não sai na proposta do cliente · clique aqui para recolher)' + (p.calculo && p.calculo.resultado ? ' · ' + brl(p.calculo.resultado.final) : '') + '</summary>' +
       calcHtml(p.calculo || calcPadrao()) + '</details>' +
-      '<div class="acoes"><button class="btn" id="p-salvar">Salvar</button><button class="btn sec" id="p-cancelar">Cancelar</button></div>' +
+      '<div class="acoes"><button class="btn" id="p-salvar">Salvar</button><button class="btn sec" id="p-cancelar">Cancelar</button>' +
+        '<button class="btn sec" id="p-mostrar-pdf2" title="Mostra o PDF na tela com o que está preenchido, sem salvar">Ver PDF</button><button class="btn sec" id="p-ver-pdf2" title="Baixa o PDF com o que está na tela, sem salvar">Baixar PDF</button></div>' +
       // botões fixos na tela enquanto rola o formulário: prévia do PDF com o que está digitado (sem salvar)
       '<div class="flutuante"><button class="btn" id="p-mostrar-pdf" title="Mostra o PDF na tela com o que está preenchido, sem salvar">Ver PDF</button><button class="btn sec" id="p-ver-pdf" title="Baixa o PDF com o que está na tela, sem salvar">Baixar PDF</button><button class="btn sec" id="p-ver-pdf-valores" title="Baixa o PDF com o valor de cada item">PDF c/ valores</button></div>');
     function lerItens() {
@@ -1346,6 +1347,8 @@
     }
     $('p-mostrar-pdf').onclick = function () { verPdf(function () { previa(false); }); };
     $('p-ver-pdf').onclick = function () { previa(false); };
+    $('p-mostrar-pdf2').onclick = $('p-mostrar-pdf').onclick;
+    $('p-ver-pdf2').onclick = $('p-ver-pdf').onclick;
     $('p-ver-pdf-valores').onclick = function () { previa(true); };
     $('p-salvar').onclick = async function () {
       var cid = $('p-cliente').value, it = lerItens();
