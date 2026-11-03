@@ -155,7 +155,9 @@ async function handler(req, res, opcoes) {
     // Só os NOMES das variáveis (nunca valores), para achar erro de digitação ou ambiente errado.
     const parecidas = Object.keys(e).filter(function (n) { return /SMTP|EMAIL/i.test(n) && CONHECIDAS.indexOf(n) < 0; });
     return responder(500, { erro: 'Envio de e-mail ainda não configurado na Vercel. Falta: ' + faltando.join(', ') + '.' +
-      (parecidas.length ? ' Variáveis parecidas encontradas: ' + parecidas.join(', ') + ' (confira o nome exato).' : ' Nenhuma variável SMTP/EMAIL chegou: confira se marcou o ambiente Production e fez o Redeploy.') });
+      ' Já configuradas: ' + (CONHECIDAS.filter(function (n) { return String(e[n] || '').trim(); }).join(', ') || 'nenhuma') + '.' +
+      (parecidas.length ? ' Variáveis parecidas encontradas: ' + parecidas.join(', ') + ' (confira o nome exato).' : '') +
+      ' Confira se a que falta foi salva no ambiente Production e faça o Redeploy depois de salvar.' });
   }
   let quem;
   try {
