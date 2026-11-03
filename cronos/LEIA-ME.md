@@ -123,3 +123,21 @@ A tela monta tudo o que se digita no GissOnline, com um botão **Copiar** em cad
 A partir de 1º/11/2026 as empresas do Simples Nacional de Guarulhos emitem no Emissor Nacional (nfse.gov.br). Os campos
 são os mesmos; a tela tem os dois links. Os códigos das notas antigas entram pelo arquivo de complemento
 (`complemento-idealle.json`, Painel › Importar planilhas antigas), que só preenche campos vazios.
+
+## E-mail de follow up (Locaweb)
+
+Na proposta com status **Enviada**, o botão **✉ Enviar follow up** abre um e-mail pronto (contato do cadastro do cliente, assunto e texto) para conferir e enviar. O envio sai pelo e-mail do domínio na Locaweb, com cópia oculta para o remetente, e fica registrado na proposta. Na lista, a etiqueta passa a mostrar **follow up ✓ dd/mm**. Nada é enviado sem clicar em Enviar.
+
+Configuração (uma vez), na Vercel → projeto → Settings → Environment Variables, ambiente Production:
+
+| Variável | Valor |
+|---|---|
+| `SMTP_USUARIO` | e-mail completo que envia, ex.: `rodrigo@ideallesp.com.br` |
+| `SMTP_SENHA` | senha desse e-mail (marque como Sensitive) |
+| `EMAIL_PERMITIDOS` | logins do sistema que podem enviar, separados por vírgula |
+| `SMTP_HOST` | opcional, padrão `email-ssl.com.br` |
+| `SMTP_PORTA` | opcional, padrão `465` (587 também funciona) |
+| `EMAIL_NOME` | opcional, nome do remetente, padrão `Idealle` |
+| `EMAIL_COPIA` | opcional, cópia oculta, padrão o próprio remetente |
+
+Depois de salvar as variáveis, faça um Redeploy. A senha nunca vai no código. A função fica em `api/enviar-email.js` e só aceita quem está logado e listado em `EMAIL_PERMITIDOS`.

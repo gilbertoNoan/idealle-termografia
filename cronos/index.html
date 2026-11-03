@@ -901,7 +901,7 @@
     $('lista-propostas').innerHTML = '<table><thead><tr><th>Número</th><th>Cliente / Serviço</th><th>Data</th><th>Validade</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>' +
       lista.map(function (p) {
         var vencida = p.status === 'enviada' && p.validade && p.validade < hoje();
-        return '<tr class="clicavel" data-proposta="' + p.id + '"><td><b>' + codProposta(p) + '</b>' + (p.rev ? '<div class="muted">Rev. ' + p.rev + '</div>' : '') + '</td><td>' + esc(nomeCliente(p.clienteId, p.clienteNome)) + '<div class="muted">' + esc(p.titulo) + '</div></td><td>' + data(p.data) + '</td><td>' + data(p.validade) + (vencida ? ' <span class="tag t-bad" title="Validade passou sem resposta do cliente">follow up</span>' : '') + '</td><td class="num">' + brl(p.total) + '</td><td>' + tag('proposta', p.status) + '</td></tr>';
+        return '<tr class="clicavel" data-proposta="' + p.id + '"><td><b>' + codProposta(p) + '</b>' + (p.rev ? '<div class="muted">Rev. ' + p.rev + '</div>' : '') + '</td><td>' + esc(nomeCliente(p.clienteId, p.clienteNome)) + '<div class="muted">' + esc(p.titulo) + '</div></td><td>' + data(p.data) + '</td><td>' + data(p.validade) + (vencida ? (ultimoFollowUp(p) ? ' <span class="tag t-warn" title="Follow up por e-mail enviado para ' + esc(ultimoFollowUp(p).para) + '">follow up ✓ ' + data(String(ultimoFollowUp(p).em).slice(0, 10)).slice(0, 5) + '</span>' : ' <span class="tag t-bad" title="Validade passou sem resposta do cliente">follow up</span>') : '') + '</td><td class="num">' + brl(p.total) + '</td><td>' + tag('proposta', p.status) + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
   $('lista-propostas').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-proposta]'); if (tr) verProposta(tr.dataset.proposta); });
@@ -1448,12 +1448,75 @@
     if ($('rv-calc')) $('rv-calc').onclick = function () { imprimirCalculo(v); };
   }
 
+  // ===================== E-MAIL DE FOLLOW UP =====================
+  // Envia pelo e-mail do domínio (SMTP da Locaweb) através de /api/enviar-email. A senha fica só na Vercel.
+  // Nada sai sem a pessoa conferir o texto e clicar em Enviar; cada envio fica registrado em p.followUps.
+  function ultimoFollowUp(p) { var f = p.followUps || []; return f.length ? f[f.length - 1] : null; }
+  function textoFollowUp(p, contato) {
+    var reais = function (v) { return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); };
+    var nome = String(contato || '').trim().split(/\s+/)[0];
+    return 'Olá' + (nome ? ' ' + nome : '') + ', tudo bem?\n\n' +
+      'Em ' + data(p.data) + ' enviamos a proposta ' + codRev(p) + (p.titulo ? ', referente a ' + p.titulo : '') + ', no valor de ' + reais(p.total) + '.\n\n' +
+      'Gostaríamos de saber se você teve a oportunidade de avaliá-la e se ficou alguma dúvida. ' +
+      'Se precisar, podemos ajustar escopo, prazo ou condições, e também atualizar a validade da proposta.\n\n' +
+      'Fico à disposição.\n\nAtenciosamente,\nRodrigo\nIdealle';
+  }
+  function formFollowUp(p) {
+    var cli = porId('empresas', p.clienteId) || {};
+    var lista = [];
+    if (cli.email) lista.push({ nome: cli.contato || '', email: cli.email });
+    (cli.contatos || []).forEach(function (c) { if (c.email && !lista.some(function (x) { return x.email.toLowerCase() === String(c.email).toLowerCase(); })) lista.push({ nome: c.nome || '', email: c.email, depto: c.departamento || '' }); });
+    var ult = ultimoFollowUp(p);
+    var inicial = ult ? (lista.find(function (x) { return x.email === ult.para; }) || { nome: ult.contato || '', email: ult.para }) : (lista[0] || { nome: cli.contato || '', email: '' });
+    abrirModal('<h3>Enviar follow up · ' + esc(codRev(p)) + '</h3>' +
+      '<div class="muted">' + esc(nomeCliente(p.clienteId, p.clienteNome)) + ' · enviada em ' + data(p.data) + ' · validade ' + data(p.validade) + '</div>' +
+      (ult ? '<div class="muted">Último follow up: ' + data(String(ult.em).slice(0, 10)) + ' para ' + esc(ult.para) + ' (' + (p.followUps || []).length + ' no total)</div>' : '') +
+      (lista.length > 1 ? '<label>Contato do cliente</label><select id="fu-contato">' + lista.map(function (x, i) { return '<option value="' + i + '"' + (x.email === inicial.email ? ' selected' : '') + '>' + esc((x.nome || 'Sem nome') + (x.depto ? ' (' + x.depto + ')' : '') + ' · ' + x.email) + '</option>'; }).join('') + '</select>' : '') +
+      '<label>Para</label><input id="fu-para" type="email" value="' + esc(inicial.email) + '" placeholder="e-mail do cliente">' +
+      (lista.length ? '' : '<div class="muted">O cadastro do cliente não tem e-mail. Digite acima (e, se quiser, salve no cadastro do cliente depois).</div>') +
+      '<label>Assunto</label><input id="fu-assunto" value="' + esc('Proposta ' + codRev(p) + (p.titulo ? ' · ' + p.titulo : '') + ' · Idealle') + '">' +
+      '<label>Mensagem</label><textarea id="fu-texto" rows="13">' + esc(textoFollowUp(p, inicial.nome)) + '</textarea>' +
+      '<div class="muted">Sai pelo e-mail da Idealle na Locaweb, com cópia oculta para o remetente. Confira o texto antes de enviar.</div>' +
+      '<div class="acoes"><button class="btn ok" id="fu-enviar">✉ Enviar e-mail</button><button class="btn sec" id="fu-voltar">← Voltar</button></div>');
+    $('fu-voltar').onclick = function () { verProposta(p.id); };
+    if ($('fu-contato')) $('fu-contato').onchange = function () {
+      var x = lista[+this.value]; if (!x) return;
+      $('fu-para').value = x.email;
+      $('fu-texto').value = $('fu-texto').value.replace(/^Olá[^,\n]*,/, 'Olá' + (x.nome ? ' ' + String(x.nome).trim().split(/\s+/)[0] : '') + ',');
+    };
+    $('fu-enviar').onclick = async function () {
+      var b = this, para = $('fu-para').value.trim(), assunto = $('fu-assunto').value.trim(), texto = $('fu-texto').value;
+      if (!/^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/.test(para)) { toast('Informe um e-mail válido do cliente.'); return; }
+      if (!assunto || !texto.trim()) { toast('Preencha assunto e mensagem.'); return; }
+      if (!confirm('Enviar o e-mail de follow up para ' + para + '?')) return;
+      b.disabled = true; b.textContent = 'Enviando…';
+      try {
+        var resp;
+        if (modoDemo) resp = { ok: true, de: '(modo de teste: nada foi enviado)' };
+        else {
+          var u = firebase.auth().currentUser; if (!u) throw new Error('Entre de novo no sistema.');
+          var r = await fetch('/api/enviar-email', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await u.getIdToken() }, body: JSON.stringify({ para: para, assunto: assunto, texto: texto }) });
+          resp = await r.json().catch(function () { return { erro: 'Resposta inválida do servidor (' + r.status + ').' }; });
+          if (!r.ok || !resp.ok) throw new Error(resp.erro || ('Erro ' + r.status));
+        }
+        var contato = ($('fu-contato') && lista[+$('fu-contato').value]) ? lista[+$('fu-contato').value].nome : inicial.nome;
+        var reg = { em: agora(), para: para, contato: contato || '', assunto: assunto, de: resp.de || '' };
+        await salvar(function () { return banco.atualizar('propostas', p.id, { followUps: (p.followUps || []).concat([reg]) }); }, modoDemo ? 'Modo de teste: e-mail não enviado, só registrado.' : 'Follow up enviado para ' + para + '.');
+        verProposta(p.id);
+      } catch (e) {
+        b.disabled = false; b.textContent = '✉ Enviar e-mail';
+        alert('Não foi possível enviar o e-mail.\n\n' + e.message);
+      }
+    };
+  }
+
   function verProposta(id) {
     var p = porId('propostas', id); if (!p) return;
     var os = p.osId ? porId('ordens', p.osId) : null;
     var botoes = [];
     if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn ok" id="pv-aprovar">Aprovada pelo cliente → gerar OS</button>');
     if (p.status === 'rascunho') botoes.push('<button class="btn" id="pv-enviar">Marcar como enviada</button>');
+    if (p.status === 'enviada') botoes.push('<button class="btn" id="pv-followup">✉ Enviar follow up</button>');
     if (p.status === 'rascunho' || p.status === 'enviada') botoes.push('<button class="btn sec" id="pv-editar">Editar</button>', '<button class="btn perigo" id="pv-recusar">Recusada</button>', '<button class="btn perigo" id="pv-perder">Perdida</button>');
     if (['recusada', 'perdida', 'semretorno'].indexOf(p.status) >= 0) botoes.push('<button class="btn sec" id="pv-reabrir">Reabrir</button>');
     if (p.status !== 'aprovada') botoes.push('<button class="btn" id="pv-revisao">Nova revisão (Rev. ' + ((p.rev || 0) + 1) + ')</button>');
@@ -1469,6 +1532,7 @@
       (temServicos(p) ? '<div class="muted">Serviços: ' + SERVICOS_OS.filter(function (s) { return p.servicos[s[0]]; }).map(function (s) { return esc(s[1]); }).join(' · ') + '</div>' : '') +
       (p.status === 'recusada' && p.motivoRecusa ? '<div class="muted">Motivo da recusa: ' + esc(p.motivoRecusa) + '</div>' : '') +
       (p.status === 'perdida' ? '<div class="muted">Perdida' + (p.perdidaEm ? ' em ' + data(String(p.perdidaEm).slice(0, 10)) : '') + (p.motivoPerda ? ': ' + esc(p.motivoPerda) : '') + '</div>' : '') +
+      ((p.followUps || []).length ? '<div class="muted">Follow up por e-mail: ' + p.followUps.map(function (f) { return data(String(f.em).slice(0, 10)) + ' para ' + esc(f.para); }).join(' · ') + '</div>' : '') +
       (p.rev && p.motivoRevisao ? '<div class="muted">Motivo da Rev. ' + p.rev + ': ' + esc(p.motivoRevisao) + '</div>' : '') +
       '<div class="tabela" style="margin-top:10px"><table><thead><tr><th>Item</th><th class="num">Qtd</th><th class="num">Unit.</th><th class="num">Total</th></tr></thead><tbody>' +
       (p.itens || []).map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td class="num">' + esc(i.qtd) + '</td><td class="num">' + brl(i.valor) + '</td><td class="num">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
@@ -1487,6 +1551,7 @@
     function ligar(id, fn) { var b = $(id); if (b) b.onclick = fn; }
     ligar('pv-fechar', fecharModal);
     ligar('pv-editar', function () { formProposta(p); });
+    ligar('pv-followup', function () { formFollowUp(p); });
     ligar('pv-ver-pdf', function () { verPdf(function () { imprimirProposta(p); }); });
     ligar('pv-imprimir', function () { imprimirProposta(p); });
     ligar('pv-imprimir-valores', function () { imprimirProposta(p, true); });
