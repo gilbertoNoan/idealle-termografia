@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.11.03-3" />
+<meta name="app-version" content="2026.11.03-4" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -519,6 +519,7 @@
   #cronos-intro { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 24px; text-align: center; color: #fff;
     background: radial-gradient(700px 500px at 80% 0%, rgba(232,154,28,.22), transparent), radial-gradient(800px 600px at 0% 100%, rgba(60,110,255,.22), transparent), #05070d;
     transition: opacity .7s ease, visibility .7s; }
+  #cronos-intro[hidden] { display: none !important; }
   #cronos-intro.saindo { opacity: 0; visibility: hidden; }
   #cronos-intro .ci-logo { width: 190px; height: 190px; border-radius: 28px; object-fit: cover; box-shadow: 0 0 60px rgba(232,154,28,.35); animation: ciLogo 1.1s cubic-bezier(.2,.8,.2,1) both; }
   #cronos-intro .ci-nome { font-family: var(--fonte-num, sans-serif); font-weight: 700; font-size: clamp(34px, 7vw, 64px); letter-spacing: .12em; margin: 0; animation: ciSobe .8s .5s ease both; }
