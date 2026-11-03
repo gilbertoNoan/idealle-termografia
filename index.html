@@ -614,6 +614,11 @@
     <label>Ordem de Serviço</label>
     <select id="f-os" disabled><option value="">Selecione a empresa primeiro…</option></select>
     <p class="ajuda-campo" id="aviso-sem-os" style="display:none;">Nenhuma OS aberta para essa empresa. Cadastre uma em "Ordens de Serviço" antes de iniciar um laudo.</p>
+    <div id="roteiro-anterior" style="display:none;">
+      <label>Copiar quadro da inspeção anterior deste cliente</label>
+      <select id="f-roteiro"></select>
+      <p class="ajuda-campo" id="roteiro-ajuda" style="color: var(--texto-suave);"></p>
+    </div>
     <div class="row2">
       <div><label>Local / Setor</label><input type="text" id="f-local" placeholder="Ex.: Planta — Linha 2" /></div>
       <div><label>Quadro</label><input type="text" id="f-quadro" placeholder="Ex.: QF-14" /></div>
@@ -1247,6 +1252,7 @@
   }
   document.getElementById('novo-empresa').addEventListener('change', function () {
     atualizarSelectOsNovo(this.value, false);
+    atualizarRoteiro();
   });
 
   function lerSelectComOutro(selectId, outroId) {
@@ -1607,6 +1613,63 @@
     if (existingImg) existingImg.remove();
     document.getElementById(labelId).textContent = defaultLabel;
   }
+
+  // Serviço que se repete: quadros já inspecionados em outras OS deste cliente e que ainda não têm ponto
+  // nesta OS. Escolher um preenche local, quadro, tipo/parte/função e emissividade, com a data/hora de agora;
+  // as temperaturas e as fotos são da leitura nova.
+  function quadrosDaInspecaoAnterior(osId) {
+    var os = ordensCache.find(function (o) { return o.id === osId; });
+    if (!os) return [];
+    var chave = function (p) { return (String(p.local || '').trim() + '|' + String(p.quadro || '').trim()).toUpperCase(); };
+    var outrasOs = {};
+    ordensCache.forEach(function (o) { if (o.id !== osId && o.empresaId && o.empresaId === os.empresaId) outrasOs[o.id] = o; });
+    var jaFeitos = {};
+    pontosCache.forEach(function (p) { if (p.osId === osId) jaFeitos[chave(p)] = true; });
+    var vistos = {}, lista = [];
+    pontosCache
+      .filter(function (p) { return outrasOs[p.osId] && p.quadro; })
+      .sort(function (a, b) { return String(b.dataHora || b.createdAt || '').localeCompare(String(a.dataHora || a.createdAt || '')); })
+      .forEach(function (p) {
+        var k = chave(p);
+        if (jaFeitos[k] || vistos[k]) return;
+        vistos[k] = true;
+        lista.push(p);
+      });
+    return lista.sort(function (a, b) { return String(a.local || '').localeCompare(String(b.local || '')) || String(a.quadro || '').localeCompare(String(b.quadro || ''), 'pt-BR', { numeric: true }); });
+  }
+  var roteiroAtual = [];
+  function atualizarRoteiro() {
+    var box = document.getElementById('roteiro-anterior');
+    var osId = document.getElementById('f-os').value;
+    roteiroAtual = editandoPontoId || !osId ? [] : quadrosDaInspecaoAnterior(osId);
+    if (!roteiroAtual.length) { box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    var osAnt = {};
+    roteiroAtual.forEach(function (p) { osAnt[p.osId] = true; });
+    document.getElementById('f-roteiro').innerHTML = '<option value="">' + roteiroAtual.length + ' quadro(s) da inspeção anterior ainda sem ponto nesta OS…</option>' +
+      roteiroAtual.map(function (p, i) {
+        var os = ordensCache.find(function (o) { return o.id === p.osId; });
+        return '<option value="' + i + '">' + escapeHtml((p.local ? p.local + ' — ' : '') + p.quadro + (p.parte ? ' · ' + p.parte : '') + (os ? ' (' + rotuloOS(os) + ')' : '')) + '</option>';
+      }).join('');
+    document.getElementById('roteiro-ajuda').textContent = 'Preenche local, quadro, componente e emissividade com a data e hora de agora. As temperaturas e as fotos são da leitura nova.';
+  }
+  document.getElementById('f-os').addEventListener('change', atualizarRoteiro);
+  document.getElementById('f-roteiro').addEventListener('change', function () {
+    var p = roteiroAtual[Number(this.value)];
+    if (!p || this.value === '') return;
+    document.getElementById('f-local').value = p.local || '';
+    document.getElementById('f-quadro').value = p.quadro || '';
+    setSelectComOutro('f-tipo', 'f-tipo-outro', p.tipo);
+    popularParte();
+    setSelectComOutro('f-parte', 'f-parte-outro', p.parte);
+    popularFuncao();
+    setSelectComOutro('f-funcao', 'f-funcao-outro', p.funcao);
+    atualizarTempAdmissivel();
+    document.getElementById('f-data').value = nowLocalInputValue();
+    if (p.emissividade != null) document.getElementById('f-emissividade').value = p.emissividade;
+    atualizarCalculo();
+    toast('Quadro ' + p.quadro + ' copiado da inspeção anterior, com a data de hoje.');
+  });
 
   function limparFormulario() {
     document.getElementById('f-local').value = '';
@@ -2206,6 +2269,7 @@
     document.getElementById('novo-empresa').value = os.empresaId || '';
     atualizarSelectOsNovo(os.empresaId, false);
     document.getElementById('f-os').value = os.id;
+    atualizarRoteiro();
     toast('Lançando laudos na ' + rotuloOS(os) + ' — ' + (os.empresaNome || ''));
   }
 
@@ -2921,6 +2985,7 @@
     atualizarSelectOsNovo(osDoPonto ? osDoPonto.empresaId : '', false);
     document.getElementById('f-os').value = ponto.osId || '';
     document.getElementById('f-os').disabled = true;
+    document.getElementById('roteiro-anterior').style.display = 'none';
     document.getElementById('f-local').value = ponto.local || '';
     document.getElementById('f-quadro').value = ponto.quadro || '';
     setSelectComOutro('f-tipo', 'f-tipo-outro', ponto.tipo);
@@ -3786,6 +3851,7 @@
               return copy;
             });
             if (ordenarLocal) pontosCache.sort(function (a, b) { return (b.numero || 0) - (a.numero || 0); });
+            if (!MODO_CLIENTE) atualizarRoteiro();
             limparErroBanco();
             var se = document.getElementById('sync-status'); if (se) se.hidden = false;
             renderLista();
