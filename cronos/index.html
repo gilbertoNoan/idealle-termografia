@@ -1244,6 +1244,8 @@
         modelos.map(function (m) { return '<label style="display:flex;gap:8px;align-items:center;margin:0;font-weight:normal"><input type="checkbox" data-modelo="' + m.id + '" style="width:auto"' + (selModelos.indexOf(m.id) >= 0 ? ' checked' : '') + '> ' + esc(m.nome) + '</label>'; }).join('') + '</div>' : '') +
       '<label>Cliente *</label><select id="p-cliente">' + opcoesClientes(p.clienteId) + '</select>' +
       '<div class="muted" style="margin-top:4px">Cliente novo? <a href="#" id="p-novo-cliente">Cadastrar agora</a></div>' +
+      (!p.id ? '<div id="p-anteriores"></div>' : '') +
+      (p.copiadaDe ? '<div class="muted" style="margin-top:4px">Copiada da proposta ' + esc(p.copiadaDe) + ': confira valores, datas e textos antes de salvar.</div>' : '') +
       '<div class="linha"><div><label>Número da proposta</label><input id="p-numero" inputmode="numeric" value="' + esc(p.id ? numeroID(p) : proximoID()) + '"></div>' +
       (p.id ? '<div><label>Revisão</label><input value="Rev. ' + (p.rev || 0) + '" disabled></div>' : '') + '</div>' +
       '<label>Título / Serviço *</label><input id="p-titulo" value="' + esc(p.titulo) + '" placeholder="Ex.: Inspeção periódica NR-13 com calibração">' +
@@ -1308,6 +1310,30 @@
       var n = marcarServicosPelosItens();
       toast(n ? n + ' serviço(s) marcado(s) pelos itens. Confira antes de salvar.' : 'Nenhum serviço novo encontrado nos itens.');
     };
+    // Proposta nova: lista as propostas anteriores do cliente escolhido para copiar (serviço que se repete)
+    function mostrarAnteriores() {
+      var box = $('p-anteriores');
+      if (!box) return;
+      var ps = propostasDoCliente($('p-cliente').value);
+      box.innerHTML = !ps.length ? '' : '<details style="margin-top:6px;border:1px solid var(--line);border-radius:6px;padding:6px 10px"' + (p.copiadaDe ? '' : ' open') + '><summary><b>Copiar uma proposta anterior deste cliente</b> (' + ps.length + ') · itens, valores, textos, serviços e cálculo vêm juntos; número e data ficam novos</summary>' +
+        '<div class="tabela" style="margin-top:6px"><table><tbody>' + ps.slice(0, 15).map(function (x) {
+          return '<tr><td><b>' + codRev(x) + '</b><div class="muted">' + data(x.data) + '</div></td><td>' + esc(x.titulo) + '</td><td class="num">' + brl(x.total) + '</td><td>' + tag('proposta', x.status) + '</td><td><button class="btn sec peq" data-copiar="' + x.id + '">Copiar</button></td></tr>';
+        }).join('') + '</tbody></table></div>' + (ps.length > 15 ? '<div class="muted">Mostrando as 15 mais recentes.</div>' : '') + '</details>';
+    }
+    if ($('p-anteriores')) {
+      mostrarAnteriores();
+      $('p-cliente').addEventListener('change', mostrarAnteriores);
+      $('p-anteriores').onclick = function (e) {
+        var b = e.target.closest('[data-copiar]');
+        if (!b) return;
+        e.preventDefault();
+        var x = porId('propostas', b.dataset.copiar);
+        if (!x) return;
+        if ((lerItens().length || $('p-titulo').value.trim()) && !confirm('Trocar o que já está preenchido pela cópia da ' + codRev(x) + '?')) return;
+        formProposta(Object.assign(copiaDeProposta(x), { data: $('p-data').value || hoje() }));
+        toast('Cópia de ' + codRev(x) + ' com número novo: confira e salve.');
+      };
+    }
     $('p-cancelar').onclick = fecharModal;
     $('p-novo-cliente').onclick = function (e) { e.preventDefault(); formCliente(); };
     function previa(comValores) {
@@ -1349,6 +1375,7 @@
         d.ano = parseInt((d.data || hoje()).slice(0, 4), 10);
         d.numero = nNum;
         d.status = 'rascunho'; d.createdAt = agora();
+        if (p.copiadaDe) d.copiadaDe = p.copiadaDe;
         await salvar(function () { return banco.criar('propostas', d); }, 'Proposta ' + codProposta(d) + ' criada.');
       }
       fecharModal();
@@ -1375,11 +1402,22 @@
     formProposta(Object.assign({}, p, mud));
   }
   // Duplicar (proposta atual ou revisão anterior): proposta nova, com número novo e sem OS, mesmo cliente, itens, textos e cálculo
-  function duplicarProposta(v) {
+  function copiaDeProposta(v) {
     var c = JSON.parse(JSON.stringify(v));
-    ['id', 'osId', 'numero', 'ano', 'status', 'codigo', 'rev', 'revisoes', 'motivoRevisao', 'motivo', 'guardadaEm', 'createdAt', 'enviadaEm', 'aprovadaEm', 'recusadaEm', 'motivoRecusa', 'perdidaEm', 'motivoPerda'].forEach(function (k) { delete c[k]; });
+    ['id', 'osId', 'numero', 'ano', 'status', 'codigo', 'rev', 'revisoes', 'motivoRevisao', 'motivo', 'guardadaEm', 'createdAt', 'updatedAt', 'enviadaEm', 'aprovadaEm', 'recusadaEm', 'motivoRecusa', 'perdidaEm', 'motivoPerda', 'copiadaDe'].forEach(function (k) { delete c[k]; });
     c.data = hoje(); c.validade = somarDias(hoje(), v.data && v.validade ? diasEntre(v.data, v.validade) : 30);
-    formProposta(c);
+    c.copiadaDe = codRev(v);
+    return c;
+  }
+  // Propostas do cliente, da mais recente para a mais antiga
+  function propostasDoCliente(cid) {
+    if (!cid) return [];
+    return cache.propostas.filter(function (x) { return x.clienteId === cid; }).sort(function (a, b) {
+      return String(b.data || '') < String(a.data || '') ? -1 : String(b.data || '') > String(a.data || '') ? 1 : numeroID(b) - numeroID(a);
+    });
+  }
+  function duplicarProposta(v) {
+    formProposta(copiaDeProposta(v));
     toast('Cópia de ' + codRev(v) + ': confira e salve para criar a proposta nova.');
   }
 
