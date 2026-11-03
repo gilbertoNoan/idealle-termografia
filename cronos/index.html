@@ -929,6 +929,39 @@
     if (m.calculo) d.calculo = JSON.parse(JSON.stringify(m.calculo));
     return d;
   }
+  // Junta vários modelos numa proposta só: itens somados, textos com as linhas de todos (sem repetir),
+  // título "A + B", validade do modelo de prazo maior. Com um só modelo, é o mesmo que aplicarModelo.
+  function combinarModelos(ms) {
+    ms = ms.filter(Boolean);
+    if (!ms.length) return {};
+    if (ms.length === 1) return Object.assign(aplicarModelo(ms[0]), { modeloIds: [ms[0].id] });
+    var ds = ms.map(aplicarModelo), d = ds[0];
+    d.modeloIds = ms.map(function (m) { return m.id; });
+    d.modeloNome = ms.map(function (m) { return m.nome; }).join(' + ');
+    d.titulo = ds.map(function (x) { return x.titulo; }).filter(Boolean).join(' + ');
+    d.sistema = (ds.find(function (x) { return x.sistema; }) || {}).sistema || '';
+    d.validade = somarDias(hoje(), Math.max.apply(null, ms.map(function (m) { return num(m.validadeDias) || 30; })));
+    d.itens = [].concat.apply([], ds.map(function (x) { return x.itens; }));
+    TEXTOS.forEach(function (t) {
+      var vistas = {}, linhas = [];
+      ds.forEach(function (x) {
+        String(x[t[0]] || '').split('\n').forEach(function (l) {
+          var k = normal(l.trim().replace(/[;.,]+$/, ''));
+          if (!k || vistas[k]) return;
+          vistas[k] = true; linhas.push(l);
+        });
+      });
+      d[t[0]] = linhas.join('\n');
+    });
+    // memória de cálculo: linhas de todos os modelos que têm cálculo; parâmetros do primeiro
+    var cs = ds.filter(function (x) { return x.calculo; }).map(function (x) { return x.calculo; });
+    if (cs.length > 1) {
+      ['mo', 'mat', 'apoio', 'desp', 'coord'].forEach(function (k) { cs[0][k] = [].concat.apply([], cs.map(function (c) { return c[k] || []; })); });
+      cs[0].def = {}; cs[0].correcao = '';
+    }
+    if (cs.length) d.calculo = cs[0]; else delete d.calculo;
+    return d;
+  }
   function textoFaixa(m) {
     var r = m && m.referencia; if (!r) return '';
     var f = r.faixaAprovadas || r.faixa, partes = [];
@@ -1204,10 +1237,11 @@
     p = p || {};
     var itens = p.itens && p.itens.length ? p.itens : [null];
     var modelo = p.modeloId ? porId('modelos', p.modeloId) : null;
+    var selModelos = p.modeloIds || (p.modeloId ? [p.modeloId] : []);
     var modelos = cache.modelos.slice().sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; });
     abrirModal('<h3>' + (p.id ? 'Editar proposta ' + codProposta(p) : 'Nova proposta') + '</h3>' +
-      (!p.id && modelos.length ? '<label>Começar de um modelo</label><select id="p-modelo"><option value="">Proposta em branco</option>' +
-        modelos.map(function (m) { return '<option value="' + m.id + '"' + (m.id === p.modeloId ? ' selected' : '') + '>' + esc(m.nome) + '</option>'; }).join('') + '</select>' : '') +
+      (!p.id && modelos.length ? '<label>Começar de um ou mais modelos (marque quantos quiser: os itens e textos se juntam; nenhum = proposta em branco)</label><div id="p-modelos" style="display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:6px;padding:8px 10px">' +
+        modelos.map(function (m) { return '<label style="display:flex;gap:8px;align-items:center;margin:0;font-weight:normal"><input type="checkbox" data-modelo="' + m.id + '" style="width:auto"' + (selModelos.indexOf(m.id) >= 0 ? ' checked' : '') + '> ' + esc(m.nome) + '</label>'; }).join('') + '</div>' : '') +
       '<label>Cliente *</label><select id="p-cliente">' + opcoesClientes(p.clienteId) + '</select>' +
       '<div class="muted" style="margin-top:4px">Cliente novo? <a href="#" id="p-novo-cliente">Cadastrar agora</a></div>' +
       '<div class="linha"><div><label>Número da proposta</label><input id="p-numero" inputmode="numeric" value="' + esc(p.id ? numeroID(p) : proximoID()) + '"></div>' +
@@ -1219,7 +1253,7 @@
       '<label>2. Objeto e preços (itens)</label><div class="tabela"><table class="itens"><thead><tr><th>Descrição</th><th>Qtd</th><th>Valor unit. (R$)</th><th></th></tr></thead><tbody id="p-itens">' + itens.map(linhaItem).join('') + '</tbody></table></div>' +
       '<button class="btn sec peq" id="p-add-item" style="margin-top:6px">+ Item</button>' +
       '<div class="total" id="p-total"></div>' +
-      (modelo && modelo.referencia ? '<div class="muted" style="text-align:right">' + textoFaixa(modelo) + '</div>' : '') +
+      (modelo && modelo.referencia && !(p.modeloIds && p.modeloIds.length > 1) ? '<div class="muted" style="text-align:right">' + textoFaixa(modelo) + '</div>' : '') +
       '<details id="p-textos" open style="margin-top:10px"><summary><b>Texto da proposta</b> (todos os pontos que saem no PDF: referência, objetivo, local, escopo, fornecimentos, prazo, observações · clique aqui para recolher)</summary>' +
       TEXTOS.map(function (t) { return '<label>' + t[1] + '</label><textarea id="p-' + t[0] + '" rows="' + t[2] + '">' + esc(p[t[0]]) + '</textarea>'; }).join('') +
       '</details>' +
@@ -1252,9 +1286,13 @@
       toast(r.sobra ? 'Preço repartido nos itens. Sobrou ' + brl(r.sobra) + ' de arredondamento: ajuste um item.' : 'Preço repartido nos itens, na mesma proporção que eles tinham.');
     };
     atualizarTotal();
-    if ($('p-modelo')) $('p-modelo').onchange = function () {
-      var m = porId('modelos', this.value), cid = $('p-cliente').value;
-      formProposta(Object.assign(m ? aplicarModelo(m) : {}, { clienteId: cid, data: $('p-data').value }));
+    if ($('p-modelos')) $('p-modelos').onchange = function (e) {
+      var id = e.target.dataset.modelo, cid = $('p-cliente').value;
+      if (!id) return;
+      // mantém a ordem em que foram marcados (o primeiro define parâmetros do cálculo e condições)
+      var ids = selModelos.filter(function (x) { return x !== id; });
+      if (e.target.checked) ids.push(id);
+      formProposta(Object.assign(combinarModelos(ids.map(function (x) { return porId('modelos', x); })), { clienteId: cid, data: $('p-data').value }));
     };
     $('p-itens').addEventListener('input', atualizarTotal);
     $('p-itens').addEventListener('click', function (e) { if (e.target.classList.contains('i-del')) { e.target.closest('tr').remove(); atualizarTotal(); } });
@@ -1298,6 +1336,7 @@
       var d = { clienteId: cid, clienteNome: nomeCliente(cid), titulo: $('p-titulo').value.trim(), data: $('p-data').value, validade: $('p-validade').value, sistema: $('p-sistema').value, servicos: lerServicos('p-sv-'), itens: it, total: totalItens(it), condicoes: $('p-condicoes').value.trim(), updatedAt: agora() };
       TEXTOS.forEach(function (t) { d[t[0]] = $('p-' + t[0]).value.trim(); });
       if (p.modeloId) { d.modeloId = p.modeloId; d.modeloNome = p.modeloNome || ''; }
+      if (p.modeloIds && p.modeloIds.length > 1) d.modeloIds = p.modeloIds;
       if (usouCalc) d.calculo = limparCalculo(lerCalculo($('p-calc')));
       var nNum = parseInt($('p-numero').value, 10);
       if (!(nNum > 0)) { toast('Informe o número da proposta.'); return; }
@@ -1403,7 +1442,7 @@
           return '<tr><td>Rev. ' + r.rev + '</td><td>' + data(r.data) + '</td><td class="num">' + brl(r.total) + '</td><td class="num">' + (r.calculo && r.calculo.resultado ? brl(r.calculo.resultado.final) : '—') + '</td><td class="muted">' + esc(r.motivo || '') + '</td>' +
             '<td style="white-space:nowrap"><button class="btn peq" data-rev-ver="' + r.rev + '">Ver</button> <button class="btn sec peq" data-rev-pdf="' + r.rev + '">PDF</button> <button class="btn sec peq" data-rev-valores="' + r.rev + '">PDF c/ valores</button>' + (r.calculo ? ' <button class="btn sec peq" data-rev-calc="' + r.rev + '">Cálculo</button>' : '') + '</td></tr>';
         }).join('') + '</tbody></table></div></details>' : '') +
-      (p.modeloNome ? '<p class="muted">Feita a partir do modelo ' + esc(p.modeloNome) + '</p>' : '') +
+      (p.modeloNome ? '<p class="muted">Feita a partir do' + ((p.modeloIds || []).length > 1 ? 's modelos ' : ' modelo ') + esc(p.modeloNome) + '</p>' : '') +
       (p.objetivo ? '<p class="muted">' + esc(p.objetivo) + '</p>' : (p.escopo ? '<p class="muted" style="white-space:pre-wrap">' + esc(p.escopo) + '</p>' : '')) +
       (os ? '<p>Gerou a <b>OS ' + esc(codOS(os)) + '</b> ' + tag('os', statusOS(os)) + ' <a href="#" id="pv-ver-os">ver OS</a></p>' : '') +
       '<div class="acoes">' + botoes.join('') + '</div>');
@@ -1574,7 +1613,7 @@
     var lista = cache.modelos.slice().sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; });
     if (!lista.length) { $('lista-modelos').innerHTML = '<div class="card vazio">Nenhum modelo ainda. Importe o arquivo de modelos da Idealle pelo Painel, crie um em "+ Novo modelo" ou use "Salvar como modelo" numa proposta.</div>'; return; }
     $('lista-modelos').innerHTML = '<div class="grid">' + lista.map(function (m) {
-      var usos = cache.propostas.filter(function (p) { return p.modeloId === m.id; }).length;
+      var usos = cache.propostas.filter(function (p) { return p.modeloId === m.id || (p.modeloIds || []).indexOf(m.id) >= 0; }).length;
       return '<div class="card"><b>' + esc(m.nome) + '</b><div class="muted">' + esc(m.titulo || '') + '</div>' +
         '<div style="margin:6px 0">Itens: ' + (m.itens || []).length + ' · exemplo ' + brl(totalItens(m.itens)) + (usos ? ' · usado em ' + usos + ' proposta' + (usos > 1 ? 's' : '') : '') + '</div>' +
         '<div class="muted">' + textoFaixa(m) + '</div>' +
