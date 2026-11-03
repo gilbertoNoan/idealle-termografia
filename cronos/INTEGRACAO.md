@@ -27,7 +27,22 @@ E pode mudar `status`: `execucao` quando começa o trabalho e `concluida` (com `
 
 ## 2.1 Serviços da OS e pendências por TAG
 
-Na OS se marcam os serviços contratados, em `servicos: { relatorio, prontuario, calibracao, desenquadramento }` (true/false). A proposta também tem essas caixas e, quando aprovada, passa os serviços para a OS que cria. Com isso o Cronos e o Relatório NR-13 mostram o que falta em cada TAG, sem marcação à mão:
+Na OS se marcam os serviços contratados, em `servicos: { relatorio, prontuario, pmta, calibracao, desenquadramento, termografia }` (true/false). A proposta também tem essas caixas ("Marcar pelos itens da proposta" marca pelo texto dos itens; se nenhuma estiver marcada, isso é feito sozinho ao salvar e ao aprovar) e, quando aprovada, passa os serviços para a OS que cria.
+
+Cada serviço tem o seu sistema, e a OS aberta ou em execução aparece lá na lista "A fazer" (consulta `servicos.<chave> == true` e `status in [aberta, execucao]`):
+
+| Serviço | Chave | Sistema |
+| --- | --- | --- |
+| Relatório NR-13 | `relatorio` | Relatório NR-13 |
+| Abertura de prontuário (com PMTA) | `prontuario` | Relatório NR-13 e PMTA Calc |
+| Cálculo de PMTA | `pmta` | PMTA Calc |
+| Certificado de calibração | `calibracao` | Gerador de Certificados |
+| Desenquadramento | `desenquadramento` | Calculadora NR-13 |
+| Termografia | `termografia` | Termografia |
+
+Trabalho feito num sistema para uma OS que não tinha o serviço marcado também conta: ao gravar `resultados[<sistema>]`, o sistema marca o serviço dele na OS (`servicos.<chave> = true`, com updateMask só nesse campo). Assim dá para acrescentar serviço pela própria execução.
+
+Com isso o Cronos e o Relatório NR-13 mostram o que falta em cada TAG, sem marcação à mão:
 
 - O Relatório NR-13 manda em `resultados["Relatório NR-13"].vasos` um item por vaso: `tag`, `laudo` (etapa), `laudoPronto`, `prontuario` (`abertura`, `periodica` ou `nenhum`), `faltaProntuario` (campos vazios), `pmta` (`ok`, `pendente` ou `nao_exige`), `manometro` e `valvula` (`exige`, `tags`, `numeros`, e `quantidade` na válvula). TAGs e números vão em maiúsculas, só letras e números.
 - O Gerador de Certificados manda em `resultados["Gerador de Certificados"].itens` um item por certificado: `tag`, `numero` e `tipo` (`manometer` ou `valve`).
