@@ -2224,6 +2224,8 @@
       } } };
       // Primeiro laudo lançado: a OS passa para "em execução" no Cronos
       if (os && snap.size && (!os.status || os.status === 'aberta')) { upd.status = 'execucao'; upd.dataInicio = new Date().toISOString().slice(0, 10); }
+      // Laudo lançado numa OS sem o serviço marcado: a Termografia passa a constar nos serviços da OS
+      if (snap.size && !(os && os.servicos && os.servicos.termografia)) upd.servicos = { termografia: true };
       await db.collection('ordens').doc(osId).set(upd, { merge: true });
     } catch (err) {
       console.error('Não foi possível atualizar a OS no Cronos:', err);
@@ -2472,6 +2474,12 @@
       tituloLista.innerHTML = (filtroEmpresaOrdens ? '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg> OS de ' + escapeHtml(filtroEmpresaOrdens.nome) : '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg> Ordens de serviço') + ' <span class="contador" id="contador-ordens"></span>';
     }
 
+    // OS do Cronos com Termografia contratada e ainda sem laudo vêm primeiro, com o aviso "Termografia a fazer"
+    var termoAFazer = function (o) {
+      return !!(o.servicos && o.servicos.termografia) && (!o.status || o.status === 'aberta' || o.status === 'execucao') &&
+        !pontosCache.some(function (p) { return p.osId === o.id; });
+    };
+    ordensFiltradas = ordensFiltradas.filter(termoAFazer).concat(ordensFiltradas.filter(function (o) { return !termoAFazer(o); }));
     contador = document.getElementById('contador-ordens');
     if (!ordensFiltradas.length) {
       lista.innerHTML = '<div class="vazio">' + (filtroSeveridade ? 'Nenhuma OS com quadros nesse status.' : (filtroEmpresaOrdens ? 'Nenhuma OS cadastrada para esta empresa ainda.' : 'Nenhuma OS cadastrada ainda.')) + '</div>';
@@ -2509,7 +2517,7 @@
             '<button class="btn-secondary" data-action="baixar-todos-os" data-os-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Baixar toda a OS em ZIP (' + laudos.length + ')</button>' +
           '</div>' : '';
         return '<div class="os-item" data-id="' + o.id + '">' +
-          '<div class="nome">' + escapeHtml(rotuloOS(o)) + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">' + (STATUS_OS_LABEL[o.status] || 'Aberta') + '</span></div>' +
+          '<div class="nome">' + escapeHtml(rotuloOS(o)) + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">' + (STATUS_OS_LABEL[o.status] || 'Aberta') + '</span>' + (termoAFazer(o) ? ' <span class="os-status" style="background:#FDECC8;color:#8A5300">Termografia a fazer</span>' : '') + '</div>' +
           '<div class="sub">' + escapeHtml(o.descricao || 'Sem descrição') + (o.dataAbertura ? ' · ' + o.dataAbertura : '') + '</div>' +
           '<div class="os-laudos"><div class="os-laudos-titulo">Laudos' + (filtroSeveridade ? ' ' + SEVERIDADE_LABEL[filtroSeveridade] : '') + ' desta OS (' + laudos.length + ')</div>' + toolbarHtml + laudosHtml + '</div>' +
           (filtroSeveridade ? '' : historicoHtml(o.id)) +

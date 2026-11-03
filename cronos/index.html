@@ -336,10 +336,13 @@
   }
   // Um botão por sistema; o sistema escolhido na OS vem primeiro e em destaque
   function botoesSistemas(o) {
-    var nomes = Object.keys(SISTEMAS).sort(function (a, b) { return (b === o.sistema) - (a === o.sistema); });
-    return '<div class="sistemas-os"><div class="muted" style="margin:12px 0 6px">Fazer laudos desta OS em:</div><div class="acoes" style="margin-top:0">' +
+    // Os sistemas dos serviços contratados vêm primeiro e em destaque (a OS já aparece na lista "A fazer" deles)
+    var doServico = sistemasDosServicos(o.servicos);
+    var destaque = function (n) { return n === o.sistema || doServico.indexOf(n) >= 0; };
+    var nomes = Object.keys(SISTEMAS).sort(function (a, b) { return (destaque(b) - destaque(a)) || ((b === o.sistema) - (a === o.sistema)); });
+    return '<div class="sistemas-os"><div class="muted" style="margin:12px 0 6px">Fazer laudos desta OS em:' + (doServico.length ? ' <span style="font-size:.85em">(em destaque, os sistemas dos serviços contratados: a OS já aparece neles em "A fazer")</span>' : '') + '</div><div class="acoes" style="margin-top:0">' +
       nomes.map(function (nome) {
-        return '<a class="btn' + (nome === o.sistema ? '' : ' sec') + '" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(linkSistema(o, nome)) + '">' + esc(nome) + '</a>';
+        return '<a class="btn' + (destaque(nome) ? '' : ' sec') + '" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(linkSistema(o, nome)) + '">' + esc(nome) + '</a>';
       }).join('') + '</div></div>';
   }
   var NIVEIS_TERMO = [['emergencia', 'Emergência', 't-bad'], ['urgencia', 'Urgência', 't-bad'], ['programar', 'Programar', 't-warn'], ['observar', 'Observar', 't-blue'], ['normal', 'Normal', 't-ok']];
@@ -361,7 +364,36 @@
   // Certificados manda cada certificado (resultados['Gerador de Certificados'].itens: tag, número, tipo) e a
   // Calculadora NR-13 manda cada avaliação de desenquadramento (resultados['Calculadora NR-13'].itens: tag, enquadrado).
   // A mesma conta é feita no Relatório NR-13 (src/services/pendencias.ts) para o aviso na TAG.
-  var SERVICOS_OS = [['relatorio', 'Relatório NR-13'], ['prontuario', 'Abertura de prontuário (com PMTA)'], ['calibracao', 'Certificado de calibração'], ['desenquadramento', 'Desenquadramento (laudo não obrigatório)']];
+  // [chave, nome, sistema onde é feito]. A OS aparece no sistema de cada serviço marcado (lista "A fazer").
+  var SERVICOS_OS = [
+    ['relatorio', 'Relatório NR-13', 'Relatório NR-13'],
+    ['prontuario', 'Abertura de prontuário (com PMTA)', 'Relatório NR-13'],
+    ['pmta', 'Cálculo de PMTA', 'PMTA Calc'],
+    ['calibracao', 'Certificado de calibração', 'Gerador de Certificados'],
+    ['desenquadramento', 'Desenquadramento (laudo não obrigatório)', 'Calculadora NR-13'],
+    ['termografia', 'Termografia', 'Termografia']
+  ];
+  // Sistemas que têm trabalho a fazer nesta OS (pelos serviços marcados)
+  function sistemasDosServicos(sv) {
+    var r = [];
+    SERVICOS_OS.forEach(function (s) { if (sv && sv[s[0]] && r.indexOf(s[2]) < 0) r.push(s[2]); });
+    return r;
+  }
+  // Marca os serviços pelo texto do título e dos itens da proposta (o que não achar fica como está)
+  function servicosDosItens(titulo, itens) {
+    var r = {};
+    // linha a linha: a linha de calibração ou de desenquadramento não conta como relatório de inspeção
+    [titulo].concat((itens || []).map(function (i) { return i.descricao || ''; })).forEach(function (l) {
+      var t = normal(l);
+      if (/termogr/.test(t)) r.termografia = true;
+      if (/pmta/.test(t)) r.pmta = true;
+      if (/prontuario|reconstitui/.test(t)) r.prontuario = true;
+      if (/desenquadr/.test(t)) { r.desenquadramento = true; return; }
+      if (/calibra|psv|valvula de seguranca|valvula de alivio|manometro|pressostato/.test(t)) { r.calibracao = true; return; }
+      if (/inspec|prontuario|reconstitui/.test(t) && /vaso|caldeira|nr-?13|tanque|tubula|reservatorio|compressor/.test(t)) r.relatorio = true;
+    });
+    return r;
+  }
   // Caixas dos serviços (formulário da OS 'o-sv-' e da proposta 'p-sv-') e leitura delas
   function caixasServicos(pref, sv) {
     return '<div style="display:flex;flex-wrap:wrap;gap:6px 18px">' + SERVICOS_OS.map(function (s) {
@@ -419,6 +451,8 @@
     if ((sv.relatorio || sv.prontuario) && !vasos.length) gerais.push(nr.qtdLaudos ? 'Relatório NR-13: abra o sistema para enviar a situação dos vasos' : 'Relatório NR-13: nenhum laudo ainda');
     if (sv.calibracao && !certs.length) gerais.push('Certificados de calibração: nenhum emitido ainda');
     if (sv.desenquadramento && !desenq.length) gerais.push('Desenquadramento: nenhuma avaliação ainda (Calculadora NR-13)');
+    if (sv.pmta && !res['PMTA Calc'] && !vasos.some(function (v) { return v.pmta === 'ok'; })) gerais.push('Cálculo de PMTA: nenhum cálculo ainda (PMTA Calc)');
+    if (sv.termografia && !(res.Termografia && res.Termografia.qtdLaudos)) gerais.push('Termografia: nenhum laudo ainda');
     var qtd = gerais.length + linhas.reduce(function (n, l) { return n + l.itens.filter(function (i) { return !i.ok; }).length; }, 0);
     return { linhas: linhas, gerais: gerais, qtd: qtd };
   }
@@ -1180,7 +1214,8 @@
       (p.id ? '<div><label>Revisão</label><input value="Rev. ' + (p.rev || 0) + '" disabled></div>' : '') + '</div>' +
       '<label>Título / Serviço *</label><input id="p-titulo" value="' + esc(p.titulo) + '" placeholder="Ex.: Inspeção periódica NR-13 com calibração">' +
       '<div class="linha"><div><label>Data</label><input id="p-data" type="date" value="' + esc(p.data || hoje()) + '"></div><div><label>Validade</label><input id="p-validade" type="date" value="' + esc(p.validade || somarDias(hoje(), 30)) + '"></div><div><label>Sistema de execução</label><select id="p-sistema">' + opcoesSistemas(p.sistema) + '</select></div></div>' +
-      '<label>Serviços (passam para a OS quando a proposta for aprovada)</label>' + caixasServicos('p-sv-', p.servicos) +
+      '<label>Serviços (passam para a OS quando a proposta for aprovada e a OS aparece no sistema de cada um)</label>' + caixasServicos('p-sv-', p.servicos) +
+      '<div class="muted" style="font-size:.8em;margin-top:4px"><a href="#" id="p-sv-auto">Marcar pelos itens da proposta</a></div>' +
       '<label>2. Objeto e preços (itens)</label><div class="tabela"><table class="itens"><thead><tr><th>Descrição</th><th>Qtd</th><th>Valor unit. (R$)</th><th></th></tr></thead><tbody id="p-itens">' + itens.map(linhaItem).join('') + '</tbody></table></div>' +
       '<button class="btn sec peq" id="p-add-item" style="margin-top:6px">+ Item</button>' +
       '<div class="total" id="p-total"></div>' +
@@ -1224,6 +1259,17 @@
     $('p-itens').addEventListener('input', atualizarTotal);
     $('p-itens').addEventListener('click', function (e) { if (e.target.classList.contains('i-del')) { e.target.closest('tr').remove(); atualizarTotal(); } });
     $('p-add-item').onclick = function () { $('p-itens').insertAdjacentHTML('beforeend', linhaItem()); };
+    // Marca as caixas de serviço pelo título, itens e objeto da proposta (só acrescenta, não desmarca)
+    function marcarServicosPelosItens() {
+      var achou = servicosDosItens($('p-titulo').value + ' ' + ($('p-objeto') ? $('p-objeto').value : ''), lerItens()), n = 0;
+      SERVICOS_OS.forEach(function (s) { var c = $('p-sv-' + s[0]); if (c && achou[s[0]] && !c.checked) { c.checked = true; n++; } });
+      return n;
+    }
+    $('p-sv-auto').onclick = function (e) {
+      e.preventDefault();
+      var n = marcarServicosPelosItens();
+      toast(n ? n + ' serviço(s) marcado(s) pelos itens. Confira antes de salvar.' : 'Nenhum serviço novo encontrado nos itens.');
+    };
     $('p-cancelar').onclick = fecharModal;
     $('p-novo-cliente').onclick = function (e) { e.preventDefault(); formCliente(); };
     function previa(comValores) {
@@ -1247,6 +1293,8 @@
         var fin = calcular(lerCalculo($('p-calc'))).final, rp = fin > 0 ? repartirPreco(it, fin) : null;
         if (rp && confirm('Os itens estão sem valor (total R$ 0,00). Usar o preço da memória de cálculo, ' + brl(fin) + ', repartido nos itens?')) { it = rp.itens; $('p-itens').innerHTML = it.map(linhaItem).join(''); }
       }
+      // Nenhum serviço marcado: marca pelos itens, para a OS já nascer nos sistemas certos
+      if (!temServicos({ servicos: lerServicos('p-sv-') }) && marcarServicosPelosItens()) toast('Serviços marcados pelos itens da proposta.');
       var d = { clienteId: cid, clienteNome: nomeCliente(cid), titulo: $('p-titulo').value.trim(), data: $('p-data').value, validade: $('p-validade').value, sistema: $('p-sistema').value, servicos: lerServicos('p-sv-'), itens: it, total: totalItens(it), condicoes: $('p-condicoes').value.trim(), updatedAt: agora() };
       TEXTOS.forEach(function (t) { d[t[0]] = $('p-' + t[0]).value.trim(); });
       if (p.modeloId) { d.modeloId = p.modeloId; d.modeloNome = p.modeloNome || ''; }
@@ -1392,12 +1440,15 @@
     ligar('pv-reabrir', async function () { await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'enviada' }); }, 'Proposta reaberta.'); verProposta(p.id); });
     ligar('pv-excluir', async function () { if (!confirm('Excluir a proposta ' + codProposta(p) + '?')) return; await salvar(function () { return banco.excluir('propostas', p.id); }, 'Proposta excluída.'); fecharModal(); });
     ligar('pv-aprovar', async function () {
-      if (!confirm('Confirmar aprovação e abrir a OS?')) return;
+      // Proposta antiga sem serviços marcados: marca pelos itens, para a OS aparecer nos sistemas
+      var sv = temServicos(p) ? p.servicos : servicosDosItens(p.titulo + ' ' + (p.objeto || ''), p.itens);
+      var nomesSv = SERVICOS_OS.filter(function (s) { return sv[s[0]]; }).map(function (s) { return s[1] + ' → ' + s[2]; });
+      if (!confirm('Confirmar aprovação e abrir a OS?' + (nomesSv.length ? '\n\nA OS vai aparecer para fazer em:\n• ' + nomesSv.join('\n• ') : '\n\nNenhum serviço marcado: a OS não vai para a lista "A fazer" dos sistemas (dá para marcar depois em Editar OS).'))) return;
       var numero = p.numero;
       // Campos numero/empresaId/empresaNome/descricao/dataAbertura seguem o formato da Termografia,
       // para a OS aparecer lá automaticamente.
       var osId = await salvar(function () {
-        return banco.criar('ordens', { numero: numero, codigo: codProposta(p), empresaId: p.clienteId, empresaNome: nomeCliente(p.clienteId, p.clienteNome), descricao: p.titulo, dataAbertura: hoje(), createdAt: agora(), status: 'aberta', propostaId: p.id, propostaCodigo: codProposta(p), valor: p.total, sistema: p.sistema || '', servicos: p.servicos || {} });
+        return banco.criar('ordens', { numero: numero, codigo: codProposta(p), empresaId: p.clienteId, empresaNome: nomeCliente(p.clienteId, p.clienteNome), descricao: p.titulo, dataAbertura: hoje(), createdAt: agora(), status: 'aberta', propostaId: p.id, propostaCodigo: codProposta(p), valor: p.total, sistema: p.sistema || '', servicos: sv || {} });
       });
       await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'aprovada', aprovadaEm: agora(), osId: osId }); }, 'Proposta aprovada. OS ' + codProposta(p) + ' aberta.');
       fecharModal(); mostrar('ordens');
