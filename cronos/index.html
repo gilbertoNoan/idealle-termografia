@@ -2903,15 +2903,18 @@
     var recV = rec.filter(function (x) { return x.vencimento < h; }), pagV = pag.filter(function (x) { return x.vencimento < h; });
     var rec30 = rec.filter(function (x) { return x.vencimento <= em30; }), pag30 = pag.filter(function (x) { return x.vencimento <= em30; });
     var r = dre(M, 'competencia', function (d) { return d.slice(0, 7) === mes; });
+    var pagMes = M.filter(function (x) { return !x.interno && x.sentido < 0 && x.vencimento && x.vencimento.slice(0, 7) === mes; });
+    var pagMesAb = pagMes.filter(function (x) { return !x.pagamento; }), pagMesPg = pagMes.filter(function (x) { return x.pagamento; });
     var kpis = [
       ['Saldo nos bancos', sinal(saldo), cache.contas.length + ' banco(s)', 'extrato'],
-      ['A receber', brl(somaV(rec)), (recV.length ? brl(somaV(recV)) + ' vencido' : 'nada vencido'), 'receber'],
-      ['A pagar', brl(somaV(pag)), (pagV.length ? brl(somaV(pagV)) + ' vencido' : 'nada vencido'), 'pagar'],
+      ['A receber', brl(somaV(rec)), (recV.length ? brl(somaV(recV)) + ' vencido' : 'nada vencido'), 'receber', ''],
+      ['A pagar', brl(somaV(pag)), (pagV.length ? brl(somaV(pagV)) + ' vencido' : 'nada vencido') + ' · todos os meses', 'pagar', ''],
+      ['A pagar em ' + nomeMes(mes), brl(somaV(pagMesAb)), pagMesAb.length + ' conta(s) em aberto · ' + brl(somaV(pagMesPg)) + ' já pago', 'pagar', mes],
       ['Saldo previsto em 30 dias', sinal(saldo + somaV(rec30) - somaV(pag30)), 'saldo + recebe − paga até ' + data(em30), 'fluxo'],
       ['Imposto (DAS) de ' + nomeMes(mes), brl(apuracao(M, mes).imposto), 'estimado sobre as notas do mês · vence ' + data(apuracao(M, mes).vencimento), 'impostos'],
       ['Lucro de ' + nomeMes(mes), sinal(r.lucro), 'receita ' + brl(r.receitaBruta) + (r.receitaBruta ? ' · margem ' + Math.round(100 * r.lucro / r.receitaBruta) + '%' : ''), 'dre']
     ];
-    var html = '<div class="grid">' + kpis.map(function (k) { return '<div class="card kpi" data-aba="' + k[3] + '"><div class="rotulo">' + k[0] + '</div><div class="valor">' + k[1] + '</div><div class="sub">' + k[2] + '</div></div>'; }).join('') + '</div>';
+    var html = '<div class="grid">' + kpis.map(function (k) { return '<div class="card kpi" data-aba="' + k[3] + '"' + (k[4] != null ? ' data-mes-lista="' + k[4] + '"' : '') + '><div class="rotulo">' + k[0] + '</div><div class="valor">' + k[1] + '</div><div class="sub">' + k[2] + '</div></div>'; }).join('') + '</div>';
 
     // Entradas e saídas dos últimos 12 meses (dinheiro que de fato entrou e saiu)
     var meses = []; for (var i = 11; i >= 0; i--) meses.push(somarMeses(mes + '-01', -i).slice(0, 7));
@@ -2972,6 +2975,7 @@
     var html = '<div class="busca"><input id="fin-busca" placeholder="Buscar descrição, ' + rot[4].toLowerCase() + ', categoria…" value="' + esc(fin.busca || '') + '">' +
       '<select id="fin-filtro">' + [['aberto', 'Em aberto'], ['vencido', 'Vencidos'], ['pago', rot[1] + 's'], ['todos', 'Todos']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === fin.filtro ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
       '<input type="month" id="fin-mes-lista" value="' + esc(fin.mesLista || '') + '" title="Filtrar por mês">' +
+      (fin.mesLista === h.slice(0, 7) ? '<button class="btn sec" data-mes-rapido="">Todos os meses</button>' : '<button class="btn sec" data-mes-rapido="' + h.slice(0, 7) + '">Este mês</button>') +
       '<button class="btn" data-novo="' + (sentido < 0 ? 'despesa' : 'receita') + '">' + rot[2] + '</button></div>';
     if (sentido > 0) html += '<p class="muted">As faturas do Faturamento entram aqui sozinhas. Use "Outra receita" só para o que não tem fatura (rendimentos, venda avulsa, aporte).</p>';
     if (!l.length) return html + '<div class="card vazio">Nada por aqui.</div>';
@@ -3488,7 +3492,8 @@
   // ---------- eventos ----------
   function acharMov(ref) { var p = ref.split(':'); return movimentos().find(function (x) { return x.fonte === p[0] && x.id === p[1]; }); }
   $('v-financas').addEventListener('click', function (e) {
-    var a = e.target.closest('[data-aba]'); if (a) { e.preventDefault(); fin.aba = a.dataset.aba; renderFinancas(); return; }
+    var a = e.target.closest('[data-aba]'); if (a) { e.preventDefault(); fin.aba = a.dataset.aba; if (a.dataset.mesLista != null) { fin.mesLista = a.dataset.mesLista; fin.filtro = 'aberto'; } renderFinancas(); return; }
+    var ml = e.target.closest('[data-mes-rapido]'); if (ml) { fin.mesLista = ml.dataset.mesRapido; renderFinancas(); return; }
     var b = e.target.closest('button');
     if (b && b.dataset.baixa) { var x = acharMov(b.dataset.baixa); if (x) formBaixa(x); return; }
     if (b && b.dataset.novo) { if (b.dataset.novo === 'transferencia') formTransferencia(); else formLanc(b.dataset.novo); return; }
