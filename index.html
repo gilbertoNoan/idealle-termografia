@@ -784,7 +784,9 @@
     </div>
   </div>
   <div class="card" id="card-nova-os">
-    <h2><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/></svg> Nova ordem de serviço</h2>
+    <h2><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/></svg> Ordens de serviço</h2>
+    <p class="ajuda-campo" style="font-size:14px;line-height:1.5;color:#475569;">As ordens de serviço são abertas só no <b>Gestão &amp; Financeiro</b>, pelos sócios. Assim que a OS é aberta lá, ela aparece aqui na lista abaixo e no campo "OS" dos laudos.</p>
+    <div hidden>
     <label>Empresa</label>
     <select id="os-empresa"><option value="">Selecione a empresa…</option></select>
     <p class="ajuda-campo" id="aviso-sem-empresa" style="display:none;">Cadastre uma empresa primeiro na aba "Empresas".</p>
@@ -795,6 +797,7 @@
     <label>Data de abertura</label>
     <input type="date" id="os-data" />
     <button class="btn-primary" id="btn-salvar-os">Salvar OS</button>
+    </div>
   </div>
   <div class="card">
     <h2 id="titulo-lista-ordens"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg> Ordens de serviço <span class="contador" id="contador-ordens"></span></h2>
@@ -2543,7 +2546,7 @@
           '<div class="sub">' + escapeHtml(o.descricao || 'Sem descrição') + (o.dataAbertura ? ' · ' + o.dataAbertura : '') + '</div>' +
           '<div class="os-laudos"><div class="os-laudos-titulo">Laudos' + (filtroSeveridade ? ' ' + SEVERIDADE_LABEL[filtroSeveridade] : '') + ' desta OS (' + laudos.length + ')</div>' + toolbarHtml + laudosHtml + '</div>' +
           (filtroSeveridade ? '' : historicoHtml(o.id)) +
-          (filtroSeveridade ? '' : '<div class="ponto-actions">' + ((!o.status || o.status === 'aberta' || o.status === 'execucao') ? '<button class="btn-secondary" data-action="concluir-os" data-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg> Concluir OS</button>' : '') + '<button class="btn-secondary" data-action="link-cliente-os" data-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg> Link do cliente</button><button class="btn-danger" data-action="del-os" data-id="' + o.id + '">Excluir OS</button></div>') +
+          (filtroSeveridade ? '' : '<div class="ponto-actions">' + ((!o.status || o.status === 'aberta' || o.status === 'execucao') ? '<button class="btn-secondary" data-action="concluir-os" data-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg> Concluir OS</button>' : '') + '<button class="btn-secondary" data-action="link-cliente-os" data-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg> Link do cliente</button></div>') +
         '</div>';
       }).join('');
     }
@@ -2558,6 +2561,8 @@
   });
 
   document.getElementById('btn-salvar-os').addEventListener('click', async function () {
+    // OS só são abertas no Gestão & Financeiro (o banco também recusa OS criadas aqui)
+    toast('As OS são abertas no Gestão & Financeiro.'); return;
     var empresaId = document.getElementById('os-empresa').value;
     var empresa = empresasCache.find(function (e) { return e.id === empresaId; });
     if (!empresa) { toast('Selecione a empresa.'); return; }
