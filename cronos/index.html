@@ -339,7 +339,8 @@
   }
   // Um botão por sistema; o sistema escolhido na OS vem primeiro e em destaque
   function botoesSistemas(o) {
-    // Os sistemas dos serviços contratados vêm primeiro e em destaque (a OS já aparece na lista "A fazer" deles)
+    // Os sistemas dos serviços contratados vêm primeiro e em destaque (a OS já aparece na lista "A fazer" deles,
+    // também faturada em parte: contrato com mais etapas)
     var doServico = sistemasDosServicos(o.servicos);
     var destaque = function (n) { return n === o.sistema || doServico.indexOf(n) >= 0; };
     var nomes = Object.keys(SISTEMAS).sort(function (a, b) { return (destaque(b) - destaque(a)) || ((b === o.sistema) - (a === o.sistema)); });
@@ -1774,7 +1775,7 @@
     $('lista-ordens').innerHTML = '<table><thead><tr><th>OS</th><th>Cliente / Serviço</th><th>Abertura</th><th>Prazo</th><th>Sistema</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>' +
       lista.map(function (o) {
         var atrasada = o.prazo && o.prazo < hoje() && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0;
-        return '<tr class="clicavel' + (statusOS(o) === 'parcial' ? ' os-parcial' : '') + '" data-os="' + o.id + '"><td><b>' + esc(codOS(o)) + '</b></td><td>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + (o.contrato ? ' <span class="tag t-parcial">Contrato</span>' : '') + '<div class="muted">' + esc(o.descricao || '') + (o.responsavel ? ' · ' + esc(o.responsavel) : '') + '</div></td><td>' + data(o.dataAbertura) + '</td><td>' + data(o.prazo) + (atrasada ? ' <span class="tag t-bad">atrasada</span>' : '') + '</td><td>' + esc(o.sistema || '—') + (o.resultados && o.resultados[o.sistema] ? '<div class="muted">' + o.resultados[o.sistema].qtdLaudos + ' laudo(s)</div>' : '') + (temServicos(o) && ['aberta', 'execucao', 'concluida'].indexOf(statusOS(o)) >= 0 ? (function (n) { return '<div>' + (n ? '<span class="tag t-warn">' + n + ' pendência(s)</span>' : '<span class="tag t-ok">serviços em dia</span>') + '</div>'; })(pendenciasOS(o).qtd) : '') + '</td><td class="num">' + (o.valor != null ? brl(o.valor) : '—') + (statusOS(o) === 'parcial' || (o.contrato && faturasOS(o).length) ? '<div class="muted">falta ' + brl(saldoOS(o)) + '</div>' : '') + '</td><td>' + tag('os', statusOS(o)) + '</td></tr>';
+        return '<tr class="clicavel' + (statusOS(o) === 'parcial' ? ' os-parcial' : '') + '" data-os="' + o.id + '"><td><b>' + esc(codOS(o)) + '</b></td><td>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + (o.contrato ? ' <span class="tag t-parcial">Contrato</span>' : '') + '<div class="muted">' + esc(o.descricao || '') + (o.responsavel ? ' · ' + esc(o.responsavel) : '') + '</div></td><td>' + data(o.dataAbertura) + '</td><td>' + data(o.prazo) + (atrasada ? ' <span class="tag t-bad">atrasada</span>' : '') + '</td><td>' + esc(o.sistema || '—') + (o.resultados && o.resultados[o.sistema] ? '<div class="muted">' + o.resultados[o.sistema].qtdLaudos + ' laudo(s)</div>' : '') + (temServicos(o) && ['aberta', 'execucao', 'concluida', 'parcial'].indexOf(statusOS(o)) >= 0 ? (function (n) { return '<div>' + (n ? '<span class="tag t-warn">' + n + ' pendência(s)</span>' : '<span class="tag t-ok">serviços em dia</span>') + '</div>'; })(pendenciasOS(o).qtd) : '') + '</td><td class="num">' + (o.valor != null ? brl(o.valor) : '—') + (statusOS(o) === 'parcial' || (o.contrato && faturasOS(o).length) ? '<div class="muted">falta ' + brl(saldoOS(o)) + '</div>' : '') + '</td><td>' + tag('os', statusOS(o)) + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
   $('lista-ordens').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-os]'); if (tr) verOS(tr.dataset.os); });
