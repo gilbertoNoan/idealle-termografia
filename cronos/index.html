@@ -546,7 +546,13 @@
       criar: function (col, doc) { return db.collection(col).add(doc).then(function (r) { return r.id; }); },
       // merge: true preserva campos que outros sistemas (como a Termografia) gravaram no mesmo documento
       atualizar: function (col, id, doc) { return db.collection(col).doc(id).set(doc, { merge: true }); },
-      excluir: function (col, id) { return db.collection(col).doc(id).delete(); }
+      excluir: function (col, id) { return db.collection(col).doc(id).delete(); },
+      // Muda um campo em todos os documentos onde ele é igual a `de` (coleções que o Cronos não carrega, como os pontos da Termografia)
+      trocarCampo: async function (col, campo, de, para) {
+        var snap = await db.collection(col).where(campo, '==', de).get(), n = 0;
+        for (var i = 0; i < snap.docs.length; i++) { var u = {}; u[campo] = para; await snap.docs[i].ref.update(u); n++; }
+        return n;
+      }
     };
   }
 
@@ -561,7 +567,8 @@
       ouvir: function (col, cb) { (ouvintes[col] = ouvintes[col] || []).push(cb); setTimeout(function () { avisar(col); }, 0); },
       criar: function (col, doc) { doc = Object.assign({}, doc); doc.id = 'L' + Date.now() + Math.random().toString(36).slice(2, 6); dados[col].push(doc); salvar(); avisar(col); return Promise.resolve(doc.id); },
       atualizar: function (col, id, doc) { var i = dados[col].findIndex(function (x) { return x.id === id; }); if (i >= 0) Object.assign(dados[col][i], doc); else dados[col].push(Object.assign({ id: id }, doc)); salvar(); avisar(col); return Promise.resolve(); },
-      excluir: function (col, id) { dados[col] = dados[col].filter(function (x) { return x.id !== id; }); salvar(); avisar(col); return Promise.resolve(); }
+      excluir: function (col, id) { dados[col] = dados[col].filter(function (x) { return x.id !== id; }); salvar(); avisar(col); return Promise.resolve(); },
+      trocarCampo: function () { return Promise.resolve(0); }
     };
   }
 
@@ -767,7 +774,9 @@
     var lista = cache.empresas.filter(function (c) { return !q || normal([c.nome, c.codigo, c.cnpj, c.cidade, c.contato, c.email].join(' ')).indexOf(q) >= 0; })
       .sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; });
     var semCodigo = cache.empresas.filter(function (c) { return !c.codigo; }).length;
-    $('aviso-codigos').innerHTML = semCodigo ? '<div class="aviso">' + semCodigo + ' cliente(s) vindos dos outros sistemas ainda sem código. <button class="btn peq" id="btn-gerar-codigos">Gerar códigos</button></div>' : '';
+    var repetidos = gruposRepetidos();
+    $('aviso-codigos').innerHTML = (semCodigo ? '<div class="aviso">' + semCodigo + ' cliente(s) vindos dos outros sistemas ainda sem código. <button class="btn peq" id="btn-gerar-codigos">Gerar códigos</button></div>' : '') +
+      (repetidos.length ? '<div class="aviso">' + repetidos.length + ' cliente(s) cadastrado(s) mais de uma vez (mesmo nome ou mesmo CNPJ). <button class="btn peq" id="btn-unificar">Revisar e unificar</button></div>' : '');
     if (!lista.length) { $('lista-clientes').innerHTML = '<div class="vazio">Nenhum cliente' + (q ? ' encontrado' : ' cadastrado ainda') + '.</div>'; return; }
     $('lista-clientes').innerHTML = '<table><thead><tr><th>Código</th><th>Cliente</th><th>CNPJ</th><th>Cidade</th><th class="num">Propostas</th><th class="num">OS</th></tr></thead><tbody>' +
       lista.map(function (c) {
@@ -779,6 +788,7 @@
 
   $('v-clientes').addEventListener('click', async function (e) {
     var tr = e.target.closest('tr[data-cliente]'); if (tr) verCliente(tr.dataset.cliente);
+    if (e.target.id === 'btn-unificar') telaUnificar();
     if (e.target.id === 'btn-gerar-codigos') {
       var m = 0; cache.empresas.forEach(function (c) { var n = parseInt(String(c.codigo || '').replace(/\D/g, ''), 10); if (!isNaN(n) && n > m) m = n; });
       var sem = cache.empresas.filter(function (c) { return !c.codigo; }).sort(function (a, b) { return String(a.createdAt) < String(b.createdAt) ? -1 : 1; });
@@ -894,6 +904,147 @@
       fecharModal();
     };
   }
+
+  // ===================== UNIFICAR CLIENTES REPETIDOS =====================
+  // Mesmo cliente cadastrado mais de uma vez: mesmo CNPJ, ou mesmo nome (sem acento, pontuação e Ltda/S.A./ME).
+  // Mesmo nome com CNPJs diferentes são unidades diferentes e não se juntam.
+  // A mesma chave de nome é usada pelos outros sistemas (chaveNome no cronos.ts).
+  function chaveNomeCliente(s) { return normal(s).replace(/\b(ltda|me|epp|eireli|s\.?\/?a\.?|cia)\b\.?/g, ' ').replace(/[^a-z0-9]/g, ''); }
+  function cnpjCliente(c) { var d = soDigitos(c.cnpj); return d.length >= 11 ? d : ''; }
+  function usoCliente(c) {
+    return {
+      p: cache.propostas.filter(function (p) { return p.clienteId === c.id; }).length,
+      o: cache.ordens.filter(function (o) { return o.empresaId === c.id; }).length,
+      f: cache.faturas.filter(function (f) { return f.clienteId === c.id; }).length
+    };
+  }
+  function gruposRepetidos() {
+    var pai = {}, cnpjs = {};
+    cache.empresas.forEach(function (c) { pai[c.id] = c.id; cnpjs[c.id] = cnpjCliente(c); });
+    function raiz(x) { while (pai[x] !== x) x = pai[x] = pai[pai[x]]; return x; }
+    function juntar(a, b) {
+      a = raiz(a); b = raiz(b); if (a === b) return;
+      if (cnpjs[a] && cnpjs[b] && cnpjs[a] !== cnpjs[b]) return; // unidades diferentes
+      pai[a] = b; cnpjs[b] = cnpjs[b] || cnpjs[a];
+    }
+    var porCnpj = {}, porNome = {};
+    cache.empresas.forEach(function (c) { var k = cnpjCliente(c); if (k) { if (porCnpj[k]) juntar(c.id, porCnpj[k]); else porCnpj[k] = c.id; } });
+    cache.empresas.forEach(function (c) { var k = chaveNomeCliente(c.nome); if (k) { if (porNome[k]) juntar(c.id, porNome[k]); else porNome[k] = c.id; } });
+    var g = {};
+    cache.empresas.forEach(function (c) { (g[raiz(c.id)] = g[raiz(c.id)] || []).push(c); });
+    return Object.keys(g).map(function (k) { return g[k]; }).filter(function (l) { return l.length > 1; })
+      .map(function (l) {
+        // Fica, por padrão, o que tem mais propostas, OS e faturas; no empate, o de código mais antigo
+        return l.map(function (c) { var u = usoCliente(c); return { c: c, u: u, peso: u.p + u.o + u.f }; })
+          .sort(function (a, b) { return b.peso - a.peso || String(a.c.codigo || 'z').localeCompare(String(b.c.codigo || 'z')); });
+      })
+      .sort(function (a, b) { return normal(a[0].c.nome) < normal(b[0].c.nome) ? -1 : 1; });
+  }
+
+  function telaUnificar() {
+    var grupos = gruposRepetidos();
+    if (!grupos.length) { toast('Nenhum cliente repetido.'); return; }
+    abrirModal('<h3>Unificar clientes repetidos</h3>' +
+      '<p class="muted">Cada grupo tem o mesmo CNPJ ou o mesmo nome. Escolha qual cadastro fica: as propostas, OS, faturas, lançamentos e laudos da Termografia dos outros passam para ele, ' +
+      'os campos vazios dele são completados com os dos outros, e os outros são apagados. Os sistemas NR-13, PMTA e Certificados juntam os clientes deles na próxima vez que abrirem. ' +
+      'Antes de unificar o Cronos baixa uma cópia (arquivo .json) do que vai mudar.</p>' +
+      grupos.map(function (g, i) {
+        return '<div class="card" style="margin:8px 0;padding:8px 10px"><div style="display:flex;gap:8px;align-items:center"><input type="checkbox" style="width:auto;margin:0" data-ugrupo="' + i + '" id="ugrupo-' + i + '" checked><b><span onclick="document.getElementById(\'ugrupo-' + i + '\').click()" style="cursor:pointer">Unificar este grupo</span></b></div>' +
+          '<table><thead><tr><th>Fica</th><th>Código</th><th>Cliente</th><th>CNPJ</th><th>Cidade</th><th class="num">Prop.</th><th class="num">OS</th><th class="num">Fat.</th></tr></thead><tbody>' +
+          g.map(function (x, j) {
+            return '<tr><td><input type="radio" style="width:auto" name="ufica-' + i + '" value="' + x.c.id + '"' + (j === 0 ? ' checked' : '') + '></td><td>' + esc(x.c.codigo || '—') + '</td><td>' + esc(x.c.nome) +
+              (x.c.origem && x.c.origem !== 'planilha' ? '<div class="muted">veio de: ' + esc(x.c.origem) + '</div>' : '') + '</td><td>' + esc(x.c.cnpj || '—') + '</td><td>' + esc(x.c.cidade || '—') + '</td><td class="num">' + x.u.p + '</td><td class="num">' + x.u.o + '</td><td class="num">' + x.u.f + '</td></tr>';
+          }).join('') + '</tbody></table></div>';
+      }).join('') +
+      '<div class="acoes"><button class="btn" id="u-ok">Unificar os marcados</button><button class="btn sec" id="u-cancelar">Cancelar</button></div><div class="muted" id="u-msg"></div>');
+    $('u-cancelar').onclick = fecharModal;
+    $('u-ok').onclick = async function () {
+      var escolhas = [];
+      grupos.forEach(function (g, i) {
+        if (!document.querySelector('[data-ugrupo="' + i + '"]').checked) return;
+        var fica = document.querySelector('input[name="ufica-' + i + '"]:checked').value;
+        escolhas.push({ fica: porId('empresas', fica), saem: g.map(function (x) { return x.c; }).filter(function (c) { return c.id !== fica; }) });
+      });
+      if (!escolhas.length) { toast('Marque ao menos um grupo.'); return; }
+      var nSaem = escolhas.reduce(function (s, e) { return s + e.saem.length; }, 0);
+      if (!confirm('Unificar ' + escolhas.length + ' grupo(s)? ' + nSaem + ' cadastro(s) repetido(s) serão apagados e tudo o que era deles passa para o cliente que fica.\n\nNão dá para desfazer pela tela (fica a cópia em .json).')) return;
+      this.disabled = true;
+      baixarCopiaUnificacao(escolhas);
+      var feitos = 0;
+      try {
+        for (var k = 0; k < escolhas.length; k++) {
+          $('u-msg').textContent = 'Unificando ' + escolhas[k].fica.nome + ' (' + (k + 1) + ' de ' + escolhas.length + ')…';
+          await unificarClientes(escolhas[k].fica, escolhas[k].saem);
+          feitos++;
+        }
+        toast(feitos + ' grupo(s) unificado(s).');
+        fecharModal();
+      } catch (e) {
+        console.error(e);
+        $('u-msg').textContent = 'Parou com erro depois de ' + feitos + ' grupo(s): ' + (e.message || e) + '. Abra de novo para continuar.';
+        this.disabled = false;
+      }
+    };
+  }
+
+  // Cópia do que vai mudar, para conferir ou refazer à mão
+  function baixarCopiaUnificacao(escolhas) {
+    try {
+      var ids = {}; escolhas.forEach(function (e) { e.saem.forEach(function (c) { ids[c.id] = 1; }); });
+      var copia = {
+        em: agora(),
+        grupos: escolhas.map(function (e) { return { fica: e.fica, saem: e.saem }; }),
+        propostas: cache.propostas.filter(function (p) { return ids[p.clienteId]; }).map(function (p) { return { id: p.id, clienteId: p.clienteId, clienteNome: p.clienteNome }; }),
+        ordens: cache.ordens.filter(function (o) { return ids[o.empresaId]; }).map(function (o) { return { id: o.id, empresaId: o.empresaId, empresaNome: o.empresaNome }; }),
+        faturas: cache.faturas.filter(function (f) { return ids[f.clienteId]; }).map(function (f) { return { id: f.id, clienteId: f.clienteId, clienteNome: f.clienteNome }; }),
+        lancamentos: cache.lancamentos.filter(function (l) { return ids[l.clienteId]; }).map(function (l) { return { id: l.id, clienteId: l.clienteId }; })
+      };
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(copia, null, 1)], { type: 'application/json' }));
+      a.download = 'copia-unificacao-clientes-' + hoje() + '.json';
+      document.body.appendChild(a); a.click(); a.remove();
+    } catch (e) { console.warn('cópia da unificação', e); }
+  }
+
+  var CAMPOS_UNIFICAR = ['cnpj', 'ie', 'contato', 'setor', 'telefone', 'email', 'endereco', 'cidade', 'uf', 'cep'];
+  async function unificarClientes(fica, saem) {
+    var ids = saem.map(function (c) { return c.id; });
+    // Cadastro que fica: completa os vazios, junta contatos e observações, guarda os nomes antigos em `unificados`
+    var upd = { updatedAt: agora() };
+    CAMPOS_UNIFICAR.forEach(function (k) { if (!String(fica[k] || '').trim()) { var de = saem.find(function (c) { return String(c[k] || '').trim(); }); if (de) upd[k] = de[k]; } });
+    var contatos = (fica.contatos || []).slice(), vistos = {};
+    contatos.forEach(function (x) { vistos[normal(x.email || x.nome)] = 1; });
+    saem.forEach(function (c) { (c.contatos || []).forEach(function (x) { var k = normal(x.email || x.nome); if (k && !vistos[k]) { vistos[k] = 1; contatos.push(x); } }); });
+    if (contatos.length !== (fica.contatos || []).length) upd.contatos = contatos;
+    var obs = [fica.obs].concat(saem.map(function (c) { return c.obs; })).filter(Boolean);
+    if (obs.length > (fica.obs ? 1 : 0)) upd.obs = obs.join('\n');
+    var unif = (fica.unificados || []).slice();
+    saem.forEach(function (c) {
+      unif.push({ id: c.id, nome: c.nome || '', cnpj: c.cnpj || '', codigo: c.codigo || '', em: hoje() });
+      (c.unificados || []).forEach(function (u) { unif.push(u); });
+    });
+    upd.unificados = unif;
+    await banco.atualizar('empresas', fica.id, upd);
+    // Tudo o que era dos repetidos passa para o que fica
+    var ps = cache.propostas.filter(function (p) { return ids.indexOf(p.clienteId) >= 0; });
+    for (var i = 0; i < ps.length; i++) await banco.atualizar('propostas', ps[i].id, { clienteId: fica.id, clienteNome: fica.nome });
+    var os = cache.ordens.filter(function (o) { return ids.indexOf(o.empresaId) >= 0; });
+    for (var j = 0; j < os.length; j++) await banco.atualizar('ordens', os[j].id, { empresaId: fica.id, empresaNome: fica.nome });
+    var fs = cache.faturas.filter(function (f) { return ids.indexOf(f.clienteId) >= 0; });
+    for (var k = 0; k < fs.length; k++) await banco.atualizar('faturas', fs[k].id, { clienteId: fica.id, clienteNome: fica.nome });
+    var ls = cache.lancamentos.filter(function (l) { return ids.indexOf(l.clienteId) >= 0; });
+    for (var m = 0; m < ls.length; m++) await banco.atualizar('lancamentos', ls[m].id, { clienteId: fica.id });
+    // Laudos da Termografia guardam o nome do cliente (é por ele que o link do cliente filtra)
+    for (var n = 0; n < saem.length; n++) {
+      if (saem[n].nome && saem[n].nome !== fica.nome) {
+        try { await banco.trocarCampo('pontos', 'cliente', saem[n].nome, fica.nome); } catch (e) { console.warn('pontos da Termografia', e); }
+      }
+    }
+    for (var q = 0; q < saem.length; q++) await banco.excluir('empresas', saem[q].id);
+  }
+
+  // Nomes pelos quais o cliente já foi conhecido (cadastros repetidos que foram unificados nele)
+  function nomesDoCliente(c) { return [c.nome].concat((c.unificados || []).map(function (u) { return u.nome; })).filter(Boolean); }
 
   // ===================== PROPOSTAS =====================
   function renderPropostas() {
@@ -2436,6 +2587,7 @@
 
     // Clientes: reaproveita quem já existe (inclusive os cadastrados pela Termografia)
     var porNome = {};
+    cache.empresas.forEach(function (c) { nomesDoCliente(c).forEach(function (n) { porNome[normal(n)] = porNome[normal(n)] || c; }); });
     cache.empresas.forEach(function (c) { porNome[normal(c.nome)] = c; });
     var codN = parseInt(proximoCodigoCliente().replace(/\D/g, ''), 10) - 1;
     var idCliente = {};
@@ -2539,7 +2691,7 @@
         if (maior) await banco.atualizar('contas', idBanco[normal(maior.nome)], { principal: true });
       }
       var chaves = {}; cache.lancamentos.forEach(function (l) { if (l.chave) chaves[l.chave] = true; });
-      var porNomeCli = {}; cache.empresas.forEach(function (c) { porNomeCli[normal(c.nome)] = c.id; });
+      var porNomeCli = {}; cache.empresas.forEach(function (c) { nomesDoCliente(c).forEach(function (n) { porNomeCli[normal(n)] = porNomeCli[normal(n)] || c.id; }); });
       await emLotes(fn.lancamentos, async function (l) {
         if (chaves[l.chave]) return;
         var doc = Object.assign({}, l, { contaId: idBanco[normal(l.banco)] || '', clienteId: porNomeCli[normal(l.pessoa)] || '', createdAt: agora() }); delete doc.banco;
@@ -2647,7 +2799,7 @@
     var porNum = {}, porNF = {}, porNomeCli = {}, porCnpj = {}, nP = 0, nF = 0, nN = 0;
     cache.propostas.forEach(function (p) { (porNum[p.numero + '/' + p.ano] = porNum[p.numero + '/' + p.ano] || []).push(p); });
     cache.faturas.forEach(function (f) { if (f.nf) porNF[f.nf] = f; });
-    cache.empresas.forEach(function (c) { porNomeCli[normal(c.nome)] = c; if (c.cnpj) porCnpj[String(c.cnpj).replace(/\D/g, '')] = c; });
+    cache.empresas.forEach(function (c) { nomesDoCliente(c).forEach(function (n) { porNomeCli[normal(n)] = porNomeCli[normal(n)] || c; }); if (c.cnpj) porCnpj[String(c.cnpj).replace(/\D/g, '')] = c; });
     // CNPJ do tomador de uma nota já ligada a um cliente serve para achar o cliente das notas novas
     d.faturas.forEach(function (n) { var f = porNF[n.nf], cn = String(n.tomadorCnpj || '').replace(/\D/g, ''); if (f && f.clienteId && cn && !porCnpj[cn]) porCnpj[cn] = porId('empresas', f.clienteId); });
     await emLotes(d.propostas, async function (c) {
@@ -2770,7 +2922,7 @@
   }
   async function executarStatusNotas(mud, novas, os, aviso) {
     var nM = 0, nN = 0, nO = 0, porNomeCli = {}, h = hoje();
-    cache.empresas.forEach(function (c) { porNomeCli[normal(c.nome)] = c; });
+    cache.empresas.forEach(function (c) { nomesDoCliente(c).forEach(function (n) { porNomeCli[normal(n)] = porNomeCli[normal(n)] || c; }); });
     await emLotes(mud, async function (x) { var u = Object.assign({}, x.u, { updatedAt: agora() }); await banco.atualizar('faturas', x.f.id, u); nM++; }, aviso, 'Notas atualizadas');
     var seq = proximoNumero(cache.faturas, 'numero');
     await emLotes(novas, async function (x) {

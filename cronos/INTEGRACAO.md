@@ -59,6 +59,12 @@ Os clientes ficam em `empresas` do Cronos. Ao abrir, cada sistema lê essa cole�
 
 O cliente é o mesmo quando tem o mesmo CNPJ ou o mesmo nome, ignorando acento, pontuação e Ltda/ME/EPP/S.A. Os clientes de exemplo que vêm com cada sistema não vão para o Cronos. A Termografia já usa a própria coleção `empresas`. A Calculadora NR-13 não tem cadastro de clientes: ela só sugere os nomes do Cronos no campo Cliente.
 
+### 3.1 Clientes repetidos
+
+Em Clientes, o Cronos avisa quando o mesmo cliente está cadastrado mais de uma vez (mesmo CNPJ, ou mesmo nome sem acento, pontuação e Ltda/S.A./ME; mesmo nome com CNPJs diferentes são unidades diferentes e não se juntam). Em "Revisar e unificar" escolhe-se qual cadastro fica: propostas, OS, faturas, lançamentos e os laudos da Termografia (`pontos.cliente`) passam para ele, os campos vazios são completados, os outros são apagados e os nomes/CNPJs antigos ficam em `empresas/<id>.unificados` (`[{ id, nome, cnpj, codigo, em }]`). Antes de gravar, o Cronos baixa uma cópia `.json` do que muda.
+
+`sincronizarClientes` dos outros sistemas lê `unificados` (nome ou CNPJ antigo leva ao cliente que ficou, sem recriar o antigo no Cronos) e devolve `unificar: [{ fica, saem }]` com os clientes locais que são o mesmo. NR-13 (`juntarEmpresas`), PMTA Calc e Gerador de Certificados perguntam e juntam: o vínculo dos laudos/certificados passa para o que fica.
+
 ## Situação
 
 | Sistema | Integrado |
