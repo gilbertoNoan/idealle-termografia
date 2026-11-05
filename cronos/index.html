@@ -369,18 +369,20 @@
   // Calculadora NR-13 manda cada avaliação de desenquadramento (resultados['Calculadora NR-13'].itens: tag, enquadrado).
   // A mesma conta é feita no Relatório NR-13 (src/services/pendencias.ts) para o aviso na TAG.
   // [chave, nome, sistema onde é feito]. A OS aparece no sistema de cada serviço marcado (lista "A fazer").
+  // Serviço sem sistema ('') fica só no Cronos: o laudo é feito fora e a OS é concluída na própria OS.
   var SERVICOS_OS = [
     ['relatorio', 'Relatório NR-13', 'Relatório NR-13'],
     ['prontuario', 'Abertura de prontuário (com PMTA)', 'Relatório NR-13'],
     ['pmta', 'Cálculo de PMTA', 'PMTA Calc'],
     ['calibracao', 'Certificado de calibração', 'Gerador de Certificados'],
     ['desenquadramento', 'Desenquadramento (laudo não obrigatório)', 'Calculadora NR-13'],
-    ['termografia', 'Termografia', 'Termografia']
+    ['termografia', 'Termografia', 'Termografia'],
+    ['spda', 'SPDA (NBR 5419)', '']
   ];
   // Sistemas que têm trabalho a fazer nesta OS (pelos serviços marcados)
   function sistemasDosServicos(sv) {
     var r = [];
-    SERVICOS_OS.forEach(function (s) { if (sv && sv[s[0]] && r.indexOf(s[2]) < 0) r.push(s[2]); });
+    SERVICOS_OS.forEach(function (s) { if (s[2] && sv && sv[s[0]] && r.indexOf(s[2]) < 0) r.push(s[2]); });
     return r;
   }
   // Marca os serviços pelo texto do título e dos itens da proposta (o que não achar fica como está)
@@ -390,6 +392,7 @@
     [titulo].concat((itens || []).map(function (i) { return i.descricao || ''; })).forEach(function (l) {
       var t = normal(l);
       if (/termogr/.test(t)) r.termografia = true;
+      if (/spda|descargas? atmosf|para-?raio|5419/.test(t)) r.spda = true;
       if (/pmta/.test(t)) r.pmta = true;
       if (/prontuario|reconstitui/.test(t)) r.prontuario = true;
       if (/desenquadr/.test(t)) { r.desenquadramento = true; return; }
@@ -457,6 +460,8 @@
     if (sv.desenquadramento && !desenq.length) gerais.push('Desenquadramento: nenhuma avaliação ainda (Calculadora NR-13)');
     if (sv.pmta && !res['PMTA Calc'] && !vasos.some(function (v) { return v.pmta === 'ok'; })) gerais.push('Cálculo de PMTA: nenhum cálculo ainda (PMTA Calc)');
     if (sv.termografia && !(res.Termografia && res.Termografia.qtdLaudos)) gerais.push('Termografia: nenhum laudo ainda');
+    // SPDA não tem sistema próprio: fica pendente até a OS ser concluída (laudo entregue)
+    if (sv.spda && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0) gerais.push('SPDA: laudo feito fora dos sistemas, conclua a OS quando entregar');
     var qtd = gerais.length + linhas.reduce(function (n, l) { return n + l.itens.filter(function (i) { return !i.ok; }).length; }, 0);
     return { linhas: linhas, gerais: gerais, qtd: qtd };
   }
@@ -1134,7 +1139,9 @@
   function combinarModelos(ms) {
     ms = ms.filter(Boolean);
     if (!ms.length) return {};
-    if (ms.length === 1) return Object.assign(aplicarModelo(ms[0]), { modeloIds: [ms[0].id] });
+    // os serviços (Termografia, SPDA, NR-13...) já vêm marcados pelo título e pelos itens dos modelos
+    var comServicos = function (x) { x.servicos = servicosDosItens(x.titulo + ' ' + (x.objeto || ''), x.itens); return x; };
+    if (ms.length === 1) return comServicos(Object.assign(aplicarModelo(ms[0]), { modeloIds: [ms[0].id] }));
     var ds = ms.map(aplicarModelo), d = ds[0];
     d.modeloIds = ms.map(function (m) { return m.id; });
     d.modeloNome = ms.map(function (m) { return m.nome; }).join(' + ');
@@ -1160,7 +1167,7 @@
       cs[0].def = {}; cs[0].correcao = '';
     }
     if (cs.length) d.calculo = cs[0]; else delete d.calculo;
-    return d;
+    return comServicos(d);
   }
   function textoFaixa(m) {
     var r = m && m.referencia; if (!r) return '';
@@ -1784,7 +1791,7 @@
     ligar('pv-aprovar', async function () {
       // Proposta antiga sem serviços marcados: marca pelos itens, para a OS aparecer nos sistemas
       var sv = temServicos(p) ? p.servicos : servicosDosItens(p.titulo + ' ' + (p.objeto || ''), p.itens);
-      var nomesSv = SERVICOS_OS.filter(function (s) { return sv[s[0]]; }).map(function (s) { return s[1] + ' → ' + s[2]; });
+      var nomesSv = SERVICOS_OS.filter(function (s) { return sv[s[0]]; }).map(function (s) { return s[1] + ' → ' + (s[2] || 'só no Cronos (sem sistema)'); });
       if (!confirm('Confirmar aprovação e abrir a OS?' + (nomesSv.length ? '\n\nA OS vai aparecer para fazer em:\n• ' + nomesSv.join('\n• ') : '\n\nNenhum serviço marcado: a OS não vai para a lista "A fazer" dos sistemas (dá para marcar depois em Editar OS).'))) return;
       var numero = p.numero;
       // Campos numero/empresaId/empresaNome/descricao/dataAbertura seguem o formato da Termografia,
