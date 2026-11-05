@@ -257,7 +257,7 @@
 
   <!-- PROPOSTAS -->
   <section class="view" id="v-propostas">
-    <h2>Propostas comerciais <button class="btn" id="btn-nova-proposta">+ Nova proposta</button></h2>
+    <h2>Propostas comerciais <button class="btn" id="btn-nova-proposta">+ Nova proposta</button> <button class="btn sec" id="btn-proposta-spda" title="Perguntas simples sobre o local e a proposta de para-raios sai pronta">+ Proposta SPDA guiada</button></h2>
     <div class="busca">
       <input id="busca-proposta" placeholder="Buscar por número, cliente, título…">
       <select id="filtro-proposta"><option value="">Todos os status</option></select>
@@ -1111,6 +1111,7 @@
   }
   $('lista-propostas').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-proposta]'); if (tr) verProposta(tr.dataset.proposta); });
   $('btn-nova-proposta').addEventListener('click', function () { formProposta(); });
+  $('btn-proposta-spda').addEventListener('click', function () { assistenteSpda(); });
 
   function linhaItem(i) {
     i = i || { descricao: '', qtd: 1, valor: '' };
@@ -1449,6 +1450,8 @@
     abrirModal('<h3>' + (p.id ? 'Editar proposta ' + codProposta(p) : 'Nova proposta') + '</h3>' +
       (!p.id && modelos.length ? '<label>Começar de um ou mais modelos (marque quantos quiser: os itens e textos se juntam; nenhum = proposta em branco)</label><div id="p-modelos" style="display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:6px;padding:8px 10px">' +
         modelos.map(function (m) { return '<label style="display:flex;gap:8px;align-items:center;margin:0;font-weight:normal"><input type="checkbox" data-modelo="' + m.id + '" style="width:auto"' + (selModelos.indexOf(m.id) >= 0 ? ' checked' : '') + '> ' + esc(m.nome) + '</label>'; }).join('') + '</div>' : '') +
+      (!p.id && !p.spda ? '<div class="muted" style="margin-top:6px">É SPDA / para-raios? <a href="#" id="p-spda">Use a proposta guiada</a>: perguntas simples e os itens saem calculados.</div>' : '') +
+      (p.spda ? '<div class="muted" style="margin-top:6px">Montada pela proposta SPDA guiada' + (p.spda.resumo ? ': ' + esc(p.spda.resumo) : '') + '.' + (!p.id ? ' <a href="#" id="p-spda">Voltar às perguntas</a>' : '') + '</div>' : '') +
       '<label>Cliente *</label><select id="p-cliente">' + opcoesClientes(p.clienteId) + '</select>' +
       '<div class="muted" style="margin-top:4px">Cliente novo? <a href="#" id="p-novo-cliente">Cadastrar agora</a></div>' +
       (!p.id ? '<div id="p-anteriores"></div>' : '') +
@@ -1541,6 +1544,7 @@
         toast('Cópia de ' + codRev(x) + ' com número novo: confira e salve.');
       };
     }
+    if ($('p-spda')) $('p-spda').onclick = function (e) { e.preventDefault(); assistenteSpda(Object.assign({}, p.spda || {}, p.spda && p.spda.qtd ? p.spda.qtd : {}, { clienteId: $('p-cliente').value, data: $('p-data').value })); };
     $('p-cancelar').onclick = fecharModal;
     $('p-novo-cliente').onclick = function (e) { e.preventDefault(); formCliente(); };
     function previa(comValores) {
@@ -1570,6 +1574,7 @@
       TEXTOS.forEach(function (t) { d[t[0]] = $('p-' + t[0]).value.trim(); });
       if (p.modeloId) { d.modeloId = p.modeloId; d.modeloNome = p.modeloNome || ''; }
       if (p.modeloIds && p.modeloIds.length > 1) d.modeloIds = p.modeloIds;
+      if (p.spda) d.spda = p.spda;
       if (usouCalc) d.calculo = limparCalculo(lerCalculo($('p-calc')));
       var nNum = parseInt($('p-numero').value, 10);
       if (!(nNum > 0)) { toast('Informe o número da proposta.'); return; }
@@ -1587,6 +1592,149 @@
       }
       fecharModal();
     };
+  }
+
+  // ===================== ASSISTENTE DE PROPOSTA SPDA =====================
+  // Para quem não é da área elétrica: perguntas simples sobre o local, com explicação de cada termo,
+  // e a proposta sai montada a partir dos modelos SPDA (spda-inspecao e spda-projeto, importados de modelos-spda.json).
+  // Os preços vêm dos itens dos modelos; aqui só ficam os pesos de tamanho (não há valor em R$ fixo no código).
+  var SPDA_PORTES = [
+    ['peq', 'Pequena', 'até uns 1.000 m² de telhado e até 2 andares: portaria, casa, refeitório, casa de bombas, escritório pequeno', 0.6],
+    ['med', 'Média', 'de 1.000 a 5.000 m² de telhado: galpão comum, prédio administrativo de 3 ou 4 andares', 1],
+    ['gde', 'Grande', 'mais de 5.000 m² de telhado, ou prédio com 5 andares ou mais: galpão industrial grande, torre, silo, chaminé', 1.8]
+  ];
+  // Projeto: os itens do modelo valem para um local de cerca de 10 edificações médias.
+  // Preço = modelo × (10% fixo + 9% por edificação média equivalente), nunca abaixo de 20% do modelo.
+  var SPDA_PROJ = { fixo: 0.1, porEdif: 0.09, minimo: 0.2 };
+  function modeloSpda(tipo) {
+    return cache.modelos.find(function (m) { return m.chave === 'spda-' + tipo; }) ||
+      cache.modelos.find(function (m) { var n = normal(m.nome + ' ' + (m.titulo || '')); return /spda|para-?raio|descargas atmosf/.test(n) && (tipo === 'projeto' ? /projeto/.test(n) : /inspe|laudo|vistoria/.test(n)); });
+  }
+  function calcSpda(r) {
+    var mi = modeloSpda('inspecao'), mp = modeloSpda('projeto');
+    var qtd = {}, eq = 0, nEd = 0, itens = [], explica = [], avisos = [];
+    SPDA_PORTES.forEach(function (x) { qtd[x[0]] = Math.max(0, Math.round(num(r[x[0]]))); eq += qtd[x[0]] * x[3]; nEd += qtd[x[0]]; });
+    var querInsp = r.tipo === 'inspecao' || r.tipo === 'ambos', querProj = r.tipo === 'projeto' || r.tipo === 'ambos';
+    if (querInsp && !mi) avisos.push('Falta o modelo "SPDA · Inspeção" no sistema. Importe o arquivo modelos-spda.json pelo botão de importação do Painel.');
+    if (querProj && !mp) avisos.push('Falta o modelo "SPDA · Projeto" no sistema. Importe o arquivo modelos-spda.json pelo botão de importação do Painel.');
+    if (!nEd) avisos.push('Informe quantas edificações (prédios, galpões) entram no serviço.');
+    if (querInsp && mi && nEd) {
+      var its = mi.itens || [], porEd = its.find(function (i) { return /edifica/i.test(i.descricao); }) || its[0];
+      SPDA_PORTES.forEach(function (x) {
+        if (!qtd[x[0]]) return;
+        itens.push({ descricao: porEd.descricao.replace(/\s*por edifica[cç][aã]o/i, '') + ' · edificação ' + x[1].toLowerCase(), qtd: qtd[x[0]], valor: Math.round(num(porEd.valor) * x[3]) });
+      });
+      its.forEach(function (i) { if (i !== porEd) itens.push({ descricao: i.descricao, qtd: i.qtd || 1, valor: num(i.valor) }); });
+      explica.push('Inspeção: ' + brl(porEd.valor) + ' por edificação média do modelo (pequena vale 60%, grande 180%), mais mobilização, laudo e ART.');
+    }
+    if (querProj && mp && nEd) {
+      var f = Math.max(SPDA_PROJ.minimo, SPDA_PROJ.fixo + SPDA_PROJ.porEdif * eq);
+      (mp.itens || []).forEach(function (i) { itens.push({ descricao: i.descricao, qtd: i.qtd || 1, valor: Math.round(num(i.valor) * f / 100) * 100 }); });
+      explica.push('Projeto: ' + fmtN(f * 100, 0) + '% do modelo de projeto (o modelo é para um local de umas 10 edificações médias; aqui são ' + fmtN(eq, 1) + ' equivalentes).');
+      avisos.push('Projeto é serviço de engenharia mais complexo: peça para o engenheiro responsável conferir o preço antes de enviar.');
+    }
+    if (r.temSpda === 'nao' && r.tipo === 'inspecao') avisos.push('O local não tem para-raios: não há o que inspecionar. O certo é "Projeto" (ou "Inspeção + projeto" se só uma parte tiver).');
+    if (r.temSpda === 'naosei') avisos.push('Confirme com o cliente se já existe para-raios. Se não existir, a proposta certa é de Projeto.');
+    if (r.longe) avisos.push('Local distante: some hospedagem, pedágio e deslocamento na Memória de cálculo da proposta antes de enviar.');
+    if (r.risco) avisos.push('Local com inflamáveis, explosivos ou produtos químicos: peça para o engenheiro responsável revisar o escopo e o preço.');
+    return { itens: itens, total: totalItens(itens), nEd: nEd, eq: eq, qtd: qtd, explica: explica, avisos: avisos, mi: querInsp ? mi : null, mp: querProj ? mp : null };
+  }
+  function propostaDoSpda(r, c) {
+    var d = combinarModelos([c.mi, c.mp]);
+    d.itens = c.itens;
+    var ed = SPDA_PORTES.filter(function (x) { return c.qtd[x[0]]; }).map(function (x) { return c.qtd[x[0]] + ' ' + x[1].toLowerCase() + (c.qtd[x[0]] > 1 ? 's' : ''); }).join(', ');
+    d.titulo = d.titulo + ' · ' + c.nEd + ' edificaç' + (c.nEd > 1 ? 'ões' : 'ão');
+    // sem telhado alto ou perigoso, a inspeção por drone sai do texto
+    if (!r.alto) {
+      ['escopo', 'fornIdealle', 'fornCliente'].forEach(function (k) {
+        d[k] = String(d[k] || '').split('\n').map(function (l) { return l.replace(/,?\s*incluindo drone/i, ''); })
+          .filter(function (l) { return !/drone/i.test(l); }).join('\n');
+      });
+    }
+    var nomes = String(r.nomes || '').split('\n').map(function (l) { return l.trim().replace(/^[-•*]\s*/, ''); }).filter(Boolean);
+    if (nomes.length) d.objeto = (d.objeto ? d.objeto + '\n' : '') + 'Edificações incluídas:\n' + nomes.map(function (n) { return '- ' + n; }).join('\n');
+    d.spda = { tipo: r.tipo, qtd: c.qtd, temSpda: r.temSpda, alto: !!r.alto, longe: !!r.longe, risco: !!r.risco, nomes: r.nomes || '', resumo: ed };
+    return d;
+  }
+  var SPDA_PERGUNTAS = [
+    'Vocês já têm para-raios instalado? (hastes ou cabos no telhado, cabos descendo pelas paredes até o chão)',
+    'Precisam do laudo para o AVCB (bombeiros), seguradora ou auditoria? Tem prazo?',
+    'Quantos prédios ou galpões separados existem no local? Pode mandar a lista ou uma foto aérea (Google Maps)?',
+    'Algum telhado é alto (mais de 2 andares) ou difícil de subir (telha frágil, sem escada)?',
+    'Tem o projeto ou o laudo anterior do para-raios? Pode enviar?',
+    'O local trabalha com inflamáveis, explosivos, gás ou produtos químicos?',
+    'Qual o endereço? (para calcular deslocamento)'
+  ];
+  function assistenteSpda(r) {
+    r = Object.assign({ tipo: 'inspecao', temSpda: 'sim', peq: 0, med: 1, gde: 0 }, r || {});
+    var faltaModelo = !modeloSpda('inspecao') && !modeloSpda('projeto');
+    function op(nome, valor, titulo, texto) {
+      return '<label style="display:flex;gap:8px;align-items:flex-start;margin:4px 0;font-weight:normal;cursor:pointer"><input type="radio" name="' + nome + '" value="' + valor + '" style="width:auto;margin-top:3px"' + (r[nome] === valor ? ' checked' : '') + '><span><b>' + titulo + '</b>' + (texto ? '<div class="muted" style="font-size:.85em">' + texto + '</div>' : '') + '</span></label>';
+    }
+    function caixa(id, titulo, texto) {
+      return '<label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0;font-weight:normal;cursor:pointer"><input type="checkbox" id="sp-' + id + '" style="width:auto;margin-top:3px"' + (r[id] ? ' checked' : '') + '><span><b>' + titulo + '</b><div class="muted" style="font-size:.85em">' + texto + '</div></span></label>';
+    }
+    var bloco = 'border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:10px';
+    abrirModal('<div id="sp-wiz"><h3>Proposta de SPDA (para-raios) guiada</h3>' +
+      (faltaModelo ? '<div class="aviso">Os modelos de SPDA ainda não estão no sistema. Importe o arquivo modelos-spda.json pelo botão de importação do Painel e abra este assistente de novo.</div>' : '') +
+      '<details style="' + bloco + '"><summary><b>O que é SPDA?</b> (leia se não for da área · clique para abrir)</summary><div style="font-size:.9em;margin-top:6px">' +
+      '<p><b>SPDA</b> (Sistema de Proteção contra Descargas Atmosféricas) é o nome técnico do <b>para-raios</b> completo de um prédio. Tem três partes: a <b>captação</b> (hastes e cabos no telhado que recebem o raio), as <b>descidas</b> (cabos que descem pelas paredes) e o <b>aterramento</b> (hastes enterradas que jogam a energia no chão).</p>' +
+      '<p>A norma que manda nisso é a <b>ABNT NBR 5419</b>. O <b>MPS/DPS</b> são os protetores de surto nos quadros de energia, que evitam que o raio queime equipamentos.</p>' +
+      '<p><b>Inspeção/laudo</b>: o local já tem para-raios e precisa provar que ele funciona (bombeiros no AVCB, seguradora, auditoria). Normalmente é refeito a cada 1 a 3 anos, conforme o tipo de local.<br><b>Projeto</b>: o local não tem para-raios, vai construir ou ampliar, ou o laudo mostrou que o sistema atual precisa ser refeito.</p></div></details>' +
+      '<details style="' + bloco + '"><summary><b>Perguntas para fazer ao cliente</b> (copie e mande por e-mail ou WhatsApp)</summary><ol id="sp-perguntas" style="font-size:.9em;margin:6px 0 6px 18px;padding:0">' + SPDA_PERGUNTAS.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ol><button class="btn sec peq" id="sp-copiar">Copiar perguntas</button></details>' +
+      '<div style="' + bloco + '"><b>1. O que o cliente precisa?</b>' +
+      op('tipo', 'inspecao', 'Inspeção e laudo do para-raios', 'Já tem para-raios e o cliente pediu "laudo", "inspeção", "vistoria", "medição de aterramento" ou "laudo para o AVCB". É o caso mais comum.') +
+      op('tipo', 'projeto', 'Projeto de para-raios', 'Não tem para-raios, vai construir/ampliar, ou pediu "projeto", "adequação" ou "gerenciamento de risco".') +
+      op('tipo', 'ambos', 'Inspeção + projeto', 'Quer o laudo do que existe e já o projeto para corrigir o que estiver errado.') + '</div>' +
+      '<div style="' + bloco + '"><b>2. O local já tem para-raios?</b>' +
+      op('temSpda', 'sim', 'Sim', '') + op('temSpda', 'nao', 'Não', '') + op('temSpda', 'naosei', 'Não sei', 'Pergunte ao cliente ou peça fotos do telhado: hastes pontudas ou cabos em cima, e cabos descendo pelas paredes até o chão.') + '</div>' +
+      '<div style="' + bloco + '"><b>3. Quantas edificações?</b><div class="muted" style="font-size:.85em">Conte cada construção separada com telhado próprio: galpão, prédio, portaria, refeitório, casa de bombas, caixa d\'água elevada. Blocos colados que dividem o mesmo telhado contam como 1. Dica: veja o local no Google Maps (vista de satélite).</div>' +
+      '<div class="linha">' + SPDA_PORTES.map(function (x) { return '<div><label>' + x[1] + '</label><input id="sp-' + x[0] + '" type="number" min="0" inputmode="numeric" value="' + (num(r[x[0]]) || 0) + '"><div class="muted" style="font-size:.8em">' + x[2] + '</div></div>'; }).join('') + '</div>' +
+      '<label>Nome das edificações (opcional, uma por linha · sai na proposta)</label><textarea id="sp-nomes" rows="3" placeholder="Galpão de produção&#10;Prédio administrativo&#10;Portaria">' + esc(r.nomes || '') + '</textarea></div>' +
+      '<div style="' + bloco + '"><b>4. Condições do local</b>' +
+      caixa('alto', 'Algum telhado é alto ou perigoso de subir', 'Mais de 2 andares, telha frágil (fibrocimento, translúcida) ou sem escada fixa. A proposta inclui a inspeção por drone.') +
+      caixa('longe', 'Fica longe (mais de 150 km ou precisa dormir na cidade)', 'Lembra você de somar hospedagem e deslocamento.') +
+      caixa('risco', 'Tem inflamáveis, explosivos, gás ou produtos químicos', 'Posto, tanque de combustível, química, tinta, silo de grãos. Exige mais cuidado: o engenheiro deve revisar.') + '</div>' +
+      '<div id="sp-resultado" style="' + bloco + ';background:var(--pri-2)"></div>' +
+      '<div class="acoes"><button class="btn" id="sp-montar">Montar a proposta</button><button class="btn sec" id="sp-cancelar">Cancelar</button></div></div>');
+    function ler() {
+      var v = { clienteId: r.clienteId, data: r.data };
+      ['tipo', 'temSpda'].forEach(function (k) { var e = document.querySelector('input[name="' + k + '"]:checked'); v[k] = e ? e.value : ''; });
+      SPDA_PORTES.forEach(function (x) { v[x[0]] = num($('sp-' + x[0]).value); });
+      ['alto', 'longe', 'risco'].forEach(function (k) { v[k] = $('sp-' + k).checked; });
+      v.nomes = $('sp-nomes').value;
+      return v;
+    }
+    function mostrar() {
+      var v = ler(), c = calcSpda(v);
+      $('sp-resultado').innerHTML = '<b>Resultado</b>' +
+        (c.itens.length ? '<table style="width:100%;margin-top:6px;font-size:.9em"><tbody>' + c.itens.map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td class="num">' + fmtN(i.qtd, 0) + ' ×</td><td class="num">' + brl(i.valor) + '</td><td class="num"><b>' + brl(i.qtd * i.valor) + '</b></td></tr>'; }).join('') + '</tbody></table>' +
+          '<div class="total">Total: ' + brl(c.total) + '</div>' : '') +
+        c.explica.map(function (t) { return '<div class="muted" style="font-size:.85em">' + esc(t) + '</div>'; }).join('') +
+        c.avisos.map(function (t) { return '<div class="aviso" style="margin:6px 0 0">' + esc(t) + '</div>'; }).join('') +
+        (v.temSpda === 'nao' && v.tipo === 'inspecao' ? '<button class="btn sec peq" id="sp-trocar" style="margin-top:6px">Mudar para Projeto</button>' : '');
+      $('sp-montar').disabled = !c.itens.length;
+    }
+    $('sp-wiz').addEventListener('input', mostrar);
+    $('sp-wiz').addEventListener('change', mostrar);
+    $('sp-resultado').onclick = function (e) {
+      if (e.target.id !== 'sp-trocar') return;
+      document.querySelector('input[name="tipo"][value="projeto"]').checked = true; mostrar();
+    };
+    $('sp-copiar').onclick = function (e) {
+      e.preventDefault();
+      var t = 'Para prepararmos a proposta de SPDA (para-raios), pode nos responder:\n' + SPDA_PERGUNTAS.map(function (q, i) { return (i + 1) + '. ' + q; }).join('\n');
+      (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast('Perguntas copiadas.'); }, function () { prompt('Copie as perguntas:', t); });
+    };
+    $('sp-cancelar').onclick = fecharModal;
+    $('sp-montar').onclick = function () {
+      var v = ler(), c = calcSpda(v);
+      if (!c.itens.length) return;
+      if (v.temSpda === 'nao' && v.tipo === 'inspecao' && !confirm('O local não tem para-raios e você escolheu Inspeção. Montar assim mesmo?')) return;
+      formProposta(Object.assign(propostaDoSpda(v, c), { clienteId: v.clienteId, data: v.data || hoje() }));
+      toast('Proposta de SPDA montada: escolha o cliente, confira os textos e salve.');
+    };
+    mostrar();
   }
 
   // Nova revisão: guarda a versão atual (itens, valores, textos e memória de cálculo) e reabre a proposta para editar.
