@@ -1465,6 +1465,7 @@
       '<label>2. Objeto e preços (itens)</label><div class="tabela"><table class="itens"><thead><tr><th>Descrição</th><th>Qtd</th><th>Valor unit. (R$)</th><th></th></tr></thead><tbody id="p-itens">' + itens.map(linhaItem).join('') + '</tbody></table></div>' +
       '<button class="btn sec peq" id="p-add-item" style="margin-top:6px">+ Item</button>' +
       '<div class="total" id="p-total"></div>' +
+      '<label style="display:flex;gap:8px;align-items:center;font-weight:normal;margin-top:4px"><input type="checkbox" id="p-pdf-valores" style="width:auto"' + (p.pdfValores ? ' checked' : '') + '> Mostrar no PDF o valor unitário e o total de cada item (desmarcado: o PDF lista os itens e mostra só o preço global)</label>' +
       (modelo && modelo.referencia && !(p.modeloIds && p.modeloIds.length > 1) ? '<div class="muted" style="text-align:right">' + textoFaixa(modelo) + '</div>' : '') +
       '<details id="p-textos" open style="margin-top:10px"><summary><b>Texto da proposta</b> (todos os pontos que saem no PDF: referência, objetivo, local, escopo, fornecimentos, prazo, observações · clique aqui para recolher)</summary>' +
       TEXTOS.map(function (t) { return '<label>' + t[1] + '</label><textarea id="p-' + t[0] + '" rows="' + t[2] + '">' + esc(p[t[0]]) + '</textarea>'; }).join('') +
@@ -1549,7 +1550,7 @@
     $('p-novo-cliente').onclick = function (e) { e.preventDefault(); formCliente(); };
     function previa(comValores) {
       var it = lerItens(), n = parseInt($('p-numero').value, 10) || 0, dt = $('p-data').value || hoje();
-      var v = Object.assign({}, p, { clienteId: $('p-cliente').value, clienteNome: nomeCliente($('p-cliente').value, p.clienteNome), titulo: $('p-titulo').value.trim(), data: dt, validade: $('p-validade').value, itens: it, total: totalItens(it), condicoes: $('p-condicoes').value.trim() });
+      var v = Object.assign({}, p, { pdfValores: $('p-pdf-valores').checked, clienteId: $('p-cliente').value, clienteNome: nomeCliente($('p-cliente').value, p.clienteNome), titulo: $('p-titulo').value.trim(), data: dt, validade: $('p-validade').value, itens: it, total: totalItens(it), condicoes: $('p-condicoes').value.trim() });
       TEXTOS.forEach(function (t) { v[t[0]] = $('p-' + t[0]).value.trim(); });
       if (!p.id || n !== numeroID(p)) { v.numero = n; v.ano = p.ano || parseInt(dt.slice(0, 4), 10); v.codigo = codID(n, v.ano); }
       if (!it.length) toast('A prévia está sem itens.');
@@ -1575,6 +1576,7 @@
       if (p.modeloId) { d.modeloId = p.modeloId; d.modeloNome = p.modeloNome || ''; }
       if (p.modeloIds && p.modeloIds.length > 1) d.modeloIds = p.modeloIds;
       if (p.spda) d.spda = p.spda;
+      d.pdfValores = $('p-pdf-valores').checked;
       if (usouCalc) d.calculo = limparCalculo(lerCalculo($('p-calc')));
       var nNum = parseInt($('p-numero').value, 10);
       if (!(nNum > 0)) { toast('Informe o número da proposta.'); return; }
@@ -1992,6 +1994,8 @@
 
   // comValores: mostra o valor de cada item (por padrão sai só o valor global, como a Idealle envia)
   function imprimirProposta(p, comValores) {
+    // a proposta pode ter marcado "Mostrar no PDF o valor unitário" (pdfValores): aí todo PDF dela sai com os valores
+    comValores = comValores || !!p.pdfValores;
     var c = porId('empresas', p.clienteId) || { nome: p.clienteNome };
     var n = 0;
     function secao(titulo, corpo) { n++; return '<div class="pq-tit"><span>' + n + '.</span>' + titulo + '</div><div class="pq-corpo">' + corpo + '</div>'; }
@@ -2022,18 +2026,22 @@
       });
       return ps.map(function (x) { return '<p>' + x.h + '</p>'; }).join('');
     }
+    function objetoTemTopicos(t) { return linhas(t).some(function (l) { return /^[-•*·]\s*\S/.test(l) || /\t/.test(l); }); }
     function tituloCaso(t) { return t.replace(/(^|\s)(\S)/g, function (m, a, l) { return a + l.toUpperCase(); }).replace(/ (E|De|Do|Da|Com) /g, function (m) { return m.toLowerCase(); }); }
     var dias = p.data && p.validade ? diasEntre(p.data, p.validade) : 30;
     var its = (p.itens || []).filter(function (i) { return num(i.qtd); });
     var corpo = '';
     corpo += secao('OBJETIVO DOS TRABALHOS', par(p.objetivo || p.titulo));
     corpo += secao('OBJETO DA INSPEÇÃO', comValores ?
-      '<table class="itens-print"><thead><tr><th>Item</th><th>Descrição</th><th class="n">Qtd</th><th class="n">Valor unit.</th><th class="n">Total</th></tr></thead><tbody>' +
+      (p.objeto ? objeto(p.objeto) : '') + '<table class="itens-print"><thead><tr><th>Item</th><th>Descrição</th><th class="n">Qtd</th><th class="n">Valor unit.</th><th class="n">Total</th></tr></thead><tbody>' +
         its.map(function (i, k) { return '<tr><td>2.' + (k + 1) + '</td><td>' + esc(i.descricao) + '</td><td class="n">' + esc(i.qtd) + '</td><td class="n">' + brl(i.valor) + '</td><td class="n">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') +
         '<tr><td></td><td><b>Total</b></td><td></td><td></td><td class="n"><b>' + brl(p.total) + '</b></td></tr></tbody></table>' :
-      p.objeto ? objeto(p.objeto) :
-      its.length === 1 && num(its[0].qtd) === 1 ? par(its[0].descricao) :
-      topicos(its.map(function (i) { return '<td colspan="2">' + esc(i.descricao) + (num(i.qtd) !== 1 ? ' (' + esc(i.qtd) + ')' : '') + '</td>'; })));
+      // texto do objeto e, embaixo, os itens da proposta (sem valor). Só fica sem os itens quando o objeto já
+      // tem a lista dele (tópicos) e a proposta tem um item só, que resume essa lista (como a 0302/2026)
+      (p.objeto ? objeto(p.objeto) : '') +
+      (p.objeto && objetoTemTopicos(p.objeto) && its.length === 1 ? '' :
+        !p.objeto && its.length === 1 && num(its[0].qtd) === 1 ? par(its[0].descricao) :
+        its.length ? topicos(its.map(function (i) { return '<td colspan="2">' + esc(i.descricao) + (num(i.qtd) !== 1 ? ' (' + esc(i.qtd) + ')' : '') + '</td>'; })) : ''));
     corpo += secao('LOCAL DE EXECUÇÃO DOS SERVIÇOS', par(p.local || 'Nas instalações do Cliente conforme endereço acima.'));
     if (p.escopo) corpo += secao('ESCOPO DA INSPEÇÃO', '<p>A fim de podermos atender o objetivo do trabalho, propomos a execução dos seguintes itens,<br>os quais serão definidos para cada equipamento inspecionado:</p>' + lista(p.escopo, n + 1));
     if (p.fornIdealle) corpo += secao('FORNECIMENTO IDEALLE', lista(p.fornIdealle, n + 1));
