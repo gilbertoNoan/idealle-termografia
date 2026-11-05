@@ -881,9 +881,10 @@
       (c.obs ? '<p class="muted">' + esc(c.obs) + '</p>' : '') +
       '<p><b>Propostas</b></p>' + (ps.length ? ps.map(function (p) { return '<div>' + codProposta(p) + ' · ' + esc(p.titulo) + ' · ' + brl(p.total) + ' ' + tag('proposta', p.status) + '</div>'; }).join('') : '<div class="muted">Nenhuma.</div>') +
       '<p><b>Ordens de Serviço</b></p>' + (os.length ? os.slice().sort(ordemOS).map(function (o) { return '<div>' + esc(codOS(o)) + ' · ' + esc(o.descricao || '') + ' ' + tag('os', statusOS(o)) + '</div>'; }).join('') : '<div class="muted">Nenhuma.</div>') +
-      '<div class="acoes"><button class="btn" id="c-proposta">+ Proposta para este cliente</button><button class="btn sec" id="c-editar">Editar</button><button class="btn perigo" id="c-excluir">Excluir</button><button class="btn sec" id="c-fechar">Fechar</button></div>');
+      '<div class="acoes"><button class="btn" id="c-proposta">+ Proposta para este cliente</button><button class="btn sec" id="c-editar">Editar</button><button class="btn sec" id="c-unificar">Unificar com outro cadastro</button><button class="btn perigo" id="c-excluir">Excluir</button><button class="btn sec" id="c-fechar">Fechar</button></div>');
     $('c-fechar').onclick = fecharModal;
     $('c-editar').onclick = function () { formCliente(c); };
+    $('c-unificar').onclick = function () { telaUnificarCom(c); };
     $('c-proposta').onclick = function () { formProposta({ clienteId: c.id }); };
     $('c-excluir').onclick = async function () {
       var osIds = os.map(function (o) { return o.id; });
@@ -982,6 +983,50 @@
       } catch (e) {
         console.error(e);
         $('u-msg').textContent = 'Parou com erro depois de ' + feitos + ' grupo(s): ' + (e.message || e) + '. Abra de novo para continuar.';
+        this.disabled = false;
+      }
+    };
+  }
+
+  // Unificar à mão: o mesmo cliente com nomes diferentes e sem o mesmo CNPJ (ex.: "Vibrantz Limeira" e
+  // "VIBRANTZ MATERIAIS E CORES LTDA") não cai nos grupos automáticos. Este cadastro fica; os marcados saem.
+  function telaUnificarCom(fica) {
+    var palavra = chaveNomeCliente(String(fica.nome || '').split(/\s+/)[0]);
+    function parecido(c) { return palavra.length >= 4 && chaveNomeCliente(c.nome).indexOf(palavra) >= 0; }
+    var outros = cache.empresas.filter(function (c) { return c.id !== fica.id; })
+      .sort(function (a, b) { return (parecido(b) - parecido(a)) || (normal(a.nome) < normal(b.nome) ? -1 : 1); });
+    abrirModal('<h3>Unificar com ' + esc(fica.nome) + ' <span class="tag t-blue">' + esc(fica.codigo || '') + '</span></h3>' +
+      '<p class="muted">Marque os cadastros que são o mesmo cliente. Este cadastro fica: as propostas, OS, faturas, lançamentos e laudos da Termografia dos marcados passam para ele, ' +
+      'os campos vazios dele são completados, e os marcados são apagados. NR-13, PMTA e Certificados juntam os deles na próxima vez que abrirem. Antes, baixa uma cópia (.json).</p>' +
+      '<input id="uc-busca" placeholder="Procurar cliente…" value="' + esc(palavra.length >= 4 ? String(fica.nome).split(/\s+/)[0] : '') + '">' +
+      '<div style="max-height:50vh;overflow-y:auto;margin-top:8px"><table><thead><tr><th></th><th>Código</th><th>Cliente</th><th>CNPJ</th><th>Cidade</th><th class="num">Prop.</th><th class="num">OS</th><th class="num">Fat.</th></tr></thead><tbody id="uc-lista">' +
+      outros.map(function (c) {
+        var u = usoCliente(c);
+        var outroCnpj = cnpjCliente(c) && cnpjCliente(fica) && cnpjCliente(c) !== cnpjCliente(fica);
+        return '<tr data-uc-nome="' + esc(normal([c.nome, c.codigo, c.cnpj, c.cidade].join(' '))) + '"><td><input type="checkbox" style="width:auto" data-uc="' + c.id + '"></td><td>' + esc(c.codigo || '—') + '</td><td>' + esc(c.nome) +
+          (outroCnpj ? '<div class="muted" style="color:#f59e0b">CNPJ diferente: pode ser outra unidade</div>' : '') + '</td><td>' + esc(c.cnpj || '—') + '</td><td>' + esc([c.cidade, c.uf].filter(Boolean).join('/') || '—') + '</td><td class="num">' + u.p + '</td><td class="num">' + u.o + '</td><td class="num">' + u.f + '</td></tr>';
+      }).join('') + '</tbody></table></div>' +
+      '<div class="acoes"><button class="btn" id="uc-ok">Unificar os marcados</button><button class="btn sec" id="uc-cancelar">Cancelar</button></div><div class="muted" id="uc-msg"></div>');
+    function filtrar() {
+      var q = normal($('uc-busca').value);
+      document.querySelectorAll('#uc-lista tr').forEach(function (tr) { tr.style.display = !q || tr.dataset.ucNome.indexOf(q) >= 0 || tr.querySelector('input').checked ? '' : 'none'; });
+    }
+    $('uc-busca').oninput = filtrar; filtrar();
+    $('uc-cancelar').onclick = fecharModal;
+    $('uc-ok').onclick = async function () {
+      var saem = Array.prototype.map.call(document.querySelectorAll('[data-uc]:checked'), function (i) { return porId('empresas', i.dataset.uc); }).filter(Boolean);
+      if (!saem.length) { toast('Marque ao menos um cadastro.'); return; }
+      if (!confirm('Juntar em ' + fica.nome + ' (' + (fica.codigo || '') + '):\n\n' + saem.map(function (c) { return '• ' + (c.codigo || '') + ' ' + c.nome + (c.cnpj ? ' (' + c.cnpj + ')' : ''); }).join('\n') +
+        '\n\nOs marcados serão apagados e tudo o que era deles passa para ' + fica.nome + '. Não dá para desfazer pela tela (fica a cópia em .json).')) return;
+      this.disabled = true; $('uc-msg').textContent = 'Unificando…';
+      baixarCopiaUnificacao([{ fica: fica, saem: saem }]);
+      try {
+        await unificarClientes(fica, saem);
+        toast(saem.length + ' cadastro(s) unificado(s) em ' + fica.nome + '.');
+        fecharModal();
+      } catch (e) {
+        console.error(e);
+        $('uc-msg').textContent = 'Parou com erro: ' + (e.message || e) + '. Abra de novo para continuar.';
         this.disabled = false;
       }
     };
