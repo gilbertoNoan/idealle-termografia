@@ -557,6 +557,12 @@
         var snap = await db.collection(col).where(campo, '==', de).get(), n = 0;
         for (var i = 0; i < snap.docs.length; i++) { var u = {}; u[campo] = para; await snap.docs[i].ref.update(u); n++; }
         return n;
+      },
+      // Grava `upd` em todos os documentos com campo == valor (ex.: pontos da Termografia de uma OS)
+      atualizarOnde: async function (col, campo, valor, upd) {
+        var snap = await db.collection(col).where(campo, '==', valor).get();
+        for (var i = 0; i < snap.docs.length; i++) await snap.docs[i].ref.update(upd);
+        return snap.docs.length;
       }
     };
   }
@@ -573,7 +579,8 @@
       criar: function (col, doc) { doc = Object.assign({}, doc); doc.id = 'L' + Date.now() + Math.random().toString(36).slice(2, 6); dados[col].push(doc); salvar(); avisar(col); return Promise.resolve(doc.id); },
       atualizar: function (col, id, doc) { var i = dados[col].findIndex(function (x) { return x.id === id; }); if (i >= 0) Object.assign(dados[col][i], doc); else dados[col].push(Object.assign({ id: id }, doc)); salvar(); avisar(col); return Promise.resolve(); },
       excluir: function (col, id) { dados[col] = dados[col].filter(function (x) { return x.id !== id; }); salvar(); avisar(col); return Promise.resolve(); },
-      trocarCampo: function () { return Promise.resolve(0); }
+      trocarCampo: function () { return Promise.resolve(0); },
+      atualizarOnde: function () { return Promise.resolve(0); }
     };
   }
 
@@ -2146,7 +2153,11 @@
     var fs = faturasOS(o).sort(function (a, b) { return String(a.vencimento || '') < String(b.vencimento || '') ? -1 : 1; });
     if (fs.length > 1 || (f && fs.indexOf(f) < 0)) f = null; // com várias faturas, edita a tabela de parcelas
     function vIn(v) { return esc(v != null ? String(v).replace('.', ',') : ''); }
+    var n0 = o.id ? numeroID(o) || parseInt(o.numero, 10) || 0 : 0;
+    var a0 = o.id ? parseInt((/\/(\d{4})\s*$/.exec(codOS(o)) || [])[1], 10) || parseInt(o.ano, 10) || parseInt((o.dataAbertura || hoje()).slice(0, 4), 10) : 0;
     abrirModal('<h3>' + (o.id ? 'Editar OS ' + esc(codOS(o)) : 'Nova OS (sem proposta)') + '</h3>' +
+      (o.id ? '<div class="linha"><div><label>Número da OS (ID)</label><input id="o-numero" inputmode="numeric" value="' + (n0 || '') + '"></div><div><label>Ano</label><input id="o-ano" inputmode="numeric" value="' + a0 + '"></div></div>' +
+        '<div class="muted" style="font-size:.8em">Para corrigir um número digitado errado. Faturas, proposta de origem e os sistemas acompanham.</div>' : '') +
       '<label>Cliente *</label><select id="o-cliente">' + opcoesClientes(o.empresaId) + '</select>' +
       '<label>Descrição do serviço *</label><input id="o-desc" value="' + esc(o.descricao) + '">' +
       '<div class="linha"><div><label>Abertura</label><input id="o-abertura" type="date" value="' + esc(o.dataAbertura || hoje()) + '"></div><div><label>Prazo</label><input id="o-prazo" type="date" value="' + esc(o.prazo) + '"></div><div><label>Responsável</label><input id="o-resp" value="' + esc(o.responsavel) + '"></div></div>' +
@@ -2171,6 +2182,23 @@
       if ($('o-conclusao')) d.dataConclusao = $('o-conclusao').value;
       d.contrato = $('o-contrato').checked;
       if (o.id) {
+        // Troca do número da OS (ID-0000/ano)
+        var nNum = parseInt($('o-numero').value, 10) || 0, nAno = parseInt($('o-ano').value, 10) || 0, troca = null;
+        if (nNum !== n0 || nAno !== a0) {
+          if (!(nNum > 0) || !(nAno > 1999 && nAno < 2100)) { toast('Informe número e ano válidos.'); return; }
+          var novoCod = codID(nNum, nAno), pOrig = o.propostaId ? porId('propostas', o.propostaId) : null;
+          var mesmo = function (x) { return numeroID(x) === nNum && String(x.codigo || x.propostaCodigo || '').slice(-4) === String(nAno); };
+          var osRep = cache.ordens.find(function (x) { return x.id !== o.id && mesmo(x); });
+          if (osRep) { alert('Já existe a OS ' + codOS(osRep) + ' (' + nomeCliente(osRep.empresaId, osRep.empresaNome) + '). Escolha outro número.'); return; }
+          var prRep = cache.propostas.find(function (x) { return (!pOrig || x.id !== pOrig.id) && x.osId !== o.id && mesmo(x); });
+          if (prRep && !confirm('O número ' + novoCod + ' já é da proposta ' + codProposta(prRep) + ' (' + nomeCliente(prRep.clienteId, prRep.clienteNome) + ').\n\nUsar mesmo assim?')) return;
+          if (!confirm('Mudar o número da OS de ' + codOS(o) + ' para ' + novoCod + '?\n\nAs faturas da OS e os laudos da Termografia passam a mostrar o número novo.')) return;
+          d.numero = nNum; d.ano = nAno; d.codigo = novoCod;
+          troca = { cod: novoCod, proposta: null };
+          if (pOrig && codProposta(pOrig) !== novoCod && confirm('A proposta de origem é ' + codProposta(pOrig) + '.\n\nMudar o número dela também para ' + novoCod + '? (recomendado quando o erro veio da proposta)')) {
+            troca.proposta = pOrig.id; d.propostaCodigo = novoCod;
+          }
+        }
         var df = null, dfs = [];
         if (fs.length > 1) {
           fs.forEach(function (x, k) {
@@ -2193,7 +2221,13 @@
           await banco.atualizar('ordens', o.id, d);
           if (df) await banco.atualizar('faturas', f.id, df);
           for (var k = 0; k < dfs.length; k++) await banco.atualizar('faturas', dfs[k][0], dfs[k][1]);
-        }, 'OS atualizada.');
+          if (troca) {
+            var tf = faturasOS(o).concat(cache.faturas.filter(function (x) { return x.osId === o.id && x.status === 'cancelada'; }));
+            for (var j = 0; j < tf.length; j++) await banco.atualizar('faturas', tf[j].id, { osNumero: d.numero, osCodigo: d.codigo, updatedAt: agora() });
+            if (troca.proposta) await banco.atualizar('propostas', troca.proposta, { numero: d.numero, ano: d.ano, codigo: d.codigo, updatedAt: agora() });
+            try { await banco.atualizarOnde('pontos', 'osId', o.id, { osNumero: d.numero }); } catch (e) { console.warn('pontos da Termografia', e); }
+          }
+        }, troca ? 'OS agora é ' + troca.cod + '.' : 'OS atualizada.');
         verOS(o.id); return;
       } else { d.numero = proximoID(); d.codigo = codID(d.numero, (d.dataAbertura || hoje()).slice(0, 4)); d.status = 'aberta'; d.createdAt = agora(); await salvar(function () { return banco.criar('ordens', d); }, 'OS ' + d.codigo + ' aberta.'); }
       fecharModal();
