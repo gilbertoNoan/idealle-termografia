@@ -377,7 +377,8 @@
     ['calibracao', 'Certificado de calibração', 'Gerador de Certificados'],
     ['desenquadramento', 'Desenquadramento (laudo não obrigatório)', 'Calculadora NR-13'],
     ['termografia', 'Termografia', 'Termografia'],
-    ['spda', 'SPDA (NBR 5419)', '']
+    ['spda', 'SPDA (NBR 5419)', ''],
+    ['nr35', 'NR-35 (linhas de vida, pórticos e escadas)', '']
   ];
   // Sistemas que têm trabalho a fazer nesta OS (pelos serviços marcados)
   function sistemasDosServicos(sv) {
@@ -393,6 +394,7 @@
       var t = normal(l);
       if (/termogr/.test(t)) r.termografia = true;
       if (/spda|descargas? atmosf|para-?raio|5419/.test(t)) r.spda = true;
+      if (/nr-?35|linhas? de vida|trava-?quedas?|portico|ancoragem|escadas? marinheiro|talhas?\b/.test(t)) r.nr35 = true;
       if (/pmta/.test(t)) r.pmta = true;
       if (/prontuario|reconstitui/.test(t)) r.prontuario = true;
       if (/desenquadr/.test(t)) { r.desenquadramento = true; return; }
@@ -462,6 +464,8 @@
     if (sv.termografia && !(res.Termografia && res.Termografia.qtdLaudos)) gerais.push('Termografia: nenhum laudo ainda');
     // SPDA não tem sistema próprio: fica pendente até a OS ser concluída (laudo entregue)
     if (sv.spda && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0) gerais.push('SPDA: laudo feito fora dos sistemas, conclua a OS quando entregar');
+    // NR-35 (linhas de vida, pórticos, escadas) também não tem sistema próprio
+    if (sv.nr35 && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0) gerais.push('NR-35: relatório/projeto feito fora dos sistemas, conclua a OS quando entregar');
     var qtd = gerais.length + linhas.reduce(function (n, l) { return n + l.itens.filter(function (i) { return !i.ok; }).length; }, 0);
     return { linhas: linhas, gerais: gerais, qtd: qtd };
   }
