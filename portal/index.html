@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Portal do Cliente · IDEALLE</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 34'%3E%3Crect width='34' height='34' rx='7' fill='%23070b14'/%3E%3Cpolygon points='4,30 22,4 26,4 9,30' fill='%23d1d5db'/%3E%3Cpolygon points='14,30 30,8 30,30' fill='%23f59e0b'/%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.js"></script>
+<style>
+  :root {
+    --bg: #0b1120; --topo: #070b14; --card: #111a2e; --linha: #1e293b; --borda: #334155;
+    --texto: #f1f5f9; --sub: #cbd5e1; --muted: #94a3b8;
+    --amb: #f59e0b; --amb-t: #fbbf24; --amb-c: #fcd34d; --amb-f: rgba(245,158,11,.10); --amb-b: #78350f;
+    --ok: #86efac; --ok-f: rgba(74,222,128,.12); --bad: #f87171; --bad-c: #fca5a5; --bad-f: rgba(248,113,113,.12); --bad-b: #7f1d1d;
+    --azul: #7dd3fc; --azul-f: rgba(56,189,248,.12);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--texto); font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 15px; }
+  a { color: var(--amb-t); }
+  button, input { font: inherit; }
+  .topo { background: var(--topo); border-bottom: 1px solid var(--linha); }
+  .topo-in { max-width: 1240px; margin: 0 auto; padding: 0 16px; min-height: 64px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .marca { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .12em; }
+  .marca small { letter-spacing: 0; font-weight: 400; color: var(--muted); font-size: 13px; }
+  .topo .dir { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+  main { max-width: 1240px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 22px; }
+  h1 { margin: 2px 0 0; font-size: 28px; line-height: 1.2; }
+  h2 { margin: 0 0 12px; font-size: 18px; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .card { background: var(--card); border: 1px solid var(--linha); border-radius: 14px; padding: 18px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; border-radius: 10px; border: 0; background: var(--amb); color: #111827; font-weight: 700; text-decoration: none; cursor: pointer; }
+  .btn.sec { background: transparent; color: var(--texto); border: 1px solid var(--borda); font-weight: 600; }
+  .btn.peq { min-height: 36px; padding: 0 12px; font-size: 13px; }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .resumo { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; }
+  .kpis { display: flex; flex-wrap: wrap; gap: 10px; }
+  .kpi { padding: 12px 16px; border-radius: 12px; background: var(--card); border: 1px solid var(--linha); min-width: 120px; }
+  .kpi b { display: block; font-size: 24px; }
+  .kpi span { font-size: 12px; color: var(--muted); }
+  .faixa { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 16px 18px; border-radius: 14px; background: var(--amb-f); border: 1px solid var(--amb-b); }
+  .faixa .txt { flex: 1 1 320px; display: flex; flex-direction: column; gap: 8px; }
+  .barra { height: 8px; border-radius: 999px; background: var(--linha); overflow: hidden; }
+  .barra div { height: 100%; background: var(--amb); }
+  .servicos { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .serv { border-radius: 14px; padding: 16px; background: var(--card); border: 1px solid var(--linha); display: flex; flex-direction: column; gap: 6px; min-height: 120px; }
+  .serv.ativo { cursor: pointer; }
+  .serv.ativo:hover { border-color: var(--amb-b); }
+  .serv.trancado { background: transparent; border-style: dashed; border-color: var(--borda); color: var(--muted); }
+  .serv .nome { font-weight: 700; color: var(--texto); }
+  .serv.trancado .nome { color: var(--sub); }
+  .serv .info { font-size: 13px; color: var(--muted); flex: 1; }
+  .chip { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .c-ok { background: var(--ok-f); color: var(--ok); } .c-warn { background: var(--amb-f); color: var(--amb-c); } .c-bad { background: var(--bad-f); color: var(--bad-c); } .c-cinza { background: var(--linha); color: var(--sub); } .c-azul { background: var(--azul-f); color: var(--azul); }
+  .tabela { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 640px; }
+  th { text-align: left; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 10px 12px; border-bottom: 1px solid var(--linha); }
+  td { padding: 12px; border-top: 1px solid var(--linha); vertical-align: top; }
+  tr:first-child td { border-top: 0; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--amb-t); font-weight: 700; white-space: nowrap; }
+  .busca { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .busca input { flex: 1 1 240px; }
+  input[type=email], input[type=password], input[type=text], input[type=search] { width: 100%; height: 46px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--borda); background: #0b0f17; color: var(--texto); }
+  label { display: block; font-size: 13px; color: var(--muted); font-weight: 600; margin: 12px 0 6px; }
+  .entrar { max-width: 420px; margin: 8vh auto 0; }
+  .erro { color: var(--bad-c); font-size: 14px; min-height: 20px; margin-top: 10px; }
+  .vazio { color: var(--muted); padding: 18px; text-align: center; }
+  .grade2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+  .niveis { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
+  .tit-sec { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .tit-sec h2 { margin: 0; }
+  .rodape { color: var(--muted); font-size: 12px; text-align: center; padding: 8px 0 0; }
+  .carregando { text-align: center; color: var(--muted); padding: 18vh 16px; }
+  .esconder { display: none !important; }
+  @media (max-width: 600px) { h1 { font-size: 22px; } .kpi { flex: 1 1 40%; } .serv { min-height: 0; } }
+</style>
+</head>
+<body>
+<header class="topo"><div class="topo-in">
+  <span class="marca"><svg width="30" height="30" viewBox="0 0 34 34" aria-hidden="true"><polygon points="4,30 22,4 26,4 9,30" fill="#d1d5db"/><polygon points="14,30 30,8 30,30" fill="#f59e0b"/></svg>IDEALLE <small>Portal do Cliente</small></span>
+  <span class="dir"><span id="quem"></span><button class="btn sec peq esconder" id="btn-sair">Sair</button></span>
+</div></header>
+
+<main id="tela"><div class="carregando">Carregando…</div></main>
+
+<script>
+(function () {
+  'use strict';
+  var CONFIG = {
+    apiKey: "AIzaSyAN72-6pCbPaBowiGA2jciJ_lzB9d6z110",
+    authDomain: "idealle-termografia.firebaseapp.com",
+    projectId: "idealle-termografia",
+    storageBucket: "idealle-termografia.firebasestorage.app",
+    messagingSenderId: "577776042104",
+    appId: "1:577776042104:web:508a131e13a4ef4afbed8d"
+  };
+  // App com nome próprio: o login do cliente fica separado do login da equipe no mesmo site
+  var app = firebase.initializeApp(CONFIG, 'portal-cliente');
+  var auth = app.auth(), db = app.firestore();
+  var $ = function (id) { return document.getElementById(id); };
+  var tela = $('tela');
+  var contato = { telefone: '(11) 4280-9111' };
+  var estado = { dados: null, acesso: null, usuario: null, aba: '' };
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function hoje() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+  function data(iso) { if (!iso) return '—'; var p = String(iso).slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
+  function mesAno(iso) { if (!iso) return '—'; var p = String(iso).split('-'); return p.length === 3 ? p[1] + '/' + p[0] : iso; }
+  function dias(iso) { return Math.round((new Date(iso + 'T12:00:00') - new Date(hoje() + 'T12:00:00')) / 864e5); }
+  function normal(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function digitos(s) { return String(s || '').replace(/\D/g, ''); }
+  var SIT = { vencido: ['Vencido', 'c-bad'], vencendo: ['Vence em breve', 'c-warn'], emdia: ['Em dia', 'c-ok'], sem: ['Sem data', 'c-cinza'] };
+  function chipSit(s, iso) {
+    var x = SIT[s] || SIT.sem, t = x[0];
+    if (s === 'vencendo' && iso) t = 'Vence em ' + dias(iso) + ' dias';
+    if (s === 'vencido' && iso) t = 'Vencido há ' + (-dias(iso)) + ' dias';
+    return '<span class="chip ' + x[1] + '">' + t + '</span>';
+  }
+  var PARECER = { APTO: ['Apto', 'c-ok'], APTO_COM_RESTRICOES: ['Apto com restrições', 'c-warn'], INAPTO: ['Inapto', 'c-bad'] };
+  var STATUS_OS = { aberta: 'Aberta', execucao: 'Em execução', concluida: 'Concluída', parcial: 'Concluída', faturada: 'Concluída' };
+  var SERVICOS = [
+    ['nr13', 'NR-13', 'Vasos, caldeiras, tubulações e tanques'],
+    ['calibracao', 'Calibração', 'Válvulas de segurança e manômetros'],
+    ['termografia', 'Termografia', 'Painéis e instalações elétricas'],
+    ['spda', 'SPDA', 'Para-raios (NBR 5419)'],
+    ['nr10', 'NR-10', 'Laudo das instalações elétricas'],
+    ['avcb', 'AVCB / NR-23', 'Prevenção e combate a incêndio'],
+    ['linhavida', 'Linha de vida', 'Inspeção e certificação'],
+    ['obra', 'Obra', 'Acompanhamento da obra']
+  ];
+
+  // Fala com a IDEALLE: WhatsApp quando cadastrado, senão e-mail, senão telefone
+  function falar(msg) {
+    var w = digitos(contato.whatsapp);
+    if (w.length >= 10) return 'https://wa.me/' + (w.length <= 11 ? '55' + w : w) + '?text=' + encodeURIComponent(msg);
+    if (contato.email) return 'mailto:' + contato.email + '?subject=' + encodeURIComponent('Portal do Cliente') + '&body=' + encodeURIComponent(msg);
+    return 'tel:' + digitos(contato.telefone);
+  }
+  function nomeEmpresa() { return (estado.dados && estado.dados.empresa && estado.dados.empresa.nome) || (estado.acesso && estado.acesso.nome) || ''; }
+
+  // ---------- Entrar / criar senha ----------
+  var ERROS = {
+    'auth/invalid-credential': 'E-mail ou senha incorretos.', 'auth/wrong-password': 'E-mail ou senha incorretos.', 'auth/user-not-found': 'E-mail ou senha incorretos.',
+    'auth/invalid-login-credentials': 'E-mail ou senha incorretos.', 'auth/too-many-requests': 'Muitas tentativas. Espere alguns minutos e tente de novo.',
+    'auth/weak-password': 'A senha precisa ter pelo menos 8 caracteres.', 'auth/invalid-email': 'E-mail inválido.', 'auth/network-request-failed': 'Sem conexão com a internet.'
+  };
+  function msgErro(e) { return ERROS[e && e.code] || ('Não foi possível continuar: ' + (e && e.message || e)); }
+
+  function telaEntrar(aviso) {
+    $('btn-sair').classList.add('esconder'); $('quem').textContent = '';
+    tela.innerHTML = '<div class="card entrar"><h1>Entrar</h1><p class="sub">Acompanhe seus equipamentos, prazos de inspeção e certificados.</p>' +
+      (aviso ? '<p class="erro">' + esc(aviso) + '</p>' : '') +
+      '<form id="f-entrar"><label for="e-email">E-mail</label><input id="e-email" type="email" autocomplete="username" required>' +
+      '<label for="e-senha">Senha</label><input id="e-senha" type="password" autocomplete="current-password" required>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px"><button class="btn" type="submit">Entrar</button><button class="btn sec" type="button" id="b-esqueci">Esqueci a senha</button></div></form>' +
+      '<p class="erro" id="e-erro"></p><p class="sub">Ainda não tem acesso? Peça o convite à IDEALLE: ' + esc(contato.telefone) + '.</p></div>';
+    $('f-entrar').onsubmit = function (ev) {
+      ev.preventDefault(); $('e-erro').textContent = 'Entrando…';
+      auth.signInWithEmailAndPassword($('e-email').value.trim(), $('e-senha').value).catch(function (e) { $('e-erro').textContent = msgErro(e); });
+    };
+    $('b-esqueci').onclick = function () {
+      var em = $('e-email').value.trim();
+      if (!em) { $('e-erro').textContent = 'Digite seu e-mail acima e clique de novo em "Esqueci a senha".'; return; }
+      auth.sendPasswordResetEmail(em).then(function () { $('e-erro').textContent = 'Se este e-mail tiver acesso, você vai receber o link para criar uma senha nova.'; })
+        .catch(function (e) { $('e-erro').textContent = msgErro(e); });
+    };
+  }
+
+  async function telaConvite(token) {
+    var snap;
+    try { snap = await db.collection('portal_convites').doc(token).get(); } catch (e) { snap = null; }
+    var c = snap && snap.exists ? snap.data() : null;
+    if (!c || c.usado || c.expiraMs < Date.now()) {
+      modoConvite = false;
+      history.replaceState(null, '', location.pathname);
+      return telaEntrar(!c ? 'Este convite não existe.' : c.usado ? 'Este convite já foi usado. Entre com seu e-mail e senha.' : 'Este convite venceu. Peça um novo à IDEALLE.');
+    }
+    tela.innerHTML = '<div class="card entrar"><span class="sub">' + esc(c.empresaNome || '') + '</span><h1>Crie sua senha</h1>' +
+      '<p class="sub">Seu login no Portal do Cliente IDEALLE é <b style="color:var(--texto)">' + esc(c.email) + '</b>.</p>' +
+      '<form id="f-conv"><input type="email" value="' + esc(c.email) + '" autocomplete="username" style="display:none" readonly>' +
+      '<label for="c-senha">Senha (mínimo 8 caracteres)</label><input id="c-senha" type="password" autocomplete="new-password" minlength="8" required>' +
+      '<label for="c-senha2">Repita a senha</label><input id="c-senha2" type="password" autocomplete="new-password" minlength="8" required>' +
+      '<div style="margin-top:16px"><button class="btn" type="submit" id="c-ok">Criar acesso</button></div></form><p class="erro" id="c-erro"></p></div>';
+    $('f-conv').onsubmit = async function (ev) {
+      ev.preventDefault();
+      var s1 = $('c-senha').value, s2 = $('c-senha2').value;
+      if (s1.length < 8) { $('c-erro').textContent = 'A senha precisa ter pelo menos 8 caracteres.'; return; }
+      if (s1 !== s2) { $('c-erro').textContent = 'As duas senhas não são iguais.'; return; }
+      $('c-ok').disabled = true; $('c-erro').textContent = 'Criando seu acesso…';
+      estado.criando = true;
+      try {
+        try { await auth.createUserWithEmailAndPassword(c.email, s1); }
+        catch (e) {
+          // Já tem conta com este e-mail (outra empresa ou convite anterior): entra com a senha digitada
+          if (e.code !== 'auth/email-already-in-use') throw e;
+          try { await auth.signInWithEmailAndPassword(c.email, s1); }
+          catch (e2) { throw new Error('Este e-mail já tem senha no portal. Digite a senha que você já usa, ou use "Esqueci a senha" na tela de entrada.'); }
+        }
+        var uid = auth.currentUser.uid, lote = db.batch();
+        var ja = await db.collection('portal_usuarios').doc(uid).get();
+        if (ja.exists && ja.data().empresaId !== c.empresaId) throw new Error('Este e-mail já está ligado a outra empresa no portal. Peça à IDEALLE um convite com outro e-mail.');
+        lote.update(db.collection('portal_convites').doc(token), { usado: true, uid: uid, usadoEm: new Date().toISOString() });
+        if (!ja.exists) lote.set(db.collection('portal_usuarios').doc(uid), { empresaId: c.empresaId, email: c.email, convite: token, criadoEm: new Date().toISOString() });
+        await lote.commit();
+        estado.criando = false; modoConvite = false;
+        history.replaceState(null, '', location.pathname);
+        carregar(auth.currentUser);
+      } catch (e) {
+        estado.criando = false;
+        $('c-ok').disabled = false; $('c-erro').textContent = e.code ? msgErro(e) : (e.message || String(e));
+      }
+    };
+  }
+
+  // ---------- Dados do cliente ----------
+  async function carregar(u) {
+    $('quem').textContent = u.email; $('btn-sair').classList.remove('esconder');
+    tela.innerHTML = '<div class="carregando">Carregando seus equipamentos…</div>';
+    try {
+      var us = await db.collection('portal_usuarios').doc(u.uid).get();
+      if (!us.exists) { await auth.signOut(); return telaEntrar('Esta conta não tem acesso ao Portal do Cliente.'); }
+      var empId = us.data().empresaId;
+      var ac = await db.collection('portal_acessos').doc(empId).get();
+      estado.acesso = ac.exists ? ac.data() : null;
+      if (!estado.acesso) { await auth.signOut(); return telaEntrar('O acesso da sua empresa ainda não foi liberado.'); }
+      if (estado.acesso.bloqueado || !estado.acesso.acessoAteMs || estado.acesso.acessoAteMs < Date.now()) return telaEncerrado();
+      var dd = await db.collection('portal_dados').doc(empId).get();
+      estado.dados = dd.exists ? dd.data() : { empresa: { nome: estado.acesso.nome }, servicos: {}, vasos: [], certificados: [], os: [], contagem: {} };
+      if (!sessionStorage.getItem('portal-acesso-' + u.uid)) {
+        db.collection('portal_usuarios').doc(u.uid).update({ ultimoAcesso: new Date().toISOString() }).catch(function () {});
+        try { sessionStorage.setItem('portal-acesso-' + u.uid, '1'); } catch (e) {}
+      }
+      painel();
+    } catch (e) {
+      console.error(e);
+      // Sem permissão no meio do caminho = o contrato venceu agora ou o acesso foi retirado
+      if (e.code === 'permission-denied' && estado.acesso) return telaEncerrado();
+      tela.innerHTML = '<div class="card entrar"><h1>Não foi possível abrir</h1><p class="erro">' + esc(e.message || e) + '</p><button class="btn" onclick="location.reload()">Tentar de novo</button></div>';
+    }
+  }
+
+  function faixaContrato() {
+    var ate = estado.acesso.acessoAte, f = dias(ate);
+    if (f > 90) return '<div class="sub">Acesso ao portal até ' + data(ate) + ' (fim do contrato).</div>';
+    var ini = estado.acesso.criadoEm ? String(estado.acesso.criadoEm).slice(0, 10) : '';
+    var tot = ini ? Math.max(1, (new Date(ate) - new Date(ini)) / 864e5) : 365, pct = Math.min(100, Math.max(0, Math.round(100 - f / tot * 100)));
+    return '<section class="faixa"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>' +
+      '<div class="txt"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px"><b style="color:var(--amb-c)">Seu contrato vai até ' + data(ate) + ' · ' + (f === 0 ? 'termina hoje' : f === 1 ? 'falta 1 dia' : 'faltam ' + f + ' dias') + '</b>' +
+      '<span class="sub" style="color:var(--sub)">Depois disso o acesso ao portal é encerrado</span></div>' +
+      '<div class="barra" role="img" aria-label="' + pct + '% do contrato decorrido"><div style="width:' + pct + '%"></div></div></div>' +
+      '<a class="btn" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + ' e quero renovar o contrato com a IDEALLE (vence em ' + data(ate) + ').')) + '">Renovar contrato</a></section>';
+  }
+
+  function painel() {
+    var d = estado.dados, c = d.contagem || {}, sv = d.servicos || {};
+    var total = (c.emdia || 0) + (c.vencendo || 0) + (c.vencidos || 0);
+    var conf = total ? Math.round(((c.emdia || 0) + (c.vencendo || 0)) / total * 100) : 0;
+    var cards = SERVICOS.map(function (s) {
+      var ativo = !!sv[s[0]], info = s[2];
+      if (ativo && s[0] === 'nr13') { var vv = d.vasos || [], ven = vv.filter(function (x) { return x.situacao === 'vencido'; }).length, prox = vv.filter(function (x) { return x.situacao === 'vencendo'; }).length; info = vv.length + ' equipamento(s)' + (ven ? ' · ' + ven + ' vencido(s)' : '') + (prox ? ' · ' + prox + ' vencendo' : ''); }
+      if (ativo && s[0] === 'calibracao') info = (d.certificados || []).length + ' certificado(s)';
+      if (ativo && s[0] === 'termografia' && d.termografia) info = d.termografia.laudos + ' ponto(s) inspecionado(s)' + (d.termografia.criticos ? ' · ' + d.termografia.criticos + ' crítico(s)' : '');
+      if (!ativo) return '<div class="serv trancado"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Não contratado"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
+        '<span class="info">' + esc(s[2]) + '</span><a class="btn sec peq" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + ' e quero uma proposta de ' + s[1] + ' (' + s[2] + ').')) + '">Quero contratar</a></div>';
+      return '<div class="serv ativo" data-ir="' + s[0] + '" tabindex="0" role="button"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><span class="chip c-ok">Contratado</span></span><span class="info">' + esc(info) + '</span></div>';
+    }).join('');
+    var ativos = SERVICOS.filter(function (s) { return sv[s[0]]; }).length;
+    tela.innerHTML =
+      '<div class="resumo"><div><span class="sub">' + esc(d.empresa.nome) + (d.empresa.cidade ? ' · ' + esc(d.empresa.cidade) : '') + '</span><h1>Situação da sua planta</h1></div>' +
+      '<div class="kpis"><div class="kpi"><b>' + (total ? conf + '%' : '—') + '</b><span>em conformidade</span></div><div class="kpi"><b style="color:var(--ok)">' + (c.emdia || 0) + '</b><span>em dia</span></div>' +
+      '<div class="kpi"><b style="color:var(--amb-t)">' + (c.vencendo || 0) + '</b><span>vencem em 90 dias</span></div><div class="kpi" style="border-color:var(--bad-b)"><b style="color:var(--bad)">' + (c.vencidos || 0) + '</b><span>vencidos</span></div></div></div>' +
+      faixaContrato() +
+      '<section><div class="tit-sec"><h2>Seus serviços</h2><span class="sub">' + ativos + ' contratado(s) · ' + (SERVICOS.length - ativos) + ' disponível(is)</span></div><div class="servicos">' + cards + '</div></section>' +
+      (sv.nr13 ? secVasos() : '') + (sv.calibracao ? secCertificados() : '') + (sv.termografia && d.termografia ? secTermografia() : '') + secOs() +
+      '<p class="rodape">Dados atualizados em ' + data(d.atualizadoEm) + '. Os documentos assinados ficam com a IDEALLE e são enviados sob solicitação. IDEALLE Inspeções e Serviços · CREA-SP · ' + esc(contato.telefone) + '</p>';
+    ligarBuscas();
+  }
+
+  function secVasos() {
+    var vv = estado.dados.vasos || [];
+    return '<section class="card" id="sec-nr13"><div class="tit-sec"><h2>Equipamentos NR-13</h2><span class="sub">' + vv.length + ' equipamento(s)</span></div>' +
+      (vv.length ? '<div class="busca"><input type="search" id="b-vasos" placeholder="Buscar por TAG, nome ou área" aria-label="Buscar equipamento"></div>' : '') +
+      '<div class="tabela"><table><thead><tr><th>TAG</th><th>Equipamento</th><th>Última inspeção</th><th>Próximo exame externo</th><th>Próximo exame interno</th><th>Situação</th><th></th></tr></thead><tbody id="t-vasos">' +
+      linhasVasos('') + '</tbody></table></div></section>';
+  }
+  function linhasVasos(q) {
+    var vv = (estado.dados.vasos || []).filter(function (v) { return !q || normal([v.tag, v.nome, v.area].join(' ')).indexOf(q) >= 0; });
+    var ord = { vencido: 0, vencendo: 1, emdia: 2, sem: 3 };
+    vv.sort(function (a, b) { return (ord[a.situacao] - ord[b.situacao]) || (a.proximo < b.proximo ? -1 : 1); });
+    if (!vv.length) return '<tr><td colspan="7" class="vazio">' + (q ? 'Nada encontrado.' : 'Os equipamentos aparecem aqui assim que os laudos forem emitidos.') + '</td></tr>';
+    return vv.map(function (v) {
+      var p = PARECER[v.parecer];
+      return '<tr><td class="mono">' + esc(v.tag) + '</td><td>' + esc(v.nome || '—') + '<div class="sub">' + esc([v.area, v.categoria ? 'Categoria ' + v.categoria : ''].filter(Boolean).join(' · ')) + '</div>' + (p ? '<span class="chip ' + p[1] + '" style="margin-top:4px">' + p[0] + '</span>' : '') + '</td>' +
+        '<td>' + data(v.dataInspecao) + '</td><td>' + mesAno(v.externo) + '</td><td>' + mesAno(v.interno) + '</td><td>' + chipSit(v.situacao, v.proximo) + '</td>' +
+        '<td><a class="btn sec peq" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + ' e preciso da cópia do laudo NR-13 do equipamento ' + v.tag + ' (' + (v.nome || '') + ').')) + '">Pedir cópia do laudo</a>' +
+        (v.situacao === 'vencido' || v.situacao === 'vencendo' ? ' <a class="btn peq" style="margin-top:6px" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + ' e quero agendar a inspeção do equipamento ' + v.tag + ' (' + (v.nome || '') + '), com prazo em ' + mesAno(v.proximo) + '.')) + '">Agendar inspeção</a>' : '') + '</td></tr>';
+    }).join('');
+  }
+  function secCertificados() {
+    var cc = (estado.dados.certificados || []).slice().sort(function (a, b) { return a.tag < b.tag ? -1 : 1; });
+    return '<section class="card" id="sec-calibracao"><div class="tit-sec"><h2>Certificados de calibração</h2><span class="sub">' + cc.length + ' certificado(s)</span></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Instrumento</th><th>Certificado</th><th>Calibrado em</th><th>Validade</th><th>Situação</th></tr></thead><tbody>' +
+      (cc.length ? cc.map(function (x) { return '<tr><td class="mono">' + esc(x.tag || '—') + '</td><td>' + esc(x.tipo) + '</td><td>' + esc(x.numero || '—') + '</td><td>' + data(x.data) + '</td><td>' + data(x.validade) + '</td><td>' + chipSit(x.situacao, x.validade) + '</td></tr>'; }).join('')
+        : '<tr><td colspan="6" class="vazio">Os certificados aparecem aqui assim que forem emitidos.</td></tr>') + '</tbody></table></div></section>';
+  }
+  function secTermografia() {
+    var t = estado.dados.termografia, n = t.porNivel || {};
+    var NIV = [['normal', 'Normal', 'c-ok'], ['observar', 'Observar', 'c-azul'], ['programar', 'Programar', 'c-warn'], ['urgencia', 'Urgência', 'c-bad'], ['emergencia', 'Emergência', 'c-bad']];
+    return '<section class="card" id="sec-termografia"><div class="tit-sec"><h2>Termografia</h2><a class="btn sec peq" href="' + esc(t.link) + '" target="_blank" rel="noopener">Ver laudos de termografia</a></div>' +
+      '<div class="sub">' + t.laudos + ' ponto(s) inspecionado(s)</div><div class="niveis">' + NIV.map(function (x) { return '<span class="chip ' + x[2] + '">' + x[1] + ': ' + (n[x[0]] || 0) + '</span>'; }).join('') + '</div></section>';
+  }
+  function secOs() {
+    var oo = estado.dados.os || [];
+    if (!oo.length) return '';
+    return '<section class="card"><div class="tit-sec"><h2>Ordens de serviço</h2><span class="sub">histórico dos serviços da IDEALLE</span></div><div class="tabela"><table><thead><tr><th>OS</th><th>Serviço</th><th>Abertura</th><th>Situação</th></tr></thead><tbody>' +
+      oo.map(function (o) { var st = STATUS_OS[o.status] || o.status; return '<tr><td class="mono">' + esc(o.codigo) + '</td><td>' + esc(o.servicos && o.servicos.length ? o.servicos.join(', ') : o.descricao || '—') + (o.descricao && o.servicos && o.servicos.length ? '<div class="sub">' + esc(o.descricao) + '</div>' : '') + '</td><td>' + data(o.abertura) + '</td><td><span class="chip ' + (st === 'Concluída' ? 'c-ok' : 'c-azul') + '">' + esc(st) + '</span></td></tr>'; }).join('') +
+      '</tbody></table></div></section>';
+  }
+  function ligarBuscas() {
+    var b = $('b-vasos'); if (b) b.oninput = function () { $('t-vasos').innerHTML = linhasVasos(normal(b.value)); };
+    tela.querySelectorAll('[data-ir]').forEach(function (el) {
+      var ir = function () { var alvo = $('sec-' + el.dataset.ir); if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+      el.onclick = ir; el.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ir(); } };
+    });
+  }
+
+  function telaEncerrado() {
+    var a = estado.acesso || {}, c = a.contagem || {};
+    var bloq = a.bloqueado && !(a.acessoAteMs < Date.now());
+    tela.innerHTML = '<section class="faixa" style="background:linear-gradient(135deg,#2a1608,#111a2e);border-color:#9a3412;padding:26px">' +
+      '<div style="width:60px;height:60px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:rgba(245,158,11,.16);color:#fbbf24"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>' +
+      '<div class="txt" style="flex:1 1 380px"><span style="font-size:13px;color:#fdba74;font-weight:700;letter-spacing:.04em">' + (bloq ? 'ACESSO SUSPENSO' : 'CONTRATO ENCERRADO EM ' + data(a.acessoAte)) + '</span>' +
+      '<h1>Seus equipamentos continuam com prazos correndo</h1><p style="margin:0;color:var(--sub);line-height:1.5">O acompanhamento, os prazos e os certificados ficam disponíveis enquanto o contrato estiver ativo. Renove para continuar vendo tudo e não perder nenhum prazo.</p></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;min-width:210px"><a class="btn" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + (a.nome || '') + ' e quero renovar o contrato com a IDEALLE para voltar a acompanhar meus equipamentos.')) + '">Renovar contrato</a>' +
+      '<a class="btn sec" href="tel:' + digitos(contato.telefone) + '">Ligar ' + esc(contato.telefone) + '</a></div></section>' +
+      '<div class="kpis"><div class="kpi" style="border-color:var(--bad-b);flex:1"><b style="color:var(--bad)">' + (c.vencidos || 0) + '</b><span>itens já vencidos</span></div>' +
+      '<div class="kpi" style="border-color:var(--amb-b);flex:1"><b style="color:var(--amb-t)">' + (c.vencendo || 0) + '</b><span>vencem nos próximos 90 dias</span></div>' +
+      '<div class="kpi" style="flex:1"><b>' + (c.total || 0) + '</b><span>itens acompanhados</span></div></div>' +
+      '<section class="card"><h2>Bloqueado até renovar</h2><div class="servicos">' + ['Lista de equipamentos e TAGs', 'Prazos de inspeção', 'Certificados de calibração', 'Termografia', 'Histórico de OS', 'Pedidos de cópia de laudo'].map(function (x) {
+        return '<div class="serv trancado" style="min-height:0;flex-direction:row;align-items:center;gap:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>' + x + '</div>'; }).join('') +
+      '</div><p class="sub" style="margin:12px 0 0">Os dados não são apagados: ao renovar, tudo volta como estava.</p></section>';
+  }
+
+  // ---------- Início ----------
+  $('btn-sair').onclick = function () { estado = { dados: null, acesso: null }; auth.signOut(); };
+  db.collection('config').doc('portal').get().then(function (s) { if (s.exists) Object.assign(contato, s.data()); }).catch(function () {});
+  var convite = new URLSearchParams(location.search).get('convite');
+  var modoConvite = !!convite, conviteAberto = false;
+  auth.onAuthStateChanged(function (u) {
+    if (estado.criando) return; // o convite termina de gravar e abre o painel sozinho
+    if (modoConvite) {
+      if (u) { auth.signOut(); return; } // quem estava logado neste navegador sai antes de criar o acesso novo
+      if (!conviteAberto) { conviteAberto = true; telaConvite(convite); }
+      return;
+    }
+    if (u) carregar(u); else telaEntrar();
+  });
+})();
+</script>
+</body>
+</html>
