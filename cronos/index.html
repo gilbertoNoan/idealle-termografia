@@ -213,6 +213,7 @@
     <button data-view="modelos">Modelos</button>
     <button data-view="ordens">Ordens de Serviço</button>
     <button data-view="faturas">Faturamento</button>
+    <button data-view="portal">Portal do Cliente</button>
     <button data-view="financas">Financeiro</button>
   </nav>
 </header>
@@ -290,6 +291,19 @@
       <select id="filtro-fatura"><option value="">Todos os status</option></select>
     </div>
     <div class="card tabela" id="lista-faturas"></div>
+  </section>
+
+  <!-- PORTAL DO CLIENTE -->
+  <section class="view" id="v-portal">
+    <h2>Portal do Cliente <span style="font-size:15px;font-weight:400"><button class="btn sec peq" id="btn-portal-config">Contato da IDEALLE</button> <button class="btn sec peq" id="btn-portal-publicar">Atualizar dados agora</button></span></h2>
+    <p class="muted" style="margin-top:-6px">Quem tem acesso ao portal, até quando (fim do contrato) e o convite para criar a senha. Os dados das OS vão para o portal sozinhos enquanto o Cronos está aberto, sem valores e sem os laudos assinados.</p>
+    <div id="portal-aviso"></div>
+    <div class="grid" id="portal-kpis" style="margin-bottom:12px"></div>
+    <div class="busca">
+      <input id="busca-portal" placeholder="Buscar cliente por nome, código ou CNPJ…">
+      <select id="filtro-portal"><option value="">Todos os clientes</option><option value="com">Com acesso ao portal</option><option value="sem">Ainda sem acesso</option></select>
+    </div>
+    <div class="card tabela" id="portal-lista"></div>
   </section>
 
   <!-- FINANÇAS -->
@@ -538,16 +552,20 @@
   // ===================== BANCO DE DADOS =====================
   // Duas implementações com a mesma interface: Firestore (real) e local (modo de teste no navegador).
   var COLECOES = ['empresas', 'propostas', 'ordens', 'faturas', 'modelos', 'contas', 'lancamentos', 'config'];
-  var cache = { empresas: [], propostas: [], ordens: [], faturas: [], modelos: [], contas: [], lancamentos: [], config: [] };
+  var cache = { empresas: [], propostas: [], ordens: [], faturas: [], modelos: [], contas: [], lancamentos: [], config: [], portal_acessos: [], portal_convites: [], portal_usuarios: [] };
+  // Portal do Cliente: lidas à parte, sem aviso de erro enquanto as regras novas do banco não forem publicadas
+  var COLECOES_PORTAL = ['portal_acessos', 'portal_convites', 'portal_usuarios'];
   var banco = null;
 
   function bancoFirestore(db) {
     return {
-      ouvir: function (col, cb) {
+      ouvir: function (col, cb, erro) {
         return db.collection(col).onSnapshot(function (snap) {
           cb(snap.docs.map(function (d) { var x = d.data() || {}; x.id = d.id; return x; }));
-        }, function (err) { console.error(err); toast('Erro ao ler ' + col + ': ' + err.message); });
+        }, function (err) { console.error(err); if (erro) erro(err); else toast('Erro ao ler ' + col + ': ' + err.message); });
       },
+      // Grava o documento inteiro com id escolhido (sem juntar com o que havia)
+      gravar: function (col, id, doc) { return db.collection(col).doc(id).set(doc); },
       criar: function (col, doc) { return db.collection(col).add(doc).then(function (r) { return r.id; }); },
       // merge: true preserva campos que outros sistemas (como a Termografia) gravaram no mesmo documento
       atualizar: function (col, id, doc) { return db.collection(col).doc(id).set(doc, { merge: true }); },
@@ -571,7 +589,7 @@
     var CH = 'cronos-demo-v1', ouvintes = {}, dados;
     try { dados = JSON.parse(localStorage.getItem(CH) || 'null'); } catch (e) { dados = null; }
     if (!dados) dados = exemplo();
-    COLECOES.forEach(function (c) { dados[c] = dados[c] || []; });
+    COLECOES.concat(COLECOES_PORTAL, ['portal_dados']).forEach(function (c) { dados[c] = dados[c] || []; });
     function salvar() { try { localStorage.setItem(CH, JSON.stringify(dados)); } catch (e) {} }
     function avisar(col) { (ouvintes[col] || []).forEach(function (cb) { cb(dados[col].map(function (x) { return Object.assign({}, x); })); }); }
     return {
@@ -579,6 +597,7 @@
       criar: function (col, doc) { doc = Object.assign({}, doc); doc.id = 'L' + Date.now() + Math.random().toString(36).slice(2, 6); dados[col].push(doc); salvar(); avisar(col); return Promise.resolve(doc.id); },
       atualizar: function (col, id, doc) { var i = dados[col].findIndex(function (x) { return x.id === id; }); if (i >= 0) Object.assign(dados[col][i], doc); else dados[col].push(Object.assign({ id: id }, doc)); salvar(); avisar(col); return Promise.resolve(); },
       excluir: function (col, id) { dados[col] = dados[col].filter(function (x) { return x.id !== id; }); salvar(); avisar(col); return Promise.resolve(); },
+      gravar: function (col, id, doc) { dados[col] = dados[col].filter(function (x) { return x.id !== id; }); dados[col].push(Object.assign({ id: id }, doc)); salvar(); avisar(col); return Promise.resolve(); },
       trocarCampo: function () { return Promise.resolve(0); },
       atualizarOnde: function () { return Promise.resolve(0); }
     };
@@ -641,7 +660,11 @@
       $('aviso-modo').innerHTML = 'Modo de teste: os dados ficam só neste navegador e não vão para o banco. <a href="' + location.pathname + '">Sair do modo de teste</a>';
     }
     COLECOES.forEach(function (col) {
-      banco.ouvir(col, function (lista) { cache[col] = lista; if (!importando) renderTudo(); });
+      banco.ouvir(col, function (lista) { cache[col] = lista; portalCarregado[col] = true; if (!importando) { renderTudo(); agendarPublicacaoPortal(); } });
+    });
+    COLECOES_PORTAL.forEach(function (col) {
+      banco.ouvir(col, function (lista) { cache[col] = lista; portalCarregado[col] = true; portalSemPermissao = false; renderPortal(); if (col === 'portal_acessos') agendarPublicacaoPortal(); },
+        function () { portalSemPermissao = true; renderPortal(); });
     });
   }
 
@@ -705,6 +728,248 @@
     $('login-senha').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('btn-entrar').click(); });
     $('btn-sair').addEventListener('click', function () { auth.signOut(); });
   }
+
+  // ===================== PORTAL DO CLIENTE =====================
+  // O cliente entra em /portal/ com login próprio e vê só o que o Cronos publica para a empresa dele
+  // em portal_dados/<empresaId> (equipamentos, prazos, certificados, OS sem valores). O acesso vale até
+  // portal_acessos/<empresaId>.acessoAte (fim do contrato); depois o portal mostra só a tela de renovação.
+  // Os laudos assinados nunca vão para o portal. Regras do banco em painel-central/firestore.rules.
+  var PORTAL_SERVICOS = [
+    ['nr13', 'NR-13 (vasos, caldeiras, tubulações e tanques)'],
+    ['calibracao', 'Calibração de PSV e manômetros'],
+    ['termografia', 'Termografia'],
+    ['spda', 'SPDA (para-raios)'],
+    ['nr10', 'NR-10 (instalações elétricas)'],
+    ['avcb', 'AVCB / NR-23'],
+    ['linhavida', 'Linha de vida'],
+    ['obra', 'Obra (engenharia civil)']
+  ];
+  var portalCarregado = {}, portalSemPermissao = false, portalTimer = null, portalPublicando = false;
+  function portalAcesso(empId) { return cache.portal_acessos.find(function (a) { return a.id === empId; }); }
+  function portalConfig() { return cache.config.find(function (c) { return c.id === 'portal'; }) || {}; }
+  function urlPortal() { return location.origin + '/portal/'; }
+  function soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
+  function linkWhats(num, msg) { var d = soDigitos(num); if (d.length === 10 || d.length === 11) d = '55' + d; return 'https://wa.me/' + d + '?text=' + encodeURIComponent(msg); }
+  // Data de vencimento a partir de 'MM/AAAA', 'DD/MM/AAAA' ou 'AAAA-MM-DD' (mês sozinho = último dia do mês)
+  function dataVenc(s) {
+    s = String(s || '').trim(); var m;
+    if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) return m[0];
+    if ((m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/))) return m[3] + '-' + pad(m[2], 2) + '-' + pad(m[1], 2);
+    if ((m = s.match(/(\d{1,2})\/(\d{4})/))) { var d = new Date(+m[2], +m[1], 0); return m[2] + '-' + pad(m[1], 2) + '-' + pad(d.getDate(), 2); }
+    if ((m = s.match(/^(\d{4})$/))) return m[1] + '-12-31';
+    return '';
+  }
+  function situacaoVenc(iso) { if (!iso) return 'sem'; var h = hoje(); return iso < h ? 'vencido' : iso <= somarDias(h, 90) ? 'vencendo' : 'emdia'; }
+  function hashTexto(s) { var h = 5381; for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return String(h >>> 0); }
+
+  // Monta o que o cliente vê. Só dados técnicos e de prazo: nada de valores, faturas ou PDFs assinados.
+  function dadosPortal(empId) {
+    var emp = porId('empresas', empId) || {}, ac = portalAcesso(empId) || {};
+    var ords = cache.ordens.filter(function (o) { return o.empresaId === empId && statusOS(o) !== 'cancelada'; })
+      .sort(function (a, b) { return String(b.dataAbertura || '') < String(a.dataAbertura || '') ? -1 : 1; });
+    var sv = {};
+    ords.forEach(function (o) {
+      var s = o.servicos || {}, r = o.resultados || {};
+      if (s.relatorio || s.prontuario || s.pmta || s.desenquadramento || r['Relatório NR-13']) sv.nr13 = true;
+      if (s.calibracao || r['Gerador de Certificados']) sv.calibracao = true;
+      if (s.termografia || r.Termografia) sv.termografia = true;
+      if (s.spda) sv.spda = true;
+    });
+    Object.keys(ac.servicosExtras || {}).forEach(function (k) { if (ac.servicosExtras[k]) sv[k] = true; });
+    var vasos = {}, certs = [], termo = { laudos: 0, porNivel: {}, criticos: 0 };
+    ords.forEach(function (o) {
+      var r = o.resultados || {}, cod = codOS(o);
+      ((r['Relatório NR-13'] || {}).vasos || []).forEach(function (v) {
+        var tag = String(v.tag || '').trim().toUpperCase(); if (!tag) return;
+        var ins = dataVenc(v.dataInspecao), ja = vasos[tag];
+        if (ja && (ja._ins || '') >= (ins || '')) return; // fica a inspeção mais recente da TAG
+        var ext = dataVenc(v.externo), int = dataVenc(v.interno);
+        var prox = [ext, int].filter(Boolean).sort()[0] || '';
+        vasos[tag] = { _ins: ins, tag: tag, nome: v.nome || '', area: v.area || '', dataInspecao: ins, externo: ext, interno: int,
+          categoria: v.categoria || '', parecer: v.parecer || '', laudoPronto: !!v.laudoPronto, proximo: prox, situacao: situacaoVenc(prox), os: cod };
+      });
+      ((r['Gerador de Certificados'] || {}).itens || []).forEach(function (c) {
+        var val = dataVenc(c.validade);
+        certs.push({ tag: String(c.tag || '').toUpperCase(), numero: c.numero || '', tipo: c.tipo === 'manometer' ? 'Manômetro' : 'Válvula de segurança',
+          data: dataVenc(c.data), validade: val, situacao: situacaoVenc(val), os: cod });
+      });
+      var t = r.Termografia;
+      if (t) { termo.laudos += t.qtdLaudos || 0; termo.criticos += t.criticos || 0; Object.keys(t.porNivel || {}).forEach(function (k) { termo.porNivel[k] = (termo.porNivel[k] || 0) + t.porNivel[k]; }); }
+    });
+    var listaVasos = Object.keys(vasos).sort().map(function (k) { var v = vasos[k]; delete v._ins; return v; });
+    var itens = listaVasos.concat(certs);
+    var cont = { total: itens.length, vencidos: 0, vencendo: 0, emdia: 0, sem: 0 };
+    itens.forEach(function (i) { cont[i.situacao === 'vencido' ? 'vencidos' : i.situacao]++; });
+    return {
+      empresa: { nome: emp.nome || ac.nome || '', cnpj: emp.cnpj || '', cidade: [emp.cidade, emp.uf].filter(Boolean).join('/') },
+      servicos: sv, vasos: listaVasos, certificados: certs, contagem: cont,
+      termografia: sv.termografia ? { laudos: termo.laudos, criticos: termo.criticos, porNivel: termo.porNivel, link: location.origin + '/?cliente=' + encodeURIComponent(emp.nome || '') } : null,
+      os: ords.slice(0, 40).map(function (o) {
+        return { codigo: codOS(o), descricao: o.descricao || '', status: statusOS(o), abertura: o.dataAbertura || '', conclusao: o.dataConclusao || '',
+          servicos: SERVICOS_OS.filter(function (s) { return o.servicos && o.servicos[s[0]]; }).map(function (s) { return s[1]; }) };
+      })
+    };
+  }
+
+  // Publica sozinho (enquanto o Cronos está aberto) o que mudou para cada cliente com acesso ao portal
+  function agendarPublicacaoPortal() {
+    if (!portalCarregado.portal_acessos || !portalCarregado.ordens || !portalCarregado.empresas) return;
+    clearTimeout(portalTimer); portalTimer = setTimeout(function () { publicarPortal(false); }, 4000);
+  }
+  async function publicarPortal(forcar) {
+    if (portalPublicando) return; portalPublicando = true;
+    var n = 0;
+    try {
+      for (var i = 0; i < cache.portal_acessos.length; i++) {
+        var ac = cache.portal_acessos[i], d = dadosPortal(ac.id), h = hashTexto(JSON.stringify(d));
+        if (!forcar && h === ac.hashDados) continue;
+        d.atualizadoEm = agora();
+        await banco.gravar('portal_dados', ac.id, d);
+        await banco.atualizar('portal_acessos', ac.id, { hashDados: h, contagem: d.contagem, nome: d.empresa.nome, publicadoEm: d.atualizadoEm });
+        n++;
+      }
+      if (forcar) toast(n + ' cliente(s) atualizado(s) no portal.');
+    } catch (e) { console.error(e); toast('Portal do Cliente: não foi possível publicar (' + e.message + ').'); }
+    portalPublicando = false;
+  }
+
+  function situacaoAcesso(ac) {
+    if (!ac) return ['Sem acesso', 't-gray'];
+    if (ac.bloqueado) return ['Bloqueado', 't-bad'];
+    if (ac.acessoAte && ac.acessoAte < hoje()) return ['Contrato encerrado', 't-bad'];
+    var us = cache.portal_usuarios.filter(function (u) { return u.empresaId === ac.id; });
+    if (us.length) return [ac.acessoAte && ac.acessoAte <= somarDias(hoje(), 90) ? 'Ativo · vence logo' : 'Ativo', ac.acessoAte && ac.acessoAte <= somarDias(hoje(), 90) ? 't-warn' : 't-ok'];
+    var conv = cache.portal_convites.filter(function (c) { return c.empresaId === ac.id && !c.usado && c.expiraMs > Date.now(); });
+    return conv.length ? ['Convite enviado', 't-warn'] : ['Sem login ainda', 't-gray'];
+  }
+
+  function renderPortal() {
+    var el = $('portal-lista'); if (!el) return;
+    if (portalSemPermissao) {
+      $('portal-aviso').innerHTML = '<div class="aviso">O banco ainda não liberou o Portal do Cliente. Publique as regras novas do Firebase (arquivo firestore.rules do painel-central) e recarregue.</div>';
+    } else $('portal-aviso').innerHTML = '';
+    var q = normal($('busca-portal').value), filtro = $('filtro-portal').value;
+    var clientes = cache.empresas.filter(function (c) { return !q || normal([c.nome, c.codigo, c.cnpj].join(' ')).indexOf(q) >= 0; });
+    var nOS = function (id) { return cache.ordens.filter(function (o) { return o.empresaId === id; }).length; };
+    // Quem já tem acesso primeiro; depois os clientes com mais OS
+    var linhas = clientes.map(function (c) { return { c: c, ac: portalAcesso(c.id), st: situacaoAcesso(portalAcesso(c.id)), n: nOS(c.id) }; })
+      .filter(function (l) { return !filtro || (filtro === 'com' ? !!l.ac : !l.ac); })
+      .sort(function (a, b) { return (!!b.ac - !!a.ac) || (b.n - a.n) || (normal(a.c.nome) < normal(b.c.nome) ? -1 : 1); });
+    var acs = cache.portal_acessos;
+    var kp = [
+      ['Clientes com acesso', acs.filter(function (a) { return !a.bloqueado && (!a.acessoAte || a.acessoAte >= hoje()); }).length],
+      ['Convites sem resposta', cache.portal_convites.filter(function (c) { return !c.usado && c.expiraMs > Date.now(); }).length],
+      ['Contrato vence em 90 dias', acs.filter(function (a) { return a.acessoAte && a.acessoAte >= hoje() && a.acessoAte <= somarDias(hoje(), 90); }).length],
+      ['Contrato encerrado', acs.filter(function (a) { return a.acessoAte && a.acessoAte < hoje(); }).length]
+    ];
+    $('portal-kpis').innerHTML = kp.map(function (k) { return '<div class="card kpi" style="cursor:default"><div class="rotulo">' + k[0] + '</div><div class="valor">' + k[1] + '</div></div>'; }).join('');
+    if (!linhas.length) { el.innerHTML = '<div class="vazio">Nenhum cliente encontrado.</div>'; return; }
+    el.innerHTML = '<table><thead><tr><th>Cliente</th><th>Serviços no portal</th><th>Acesso até</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead><tbody>' +
+      linhas.map(function (l) {
+        var d = dadosPortal(l.c.id), us = cache.portal_usuarios.filter(function (u) { return u.empresaId === l.c.id; });
+        var ult = us.map(function (u) { return u.ultimoAcesso || ''; }).sort().pop();
+        var svs = PORTAL_SERVICOS.filter(function (s) { return d.servicos[s[0]]; }).map(function (s) { return '<span class="tag t-blue" style="margin:1px">' + esc(s[1].split(' (')[0]) + '</span>'; }).join('') || '<span class="muted">—</span>';
+        return '<tr class="clicavel" data-portal="' + l.c.id + '"><td><b>' + esc(l.c.nome) + '</b><div class="muted">' + l.n + ' OS · ' + us.length + ' usuário(s) no portal</div></td><td>' + svs + '</td><td>' + (l.ac ? data(l.ac.acessoAte) : '—') + '</td><td><span class="tag ' + l.st[1] + '">' + l.st[0] + '</span></td><td>' + (ult ? data(ult) : '—') + '</td><td style="text-align:right"><button class="btn peq' + (l.ac ? ' sec' : '') + '">' + (l.ac ? 'Gerenciar' : 'Enviar acesso') + '</button></td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  function prazoPadrao(empId) {
+    var ult = cache.ordens.filter(function (o) { return o.empresaId === empId && o.dataAbertura; }).map(function (o) { return o.dataAbertura; }).sort().pop();
+    var base = ult && ult > somarDias(hoje(), -365) ? ult : hoje();
+    return somarDias(base, 365);
+  }
+
+  function telaAcessoPortal(empId) {
+    var c = porId('empresas', empId) || {}, ac = portalAcesso(empId) || {}, d = dadosPortal(empId);
+    var ext = ac.servicosExtras || {};
+    var us = cache.portal_usuarios.filter(function (u) { return u.empresaId === empId; });
+    var conv = cache.portal_convites.filter(function (x) { return x.empresaId === empId && !x.usado && x.expiraMs > Date.now(); });
+    abrirModal('<h3>Portal do Cliente · ' + esc(c.nome) + '</h3>' +
+      '<p class="muted">O cliente vê os equipamentos, prazos, certificados e OS (sem valores). Os laudos assinados não vão para o portal. O acesso fecha sozinho depois da data abaixo e o cliente passa a ver só a tela de renovação.</p>' +
+      '<div class="linha"><div><label>Nome do contato</label><input id="pa-contato" value="' + esc(ac.contatoNome || c.contato || '') + '"></div>' +
+      '<div><label>E-mail de login</label><input id="pa-email" type="email" value="' + esc(ac.email || c.email || '') + '"></div>' +
+      '<div><label>WhatsApp do contato</label><input id="pa-whats" inputmode="tel" value="' + esc(ac.whatsapp || c.telefone || '') + '"></div>' +
+      '<div><label>Acesso até (fim do contrato)</label><input id="pa-ate" type="date" value="' + esc(ac.acessoAte || prazoPadrao(empId)) + '"></div></div>' +
+      '<label>Serviços liberados (os das OS já entram sozinhos; marque os outros contratados)</label><div style="display:flex;flex-wrap:wrap;gap:6px 16px">' +
+      PORTAL_SERVICOS.map(function (s) {
+        var dasOS = d.servicos[s[0]] && !ext[s[0]];
+        return '<label style="display:flex;gap:6px;align-items:center;margin:2px 0;color:var(--text)"><input type="checkbox" data-extra="' + s[0] + '" style="width:auto"' + (d.servicos[s[0]] ? ' checked' : '') + (dasOS ? ' disabled title="Vem das OS"' : '') + '> ' + esc(s[1]) + (dasOS ? ' <span class="muted">(das OS)</span>' : '') + '</label>';
+      }).join('') + '</div>' +
+      '<div class="muted" style="margin-top:8px">No portal: ' + d.vasos.length + ' equipamento(s) NR-13, ' + d.certificados.length + ' certificado(s), ' + d.os.length + ' OS · ' + d.contagem.vencidos + ' vencido(s), ' + d.contagem.vencendo + ' vencendo em 90 dias.</div>' +
+      (ac.id ? '<label style="display:flex;gap:6px;align-items:center;margin-top:10px;color:var(--bad)"><input type="checkbox" id="pa-bloq" style="width:auto"' + (ac.bloqueado ? ' checked' : '') + '> Bloquear o acesso desta empresa agora</label>' : '') +
+      (us.length ? '<label>Quem já entra</label><table><tbody>' + us.map(function (u) { return '<tr><td>' + esc(u.email) + '</td><td class="muted">último acesso ' + data(u.ultimoAcesso) + '</td><td style="text-align:right"><button class="btn perigo peq" data-tirar="' + esc(u.id) + '">Tirar acesso</button></td></tr>'; }).join('') + '</tbody></table>' : '') +
+      (conv.length ? '<div class="muted" style="margin-top:8px">Convite pendente para ' + conv.map(function (x) { return esc(x.email) + ' (vale até ' + data(new Date(x.expiraMs).toISOString()) + ')'; }).join(', ') + '</div>' : '') +
+      '<div id="pa-convite"></div>' +
+      '<div class="acoes"><button class="btn" id="pa-enviar">Salvar e gerar convite</button><button class="btn sec" id="pa-salvar">Só salvar</button>' +
+      (us.length ? '<a class="btn sec" href="' + esc(urlPortal()) + '" target="_blank" rel="noopener">Abrir o portal</a>' : '') +
+      '<button class="btn sec" id="pa-fechar">Fechar</button></div>');
+
+    function lerForm() {
+      var ate = $('pa-ate').value || prazoPadrao(empId), extras = {};
+      document.querySelectorAll('#modal [data-extra]').forEach(function (b) { if (!b.disabled) extras[b.dataset.extra] = b.checked; });
+      return { empresaId: empId, nome: c.nome || '', contatoNome: $('pa-contato').value.trim(), email: $('pa-email').value.trim().toLowerCase(), whatsapp: $('pa-whats').value.trim(),
+        acessoAte: ate, acessoAteMs: new Date(ate + 'T23:59:59-03:00').getTime(), servicosExtras: extras, bloqueado: $('pa-bloq') ? $('pa-bloq').checked : false, atualizadoEm: agora() };
+    }
+    async function salvar() {
+      var v = lerForm();
+      if (!ac.id) v.criadoEm = agora();
+      await banco.atualizar('portal_acessos', empId, v);
+      var dd = dadosPortal(empId); dd.atualizadoEm = agora();
+      await banco.gravar('portal_dados', empId, dd);
+      await banco.atualizar('portal_acessos', empId, { hashDados: hashTexto(JSON.stringify(dadosPortal(empId))), contagem: dd.contagem, publicadoEm: dd.atualizadoEm });
+      return v;
+    }
+    $('pa-fechar').onclick = fecharModal;
+    $('pa-salvar').onclick = async function () { try { await salvar(); toast('Acesso salvo.'); fecharModal(); } catch (e) { toast('Erro: ' + e.message); } };
+    $('modal').querySelectorAll('[data-tirar]').forEach(function (b) {
+      b.onclick = async function () {
+        if (!confirm('Tirar o acesso deste usuário ao portal?')) return;
+        try { await banco.excluir('portal_usuarios', b.dataset.tirar); toast('Acesso retirado.'); fecharModal(); } catch (e) { toast('Erro: ' + e.message); }
+      };
+    });
+    $('pa-enviar').onclick = async function () {
+      var v = lerForm();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) { toast('Informe o e-mail de login do cliente.'); return; }
+      if (v.bloqueado) { toast('Desmarque o bloqueio para enviar o convite.'); return; }
+      if (v.acessoAte < hoje()) { toast('A data do contrato já passou: ajuste o "Acesso até".'); return; }
+      try {
+        await salvar();
+        var b = new Uint8Array(24); crypto.getRandomValues(b);
+        var token = Array.prototype.map.call(b, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+        var expira = Date.now() + 7 * 864e5;
+        await banco.gravar('portal_convites', token, { empresaId: empId, empresaNome: c.nome || '', email: v.email, contatoNome: v.contatoNome, expiraMs: expira, usado: false, criadoEm: agora() });
+        var link = urlPortal() + '?convite=' + token;
+        var msg = 'Olá' + (v.contatoNome ? ', ' + v.contatoNome.split(' ')[0] : '') + '! Seu acesso ao Portal do Cliente IDEALLE está pronto. Lá você acompanha seus equipamentos, os prazos de inspeção e os certificados.\n\nCrie sua senha pelo link abaixo (vale por 7 dias e funciona uma vez só). Seu login é ' + v.email + '.\n' + link;
+        $('pa-convite').innerHTML = '<div class="card" style="margin-top:12px;border-color:var(--pri)"><b>Convite pronto</b><textarea id="pa-msg" rows="6" style="margin-top:8px">' + esc(msg) + '</textarea>' +
+          '<div class="acoes">' + (soDigitos(v.whatsapp).length >= 10 ? '<a class="btn ok" target="_blank" rel="noopener" href="' + esc(linkWhats(v.whatsapp, msg)) + '">Enviar no WhatsApp</a>' : '') +
+          '<a class="btn" href="mailto:' + esc(v.email) + '?subject=' + encodeURIComponent('Acesso ao Portal do Cliente IDEALLE') + '&body=' + encodeURIComponent(msg) + '">Enviar por e-mail</a>' +
+          '<button class="btn sec" id="pa-copiar">Copiar mensagem</button></div></div>';
+        $('pa-copiar').onclick = function () { navigator.clipboard.writeText($('pa-msg').value).then(function () { toast('Mensagem copiada.'); }); };
+        $('pa-enviar').textContent = 'Gerar outro convite';
+      } catch (e) { toast('Erro: ' + e.message); }
+    };
+  }
+
+  function configPortal() {
+    var cf = portalConfig();
+    abrirModal('<h3>Contato da IDEALLE no portal</h3><p class="muted">Aparece para o cliente nos botões "Renovar contrato", "Quero contratar" e "Pedir cópia do laudo".</p>' +
+      '<div class="linha"><div><label>WhatsApp comercial</label><input id="pc-whats" inputmode="tel" value="' + esc(cf.whatsapp || '') + '" placeholder="(11) 9xxxx-xxxx"></div>' +
+      '<div><label>E-mail comercial</label><input id="pc-email" type="email" value="' + esc(cf.email || '') + '"></div></div>' +
+      '<div class="acoes"><button class="btn" id="pc-salvar">Salvar</button><button class="btn sec" id="pc-fechar">Fechar</button></div>');
+    $('pc-fechar').onclick = fecharModal;
+    $('pc-salvar').onclick = async function () {
+      try { await banco.atualizar('config', 'portal', { whatsapp: $('pc-whats').value.trim(), email: $('pc-email').value.trim(), telefone: EMPRESA.telefone, updatedAt: agora() }); toast('Contato salvo.'); fecharModal(); }
+      catch (e) { toast('Erro: ' + e.message); }
+    };
+  }
+
+  $('v-portal').addEventListener('click', function (e) {
+    if (e.target.id === 'btn-portal-publicar') { publicarPortal(true); return; }
+    if (e.target.id === 'btn-portal-config') { configPortal(); return; }
+    var tr = e.target.closest('tr[data-portal]'); if (tr) telaAcessoPortal(tr.dataset.portal);
+  });
+  $('busca-portal').addEventListener('input', renderPortal);
+  $('filtro-portal').addEventListener('change', renderPortal);
 
   // ===================== NAVEGAÇÃO =====================
   var viewAtual = 'painel';
@@ -3959,7 +4224,7 @@
   });
   $('v-financas').addEventListener('mouseleave', function () { $('dica').style.display = 'none'; });
 
-  function renderTudo() { renderPainel(); renderClientes(); renderPropostas(); renderModelos(); renderOrdens(); renderFaturas(); renderFinancas(); }
+  function renderTudo() { renderPainel(); renderClientes(); renderPropostas(); renderModelos(); renderOrdens(); renderFaturas(); renderFinancas(); renderPortal(); }
 })();
 </script>
 </body>
