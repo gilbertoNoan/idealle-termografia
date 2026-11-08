@@ -69,7 +69,7 @@ Em Clientes, o Cronos avisa quando o mesmo cliente está cadastrado mais de uma 
 
 O cliente entra em `/portal/` (mesmo site) com e-mail e senha próprios. No Cronos, aba **Portal do Cliente** (só os sócios): para cada empresa se define o contato, o e-mail de login, o WhatsApp, os serviços extras e o **Acesso até** (fim do contrato), e se gera o convite.
 
-- `portal_acessos/<empresaId>`: `acessoAte`, `acessoAteMs`, `bloqueado`, `servicosExtras`, `contagem`, `hashDados`.
+- `portal_acessos/<empresaId>`: `acessoAte`, `acessoAteMs`, `bloqueado`, `servicosExtras`, `logo` (imagem reduzida no navegador, vai para o topo do portal com nome, endereço, CNPJ, contato, telefone e e-mail do cadastro), `contagem`, `hashDados`.
 - `portal_dados/<empresaId>`: o que o cliente vê, montado pelo Cronos a partir das OS (`dadosPortal`): serviços, vasos (de `resultados["Relatório NR-13"].vasos`, com nome, área, data da inspeção, próximos exames externo/interno, categoria, parecer), certificados (de `resultados["Gerador de Certificados"].itens`, com data e validade), resumo da termografia e a lista de OS **sem valores**. O Cronos regrava sozinho quando muda (compara `hashDados`), enquanto está aberto; "Atualizar dados agora" força.
 - `portal_convites/<código>`: convite de uso único (7 dias). O cliente cria a senha, o convite fica `usado` e nasce `portal_usuarios/<uid>` com a empresa.
 - `config/portal`: WhatsApp e e-mail comercial usados nos botões "Renovar contrato", "Quero contratar", "Pedir cópia do laudo" e "Agendar inspeção".

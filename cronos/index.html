@@ -801,7 +801,9 @@
     var cont = { total: itens.length, vencidos: 0, vencendo: 0, emdia: 0, sem: 0 };
     itens.forEach(function (i) { cont[i.situacao === 'vencido' ? 'vencidos' : i.situacao]++; });
     return {
-      empresa: { nome: emp.nome || ac.nome || '', cnpj: emp.cnpj || '', cidade: [emp.cidade, emp.uf].filter(Boolean).join('/') },
+      empresa: { nome: emp.nome || ac.nome || '', cnpj: emp.cnpj || '', cidade: [emp.cidade, emp.uf].filter(Boolean).join('/'),
+        endereco: [emp.endereco, [emp.cidade, emp.uf].filter(Boolean).join(' / '), emp.cep ? 'CEP ' + emp.cep : ''].filter(Boolean).join(' · '),
+        contato: ac.contatoNome || emp.contato || '', telefone: emp.telefone || ac.whatsapp || '', email: emp.email || ac.email || '', logo: ac.logo || '' },
       servicos: sv, vasos: listaVasos, certificados: certs, contagem: cont,
       termografia: sv.termografia ? { laudos: termo.laudos, criticos: termo.criticos, porNivel: termo.porNivel, link: location.origin + '/?cliente=' + encodeURIComponent(emp.nome || '') } : null,
       os: ords.slice(0, 40).map(function (o) {
@@ -899,16 +901,40 @@
       (ac.id ? '<label style="display:flex;gap:6px;align-items:center;margin-top:10px;color:var(--bad)"><input type="checkbox" id="pa-bloq" style="width:auto"' + (ac.bloqueado ? ' checked' : '') + '> Bloquear o acesso desta empresa agora</label>' : '') +
       (us.length ? '<label>Quem já entra</label><table><tbody>' + us.map(function (u) { return '<tr><td>' + esc(u.email) + '</td><td class="muted">último acesso ' + data(u.ultimoAcesso) + '</td><td style="text-align:right"><button class="btn perigo peq" data-tirar="' + esc(u.id) + '">Tirar acesso</button></td></tr>'; }).join('') + '</tbody></table>' : '') +
       (conv.length ? '<div class="muted" style="margin-top:8px">Convite pendente para ' + conv.map(function (x) { return esc(x.email) + ' (vale até ' + data(new Date(x.expiraMs).toISOString()) + ')'; }).join(', ') + '</div>' : '') +
+      '<label>Logo do cliente (aparece no topo do portal)</label><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">' +
+      '<div id="pa-logo-prev" style="width:96px;height:96px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#64748b;font-size:12px">' + (ac.logo ? '<img src="' + esc(ac.logo) + '" alt="" style="max-width:86px;max-height:86px">' : 'sem logo') + '</div>' +
+      '<label class="btn sec peq" style="margin:0;cursor:pointer">Escolher imagem<input type="file" id="pa-logo" accept="image/*" style="display:none"></label>' +
+      '<button class="btn sec peq" id="pa-logo-tirar" type="button">Remover logo</button></div>' +
       '<div id="pa-convite"></div>' +
       '<div class="acoes"><button class="btn" id="pa-enviar">Salvar e gerar convite</button><button class="btn sec" id="pa-salvar">Só salvar</button>' +
       (us.length ? '<a class="btn sec" href="' + esc(urlPortal()) + '" target="_blank" rel="noopener">Abrir o portal</a>' : '') +
       '<button class="btn sec" id="pa-fechar">Fechar</button></div>');
 
+    var logoNovo = ac.logo || '';
+    // Logo reduzido no navegador (máx. 320 px, fundo branco) para caber no banco sem pesar
+    $('pa-logo').onchange = function () {
+      var f = this.files[0]; if (!f) return;
+      var leitor = new FileReader();
+      leitor.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var k = Math.min(1, 320 / Math.max(img.width, img.height)), cv = document.createElement('canvas');
+          cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+          var g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height);
+          logoNovo = cv.toDataURL('image/jpeg', 0.9);
+          $('pa-logo-prev').innerHTML = '<img src="' + logoNovo + '" alt="" style="max-width:86px;max-height:86px">';
+        };
+        img.onerror = function () { toast('Não foi possível ler esta imagem.'); };
+        img.src = leitor.result;
+      };
+      leitor.readAsDataURL(f);
+    };
+    $('pa-logo-tirar').onclick = function () { logoNovo = ''; $('pa-logo-prev').textContent = 'sem logo'; };
     function lerForm() {
       var ate = $('pa-ate').value || prazoPadrao(empId), extras = {};
       document.querySelectorAll('#modal [data-extra]').forEach(function (b) { if (!b.disabled) extras[b.dataset.extra] = b.checked; });
       return { empresaId: empId, nome: c.nome || '', contatoNome: $('pa-contato').value.trim(), email: $('pa-email').value.trim().toLowerCase(), whatsapp: $('pa-whats').value.trim(),
-        acessoAte: ate, acessoAteMs: new Date(ate + 'T23:59:59-03:00').getTime(), servicosExtras: extras, bloqueado: $('pa-bloq') ? $('pa-bloq').checked : false, atualizadoEm: agora() };
+        acessoAte: ate, acessoAteMs: new Date(ate + 'T23:59:59-03:00').getTime(), servicosExtras: extras, logo: logoNovo, bloqueado: $('pa-bloq') ? $('pa-bloq').checked : false, atualizadoEm: agora() };
     }
     async function salvar() {
       var v = lerForm();

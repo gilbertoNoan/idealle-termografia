@@ -71,6 +71,20 @@
   .niveis { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
   .tit-sec { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
   .tit-sec h2 { margin: 0; }
+  .cliente { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  .cli-logo { width: 150px; height: 150px; border-radius: 18px; background: #fff; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .cli-logo img { max-width: 130px; max-height: 130px; }
+  .cli-logo span { font-size: 44px; font-weight: 800; color: #1e293b; }
+  .cli-dados { flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .cli-rot { display: flex; align-items: center; gap: 6px; color: var(--amb); font-weight: 800; font-size: 13px; letter-spacing: .04em; }
+  .cli-nome { margin: 0; font-size: 30px; font-weight: 800; text-transform: uppercase; line-height: 1.15; overflow-wrap: anywhere; }
+  .cli-end { display: flex; align-items: flex-start; gap: 6px; color: var(--muted); font-size: 14px; text-transform: uppercase; }
+  .cli-end svg { flex-shrink: 0; margin-top: 2px; }
+  .pilulas { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .pilula { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid var(--linha); background: #0f1729; color: var(--muted); font-size: 13px; max-width: 100%; }
+  .pilula b { color: var(--texto); font-weight: 700; overflow-wrap: anywhere; }
+  .pilula .cnpj { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  @media (max-width: 600px) { .cli-logo { width: 96px; height: 96px; } .cli-logo img { max-width: 84px; max-height: 84px; } .cli-nome { font-size: 22px; } }
   .rodape { color: var(--muted); font-size: 12px; text-align: center; padding: 8px 0 0; }
   .carregando { text-align: center; color: var(--muted); padding: 18vh 16px; }
   .esconder { display: none !important; }
@@ -268,7 +282,8 @@
     }).join('');
     var ativos = SERVICOS.filter(function (s) { return sv[s[0]]; }).length;
     tela.innerHTML =
-      '<div class="resumo"><div><span class="sub">' + esc(d.empresa.nome) + (d.empresa.cidade ? ' · ' + esc(d.empresa.cidade) : '') + '</span><h1>Situação da sua planta</h1></div>' +
+      cabecalhoCliente(d.empresa) +
+      '<div class="resumo"><h1 style="font-size:22px">Situação da sua planta</h1>' +
       '<div class="kpis"><div class="kpi"><b>' + (total ? conf + '%' : '—') + '</b><span>em conformidade</span></div><div class="kpi"><b style="color:var(--ok)">' + (c.emdia || 0) + '</b><span>em dia</span></div>' +
       '<div class="kpi"><b style="color:var(--amb-t)">' + (c.vencendo || 0) + '</b><span>vencem em 90 dias</span></div><div class="kpi" style="border-color:var(--bad-b)"><b style="color:var(--bad)">' + (c.vencidos || 0) + '</b><span>vencidos</span></div></div></div>' +
       faixaContrato() +
@@ -276,6 +291,24 @@
       (sv.nr13 ? secVasos() : '') + (sv.calibracao ? secCertificados() : '') + (sv.termografia && d.termografia ? secTermografia() : '') + secOs() +
       '<p class="rodape">Dados atualizados em ' + data(d.atualizadoEm) + '. Os documentos assinados ficam com a IDEALLE e são enviados sob solicitação. IDEALLE Inspeções e Serviços · CREA-SP · ' + esc(contato.telefone) + '</p>';
     ligarBuscas();
+  }
+
+  var IC = {
+    predio: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></svg>',
+    local: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+    hash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></svg>',
+    pessoa: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2M16 11l2 2 4-4"/></svg>',
+    fone: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>',
+    mail: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>'
+  };
+  // Cabeçalho do cliente: logo, nome, endereço, CNPJ, contato, telefone e e-mail
+  function cabecalhoCliente(e) {
+    var ini = String(e.nome || '?').trim().split(/\s+/).slice(0, 2).map(function (p) { return p.charAt(0); }).join('').toUpperCase();
+    var pilula = function (ic, rot, val, mono) { return val ? '<span class="pilula">' + ic + (rot ? '<span class="sub" style="color:var(--sub)">' + rot + '</span>' : '') + '<b' + (mono ? ' class="cnpj"' : '') + '>' + esc(val) + '</b></span>' : ''; };
+    return '<section class="cliente"><div class="cli-logo">' + (e.logo ? '<img src="' + esc(e.logo) + '" alt="Logo ' + esc(e.nome) + '">' : '<span>' + esc(ini) + '</span>') + '</div>' +
+      '<div class="cli-dados"><span class="cli-rot">' + IC.predio + ' CLIENTE</span><h1 class="cli-nome">' + esc(e.nome) + '</h1>' +
+      (e.endereco ? '<span class="cli-end">' + IC.local + esc(e.endereco) + '</span>' : '') +
+      '<div class="pilulas">' + pilula(IC.hash, 'CNPJ:', e.cnpj, true) + pilula(IC.pessoa, 'Contato:', e.contato) + pilula(IC.fone, '', e.telefone) + pilula(IC.mail, '', e.email) + '</div></div></section>';
   }
 
   function secVasos() {
