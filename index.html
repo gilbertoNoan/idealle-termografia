@@ -2236,6 +2236,36 @@
     toast('Lançando laudos na ' + rotuloOS(os) + ' — ' + (os.empresaNome || ''));
   }
 
+  // Portal do Cliente (/portal/): grava em portal_laudos/<empresa> a OS liberada (tipo termografia),
+  // com o resumo por nível; no portal o cliente abre os laudos desta OS para ver e baixar.
+  async function enviarOsAoPortal(osId, botao) {
+    var os = ordensCache.find(function (o) { return o.id === osId; });
+    if (!os || !db) return;
+    if (!os.empresaId) { toast('Esta OS está sem empresa.'); return; }
+    var pts = pontosCache.filter(function (p) { return p.osId === osId; });
+    if (!pts.length) { toast('Esta OS ainda não tem laudos.'); return; }
+    if (!confirm('Liberar os ' + pts.length + ' laudo(s) da ' + rotuloOS(os) + ' no Portal do Cliente de ' + (os.empresaNome || 'cliente') + '?\n\nO cliente poderá ver e baixar os laudos desta OS. Se você lançar mais laudos depois, clique de novo para atualizar.')) return;
+    var porNivel = {};
+    pts.forEach(function (p) { var k = classificarPrincipal(p).key; porNivel[k] = (porNivel[k] || 0) + 1; });
+    var chave = 't_' + String(os.id).replace(/[^a-zA-Z0-9_]/g, '_');
+    var laudos = {};
+    laudos[chave] = {
+      tipo: 'termografia', os: rotuloOS(os), osId: os.id, dataInspecao: (os.dataAbertura || new Date().toISOString().slice(0, 10)),
+      qtd: pts.length, porNivel: porNivel, criticos: (porNivel.urgencia || 0) + (porNivel.emergencia || 0),
+      link: 'https://idealle-termografia.vercel.app/?cliente=' + encodeURIComponent(os.empresaNome || '') + '&os=' + encodeURIComponent(os.id),
+      publicadoEm: new Date().toISOString()
+    };
+    if (botao) { botao.disabled = true; }
+    try {
+      await db.collection('portal_laudos').doc(os.empresaId).set({ empresaId: os.empresaId, laudos: laudos }, { merge: true });
+      toast(pts.length + ' laudo(s) da ' + rotuloOS(os) + ' liberado(s) no Portal do Cliente.');
+    } catch (err) {
+      console.error(err);
+      toast('Não foi possível enviar ao portal: ' + (err && err.code === 'permission-denied' ? 'entre pelo CRONOS com o seu login.' : (err.message || err)));
+    }
+    if (botao) { botao.disabled = false; }
+  }
+
   // Grava na OS o resumo dos laudos dela, para o Cronos mostrar sem abrir a Termografia.
   async function devolverParaCronos(osId) {
     if (!db || !osId) return;
@@ -2548,7 +2578,7 @@
           '<div class="sub">' + escapeHtml(o.descricao || 'Sem descrição') + (o.dataAbertura ? ' · ' + o.dataAbertura : '') + '</div>' +
           '<div class="os-laudos"><div class="os-laudos-titulo">Laudos' + (filtroSeveridade ? ' ' + SEVERIDADE_LABEL[filtroSeveridade] : '') + ' desta OS (' + laudos.length + ')</div>' + toolbarHtml + laudosHtml + '</div>' +
           (filtroSeveridade ? '' : historicoHtml(o.id)) +
-          (filtroSeveridade ? '' : '<div class="ponto-actions">' + ((!o.status || o.status === 'aberta' || o.status === 'execucao') ? '<button class="btn-secondary" data-action="concluir-os" data-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg> Concluir OS</button>' : '') + '<button class="btn-secondary" data-action="link-cliente-os" data-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg> Link do cliente</button></div>') +
+          (filtroSeveridade ? '' : '<div class="ponto-actions">' + ((!o.status || o.status === 'aberta' || o.status === 'execucao') ? '<button class="btn-secondary" data-action="concluir-os" data-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg> Concluir OS</button>' : '') + '<button class="btn-secondary" data-action="portal-os" data-id="' + o.id + '" title="Libera os laudos desta OS no Portal do Cliente (o cliente vê e baixa)"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg> Enviar ao portal do cliente</button>' + '<button class="btn-secondary" data-action="link-cliente-os" data-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg> Link do cliente</button></div>') +
         '</div>';
       }).join('');
     }
@@ -2614,6 +2644,9 @@
       });
       return;
     }
+    // Portal do Cliente: libera os laudos desta OS para o cliente ver e baixar (no portal com login)
+    var btnPortal = e.target.closest('button[data-action="portal-os"]');
+    if (btnPortal) { enviarOsAoPortal(btnPortal.getAttribute('data-id'), btnPortal); return; }
     var btnLink = e.target.closest('button[data-action="link-cliente-os"]');
     if (btnLink) {
       var idLink = btnLink.getAttribute('data-id');

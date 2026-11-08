@@ -316,7 +316,17 @@
 
   // ---------- Laudos para consulta (ver e baixar) ----------
   function isoDe(s) { var m = String(s || '').match(/(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0]; m = String(s || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2) : ''; }
+  // Tudo o que a IDEALLE liberou: laudos NR-13 (sem tipo), certificados ('calibracao') e OS de termografia
+  function liberados(tipo) {
+    var l = estado.laudos || {};
+    return Object.keys(l).map(function (k) { return Object.assign({ chave: k }, l[k]); })
+      .filter(function (x) { return (x.tipo || 'nr13') === tipo; })
+      .sort(function (a, b) { return (isoDe(b.dataInspecao) || b.publicadoEm || '') < (isoDe(a.dataInspecao) || a.publicadoEm || '') ? -1 : 1; });
+  }
   function listaLaudos() {
+    return liberados('nr13');
+  }
+  function listaLaudosTodos() {
     var l = estado.laudos || {};
     return Object.keys(l).map(function (k) { return Object.assign({ chave: k }, l[k]); })
       .sort(function (a, b) { return (isoDe(b.dataInspecao) || b.publicadoEm || '') < (isoDe(a.dataInspecao) || a.publicadoEm || '') ? -1 : 1; });
@@ -374,15 +384,32 @@
   }
   function secCertificados() {
     var cc = (estado.dados.certificados || []).slice().sort(function (a, b) { return a.tag < b.tag ? -1 : 1; });
-    return '<section class="card" id="sec-calibracao"><div class="tit-sec"><h2>Certificados de calibração</h2><span class="sub">' + cc.length + ' certificado(s)</span></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Instrumento</th><th>Certificado</th><th>Calibrado em</th><th>Validade</th><th>Situação</th></tr></thead><tbody>' +
-      (cc.length ? cc.map(function (x) { return '<tr><td class="mono">' + esc(x.tag || '—') + '</td><td>' + esc(x.tipo) + '</td><td>' + esc(x.numero || '—') + '</td><td>' + data(x.data) + '</td><td>' + data(x.validade) + '</td><td>' + chipSit(x.situacao, x.validade) + '</td></tr>'; }).join('')
-        : '<tr><td colspan="6" class="vazio">Os certificados aparecem aqui assim que forem emitidos.</td></tr>') + '</tbody></table></div></section>';
+    var pub = liberados('calibracao'), usados = {};
+    // PDF liberado do certificado: mesmo número, ou a mesma TAG e tipo de instrumento
+    function pdfDe(x) {
+      var achado = pub.filter(function (p) { return !usados[p.chave] && ((x.numero && p.numero === x.numero) || (!x.numero && p.tag === x.tag && p.equipamento === x.tipo)); })[0];
+      if (achado) usados[achado.chave] = true;
+      return achado;
+    }
+    var linhas = cc.map(function (x) { var p = pdfDe(x); return '<tr><td class="mono">' + esc(x.tag || '—') + '</td><td>' + esc(x.tipo) + '</td><td>' + esc(x.numero || '—') + '</td><td>' + data(x.data) + '</td><td>' + data(x.validade) + '</td><td>' + chipSit(x.situacao, x.validade) + '</td><td style="text-align:right;white-space:nowrap">' + (p ? botoesLaudo(p) : '') + '</td></tr>'; });
+    // Liberados que não estão no resumo da OS também aparecem
+    pub.filter(function (p) { return !usados[p.chave]; }).forEach(function (p) {
+      var val = isoDe(p.validade), sit = !val ? 'sem' : val < hoje() ? 'vencido' : dias(val) <= 90 ? 'vencendo' : 'emdia';
+      linhas.push('<tr><td class="mono">' + esc(p.tag || '—') + '</td><td>' + esc(p.equipamento || '') + '</td><td>' + esc(p.numero || '—') + '</td><td>' + data(isoDe(p.dataInspecao)) + '</td><td>' + data(val) + '</td><td>' + chipSit(sit, val) + '</td><td style="text-align:right;white-space:nowrap">' + botoesLaudo(p) + '</td></tr>');
+    });
+    return '<section class="card" id="sec-calibracao"><div class="tit-sec"><h2>Certificados de calibração</h2><span class="sub">' + linhas.length + ' certificado(s)</span></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Instrumento</th><th>Certificado</th><th>Calibrado em</th><th>Validade</th><th>Situação</th><th></th></tr></thead><tbody>' +
+      (linhas.length ? linhas.join('') : '<tr><td colspan="7" class="vazio">Os certificados aparecem aqui assim que forem emitidos.</td></tr>') + '</tbody></table></div></section>';
   }
   function secTermografia() {
     var t = estado.dados.termografia, n = t.porNivel || {};
     var NIV = [['normal', 'Normal', 'c-ok'], ['observar', 'Observar', 'c-azul'], ['programar', 'Programar', 'c-warn'], ['urgencia', 'Urgência', 'c-bad'], ['emergencia', 'Emergência', 'c-bad']];
-    return '<section class="card" id="sec-termografia"><div class="tit-sec"><h2>Termografia</h2><a class="btn sec peq" href="' + esc(t.link) + '" target="_blank" rel="noopener">Ver laudos de termografia</a></div>' +
-      '<div class="sub">' + t.laudos + ' ponto(s) inspecionado(s)</div><div class="niveis">' + NIV.map(function (x) { return '<span class="chip ' + x[2] + '">' + x[1] + ': ' + (n[x[0]] || 0) + '</span>'; }).join('') + '</div></section>';
+    var chips = function (m) { return NIV.map(function (x) { return '<span class="chip ' + x[2] + '">' + x[1] + ': ' + ((m || {})[x[0]] || 0) + '</span>'; }).join(''); };
+    var oss = liberados('termografia');
+    return '<section class="card" id="sec-termografia"><div class="tit-sec"><h2>Termografia</h2><span class="sub">' + t.laudos + ' ponto(s) inspecionado(s)</span></div>' +
+      '<div class="niveis">' + chips(n) + '</div>' +
+      (oss.length ? '<div class="tabela"><table><thead><tr><th>OS</th><th>Data</th><th>Pontos</th><th>Resultado</th><th></th></tr></thead><tbody>' +
+        oss.map(function (o) { return '<tr><td class="mono">' + esc(o.os || '') + '</td><td>' + data(isoDe(o.dataInspecao)) + '</td><td>' + (o.qtd || 0) + '</td><td><div class="niveis" style="margin:0">' + chips(o.porNivel) + '</div></td><td style="text-align:right"><a class="btn peq" href="' + esc(o.link) + '" target="_blank" rel="noopener">Ver e baixar laudos</a></td></tr>'; }).join('') +
+        '</tbody></table></div>' : '<p class="sub" style="margin:0">Os laudos aparecem aqui quando a IDEALLE liberar a OS de termografia.</p>') + '</section>';
   }
   function secOs() {
     var oo = estado.dados.os || [];
