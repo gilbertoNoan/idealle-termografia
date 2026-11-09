@@ -1,0 +1,16 @@
+{
+  "name": "IDEALLE · Portal do Cliente",
+  "short_name": "IDEALLE",
+  "description": "Equipamentos, prazos e relatórios da IDEALLE Inspeções e Serviços.",
+  "lang": "pt-BR",
+  "start_url": "/portal/",
+  "scope": "/portal/",
+  "display": "standalone",
+  "background_color": "#0b1120",
+  "theme_color": "#070b14",
+  "icons": [
+    { "src": "/portal/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/portal/icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/portal/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
