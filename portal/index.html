@@ -85,6 +85,21 @@
   .pilula b { color: var(--texto); font-weight: 700; overflow-wrap: anywhere; }
   .pilula .cnpj { font-family: ui-monospace, Menlo, Consolas, monospace; }
   @media (max-width: 600px) { .cli-logo { width: 96px; height: 96px; } .cli-logo img { max-width: 84px; max-height: 84px; } .cli-nome { font-size: 22px; } }
+  .conds { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+  .cond { background: var(--card); border: 1px solid var(--linha); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .cond-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .cond .nome { font-weight: 700; }
+  .cond-num { color: var(--muted); font-size: 13px; } .cond-num b { color: var(--texto); font-size: 22px; margin-right: 4px; }
+  .cond-rot { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .cbarra { display: flex; height: 12px; border-radius: 999px; overflow: hidden; gap: 2px; background: var(--linha); }
+  .clegenda { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--sub); }
+  .clegenda i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; }
+  .clegenda b { color: var(--texto); margin-left: 2px; }
+  .abas { display: flex; flex-wrap: wrap; gap: 6px; }
+  .aba { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--borda); background: transparent; color: var(--sub); font-weight: 600; cursor: pointer; }
+  .aba span { color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .aba.on { background: var(--amb); border-color: var(--amb); color: #111827; } .aba.on span { color: #111827; }
+  input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--amb); }
   .rodape { color: var(--muted); font-size: 12px; text-align: center; padding: 8px 0 0; }
   .carregando { text-align: center; color: var(--muted); padding: 18vh 16px; }
   .esconder { display: none !important; }
@@ -286,14 +301,144 @@
     var ativos = SERVICOS.filter(function (s) { return sv[s[0]]; }).length;
     tela.innerHTML =
       cabecalhoCliente(d.empresa) +
-      '<div class="resumo"><h1 style="font-size:22px">Situação da sua planta</h1>' +
+      '<div class="resumo"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px"><h1 style="font-size:22px">Situação da sua planta</h1>' +
+      (temDocumentos() ? '<button class="btn" id="b-relatorios" type="button">' + IC_DOC + ' Ver e baixar meus relatórios</button>' : '') + '</div>' +
       '<div class="kpis"><div class="kpi"><b>' + (total ? conf + '%' : '—') + '</b><span>em conformidade</span></div><div class="kpi"><b style="color:var(--ok)">' + (c.emdia || 0) + '</b><span>em dia</span></div>' +
       '<div class="kpi"><b style="color:var(--amb-t)">' + (c.vencendo || 0) + '</b><span>vencem em 90 dias</span></div><div class="kpi" style="border-color:var(--bad-b)"><b style="color:var(--bad)">' + (c.vencidos || 0) + '</b><span>vencidos</span></div></div></div>' +
       faixaContrato() +
+      secCondicoes() +
       '<section><div class="tit-sec"><h2>Seus serviços</h2><span class="sub">' + ativos + ' contratado(s) · ' + (SERVICOS.length - ativos) + ' disponível(is)</span></div><div class="servicos">' + cards + '</div></section>' +
       (sv.nr13 ? secVasos() + secLaudos() : '') + (sv.calibracao ? secCertificados() : '') + (sv.termografia && d.termografia ? secTermografia() : '') + secOs() +
       '<p class="rodape">Dados atualizados em ' + data(d.atualizadoEm) + '. Os documentos assinados ficam com a IDEALLE e são enviados sob solicitação. IDEALLE Inspeções e Serviços · CREA-SP · ' + esc(contato.telefone) + '</p>';
     ligarBuscas();
+    var br = $('b-relatorios'); if (br) br.onclick = function () { telaRelatorios('todos'); };
+  }
+
+  var IC_DOC = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="margin-right:8px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 12v6M9 15l3 3 3-3"/></svg>';
+
+  // ---------- Quantidade de equipamentos e condições ----------
+  function barra(partes) {
+    var tot = partes.reduce(function (a, p) { return a + p[1]; }, 0);
+    if (!tot) return '<div class="cbarra"><div style="flex:1;background:var(--linha)"></div></div>';
+    return '<div class="cbarra" role="img" aria-label="' + esc(partes.filter(function (p) { return p[1]; }).map(function (p) { return p[0] + ': ' + p[1]; }).join(', ')) + '">' +
+      partes.filter(function (p) { return p[1]; }).map(function (p) { return '<div style="flex:' + p[1] + ';background:' + p[2] + '" title="' + esc(p[0] + ': ' + p[1]) + '"></div>'; }).join('') + '</div>';
+  }
+  function legenda(partes) {
+    return '<div class="clegenda">' + partes.map(function (p) { return '<span><i style="background:' + p[2] + '"></i>' + esc(p[0]) + ' <b>' + p[1] + '</b></span>'; }).join('') + '</div>';
+  }
+  function conta(lista, campo, valor) { return lista.filter(function (x) { return x[campo] === valor; }).length; }
+  var COR = { ok: '#4ade80', warn: '#f59e0b', bad: '#f87171', azul: '#38bdf8', cinza: '#475569', laranja: '#fb923c' };
+  function secCondicoes() {
+    var d = estado.dados, sv = d.servicos || {}, cards = [];
+    if (sv.nr13) {
+      var vv = d.vasos || [];
+      var par = [['Apto', conta(vv, 'parecer', 'APTO'), COR.ok], ['Apto com restrições', conta(vv, 'parecer', 'APTO_COM_RESTRICOES'), COR.warn], ['Inapto', conta(vv, 'parecer', 'INAPTO'), COR.bad]];
+      var semPar = vv.length - par[0][1] - par[1][1] - par[2][1]; if (semPar) par.push(['Sem parecer', semPar, COR.cinza]);
+      var pz = [['Em dia', conta(vv, 'situacao', 'emdia'), COR.ok], ['Vence em 90 dias', conta(vv, 'situacao', 'vencendo'), COR.warn], ['Vencido', conta(vv, 'situacao', 'vencido'), COR.bad]];
+      cards.push('<div class="cond"><div class="cond-top"><span class="nome">NR-13</span><span class="cond-num"><b>' + vv.length + '</b> equipamento(s)</span></div>' +
+        '<span class="cond-rot">Condição (parecer do laudo)</span>' + barra(par) + legenda(par) +
+        '<span class="cond-rot">Prazo da próxima inspeção</span>' + barra(pz) + legenda(pz) + '</div>');
+    }
+    if (sv.calibracao) {
+      var cc = d.certificados || [];
+      var psv = cc.filter(function (x) { return /válvula/i.test(x.tipo); }).length;
+      var vz = [['Em dia', conta(cc, 'situacao', 'emdia'), COR.ok], ['Vence em 90 dias', conta(cc, 'situacao', 'vencendo'), COR.warn], ['Vencido', conta(cc, 'situacao', 'vencido'), COR.bad]];
+      cards.push('<div class="cond"><div class="cond-top"><span class="nome">Calibração</span><span class="cond-num"><b>' + cc.length + '</b> instrumento(s)</span></div>' +
+        '<span class="cond-rot">' + psv + ' válvula(s) de segurança · ' + (cc.length - psv) + ' manômetro(s)</span>' +
+        '<span class="cond-rot">Validade da calibração</span>' + barra(vz) + legenda(vz) + '</div>');
+    }
+    if (sv.termografia && d.termografia) {
+      var n = d.termografia.porNivel || {};
+      var tn = [['Normal', n.normal || 0, COR.ok], ['Observar', n.observar || 0, COR.azul], ['Programar', n.programar || 0, COR.warn], ['Urgência', n.urgencia || 0, COR.laranja], ['Emergência', n.emergencia || 0, COR.bad]];
+      cards.push('<div class="cond"><div class="cond-top"><span class="nome">Termografia</span><span class="cond-num"><b>' + (d.termografia.laudos || 0) + '</b> ponto(s)</span></div>' +
+        '<span class="cond-rot">Condição dos pontos inspecionados</span>' + barra(tn) + legenda(tn) + '</div>');
+    }
+    if (!cards.length) return '';
+    return '<section><div class="tit-sec"><h2>Seus equipamentos</h2><span class="sub">quantidade e condição por serviço</span></div><div class="conds">' + cards.join('') + '</div></section>';
+  }
+
+  // ---------- Meus relatórios: ver, marcar e baixar (como o portal da termografia) ----------
+  var TIPOS_DOC = { nr13: ['NR-13', 'c-azul', 'NR-13'], calibracao: ['Calibração', 'c-ok', 'Calibracao'], termografia: ['Termografia', 'c-warn', 'Termografia'] };
+  function temDocumentos() { return Object.keys(estado.laudos || {}).length > 0; }
+  function todosDocs() {
+    var l = estado.laudos || {};
+    return Object.keys(l).map(function (k) { return Object.assign({ chave: k, tipo: l[k].tipo || 'nr13' }, l[k]); })
+      .sort(function (a, b) { return (isoDe(b.dataInspecao) || '') < (isoDe(a.dataInspecao) || '') ? -1 : 1; });
+  }
+  async function bytesDoDoc(x) {
+    var partes = await Promise.all(Array.from({ length: x.partes }, function (_, i) { return db.collection('portal_laudos_partes').doc(x.chave + '__' + x.versao + '__' + i).get(); }));
+    var b64 = partes.map(function (p) { if (!p.exists) throw new Error('arquivo incompleto'); return p.data().dados; }).join('');
+    var bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+  function carregarZip() {
+    if (window.fflate) return Promise.resolve(window.fflate);
+    return new Promise(function (ok, erro) {
+      var sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js';
+      sc.onload = function () { ok(window.fflate); }; sc.onerror = function () { erro(new Error('não foi possível preparar o ZIP')); };
+      document.head.appendChild(sc);
+    });
+  }
+  function salvarArquivo(bytes, nome, tipo) {
+    var url = URL.createObjectURL(new Blob([bytes], { type: tipo }));
+    var a = document.createElement('a'); a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 120000);
+  }
+  async function baixarZip(lista, botao) {
+    if (!lista.length) { alert('Marque pelo menos um relatório.'); return; }
+    var txt = botao.textContent; botao.disabled = true;
+    try {
+      var zip = await carregarZip(), arquivos = {}, usados = {};
+      for (var i = 0; i < lista.length; i++) {
+        botao.textContent = 'Preparando ' + (i + 1) + ' de ' + lista.length + '…';
+        var x = lista[i], pasta = (TIPOS_DOC[x.tipo] || TIPOS_DOC.nr13)[2];
+        var nome = pasta + '/' + String(x.arquivo || (x.tag || 'documento') + '.pdf').replace(/[\\/:*?"<>|]/g, '_');
+        while (usados[nome]) nome = nome.replace(/(\.pdf)?$/i, '_2.pdf');
+        usados[nome] = true;
+        arquivos[nome] = [await bytesDoDoc(x), { level: 0 }];
+      }
+      salvarArquivo(zip.zipSync(arquivos), 'Relatorios_' + String(nomeEmpresa() || 'IDEALLE').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').slice(0, 40) + '_' + hoje() + '.zip', 'application/zip');
+    } catch (e) {
+      alert('Não foi possível baixar: ' + (e.code === 'permission-denied' ? 'acesso encerrado.' : (e.message || e)));
+    }
+    botao.disabled = false; botao.textContent = txt;
+  }
+  function telaRelatorios(filtro) {
+    var docs = todosDocs(), tipos = Object.keys(TIPOS_DOC).filter(function (t) { return docs.some(function (x) { return x.tipo === t; }); });
+    estado.filtroRel = filtro || 'todos';
+    tela.innerHTML = cabecalhoCliente(estado.dados.empresa) +
+      '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px"><div><button class="btn sec peq" id="r-voltar" type="button">← Voltar ao painel</button><h1 style="font-size:24px;margin-top:12px">Meus relatórios</h1>' +
+      '<span class="sub">Cópias para consulta. Os originais assinados digitalmente ficam arquivados na IDEALLE e são enviados sob solicitação.</span></div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:8px"><button class="btn sec" id="r-zip-sel" type="button">Baixar marcados (ZIP)</button><button class="btn" id="r-zip-todos" type="button">Baixar todos (ZIP)</button></div></div>' +
+      '<section class="card"><div class="busca" style="align-items:center"><div class="abas" role="tablist">' +
+      ['todos'].concat(tipos).map(function (t) { var n = t === 'todos' ? docs.length : docs.filter(function (x) { return x.tipo === t; }).length; return '<button type="button" role="tab" class="aba' + (t === estado.filtroRel ? ' on' : '') + '" data-filtro="' + t + '">' + (t === 'todos' ? 'Todos' : TIPOS_DOC[t][0]) + ' <span>' + n + '</span></button>'; }).join('') +
+      '</div><input type="search" id="r-busca" placeholder="Buscar por TAG, equipamento, número ou OS" aria-label="Buscar relatório"></div>' +
+      '<div class="tabela"><table><thead><tr><th style="width:36px"><input type="checkbox" id="r-todos" aria-label="Marcar todos"></th><th>Tipo</th><th>TAG</th><th>Documento</th><th>Data</th><th>OS</th><th></th></tr></thead><tbody id="r-linhas"></tbody></table></div></section>';
+    function filtrados() {
+      var q = normal(($('r-busca') || {}).value || '');
+      return docs.filter(function (x) { return (estado.filtroRel === 'todos' || x.tipo === estado.filtroRel) && (!q || normal([x.tag, x.equipamento, x.numero, x.os].join(' ')).indexOf(q) >= 0); });
+    }
+    function desenhar() {
+      var ff = filtrados();
+      $('r-linhas').innerHTML = ff.length ? ff.map(function (x) {
+        var t = TIPOS_DOC[x.tipo] || TIPOS_DOC.nr13, eTermo = x.tipo === 'termografia';
+        var docTxt = eTermo ? (x.qtd || 0) + ' ponto(s) inspecionado(s)' : esc(x.equipamento || '') + (x.numero ? '<div class="sub">Certificado ' + esc(x.numero) + (x.validade ? ' · validade ' + data(isoDe(x.validade)) : '') + '</div>' : '');
+        return '<tr><td>' + (eTermo ? '' : '<input type="checkbox" class="r-sel" value="' + esc(x.chave) + '" aria-label="Marcar ' + esc(x.tag || '') + '">') + '</td>' +
+          '<td><span class="chip ' + t[1] + '">' + t[0] + '</span></td><td class="mono">' + esc(x.tag || '—') + '</td><td>' + docTxt + '</td><td>' + data(isoDe(x.dataInspecao)) + '</td><td class="mono">' + esc(x.os || '') + '</td>' +
+          '<td style="text-align:right;white-space:nowrap">' + (eTermo ? '<a class="btn peq" href="' + esc(x.link) + '" target="_blank" rel="noopener">Ver e baixar laudos</a>' : botoesLaudo(x)) + '</td></tr>';
+      }).join('') : '<tr><td colspan="7" class="vazio">Nenhum relatório encontrado.</td></tr>';
+      $('r-todos').checked = false;
+    }
+    desenhar();
+    $('r-voltar').onclick = function () { painel(); window.scrollTo(0, 0); };
+    $('r-busca').oninput = desenhar;
+    $('r-todos').onchange = function () { var v = this.checked; tela.querySelectorAll('.r-sel').forEach(function (c) { c.checked = v; }); };
+    tela.querySelectorAll('[data-filtro]').forEach(function (b) { b.onclick = function () { telaRelatorios(b.dataset.filtro); }; });
+    var porChave = function (k) { return docs.filter(function (x) { return x.chave === k; })[0]; };
+    $('r-zip-sel').onclick = function () { baixarZip(Array.prototype.map.call(tela.querySelectorAll('.r-sel:checked'), function (c) { return porChave(c.value); }), this); };
+    $('r-zip-todos').onclick = function () { baixarZip(filtrados().filter(function (x) { return x.tipo !== 'termografia'; }), this); };
+    window.scrollTo(0, 0);
   }
 
   var IC = {
@@ -347,10 +492,7 @@
     var janela = baixar ? null : window.open('', '_blank'); // abre já no clique (o navegador bloqueia depois)
     var txt = botao.textContent; botao.disabled = true; botao.textContent = 'Carregando…';
     try {
-      var partes = await Promise.all(Array.from({ length: x.partes }, function (_, i) { return db.collection('portal_laudos_partes').doc(chave + '__' + x.versao + '__' + i).get(); }));
-      var b64 = partes.map(function (p) { if (!p.exists) throw new Error('arquivo incompleto'); return p.data().dados; }).join('');
-      var bin = atob(b64), bytes = new Uint8Array(bin.length);
-      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      var bytes = await bytesDoDoc(Object.assign({ chave: chave }, x));
       var url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
       if (baixar) { var a = document.createElement('a'); a.href = url; a.download = x.arquivo || ('Laudo_' + x.tag + '.pdf'); document.body.appendChild(a); a.click(); a.remove(); }
       else if (janela) janela.location.href = url; else window.open(url, '_blank');
