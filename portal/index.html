@@ -530,19 +530,6 @@
         '</div></div>';
     }).join('');
 
-    var linhasVasos = vasos.slice().sort(function (a, b) { return a.tag < b.tag ? -1 : 1; }).map(function (v) {
-      var x = docDaTag(v.tag), p = PARECER[v.parecer];
-      var qual = v.proximo && v.proximo === v.externo ? 'externo' : v.proximo && v.proximo === v.interno ? 'interno' : '';
-      var cor = v.situacao === 'vencido' ? 'c-bad' : v.situacao === 'vencendo' ? 'c-warn' : v.situacao === 'emdia' ? 'c-ok' : 'c-cinza';
-      return '<tr><td><span class="tagchip"><i class="' + (x ? 'ok' : '') + '"></i>' + esc(v.tag) + '</span></td>' +
-        '<td><b style="text-transform:uppercase">' + esc(v.nome || '—') + '</b><div class="sub">' + esc([v.area, v.categoria ? 'cat. ' + v.categoria : ''].filter(Boolean).join(' · ')) + '</div></td>' +
-        '<td>' + data(v.dataInspecao) + '<div class="sub">OS ' + esc(v.os || '') + '</div></td>' +
-        '<td>' + (v.proximo ? '<span class="chip ' + cor + '">' + mesAno(v.proximo) + (qual ? ' · ' + NOME_EXAME[qual] : '') + '</span>' : '<span class="sub">—</span>') + '</td>' +
-        '<td>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '<span class="sub">—</span>') + '</td>' +
-        '<td>' + (x ? '<span class="chip c-azul">Disponível</span>' : '<a class="sub" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + ' e preciso da cópia do laudo NR-13 do equipamento ' + v.tag + '.')) + '">Pedir cópia</a>') + '</td>' +
-        '<td style="text-align:right">' + (x ? botoesIcone(x) : '') + '</td></tr>';
-    }).join('');
-
     var certsPub = docs.filter(function (x) { return x.tipo === 'calibracao'; });
     var linhasCert = certsPub.map(function (x) {
       var val = isoDe(x.validade), sit = !val ? 'sem' : val < hoje() ? 'vencido' : dias(val) <= 90 ? 'vencendo' : 'emdia';
@@ -560,8 +547,6 @@
         kpi(vencidos + vencendo, vencidos ? 'var(--bad)' : vencendo ? 'var(--amb-t)' : 'var(--ok)', 'Prazos a cuidar', vencidos + ' vencido(s) · ' + vencendo + ' vencendo em 90 dias') +
       '</div>' +
       '<section class="card" id="rel-os"><div class="tit-sec"><h2>' + IC_OS + ' ORDENS DE SERVIÇO (' + oss.length + ')</h2></div>' + (cartoesOs || '<p class="vazio">Nenhuma OS ainda.</p>') + '</section>' +
-      (vasos.length || laudos.length ? '<section class="card" id="rel-nr13"><div class="tit-sec"><h2>' + IC_VASO + ' VASOS & LAUDOS (' + vasos.length + ')</h2></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Equipamento</th><th>Última inspeção</th><th>Próximo prazo</th><th>Parecer</th><th>Laudo</th><th style="text-align:right">PDF</th></tr></thead><tbody>' +
-        (linhasVasos || '<tr><td colspan="7" class="vazio">Nenhum equipamento.</td></tr>') + '</tbody></table></div><p class="sub" style="margin:10px 0 0">Bolinha verde: laudo disponível · olho mostra o PDF · seta baixa o PDF</p></section>' : '') +
       (certsPub.length ? '<section class="card" id="rel-calibracao"><div class="tit-sec"><h2>' + IC_VASO + ' CERTIFICADOS DE CALIBRAÇÃO (' + certsPub.length + ')</h2></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Instrumento</th><th>Calibração</th><th>Validade</th><th style="text-align:right">PDF</th></tr></thead><tbody>' + linhasCert + '</tbody></table></div></section>' : '');
 
     $('r-voltar').onclick = function () {
