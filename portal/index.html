@@ -113,7 +113,15 @@
   .rk b { font-size: 30px; line-height: 1.1; }
   .rk-t { font-weight: 700; } .rk-s { font-size: 12px; color: var(--muted); }
   .oscard { border: 1px solid var(--linha); border-left: 4px solid var(--amb); border-radius: 12px; padding: 14px 16px; background: #0b1324; display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
-  .oscab { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .oscab { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; cursor: pointer; border-radius: 8px; }
+  .oscab:hover .osseta, .oscab:focus-visible .osseta { color: var(--amb-t); }
+  .oscab:focus-visible { outline: 2px solid var(--amb); outline-offset: 4px; }
+  .osseta { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--sub); white-space: nowrap; }
+  .osseta svg { transition: transform .2s; }
+  .oscard.aberta .osseta svg { transform: rotate(180deg); }
+  .osdet { display: none; border-top: 1px solid var(--linha); padding-top: 10px; }
+  .oscard.aberta .osdet { display: block; }
+  .oscard.aberta .tagchips { display: none; }
   .tagchips { display: flex; flex-wrap: wrap; gap: 8px; }
   .tagchip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px 4px 10px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; font-size: 13px; color: var(--amb-t); white-space: nowrap; }
   .tagchip i { width: 8px; height: 8px; border-radius: 50%; background: var(--borda); } .tagchip i.ok { background: var(--ok); }
@@ -496,10 +504,25 @@
       var chips = pdfsOs.map(function (x) {
         return '<span class="tagchip"><i class="ok"></i>' + esc(x.tag || x.numero || 'Documento') + '<button type="button" class="tagolho" data-laudo="' + esc(x.chave) + '" data-acao="ver" title="Ver o PDF" aria-label="Ver o PDF de ' + esc(x.tag || '') + '">' + iconeOlho() + '</button></span>';
       }).join('') + tagsSemDoc.map(function (v) { return '<span class="tagchip" title="Laudo ainda não liberado"><i></i>' + esc(v.tag) + '</span>'; }).join('');
-      return '<div class="oscard"><div class="oscab"><span class="mono" style="font-size:17px">' + esc(o.codigo) + '</span>' +
+      // Relatórios desta OS (aparecem ao clicar na OS)
+      var linhasOs = pdfsOs.map(function (x) {
+        var v = vasos.filter(function (w) { return w.tag === x.tag; })[0] || {}, p = PARECER[x.parecer || v.parecer];
+        var nomeDoc = x.tipo === 'calibracao' ? 'Certificado ' + (x.numero || '') : (x.equipamento || v.nome || 'Laudo NR-13');
+        return '<tr><td><span class="tagchip"><i class="ok"></i>' + esc(x.tag || x.numero || '—') + '</span></td>' +
+          '<td><b style="text-transform:uppercase">' + esc(nomeDoc) + '</b>' + (v.area ? '<div class="sub">' + esc(v.area) + '</div>' : '') + '</td>' +
+          '<td>' + data(isoDe(x.dataInspecao)) + '</td>' +
+          '<td>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '<span class="sub">—</span>') + '</td>' +
+          '<td style="text-align:right">' + botoesIcone(x) + '</td></tr>';
+      }).join('') + tagsSemDoc.map(function (v) {
+        return '<tr><td><span class="tagchip"><i></i>' + esc(v.tag) + '</span></td><td><b style="text-transform:uppercase">' + esc(v.nome || '—') + '</b></td><td>' + data(v.dataInspecao) + '</td><td colspan="2"><span class="sub">Laudo ainda não liberado</span></td></tr>';
+      }).join('');
+      var det = '<div class="osdet">' + (linhasOs ? '<div class="tabela"><table><thead><tr><th>TAG</th><th>Equipamento</th><th>Inspeção</th><th>Parecer</th><th style="text-align:right">PDF</th></tr></thead><tbody>' + linhasOs + '</tbody></table></div>'
+        : '<p class="vazio" style="margin:0">' + (termo ? 'Os laudos de termografia desta OS abrem no botão abaixo.' : 'Os relatórios desta OS ainda não foram liberados pela IDEALLE.') + '</p>') + '</div>';
+      var seta = '<span class="osseta">' + (pdfsOs.length ? pdfsOs.length + ' relatório(s)' : 'Ver relatórios') + ' <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>';
+      return '<div class="oscard"><div class="oscab" role="button" tabindex="0" aria-expanded="false" title="Clique para ver os relatórios desta OS"><span class="mono" style="font-size:17px">' + esc(o.codigo) + '</span>' +
         (st ? '<span class="chip ' + (st === 'Concluída' ? 'c-ok' : 'c-warn') + '">' + esc(st === 'Concluída' ? 'Concluída' : 'Em andamento') + '</span>' : '') +
-        '<span class="sub">' + data(o.abertura) + ' · ' + (pdfsOs.length || !termo ? pdfsOs.length + ' documento(s)' : (termo.qtd || 0) + ' ponto(s) de termografia') + (o.servicos.length ? ' · ' + esc(o.servicos.join(', ')) : '') + '</span></div>' +
-        (chips ? '<div class="tagchips">' + chips + '</div>' : '') +
+        '<span class="sub">' + data(o.abertura) + ' · ' + (pdfsOs.length || !termo ? pdfsOs.length + ' documento(s)' : (termo.qtd || 0) + ' ponto(s) de termografia') + (o.servicos.length ? ' · ' + esc(o.servicos.join(', ')) : '') + '</span>' + seta + '</div>' +
+        (chips ? '<div class="tagchips">' + chips + '</div>' : '') + det +
         '<div class="osacoes">' +
         (termo ? '<a class="btn sec peq" href="' + esc(termo.link) + '" target="_blank" rel="noopener">Ver laudos de termografia (' + (termo.qtd || 0) + ')</a>' : '') +
         (pdfsOs.length ? '<button type="button" class="btn sec peq" data-zipos="' + esc(o.codigo) + '">' + iconeBaixar() + '&nbsp;Baixar documentos da OS (ZIP)</button>' : '') +
@@ -545,6 +568,11 @@
       if (soNr13) { location.href = location.pathname; return; } // página aberta pelo cartão NR-13: volta ao painel do portal
       painel(); window.scrollTo(0, 0);
     };
+    tela.querySelectorAll('.oscab').forEach(function (c) {
+      var alternar = function () { var card = c.parentNode, ab = card.classList.toggle('aberta'); c.setAttribute('aria-expanded', ab ? 'true' : 'false'); };
+      c.onclick = function (e) { if (!e.target.closest('button,a')) alternar(); };
+      c.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternar(); } };
+    });
     var zt = $('r-zip-todos'); if (zt) zt.onclick = function () { baixarZip(docsPdf, this); };
     tela.querySelectorAll('[data-zipos]').forEach(function (b) {
       b.onclick = function () { var cod = b.dataset.zipos; baixarZip(docsPdf.filter(function (x) { return x.os === cod; }), b); };
