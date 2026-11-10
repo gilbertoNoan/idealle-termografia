@@ -6,7 +6,7 @@
          (Configuracoes > Administracao). Codigo da trava: painel-central/guard/guard.ts -->
     <script>(function(){var l=location,h=l.hostname;if(l.protocol!=='https:'||/^(localhost|127\.0\.0\.1)$/.test(h)||/(claudeusercontent\.com|claude\.ai|claude\.site)$/.test(h))return;if(new URLSearchParams(l.search).has('cliente'))return;window.__cronosGuard=new Promise(function(r){window.__cronosGuardPronto=r});var d=document,s=d.createElement('style');s.id='cronos-guard-hide';s.textContent='body{visibility:hidden!important}';d.head.appendChild(s);var g=d.createElement('script');g.src='https://painel-central-rosy.vercel.app/guard.js';g.setAttribute('data-sistema','termografia-descaracterizacao');g.setAttribute('data-recarregar','1');g.onerror=function(){d.title='CRONOS';d.documentElement.innerHTML='<body style="font-family:sans-serif;padding:40px;background:#03060c;color:#e2e8f0">N&atilde;o foi poss&iacute;vel verificar o acesso ao CRONOS. Verifique a internet e recarregue a p&aacute;gina.</body>'};d.head.appendChild(g);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.11.10-13" />
+<meta name="app-version" content="2026.11.10-14" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -568,6 +568,31 @@
   .dl-fmt-l { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; }
   .dl-fmt { width: auto; padding: 8px 10px; margin: 0; font-size: 13px; }
   .dl-btn { width: auto; margin: 0; padding: 11px 22px; display: inline-flex; align-items: center; gap: 6px; }
+
+  /* ---- Painel "Baixar laudos": opções em cartões, chips de criticidade em pílulas ---- */
+  .dl-panel { gap: 10px; }
+  .dl-op { padding: 11px 14px; border: 1.5px solid var(--glass-borda, var(--borda)); border-radius: 12px; background: rgba(255,255,255,.03); transition: border-color .15s, background .15s, box-shadow .15s; align-items: center; }
+  .dl-op:hover { border-color: #7CACFF; }
+  .dl-op:has(.dl-radio:checked) { border-color: #4C8DFF; background: rgba(76,141,255,.14); box-shadow: 0 0 0 3px rgba(76,141,255,.15); }
+  .dl-op .dl-radio { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; margin: 0; border-radius: 50%; border: 2px solid #7a8aa8; background: transparent; flex: none; display: grid; place-content: center; cursor: pointer; transition: border-color .15s; }
+  .dl-op .dl-radio::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #4C8DFF; transform: scale(0); transition: transform .15s; }
+  .dl-op .dl-radio:checked { border-color: #4C8DFF; }
+  .dl-op .dl-radio:checked::after { transform: scale(1); }
+  .dl-chips { margin: -2px 0 2px 32px; gap: 8px; }
+  .dl-chips .sev-chip { padding: 7px 14px 7px 10px; gap: 8px; border-radius: 999px; font-size: 13px; background: rgba(255,255,255,.06); color: var(--texto); border: 1.5px solid var(--glass-borda, #3a465e); transition: all .15s; user-select: none; }
+  .dl-chips .sev-chip:hover { border-color: #7CACFF; transform: translateY(-1px); }
+  .dl-chips .sev-chip input { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; border-radius: 6px; border: 2px solid #7a8aa8; display: grid; place-content: center; flex: none; background: transparent; transition: all .15s; }
+  .dl-chips .sev-chip input::after { content: ''; width: 9px; height: 5px; border-left: 2.5px solid #fff; border-bottom: 2.5px solid #fff; transform: rotate(-45deg) scale(0); margin-top: -2px; transition: transform .12s; }
+  .dl-chips .sev-chip input:checked { background: #4C8DFF; border-color: #4C8DFF; }
+  .dl-chips .sev-chip input:checked::after { transform: rotate(-45deg) scale(1); }
+  .dl-chips .sev-chip:has(input:checked) { background: rgba(76,141,255,.22); border-color: #4C8DFF; font-weight: 700; }
+  .dl-chips .sev-chip i { width: 11px; height: 11px; }
+  .dl-todos { margin-left: 32px; }
+  .dl-todos .laudo-check { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1.5px dashed var(--glass-borda, #3a465e); cursor: pointer; font-size: 13px; }
+  .dl-todos .laudo-check:hover { border-color: #7CACFF; }
+  .dl-fmt { padding: 10px 12px; border-radius: 10px; }
+  .dl-btn { padding: 12px 28px; border-radius: 12px; font-weight: 700; box-shadow: 0 6px 18px rgba(76,141,255,.35); transition: transform .15s, box-shadow .15s; }
+  .dl-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(76,141,255,.5); }
   .emp-busca { position: relative; display: flex; align-items: center; margin: 4px 0 12px; }
   .emp-busca svg { position: absolute; left: 13px; width: 18px; height: 18px; color: var(--texto-suave); pointer-events: none; }
   .emp-busca input { width: 100%; margin: 0; padding: 12px 40px 12px 40px; border-radius: 12px; font-size: 15px; }
