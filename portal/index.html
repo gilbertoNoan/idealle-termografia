@@ -339,7 +339,7 @@
         var docsCal = todosDocs().filter(function (x) { return x.tipo === 'calibracao'; }), qc = contarCalibracao((d.certificados || []).concat(docsCal));
         info = 'PSV: ' + qc.psv + '\nPI: ' + qc.pi; }
       if (ativo && s[0] === 'termografia') {
-        info = 'Laudos: ' + ((d.termografia && d.termografia.laudos) || 0);
+        info = 'Quadros: ' + ((d.termografia && d.termografia.laudos) || 0);
       }
       if (!ativo) return '<div class="serv trancado"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Não contratado"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
         '<span class="info">' + esc(s[2]) + '</span><a class="btn sec peq" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + ' e quero uma proposta de ' + s[1] + ' (' + s[2] + ').')) + '">Quero contratar</a></div>';
@@ -423,7 +423,7 @@
     if (te.length) {
       var porNivel = {}, qtd = 0, crit = 0;
       te.forEach(function (x) { qtd += x.qtd || 0; crit += x.criticos || 0; Object.keys(x.porNivel || {}).forEach(function (k) { porNivel[k] = (porNivel[k] || 0) + x.porNivel[k]; }); });
-      d.termografia = { laudos: qtd, criticos: crit, porNivel: porNivel, link: (d.termografia && d.termografia.link) || te[0].link };
+      d.termografia = { laudos: qtd, criticos: crit, porNivel: porNivel, os: te.length, link: te.length === 1 ? te[0].link : ((d.termografia && d.termografia.link) || te[0].link) };
     } else d.termografia = null;
     var codigos = {}; docs.forEach(function (x) { if (x.os) codigos[up(x.os)] = 1; });
     d.os = (d.os || []).filter(function (o) { return codigos[up(o.codigo)]; });
@@ -755,7 +755,11 @@
       // Termografia: abre o portal de laudos de termografia do cliente (o mesmo link do sistema de termografia)
       var ir = function () {
         var t = estado.dados && estado.dados.termografia;
-        if (el.dataset.ir === 'termografia' && t && t.link) { location.href = t.link + (t.link.indexOf('?') < 0 ? '?' : '&') + 'de=portal'; return; } // mesma aba; lá tem "Voltar ao portal"
+        if (el.dataset.ir === 'termografia') {
+          if (t && t.link) { location.href = t.link + (t.link.indexOf('?') < 0 ? '?' : '&') + 'de=portal'; return; } // mesma aba; lá tem "Voltar ao portal"
+          alert('Os laudos de termografia ainda não foram liberados pela IDEALLE. Assim que a inspeção for enviada ao portal, eles aparecem aqui.');
+          return;
+        }
         // NR-13: abre a página dos relatórios NR-13 na mesma aba, como o portal do sistema de relatórios
         if (el.dataset.ir === 'nr13' || el.dataset.ir === 'calibracao') { location.href = location.pathname + '?pagina=' + el.dataset.ir; return; }
         telaRelatorios(el.dataset.ir);
