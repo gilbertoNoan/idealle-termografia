@@ -335,7 +335,7 @@
       var ativo = !!sv[s[0]], info = s[2];
       if (ativo && s[0] === 'nr13') { var vv = d.vasos || [], ven = vv.filter(function (x) { return x.situacao === 'vencido'; }).length, prox = vv.filter(function (x) { return x.situacao === 'vencendo'; }).length; info = vv.length + ' equipamento(s)' + (ven ? ' · ' + ven + ' vencido(s)' : '') + (prox ? ' · ' + prox + ' vencendo' : '') + ' · ver relatórios ›'; }
       if (ativo && s[0] === 'calibracao') { var nCal = Math.max((d.certificados || []).length, todosDocs().filter(function (x) { return x.tipo === 'calibracao'; }).length); var calTodos = (d.certificados || []).concat(todosDocs().filter(function (x) { return x.tipo === 'calibracao'; })), tagTipo = {};
-        calTodos.forEach(function (c) { var tg = c.tag || c.numero; if (tg && !tagTipo[tg]) tagTipo[tg] = /v[aá]lvula|psv|safety/i.test(c.tipo || c.equipamento || '') ? 'psv' : 'pi'; });
+        calTodos.forEach(function (c, i) { var tg = c.tag || (c.numero ? 'n:' + c.numero : '') || 's:' + (c.os || '') + ':' + i; if (!tagTipo[tg]) tagTipo[tg] = /v[aá]lvula|psv|safety/i.test(c.tipo || c.equipamento || '') ? 'psv' : 'pi'; });
         var qPsv = Object.keys(tagTipo).filter(function (k) { return tagTipo[k] === 'psv'; }).length, qPi = Object.keys(tagTipo).length - qPsv;
         info = qPsv + ' válvula(s) PSV · ' + qPi + ' manômetro(s) PI · ' + nCal + ' certificado(s) · ver certificados ›'; }
       if (ativo && s[0] === 'termografia' && d.termografia) info = d.termografia.laudos + ' ponto(s) inspecionado(s)' + (d.termografia.criticos ? ' · ' + d.termografia.criticos + ' crítico(s)' : '') + ' · ver laudos ›';
@@ -498,7 +498,9 @@
           '<td>' + data(isoDe(x.dataInspecao)) + '</td><td>' + chipSit(s.sit, s.val) + (s.val ? '<div class="sub">validade ' + data(s.val) + '</div>' : '') + '</td>' +
           '<td style="text-align:right">' + botoesIcone(x) + '</td></tr>';
       }).join('') + certs.filter(function (c) { return c.os === o.codigo && !pdfsOs.some(function (x) { return x.tag === c.tag && (!c.numero || !x.numero || String(x.numero) === String(c.numero)); }); }).map(function (c) {
-        return '<tr><td><span class="tagchip"><i></i>' + esc(c.tag || '—') + '</span></td><td><b style="text-transform:uppercase">' + esc(c.tipo || 'Instrumento') + '</b>' + (c.numero ? '<div class="sub">Certificado ' + esc(c.numero) + '</div>' : '') + '</td><td>' + data(c.data) + '</td><td colspan="2"><span class="sub">Certificado ainda não liberado</span></td></tr>';
+        var rotTag = c.tag ? esc(c.tag) : '<span style="color:var(--sub);font-weight:600">sem TAG</span>';
+        return '<tr><td><span class="tagchip"><i></i>' + rotTag + '</span></td><td><b style="text-transform:uppercase">' + esc(c.tipo || 'Instrumento') + '</b>' + (c.numero ? '<div class="sub">Certificado ' + esc(c.numero) + '</div>' : '') + '</td><td>' + data(c.data) + '</td>' +
+          '<td>' + (c.validade ? chipSit(c.situacao || 'sem', c.validade) + '<div class="sub">validade ' + data(c.validade) + '</div>' : '<span class="sub">—</span>') + '</td><td style="text-align:right"><span class="sub">PDF ainda não liberado</span></td></tr>';
       }).join('') : pdfsOs.map(function (x) {
         var v = vasos.filter(function (w) { return w.tag === x.tag; })[0] || {}, p = PARECER[x.parecer || v.parecer];
         var nomeDoc = x.tipo === 'calibracao' ? 'Certificado ' + (x.numero || '') : (x.equipamento || v.nome || 'Laudo NR-13');
@@ -536,9 +538,11 @@
       '<h1 style="font-size:24px;margin-top:12px">' + (soNr13 ? 'Relatórios NR-13' : soCal ? 'Certificados de calibração' : 'Meus relatórios') + '</h1><span class="sub">Cópias para consulta. Os originais assinados digitalmente ficam arquivados na IDEALLE e são enviados sob solicitação.</span></div>' +
       (docsPdf.length ? '<button class="btn" id="r-zip-todos" type="button">' + iconeBaixar() + '&nbsp;Baixar todos os PDFs (ZIP)</button>' : '') + '</div>' +
       '<div class="rkpis">' + (soCal ? (function () {
-        var cv = certsPub.filter(function (x) { return sitCert(x).sit === 'vencido'; }).length, cp = certsPub.filter(function (x) { return sitCert(x).sit === 'vencendo'; }).length;
+        // Validades: certificados publicados mais os registrados na OS que ainda não têm PDF
+        var sits = certsPub.map(function (x) { return sitCert(x).sit; }).concat(certs.filter(function (c) { return !certsPub.some(function (x) { return x.os === c.os && x.tag === c.tag && (!c.numero || !x.numero || String(x.numero) === String(c.numero)); }); }).map(function (c) { return c.situacao; }));
+        var cv = sits.filter(function (s) { return s === 'vencido'; }).length, cp = sits.filter(function (s) { return s === 'vencendo'; }).length;
         // Instrumentos por tipo (TAG única): válvulas de segurança (PSV) e manômetros (PI)
-        var porTag = {}; certs.concat(certsPub).forEach(function (c) { var tag = c.tag || c.numero; if (tag && !porTag[tag]) porTag[tag] = /v[aá]lvula|psv|safety/i.test(c.tipo || c.equipamento || '') ? 'psv' : 'pi'; });
+        var porTag = {}; certs.concat(certsPub).forEach(function (c, i) { var tag = c.tag || (c.numero ? 'n:' + c.numero : '') || 's:' + (c.os || '') + ':' + i; if (!porTag[tag]) porTag[tag] = /v[aá]lvula|psv|safety/i.test(c.tipo || c.equipamento || '') ? 'psv' : 'pi'; });
         var nPsv = 0, nPi = 0; Object.keys(porTag).forEach(function (k) { if (porTag[k] === 'psv') nPsv++; else nPi++; });
         var tipoDoc = function (x) { return /v[aá]lvula|psv|safety/i.test(x.equipamento || x.tipo || '') ? 'psv' : 'pi'; };
         var dispPsv = certsPub.filter(function (x) { return tipoDoc(x) === 'psv'; }).length, dispPi = certsPub.length - dispPsv;
