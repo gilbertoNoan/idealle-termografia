@@ -135,25 +135,6 @@
   .carregando { text-align: center; color: var(--muted); padding: 18vh 16px; }
   .esconder { display: none !important; }
   @media (max-width: 600px) { h1 { font-size: 22px; } .kpi { flex: 1 1 40%; } .serv { min-height: 0; } }
-  /* Apresentação CRONOS (igual à do portal de laudos de termografia) */
-  #cronos-intro { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 24px; text-align: center; color: #fff;
-    background: radial-gradient(600px 420px at 50% 38%, rgba(232,154,28,.16), transparent 70%), radial-gradient(900px 600px at 50% 120%, rgba(232,154,28,.10), transparent), #050505;
-    transition: opacity .8s ease, visibility .8s; }
-  #cronos-intro[hidden] { display: none !important; }
-  #cronos-intro.saindo { opacity: 0; visibility: hidden; }
-  #cronos-intro .ci-marca { position: relative; width: min(300px, 62vw); border-radius: 22px; overflow: hidden; box-shadow: 0 30px 80px -20px rgba(0,0,0,.9), 0 0 70px -10px rgba(232,154,28,.35); animation: ciLogo 1.4s cubic-bezier(.16,1,.3,1) both; }
-  #cronos-intro .ci-logo { display: block; width: 100%; height: auto; }
-  #cronos-intro .ci-brilho { position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.22) 50%, transparent 65%); transform: translateX(-120%); animation: ciBrilho 1.6s 1.2s ease-in-out both; pointer-events: none; }
-  #cronos-intro .ci-sub { font-size: clamp(12px, 2.4vw, 15px); letter-spacing: .38em; text-transform: uppercase; color: #d9dde4; margin: 0; animation: ciSobe .9s 1.1s ease both; }
-  #cronos-intro .ci-linha { width: 0; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, #E89A1C, transparent); animation: ciLinha 1.1s .9s ease forwards; }
-  #cronos-intro .ci-mod { margin: 0; font-size: 13px; color: #8f96a3; letter-spacing: .08em; animation: ciSobe .9s 1.3s ease both; }
-  #cronos-intro .ci-btn { margin-top: 10px; padding: 14px 34px; border-radius: 999px; background: linear-gradient(135deg, #F2A93B, #C47A0A); color: #1a1100; font-size: 15px; font-weight: 800; letter-spacing: .04em; border: 0; cursor: pointer; transition: transform .2s, filter .2s; animation: ciSobe .9s 1.6s ease both; box-shadow: 0 10px 28px -6px rgba(232,154,28,.55); }
-  #cronos-intro .ci-btn:hover { filter: brightness(1.08); transform: translateY(-2px); }
-  @keyframes ciLogo { from { opacity: 0; transform: scale(.85); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }
-  @keyframes ciSobe { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-  @keyframes ciLinha { to { width: min(260px, 55vw); } }
-  @keyframes ciBrilho { to { transform: translateX(120%); } }
-  @media (prefers-reduced-motion: reduce) { #cronos-intro * { animation-duration: .01ms !important; animation-delay: 0s !important; } }
 </style>
 </head>
 <body>
@@ -501,9 +482,6 @@
       var termo = docsOs.filter(function (x) { return x.tipo === 'termografia'; })[0];
       var tagsSemDoc = vasos.filter(function (v) { return v.os === o.codigo && !pdfsOs.some(function (x) { return x.tag === v.tag; }); });
       var st = STATUS_OS[o.status] || '';
-      var chips = pdfsOs.map(function (x) {
-        return '<span class="tagchip"><i class="ok"></i>' + esc(x.tag || x.numero || 'Documento') + '<button type="button" class="tagolho" data-laudo="' + esc(x.chave) + '" data-acao="ver" title="Ver o PDF" aria-label="Ver o PDF de ' + esc(x.tag || '') + '">' + iconeOlho() + '</button></span>';
-      }).join('') + tagsSemDoc.map(function (v) { return '<span class="tagchip" title="Laudo ainda não liberado"><i></i>' + esc(v.tag) + '</span>'; }).join('');
       // Relatórios desta OS (aparecem ao clicar na OS)
       var linhasOs = pdfsOs.map(function (x) {
         var v = vasos.filter(function (w) { return w.tag === x.tag; })[0] || {}, p = PARECER[x.parecer || v.parecer];
@@ -518,11 +496,11 @@
       }).join('');
       var det = '<div class="osdet">' + (linhasOs ? '<div class="tabela"><table><thead><tr><th>TAG</th><th>Equipamento</th><th>Inspeção</th><th>Parecer</th><th style="text-align:right">PDF</th></tr></thead><tbody>' + linhasOs + '</tbody></table></div>'
         : '<p class="vazio" style="margin:0">' + (termo ? 'Os laudos de termografia desta OS abrem no botão abaixo.' : 'Os relatórios desta OS ainda não foram liberados pela IDEALLE.') + '</p>') + '</div>';
-      var seta = '<span class="osseta">' + (pdfsOs.length ? pdfsOs.length + ' relatório(s)' : 'Ver relatórios') + ' <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>';
+      var seta = '<span class="osseta">' + (pdfsOs.length ? 'Ver ' + pdfsOs.length + ' relatório(s)' : 'Ver relatórios') + ' <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>';
       return '<div class="oscard"><div class="oscab" role="button" tabindex="0" aria-expanded="false" title="Clique para ver os relatórios desta OS"><span class="mono" style="font-size:17px">' + esc(o.codigo) + '</span>' +
         (st ? '<span class="chip ' + (st === 'Concluída' ? 'c-ok' : 'c-warn') + '">' + esc(st === 'Concluída' ? 'Concluída' : 'Em andamento') + '</span>' : '') +
         '<span class="sub">' + data(o.abertura) + ' · ' + (pdfsOs.length || !termo ? pdfsOs.length + ' documento(s)' : (termo.qtd || 0) + ' ponto(s) de termografia') + (o.servicos.length ? ' · ' + esc(o.servicos.join(', ')) : '') + '</span>' + seta + '</div>' +
-        (chips ? '<div class="tagchips">' + chips + '</div>' : '') + det +
+        det +
         '<div class="osacoes">' +
         (termo ? '<a class="btn sec peq" href="' + esc(termo.link + (termo.link.indexOf('?') < 0 ? '?' : '&') + 'de=portal') + '">Ver laudos de termografia (' + (termo.qtd || 0) + ')</a>' : '') +
         (pdfsOs.length ? '<button type="button" class="btn sec peq" data-zipos="' + esc(o.codigo) + '">' + iconeBaixar() + '&nbsp;Baixar documentos da OS (ZIP)</button>' : '') +
@@ -708,7 +686,7 @@
         var t = estado.dados && estado.dados.termografia;
         if (el.dataset.ir === 'termografia' && t && t.link) { location.href = t.link + (t.link.indexOf('?') < 0 ? '?' : '&') + 'de=portal'; return; } // mesma aba; lá tem "Voltar ao portal"
         // NR-13: abre a página dos relatórios NR-13 na mesma aba, como o portal do sistema de relatórios
-        if (el.dataset.ir === 'nr13') { try { sessionStorage.removeItem('cronos-intro-nr13'); } catch (e) {} location.href = location.pathname + '?pagina=nr13'; return; } // mesma aba, com a apresentação a cada clique
+        if (el.dataset.ir === 'nr13') { location.href = location.pathname + '?pagina=nr13'; return; }
         telaRelatorios(el.dataset.ir);
       };
       el.onclick = ir; el.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ir(); } };
@@ -747,33 +725,6 @@
     }
     if (u) carregar(u); else telaEntrar();
   });
-})();
-</script>
-<div id="cronos-intro" hidden role="dialog" aria-label="Apresentação CRONOS">
-  <div class="ci-marca"><img class="ci-logo" alt="CRONOS by idealle" src="cronos-logo.jpg"><span class="ci-brilho" aria-hidden="true"></span></div>
-  <div class="ci-linha"></div>
-  <p class="ci-sub">Sistema de Gestão Inteligente</p>
-  <p class="ci-mod">Portal do Cliente · Relatórios NR-13</p>
-  <button type="button" class="ci-btn" id="cronos-intro-entrar">Acessar meus relatórios</button>
-</div>
-<script>
-// Apresentação ao abrir os relatórios NR-13 (?pagina=nr13), uma vez por sessão, como na termografia
-(function () {
-  try {
-    if (new URLSearchParams(location.search).get('pagina') !== 'nr13') return;
-    var vista = false; try { vista = sessionStorage.getItem('cronos-intro-nr13') === '1'; } catch (e) {}
-    if (vista) return;
-    var el = document.getElementById('cronos-intro'); if (!el) return;
-    el.hidden = false;
-    var fechado = false;
-    function fechar() {
-      if (fechado) return; fechado = true;
-      try { sessionStorage.setItem('cronos-intro-nr13', '1'); } catch (e) {}
-      el.classList.add('saindo'); setTimeout(function () { el.hidden = true; }, 800);
-    }
-    document.getElementById('cronos-intro-entrar').addEventListener('click', fechar);
-    setTimeout(fechar, 7000);
-  } catch (e) {}
 })();
 </script>
 </body>
