@@ -334,7 +334,10 @@
     var cards = SERVICOS.map(function (s) {
       var ativo = !!sv[s[0]], info = s[2];
       if (ativo && s[0] === 'nr13') { var vv = d.vasos || [], ven = vv.filter(function (x) { return x.situacao === 'vencido'; }).length, prox = vv.filter(function (x) { return x.situacao === 'vencendo'; }).length; info = vv.length + ' equipamento(s)' + (ven ? ' · ' + ven + ' vencido(s)' : '') + (prox ? ' · ' + prox + ' vencendo' : '') + ' · ver relatórios ›'; }
-      if (ativo && s[0] === 'calibracao') { var nCal = Math.max((d.certificados || []).length, todosDocs().filter(function (x) { return x.tipo === 'calibracao'; }).length); info = nCal + ' certificado(s) · ver certificados ›'; }
+      if (ativo && s[0] === 'calibracao') { var nCal = Math.max((d.certificados || []).length, todosDocs().filter(function (x) { return x.tipo === 'calibracao'; }).length); var calTodos = (d.certificados || []).concat(todosDocs().filter(function (x) { return x.tipo === 'calibracao'; })), tagTipo = {};
+        calTodos.forEach(function (c) { var tg = c.tag || c.numero; if (tg && !tagTipo[tg]) tagTipo[tg] = /v[aá]lvula|psv|safety/i.test(c.tipo || c.equipamento || '') ? 'psv' : 'pi'; });
+        var qPsv = Object.keys(tagTipo).filter(function (k) { return tagTipo[k] === 'psv'; }).length, qPi = Object.keys(tagTipo).length - qPsv;
+        info = qPsv + ' válvula(s) PSV · ' + qPi + ' manômetro(s) PI · ' + nCal + ' certificado(s) · ver certificados ›'; }
       if (ativo && s[0] === 'termografia' && d.termografia) info = d.termografia.laudos + ' ponto(s) inspecionado(s)' + (d.termografia.criticos ? ' · ' + d.termografia.criticos + ' crítico(s)' : '') + ' · ver laudos ›';
       if (!ativo) return '<div class="serv trancado"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Não contratado"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
         '<span class="info">' + esc(s[2]) + '</span><a class="btn sec peq" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + ' e quero uma proposta de ' + s[1] + ' (' + s[2] + ').')) + '">Quero contratar</a></div>';
@@ -534,10 +537,14 @@
       (docsPdf.length ? '<button class="btn" id="r-zip-todos" type="button">' + iconeBaixar() + '&nbsp;Baixar todos os PDFs (ZIP)</button>' : '') + '</div>' +
       '<div class="rkpis">' + (soCal ? (function () {
         var cv = certsPub.filter(function (x) { return sitCert(x).sit === 'vencido'; }).length, cp = certsPub.filter(function (x) { return sitCert(x).sit === 'vencendo'; }).length;
-        var tagsCal = {}; certs.concat(certsPub).forEach(function (c) { if (c.tag) tagsCal[c.tag] = 1; });
+        // Instrumentos por tipo (TAG única): válvulas de segurança (PSV) e manômetros (PI)
+        var porTag = {}; certs.concat(certsPub).forEach(function (c) { var tag = c.tag || c.numero; if (tag && !porTag[tag]) porTag[tag] = /v[aá]lvula|psv|safety/i.test(c.tipo || c.equipamento || '') ? 'psv' : 'pi'; });
+        var nPsv = 0, nPi = 0; Object.keys(porTag).forEach(function (k) { if (porTag[k] === 'psv') nPsv++; else nPi++; });
+        var tipoDoc = function (x) { return /v[aá]lvula|psv|safety/i.test(x.equipamento || x.tipo || '') ? 'psv' : 'pi'; };
+        var dispPsv = certsPub.filter(function (x) { return tipoDoc(x) === 'psv'; }).length, dispPi = certsPub.length - dispPsv;
         return kpi(oss.length, 'var(--texto)', 'Ordens de serviço', andamento + ' em andamento · ' + (oss.length - andamento) + ' concluída(s)') +
-          kpi(Object.keys(tagsCal).length, 'var(--amb-t)', 'Instrumentos', 'manômetros e válvulas de segurança') +
-          kpi(certsPub.length, 'var(--texto)', 'Certificados disponíveis', 'cópias para consulta em PDF') +
+          kpi(nPsv, 'var(--amb-t)', 'Válvulas de segurança (PSV)', dispPsv + ' certificado(s) disponível(is)') +
+          kpi(nPi, 'var(--amb-t)', 'Manômetros (PI)', dispPi + ' certificado(s) disponível(is)') +
           kpi(cv + cp, cv ? 'var(--bad)' : cp ? 'var(--amb-t)' : 'var(--ok)', 'Validades a cuidar', cv + ' vencido(s) · ' + cp + ' vencendo em 90 dias') + '</div>';
       })() :
         kpi(oss.length, 'var(--texto)', 'Ordens de serviço', andamento + ' em andamento · ' + (oss.length - andamento) + ' concluída(s)') +
