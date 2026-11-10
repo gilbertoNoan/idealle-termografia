@@ -6,7 +6,7 @@
          (Configuracoes > Administracao). Codigo da trava: painel-central/guard/guard.ts -->
     <script>(function(){var l=location,h=l.hostname;if(l.protocol!=='https:'||/^(localhost|127\.0\.0\.1)$/.test(h)||/(claudeusercontent\.com|claude\.ai|claude\.site)$/.test(h))return;if(new URLSearchParams(l.search).has('cliente'))return;window.__cronosGuard=new Promise(function(r){window.__cronosGuardPronto=r});var d=document,s=d.createElement('style');s.id='cronos-guard-hide';s.textContent='body{visibility:hidden!important}';d.head.appendChild(s);var g=d.createElement('script');g.src='https://painel-central-rosy.vercel.app/guard.js';g.setAttribute('data-sistema','termografia-descaracterizacao');g.setAttribute('data-recarregar','1');g.onerror=function(){d.title='CRONOS';d.documentElement.innerHTML='<body style="font-family:sans-serif;padding:40px;background:#03060c;color:#e2e8f0">N&atilde;o foi poss&iacute;vel verificar o acesso ao CRONOS. Verifique a internet e recarregue a p&aacute;gina.</body>'};d.head.appendChild(g);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.11.10-5" />
+<meta name="app-version" content="2026.11.10-6" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -653,6 +653,10 @@
     </div>
   </div>
 
+  <div class="card" id="card-ultimas-os" style="display:none;">
+    <h2><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/></svg> Últimas OS</h2>
+    <div id="lista-ultimas-os"></div>
+  </div>
   <div class="card" id="card-lista">
     <h2 id="titulo-lista"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg> Pontos registrados <span class="contador" id="contador"></span></h2>
     <div id="lista"><div class="vazio">Nenhum ponto registrado ainda.</div></div>
@@ -2066,9 +2070,43 @@
     }
   });
 
+  function renderUltimasOs() {
+    var el = document.getElementById('lista-ultimas-os'); if (!el) return;
+    var oss = ordensCache.filter(function (o) { return !dashEmpresaId || o.empresaId === dashEmpresaId; });
+    oss = oss.slice().sort(function (a, b) {
+      var da = String(a.dataAbertura || ''), db_ = String(b.dataAbertura || '');
+      if (da !== db_) return da < db_ ? 1 : -1;
+      return (parseInt(b.numero, 10) || 0) - (parseInt(a.numero, 10) || 0);
+    }).slice(0, 6);
+    if (!oss.length) { el.innerHTML = '<div class="vazio">' + (ordensCarregadas ? 'Nenhuma OS ainda.' : 'Carregando…') + '</div>'; return; }
+    el.innerHTML = oss.map(function (o) {
+      var pts = pontosCache.filter(function (p) { return p.osId === o.id; }), porNivel = {};
+      pts.forEach(function (p) { var k = classificarPrincipal(p).key; porNivel[k] = (porNivel[k] || 0) + 1; });
+      var badges = SEV_ORDEM.filter(function (k) { return porNivel[k]; }).map(function (k) { return '<span class="filtro-badge ' + k + '">' + SEVERIDADE_LABEL[k] + ': ' + porNivel[k] + '</span>'; }).join(' ');
+      var data = o.dataAbertura ? String(o.dataAbertura).split('-').reverse().join('/') : '';
+      return '<div class="empresa-item emp-linha os-ult" data-os-id="' + escapeHtml(o.id) + '" tabindex="0" role="button" title="Abrir a empresa desta OS">' +
+        '<div style="min-width:0;flex:1"><div class="nome">' + escapeHtml(rotuloOS(o)) + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">' + (STATUS_OS_LABEL[o.status] || 'Aberta') + '</span></div>' +
+        '<div class="sub">' + (data ? 'Aberta em ' + data + ' · ' : '') + pts.length + ' laudo' + (pts.length === 1 ? '' : 's') + '</div>' +
+        (badges ? '<div class="pag-emp-niveis" style="margin-top:6px;">' + badges + '</div>' : '') + '</div>' +
+        '<svg class="emp-seta" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>';
+    }).join('');
+  }
+  document.getElementById('lista-ultimas-os').addEventListener('click', function (e) {
+    var c = e.target.closest('.os-ult'); if (!c) return;
+    var o = ordensCache.find(function (x) { return x.id === c.getAttribute('data-os-id'); }); if (!o) return;
+    var emp = empresasCache.find(function (x) { return x.id === o.empresaId; });
+    if (!emp) { toast('Empresa desta OS não encontrada.'); return; }
+    filtroSeveridade = null; filtroEmpresaOrdens = emp; mostrarView('ordens'); window.scrollTo(0, 0);
+  });
+  document.getElementById('lista-ultimas-os').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return; var c = e.target.closest('.os-ult'); if (c) { e.preventDefault(); c.click(); }
+  });
   function renderLista() {
     atualizarDashboard();
     if (!MODO_CLIENTE) { renderOrdens(); renderLaudosSalvos(); }
+    // Painel do sistema: sem lista de laudos; mostra só as últimas OS (o portal do cliente continua com a lista)
+    var cardUlt = document.getElementById('card-ultimas-os'), cardLst = document.getElementById('card-lista');
+    if (!MODO_CLIENTE) { if (cardLst) cardLst.style.display = 'none'; if (cardUlt) cardUlt.style.display = ''; renderUltimasOs(); return; }
     var visiveis = pontosAtivos();
     if (MODO_CLIENTE && filtroCliente) {
       visiveis = visiveis.filter(function (p) { return classificarPrincipal(p).key === filtroCliente; });
