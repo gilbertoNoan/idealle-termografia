@@ -2227,6 +2227,9 @@
     if (!OS_DO_CRONOS || !ordensCarregadas || !empresasCarregadas) return;
     var osId = OS_DO_CRONOS;
     OS_DO_CRONOS = null;
+    // Aberta pelo Cronos ("Fazer laudo"): aparece aqui mesmo sem termografia marcada na OS
+    osAbertaPeloCronos = osId;
+    if (filtrarOrdensTermografia()) { renderOrdens(); renderEmpresas(); }
     var os = ordensCache.find(function (o) { return o.id === osId; });
     if (!os) { toast('A OS aberta pelo Cronos não foi encontrada aqui.'); return; }
     mostrarView('novo');
@@ -2487,6 +2490,22 @@
 
   // ---------- Ordens de Serviço ----------
   var ordensCache = [];
+  // Todas as OS do Cronos; ordensCache fica só com as de termografia (pedido do dono: cada sistema mostra as suas)
+  var ordensTodasCache = [];
+  var osAbertaPeloCronos = null;
+  function ehOsDeTermografia(o) {
+    if (o.id === osAbertaPeloCronos) return true;
+    var s = o.servicos;
+    var temServicos = s && typeof s === 'object' && Object.keys(s).some(function (k) { return s[k]; });
+    if (!temServicos) return true; // OS antiga, de antes dos serviços no Cronos
+    if (s.termografia) return true;
+    return pontosCache.some(function (p) { return p.osId === o.id; }); // já tem laudo de termografia
+  }
+  function filtrarOrdensTermografia() {
+    var antes = ordensCache.length;
+    ordensCache = ordensTodasCache.filter(ehOsDeTermografia);
+    return antes !== ordensCache.length;
+  }
 
   function sugerirProximoNumeroOS() {
     var campo = document.getElementById('os-numero');
@@ -2675,7 +2694,7 @@
         if (db) {
           db.collection('ordens').doc(id).delete().then(function () { toast('OS excluída.'); }).catch(function () { toast('Não foi possível excluir.'); });
         } else {
-          ordensCache = ordensCache.filter(function (x) { return x.id !== id; });
+          ordensCache = ordensCache.filter(function (x) { return x.id !== id; }); ordensTodasCache = ordensTodasCache.filter(function (x) { return x.id !== id; });
           renderOrdens();
           toast('OS excluída.');
         }
@@ -3805,11 +3824,12 @@
       } catch (e) { console.error(e); }
       try {
         db.collection('ordens').orderBy('numero', 'desc').onSnapshot(function (snap) {
-          ordensCache = snap.docs.map(function (d) {
+          ordensTodasCache = snap.docs.map(function (d) {
             var data = (d.data ? d.data() : d) || {};
             var copy = {}; for (var k in data) if (Object.prototype.hasOwnProperty.call(data, k)) copy[k] = data[k];
             copy.id = d.id; return copy;
           });
+          filtrarOrdensTermografia();
           ordensCarregadas = true;
           renderOrdens();
           renderEmpresas();
@@ -3850,6 +3870,7 @@
               return copy;
             });
             if (ordenarLocal) pontosCache.sort(function (a, b) { return (b.numero || 0) - (a.numero || 0); });
+            if (ordensCarregadas && filtrarOrdensTermografia()) { renderOrdens(); renderEmpresas(); }
             limparErroBanco();
             var se = document.getElementById('sync-status'); if (se) se.hidden = false;
             renderLista();
