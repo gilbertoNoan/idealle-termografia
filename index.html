@@ -97,6 +97,19 @@
   }
   .empresa-item .nome, .os-item .nome { font-weight: 700; font-size: 14.5px; }
   .empresa-item .sub, .os-item .sub { font-size: 12.5px; color: var(--texto-suave); margin-top: 2px; }
+  .empresa-item[data-abrir] { cursor: pointer; }
+  .empresa-item[data-abrir]:hover { border-color: #f59e0b; }
+  /* Página da empresa (ao clicar na empresa): dados cadastrais sem contato, telefone e e-mail */
+  .pag-emp { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 12px 0 4px; }
+  .pag-emp-logo { width: 64px; height: 64px; border-radius: 12px; background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; font-weight: 800; color: #334155; font-size: 20px; }
+  .pag-emp-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .pag-emp-nome { font-size: 19px; font-weight: 800; text-transform: uppercase; }
+  .pag-emp-dados { font-size: 12.5px; color: var(--texto-suave); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .pag-emp-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-top: 12px; }
+  .pag-emp-kpi { border: 1px solid var(--borda, #334155); border-radius: 10px; padding: 10px 12px; }
+  .pag-emp-kpi b { display: block; font-size: 22px; }
+  .pag-emp-kpi span { font-size: 12px; color: var(--texto-suave); }
+  .pag-emp-niveis { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .os-status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #DCE6F1; color: #1F3864; }
   .os-laudos { margin-top: 10px; border-top: 1px dashed var(--borda); padding-top: 8px; }
   .os-laudos-titulo { font-size: 11.5px; font-weight: 700; color: var(--texto-suave); text-transform: uppercase; letter-spacing: .02em; margin-bottom: 6px; }
@@ -779,7 +792,8 @@
   <div class="voltar-bar"><button class="btn-secondary btn-voltar-dashboard" type="button">← Voltar para o Dashboard</button></div>
   <div class="card" id="card-ordens-filtro" style="display:none;">
     <button class="btn-secondary" id="btn-voltar-empresas">← Voltar para Empresas</button>
-    <h2 style="margin-top:10px;"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/></svg> OS de <span id="ordens-filtro-nome"></span></h2>
+    <div id="painel-empresa"></div>
+    <h2 style="margin-top:10px;" id="ordens-filtro-titulo"><svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/></svg> OS de <span id="ordens-filtro-nome"></span></h2>
     <div class="filtro-bar" id="ordens-filtro-severidade-bar" style="display:none;">
       <span>Mostrando só quadros: <span class="filtro-badge" id="filtro-ordens-badge"></span></span>
       <button class="btn-secondary" id="btn-limpar-filtro-ordens"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg> Limpar filtro</button>
@@ -2295,6 +2309,24 @@
   // ---------- Empresas ----------
   var empresasCache = [];
 
+  // Página da empresa: logo, nome, CNPJ e endereço (sem contato, telefone e e-mail do cliente), OS e quadros por nível
+  function painelEmpresaHtml(e) {
+    e = empresasCache.find(function (x) { return x.id === e.id; }) || e;
+    var oss = ordensCache.filter(function (o) { return o.empresaId === e.id; });
+    var abertas = oss.filter(function (o) { return !o.status || o.status === 'aberta' || o.status === 'execucao'; }).length;
+    var pts = pontosDaEmpresa(e.id), porNivel = {};
+    pts.forEach(function (p) { var k = classificarPrincipal(p).key; porNivel[k] = (porNivel[k] || 0) + 1; });
+    var criticos = (porNivel.urgencia || 0) + (porNivel.emergencia || 0);
+    var ini = String(e.nome || '?').trim().split(/\s+/).slice(0, 2).map(function (s) { return s.charAt(0); }).join('').toUpperCase();
+    var endereco = [e.endereco, [e.cidade, e.uf].filter(Boolean).join(' / '), e.cep ? 'CEP ' + e.cep : ''].filter(Boolean).join(' · ');
+    var kpi = function (n, rot) { return '<div class="pag-emp-kpi"><b>' + n + '</b><span>' + rot + '</span></div>'; };
+    return '<div class="pag-emp"><div class="pag-emp-logo">' + (e.logo ? '<img src="' + escapeHtml(e.logo) + '" alt="">' : escapeHtml(ini)) + '</div>' +
+      '<div style="min-width:0;flex:1"><div class="pag-emp-nome">' + escapeHtml(e.nome || '') + '</div><div class="pag-emp-dados">' +
+      (e.cnpj ? '<span>CNPJ: <b>' + escapeHtml(e.cnpj) + '</b></span>' : '') + (endereco ? '<span>' + escapeHtml(endereco) + '</span>' : '') +
+      (e.codigo ? '<span>Cliente ' + escapeHtml(e.codigo) + '</span>' : '') + '</div></div></div>' +
+      '<div class="pag-emp-kpis">' + kpi(oss.length, 'OS · ' + abertas + ' em aberto') + kpi(pts.length, 'quadros inspecionados') + kpi(criticos, 'críticos (urgência/emergência)') + '</div>' +
+      '<div class="pag-emp-niveis">' + Object.keys(SEVERIDADE_LABEL).map(function (k) { return '<span class="filtro-badge ' + k + '">' + SEVERIDADE_LABEL[k] + ': ' + (porNivel[k] || 0) + '</span>'; }).join('') + '</div>';
+  }
   function renderEmpresas() {
     var lista = document.getElementById('lista-empresas');
     var contador = document.getElementById('contador-empresas');
@@ -2334,7 +2366,7 @@
     }
 
     filtroCard.style.display = 'none';
-    formCard.style.display = '';
+    formCard.style.display = 'none'; // empresa nova só no Gestão & Financeiro (Cronos)
     tituloLista.innerHTML = '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg> Empresas cadastradas <span class="contador" id="contador-empresas"></span>';
 
     if (!empresasCache.length) {
@@ -2344,13 +2376,13 @@
       contador.textContent = '(' + empresasCache.length + ')';
       lista.innerHTML = empresasCache.map(function (e) {
         var qtdOs = ordensCache.filter(function (o) { return o.empresaId === e.id; }).length;
-        return '<div class="empresa-item" data-id="' + e.id + '">' +
+        var qtdQuadros = pontosDaEmpresa(e.id).length;
+        return '<div class="empresa-item" data-id="' + e.id + '" data-abrir="1" title="Abrir a página da empresa">' +
           '<div class="nome">' + escapeHtml(e.nome) + '</div>' +
-          '<div class="sub">' + escapeHtml([e.contato, e.telefone, e.email].filter(Boolean).join(' · ')) + '</div>' +
+          '<div class="sub">' + escapeHtml([e.cnpj, [e.cidade, e.uf].filter(Boolean).join('/'), qtdOs + ' OS', qtdQuadros + ' quadro(s)'].filter(Boolean).join(' · ')) + '</div>' +
           '<div class="ponto-actions">' +
             '<button class="btn-secondary" data-action="ver-os-empresa" data-id="' + e.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> Ver OS (' + qtdOs + ')</button>' +
             '<button class="btn-secondary" data-action="link-cliente-empresa" data-id="' + e.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg> Link do cliente</button>' +
-            '<button class="btn-secondary" data-action="editar-empresa" data-id="' + e.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg> Editar</button>' +
             '<button class="btn-danger" data-action="del-empresa" data-id="' + e.id + '">Excluir</button>' +
           '</div>' +
         '</div>';
@@ -2472,7 +2504,14 @@
       return;
     }
     var btn = e.target.closest('button[data-action="del-empresa"]');
-    if (!btn) return;
+    if (!btn) {
+      var cartao = e.target.closest('.empresa-item[data-abrir]');
+      if (cartao && !e.target.closest('button,a')) {
+        var empC = empresasCache.find(function (x) { return x.id === cartao.getAttribute('data-id'); });
+        if (empC) { filtroEmpresaOrdens = empC; mostrarView('ordens'); window.scrollTo(0, 0); }
+      }
+      return;
+    }
     var id = btn.getAttribute('data-id');
     var emp = empresasCache.find(function (x) { return x.id === id; });
     if (!emp) return;
@@ -2529,7 +2568,11 @@
       filtroCard.style.display = 'block';
       document.getElementById('ordens-filtro-nome').textContent = filtroEmpresaOrdens.nome;
       ordensFiltradas = ordensCache.filter(function (o) { return o.empresaId === filtroEmpresaOrdens.id; });
+      document.getElementById('painel-empresa').innerHTML = painelEmpresaHtml(filtroEmpresaOrdens);
+      document.getElementById('ordens-filtro-titulo').style.display = 'none';
     } else {
+      document.getElementById('painel-empresa').innerHTML = '';
+      document.getElementById('ordens-filtro-titulo').style.display = '';
       filtroCard.style.display = filtroSeveridade ? 'block' : 'none';
       document.getElementById('ordens-filtro-nome').textContent = 'todas as empresas';
     }
@@ -3879,7 +3922,8 @@
               return copy;
             });
             if (ordenarLocal) pontosCache.sort(function (a, b) { return (b.numero || 0) - (a.numero || 0); });
-            if (ordensCarregadas && filtrarOrdensTermografia()) { renderOrdens(); renderEmpresas(); }
+            if (ordensCarregadas && filtrarOrdensTermografia()) renderOrdens();
+            if (ordensCarregadas) renderEmpresas(); // contagem de quadros nos cartões das empresas
             limparErroBanco();
             var se = document.getElementById('sync-status'); if (se) se.hidden = false;
             renderLista();
