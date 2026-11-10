@@ -210,6 +210,9 @@
   ];
 
   // Fala com a IDEALLE: WhatsApp quando cadastrado, senão e-mail, senão telefone
+  // "Quero contratar": vai para o WhatsApp comercial (sócio), com a mensagem já escrita
+  var WHATS_COMERCIAL = '5511981729359';
+  function pedirProposta(msg) { return 'https://wa.me/' + WHATS_COMERCIAL + '?text=' + encodeURIComponent(msg); }
   function falar(msg) {
     var w = digitos(contato.whatsapp);
     if (w.length >= 10) return 'https://wa.me/' + (w.length <= 11 ? '55' + w : w) + '?text=' + encodeURIComponent(msg);
@@ -359,7 +362,7 @@
         info = 'Quadros: ' + ((d.termografia && d.termografia.laudos) || 0);
       }
       if (!ativo) return '<div class="serv trancado"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Não contratado"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
-        '<span class="info">' + esc(s[2]) + '</span><a class="btn sec peq" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + ' e quero uma proposta de ' + s[1] + ' (' + s[2] + ').')) + '">Quero contratar</a></div>';
+        '<span class="info">' + esc(s[2]) + '</span><a class="btn sec peq" target="_blank" rel="noopener" href="' + esc(pedirProposta('Olá! Sou da ' + nomeEmpresa() + ' e quero uma proposta de ' + s[1] + ' (' + s[2] + ').')) + '">Quero contratar</a></div>';
       return '<div class="serv ativo" data-ir="' + s[0] + '" tabindex="0" role="button"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><span class="chip c-ok">Contratado</span></span><span class="info">' + infoHtml(info) + '</span></div>';
     }).join('');
     var ativos = SERVICOS.filter(function (s) { return sv[s[0]]; }).length;
