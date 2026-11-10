@@ -723,7 +723,7 @@
         var t = estado.dados && estado.dados.termografia;
         if (el.dataset.ir === 'termografia' && t && t.link) { window.open(t.link, '_blank', 'noopener'); return; }
         // NR-13: abre a página dos relatórios NR-13 numa aba própria, como o portal do sistema de relatórios
-        if (el.dataset.ir === 'nr13') { window.open(location.pathname + '?pagina=nr13', '_blank'); return; }
+        if (el.dataset.ir === 'nr13') { try { sessionStorage.removeItem('cronos-intro-nr13'); } catch (e) {} location.href = location.pathname + '?pagina=nr13'; return; } // mesma aba, com a apresentação a cada clique
         telaRelatorios(el.dataset.ir);
       };
       el.onclick = ir; el.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ir(); } };
