@@ -6,7 +6,7 @@
          (Configuracoes > Administracao). Codigo da trava: painel-central/guard/guard.ts -->
     <script>(function(){var l=location,h=l.hostname;if(l.protocol!=='https:'||/^(localhost|127\.0\.0\.1)$/.test(h)||/(claudeusercontent\.com|claude\.ai|claude\.site)$/.test(h))return;if(new URLSearchParams(l.search).has('cliente'))return;window.__cronosGuard=new Promise(function(r){window.__cronosGuardPronto=r});var d=document,s=d.createElement('style');s.id='cronos-guard-hide';s.textContent='body{visibility:hidden!important}';d.head.appendChild(s);var g=d.createElement('script');g.src='https://painel-central-rosy.vercel.app/guard.js';g.setAttribute('data-sistema','termografia-descaracterizacao');g.setAttribute('data-recarregar','1');g.onerror=function(){d.title='CRONOS';d.documentElement.innerHTML='<body style="font-family:sans-serif;padding:40px;background:#03060c;color:#e2e8f0">N&atilde;o foi poss&iacute;vel verificar o acesso ao CRONOS. Verifique a internet e recarregue a p&aacute;gina.</body>'};d.head.appendChild(g);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.11.10-8" />
+<meta name="app-version" content="2026.11.10-9" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -598,6 +598,36 @@
   .dx-rank-bar { height: 7px; border-radius: 4px; background: rgba(255,255,255,.08); margin-top: 5px; overflow: hidden; }
   .dx-rank-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #FF6600, #C00000); }
   .dx-rank-item:hover .dx-rank-topo { color: #fff; }
+  /* ===== Dashboard em tela larga ===== */
+  @media (min-width: 861px) { main:has(#view-dashboard:not([style*="none"])) { max-width: 1040px; } }
+  @media (min-width: 1100px) {
+    main:has(#view-dashboard:not([style*="none"])) { max-width: 1560px; padding: 20px 28px 60px; }
+    #view-dashboard { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+    #view-dashboard > .card, #view-dashboard .card { margin-bottom: 0; }
+    #view-dashboard > .card:first-child { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(240px, 1fr) 3.2fr; gap: 12px 14px; align-items: stretch; }
+    #view-dashboard > .card:first-child > h2, #view-dashboard > .card:first-child > .dash-empresa-bar { grid-column: 1 / -1; }
+    #view-dashboard > .card:first-child .dash-empresa-bar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 0; }
+    #view-dashboard .dash-empresa-bar label { width: 100%; margin: 0; }
+    #view-dashboard .dash-empresa-bar .cb { flex: 1 1 360px; max-width: 560px; }
+    #view-dashboard .dash-empresa-bar button { margin-top: 0 !important; }
+    #view-dashboard .dash-grid { margin: 0; height: 100%; }
+    #view-dashboard .dash-grid + .dash-grid { margin-top: 0; }
+    #view-dashboard .dash-total { display: flex; flex-direction: column; justify-content: center; }
+    #view-dashboard .dash-total .dash-num { font-size: 84px; }
+    #view-dashboard .dash-grid5 .dash-card { display: flex; flex-direction: column; justify-content: center; }
+    #view-dashboard .dash-grid5 .dash-num { font-size: 52px; }
+    #view-dashboard .dash-grid5 .dash-label { font-size: 12px; letter-spacing: .08em; }
+    #dash-extra, #dash-extra .dx-grid { display: contents; }
+    #dash-extra .dx-kpis { grid-column: 1 / -1; margin: 0 !important; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    #dash-extra #dx-card-dist { grid-column: 1 / -1; }
+    #dash-extra .dx-grid .card:first-child { grid-column: span 4; }
+    #dash-extra .dx-grid #dx-card-rank { grid-column: span 4; }
+    #card-ultimas-os { grid-column: span 4; }
+    #dash-extra.sem-rank .dx-grid .card:first-child { grid-column: span 5; }
+    #dash-extra.sem-rank ~ #card-ultimas-os { grid-column: span 7; }
+    #card-lista { grid-column: 1 / -1; }
+    .dx-meses { height: 200px; }
+  }
 </style>
 </head>
 <body>
@@ -2135,6 +2165,7 @@
     // ranking de empresas críticas
     var cardRank = document.getElementById('dx-card-rank');
     cardRank.style.display = dashEmpresaId ? 'none' : '';
+    document.getElementById('dash-extra').classList.toggle('sem-rank', !!dashEmpresaId);
     var porEmp = {};
     pts.forEach(function (p) { var k = classificarPrincipal(p).key; if (k !== 'urgencia' && k !== 'emergencia') return; var id = empresaIdDoPonto(p) || ('n:' + (p.cliente || '')); porEmp[id] = (porEmp[id] || 0) + 1; });
     var rank = Object.keys(porEmp).map(function (id) { var e = empresasCache.find(function (x) { return x.id === id; }); return { id: id, nome: e ? e.nome : (id.indexOf('n:') === 0 ? id.slice(2) : 'Sem empresa'), n: porEmp[id], emp: e }; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 5);
