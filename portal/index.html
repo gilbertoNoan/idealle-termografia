@@ -524,7 +524,7 @@
         '<span class="sub">' + data(o.abertura) + ' · ' + (pdfsOs.length || !termo ? pdfsOs.length + ' documento(s)' : (termo.qtd || 0) + ' ponto(s) de termografia') + (o.servicos.length ? ' · ' + esc(o.servicos.join(', ')) : '') + '</span>' + seta + '</div>' +
         (chips ? '<div class="tagchips">' + chips + '</div>' : '') + det +
         '<div class="osacoes">' +
-        (termo ? '<a class="btn sec peq" href="' + esc(termo.link) + '" target="_blank" rel="noopener">Ver laudos de termografia (' + (termo.qtd || 0) + ')</a>' : '') +
+        (termo ? '<a class="btn sec peq" href="' + esc(termo.link + (termo.link.indexOf('?') < 0 ? '?' : '&') + 'de=portal') + '">Ver laudos de termografia (' + (termo.qtd || 0) + ')</a>' : '') +
         (pdfsOs.length ? '<button type="button" class="btn sec peq" data-zipos="' + esc(o.codigo) + '">' + iconeBaixar() + '&nbsp;Baixar documentos da OS (ZIP)</button>' : '') +
         (!pdfsOs.length && !termo ? '<span class="sub">Documentos ainda não liberados pela IDEALLE.</span>' : '') +
         '</div></div>';
@@ -721,8 +721,8 @@
       // Termografia: abre o portal de laudos de termografia do cliente (o mesmo link do sistema de termografia)
       var ir = function () {
         var t = estado.dados && estado.dados.termografia;
-        if (el.dataset.ir === 'termografia' && t && t.link) { window.open(t.link, '_blank', 'noopener'); return; }
-        // NR-13: abre a página dos relatórios NR-13 numa aba própria, como o portal do sistema de relatórios
+        if (el.dataset.ir === 'termografia' && t && t.link) { location.href = t.link + (t.link.indexOf('?') < 0 ? '?' : '&') + 'de=portal'; return; } // mesma aba; lá tem "Voltar ao portal"
+        // NR-13: abre a página dos relatórios NR-13 na mesma aba, como o portal do sistema de relatórios
         if (el.dataset.ir === 'nr13') { try { sessionStorage.removeItem('cronos-intro-nr13'); } catch (e) {} location.href = location.pathname + '?pagina=nr13'; return; } // mesma aba, com a apresentação a cada clique
         telaRelatorios(el.dataset.ir);
       };
