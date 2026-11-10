@@ -3768,6 +3768,15 @@
       document.getElementById('sidebar').style.display = 'none';
       document.getElementById('btn-hamburger').style.display = 'none';
       document.getElementById('fab-novo-laudo').style.display = 'none';
+      // Aberto pelo Portal do Cliente (cartão Termografia): botão para voltar ao portal, na mesma aba
+      if (params.get('de') === 'portal') {
+        var voltar = document.createElement('a');
+        voltar.href = '/portal/'; voltar.className = 'btn-secondary'; voltar.id = 'voltar-portal';
+        voltar.style.cssText = 'display:inline-flex;align-items:center;gap:6px;margin-bottom:10px;text-decoration:none;width:auto';
+        voltar.textContent = '← Voltar ao portal';
+        voltar.onclick = function (e) { if (document.referrer.indexOf(location.origin + '/portal/') === 0 && history.length > 1) { e.preventDefault(); history.back(); } };
+        var hdr = document.querySelector('header'); hdr.insertBefore(voltar, hdr.firstChild);
+      }
     } else {
       OS_DO_CRONOS = osParam || null;
       atualizarCalculo();
