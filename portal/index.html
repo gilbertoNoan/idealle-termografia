@@ -326,7 +326,7 @@
       var ativo = !!sv[s[0]], info = s[2];
       if (ativo && s[0] === 'nr13') { var vv = d.vasos || [], ven = vv.filter(function (x) { return x.situacao === 'vencido'; }).length, prox = vv.filter(function (x) { return x.situacao === 'vencendo'; }).length; info = vv.length + ' equipamento(s)' + (ven ? ' · ' + ven + ' vencido(s)' : '') + (prox ? ' · ' + prox + ' vencendo' : ''); }
       if (ativo && s[0] === 'calibracao') info = (d.certificados || []).length + ' certificado(s)';
-      if (ativo && s[0] === 'termografia' && d.termografia) info = d.termografia.laudos + ' ponto(s) inspecionado(s)' + (d.termografia.criticos ? ' · ' + d.termografia.criticos + ' crítico(s)' : '');
+      if (ativo && s[0] === 'termografia' && d.termografia) info = d.termografia.laudos + ' ponto(s) inspecionado(s)' + (d.termografia.criticos ? ' · ' + d.termografia.criticos + ' crítico(s)' : '') + ' · ver laudos ›';
       if (!ativo) return '<div class="serv trancado"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Não contratado"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
         '<span class="info">' + esc(s[2]) + '</span><a class="btn sec peq" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + ' e quero uma proposta de ' + s[1] + ' (' + s[2] + ').')) + '">Quero contratar</a></div>';
       return '<div class="serv ativo" data-ir="' + s[0] + '" tabindex="0" role="button"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><span class="chip c-ok">Contratado</span></span><span class="info">' + esc(info) + '</span></div>';
@@ -384,8 +384,8 @@
     if (sv.termografia && d.termografia) {
       var n = d.termografia.porNivel || {};
       var tn = [['Normal', n.normal || 0, COR.ok], ['Observar', n.observar || 0, COR.azul], ['Programar', n.programar || 0, COR.warn], ['Urgência', n.urgencia || 0, COR.laranja], ['Emergência', n.emergencia || 0, COR.bad]];
-      cards.push('<div class="cond"><div class="cond-top"><span class="nome">Termografia</span><span class="cond-num"><b>' + (d.termografia.laudos || 0) + '</b> ponto(s)</span></div>' +
-        '<span class="cond-rot">Condição dos pontos inspecionados</span>' + barra(tn) + legenda(tn) + '</div>');
+      cards.push('<div class="cond ativo" data-ir="termografia" tabindex="0" role="button" title="Abrir os laudos de termografia" style="cursor:pointer"><div class="cond-top"><span class="nome">Termografia</span><span class="cond-num"><b>' + (d.termografia.laudos || 0) + '</b> ponto(s)</span></div>' +
+        '<span class="cond-rot">Condição dos pontos inspecionados</span>' + barra(tn) + legenda(tn) + '<span style="font-size:13px;font-weight:600;color:var(--amb-t);margin-top:4px">Ver laudos de termografia ›</span></div>');
     }
     if (!cards.length) return '';
     return '<section><div class="tit-sec"><h2>Seus equipamentos</h2><span class="sub">quantidade e condição por serviço</span></div><div class="conds">' + cards.join('') + '</div></section>';
@@ -662,7 +662,12 @@
     var b = $('b-vasos'); if (b) b.oninput = function () { $('t-vasos').innerHTML = linhasVasos(normal(b.value)); };
     tela.querySelectorAll('[data-ir]').forEach(function (el) {
       // Cartão do serviço contratado: abre a página dos relatórios na parte dele
-      var ir = function () { telaRelatorios(el.dataset.ir === 'termografia' ? 'os' : el.dataset.ir); };
+      // Termografia: abre o portal de laudos de termografia do cliente (o mesmo link do sistema de termografia)
+      var ir = function () {
+        var t = estado.dados && estado.dados.termografia;
+        if (el.dataset.ir === 'termografia' && t && t.link) { window.open(t.link, '_blank', 'noopener'); return; }
+        telaRelatorios(el.dataset.ir);
+      };
       el.onclick = ir; el.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ir(); } };
     });
   }
