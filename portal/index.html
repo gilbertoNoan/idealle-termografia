@@ -301,6 +301,7 @@
       estado.empId = empId;
       // Laudos NR-13 publicados pelo Relatório NR-13 (cópia para consulta)
       try { var li = await db.collection('portal_laudos').doc(empId).get(); estado.laudos = li.exists ? (li.data().laudos || {}) : {}; } catch (e) { estado.laudos = {}; }
+      soLiberados();
       if (!sessionStorage.getItem('portal-acesso-' + u.uid)) {
         db.collection('portal_usuarios').doc(u.uid).update({ ultimoAcesso: new Date().toISOString() }).catch(function () {});
         try { sessionStorage.setItem('portal-acesso-' + u.uid, '1'); } catch (e) {}
@@ -406,6 +407,31 @@
   // ---------- Meus relatórios: ver, marcar e baixar (como o portal da termografia) ----------
   var TIPOS_DOC = { nr13: ['NR-13', 'c-azul', 'NR-13'], calibracao: ['Calibração', 'c-ok', 'Calibracao'], termografia: ['Termografia', 'c-warn', 'Termografia'] };
   function temDocumentos() { return Object.keys(estado.laudos || {}).length > 0; }
+  // O cliente só vê o que a IDEALLE enviou pelo botão "Enviar ao portal do cliente" de cada sistema
+  // (relatórios NR-13, certificados de calibração e laudos de termografia). O resumo que o Cronos publica
+  // serve só para completar os dados (prazos, validade) do que já foi enviado.
+  function soLiberados() {
+    var d = estado.dados || {}, docs = todosDocs();
+    var tipo = function (t) { return docs.filter(function (x) { return x.tipo === t; }); };
+    var nr = tipo('nr13'), cal = tipo('calibracao'), te = tipo('termografia');
+    var up = function (s) { return String(s || '').trim().toUpperCase(); };
+    d.vasos = (d.vasos || []).filter(function (v) { return nr.some(function (x) { return up(x.tag) === up(v.tag); }); });
+    d.certificados = (d.certificados || []).filter(function (c) {
+      return cal.some(function (x) { return (c.numero && x.numero && String(x.numero) === String(c.numero) && up(x.os) === up(c.os)) || (c.tag && up(x.tag) === up(c.tag) && up(x.os) === up(c.os)); });
+    });
+    if (te.length) {
+      var porNivel = {}, qtd = 0, crit = 0;
+      te.forEach(function (x) { qtd += x.qtd || 0; crit += x.criticos || 0; Object.keys(x.porNivel || {}).forEach(function (k) { porNivel[k] = (porNivel[k] || 0) + x.porNivel[k]; }); });
+      d.termografia = { laudos: qtd, criticos: crit, porNivel: porNivel, link: (d.termografia && d.termografia.link) || te[0].link };
+    } else d.termografia = null;
+    var codigos = {}; docs.forEach(function (x) { if (x.os) codigos[up(x.os)] = 1; });
+    d.os = (d.os || []).filter(function (o) { return codigos[up(o.codigo)]; });
+    var sits = d.vasos.map(function (v) { return v.situacao; }).concat(cal.map(function (x) {
+      var val = isoDe(x.validade); return !val ? 'sem' : val < hoje() ? 'vencido' : dias(val) <= 90 ? 'vencendo' : 'emdia';
+    }));
+    d.contagem = { emdia: sits.filter(function (s) { return s === 'emdia'; }).length, vencendo: sits.filter(function (s) { return s === 'vencendo'; }).length, vencidos: sits.filter(function (s) { return s === 'vencido'; }).length };
+    estado.dados = d;
+  }
   function todosDocs() {
     var l = estado.laudos || {};
     return Object.keys(l).map(function (k) { return Object.assign({ chave: k, tipo: l[k].tipo || 'nr13' }, l[k]); })
