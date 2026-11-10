@@ -365,12 +365,11 @@
     tela.innerHTML =
       cabecalhoCliente(d.empresa) +
       '<div class="resumo"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px"><h1 style="font-size:22px">Situação da sua planta</h1>' +
-      (temDocumentos() ? '<button class="btn" id="b-relatorios" type="button">' + IC_DOC + ' Ver e baixar meus relatórios</button>' : '') + '</div>' +
+      '</div>' +
       '</div>' + secNotificacoes() +
       faixaContrato() +
       secCondicoes() +
       '<section><div class="tit-sec"><h2>Seus serviços</h2><span class="sub">' + ativos + ' contratado(s) · ' + (SERVICOS.length - ativos) + ' disponível(is)</span></div><div class="servicos">' + cards + '</div></section>' +
-      secAcessoRelatorios() +
       '<p class="rodape">Dados atualizados em ' + data(d.atualizadoEm) + '. Os documentos assinados ficam com a IDEALLE e são enviados sob solicitação. IDEALLE Inspeções e Serviços · CREA-SP · ' + esc(contato.telefone) + '</p>';
     ligarBuscas();
     var br = $('b-relatorios'); if (br) br.onclick = function () { telaRelatorios(); };
