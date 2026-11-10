@@ -763,6 +763,17 @@
   function hashTexto(s) { var h = 5381; for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return String(h >>> 0); }
 
   // Monta o que o cliente vê. Só dados técnicos e de prazo: nada de valores, faturas ou PDFs assinados.
+  function servicosDasOs(empId) {
+    var sv = {};
+    cache.ordens.filter(function (o) { return o.empresaId === empId && statusOS(o) !== 'cancelada'; }).forEach(function (o) {
+      var s = o.servicos || {}, r = o.resultados || {};
+      if (s.relatorio || s.prontuario || s.pmta || s.desenquadramento || r['Relatório NR-13']) sv.nr13 = true;
+      if (s.calibracao || r['Gerador de Certificados']) sv.calibracao = true;
+      if (s.termografia || r.Termografia) sv.termografia = true;
+      if (s.spda) sv.spda = true;
+    });
+    return sv;
+  }
   function dadosPortal(empId) {
     var emp = porId('empresas', empId) || {}, ac = portalAcesso(empId) || {};
     var ords = cache.ordens.filter(function (o) { return o.empresaId === empId && statusOS(o) !== 'cancelada'; })
@@ -775,7 +786,8 @@
       if (s.termografia || r.Termografia) sv.termografia = true;
       if (s.spda) sv.spda = true;
     });
-    Object.keys(ac.servicosExtras || {}).forEach(function (k) { if (ac.servicosExtras[k]) sv[k] = true; });
+    // Escolha feita na aba Portal do Cliente vale mais que as OS: marcado entra, desmarcado sai (mesmo vindo de OS)
+    Object.keys(ac.servicosExtras || {}).forEach(function (k) { if (ac.servicosExtras[k] === true) sv[k] = true; else if (ac.servicosExtras[k] === false) delete sv[k]; });
     var vasos = {}, certs = [], termo = { laudos: 0, porNivel: {}, criticos: 0 };
     ords.forEach(function (o) {
       var r = o.resultados || {}, cod = codOS(o);
@@ -892,10 +904,10 @@
       '<div><label>E-mail de login</label><input id="pa-email" type="email" value="' + esc(ac.email || c.email || '') + '"></div>' +
       '<div><label>WhatsApp do contato</label><input id="pa-whats" inputmode="tel" value="' + esc(ac.whatsapp || c.telefone || '') + '"></div>' +
       '<div><label>Acesso até (fim do contrato)</label><input id="pa-ate" type="date" value="' + esc(ac.acessoAte || prazoPadrao(empId)) + '"></div></div>' +
-      '<label>Serviços liberados (os das OS já entram sozinhos; marque os outros contratados)</label><div style="display:flex;flex-wrap:wrap;gap:6px 16px">' +
+      '<label>Serviços liberados no portal (os das OS já vêm marcados; desmarque para tirar do portal)</label><div style="display:flex;flex-wrap:wrap;gap:6px 16px">' +
       PORTAL_SERVICOS.map(function (s) {
-        var dasOS = d.servicos[s[0]] && !ext[s[0]];
-        return '<label style="display:flex;gap:6px;align-items:center;margin:2px 0;color:var(--text)"><input type="checkbox" data-extra="' + s[0] + '" style="width:auto"' + (d.servicos[s[0]] ? ' checked' : '') + (dasOS ? ' disabled title="Vem das OS"' : '') + '> ' + esc(s[1]) + (dasOS ? ' <span class="muted">(das OS)</span>' : '') + '</label>';
+        var dasOS = d.servicos[s[0]] && ext[s[0]] == null;
+        return '<label style="display:flex;gap:6px;align-items:center;margin:2px 0;color:var(--text)"><input type="checkbox" data-extra="' + s[0] + '" style="width:auto"' + (d.servicos[s[0]] ? ' checked' : '') + '> ' + esc(s[1]) + (dasOS ? ' <span class="muted">(das OS)</span>' : '') + '</label>';
       }).join('') + '</div>' +
       '<div class="muted" style="margin-top:8px">No portal: ' + d.vasos.length + ' equipamento(s) NR-13, ' + d.certificados.length + ' certificado(s), ' + d.os.length + ' OS · ' + d.contagem.vencidos + ' vencido(s), ' + d.contagem.vencendo + ' vencendo em 90 dias.</div>' +
       (ac.id ? '<label style="display:flex;gap:6px;align-items:center;margin-top:10px;color:var(--bad)"><input type="checkbox" id="pa-bloq" style="width:auto"' + (ac.bloqueado ? ' checked' : '') + '> Bloquear o acesso desta empresa agora</label>' : '') +
@@ -932,7 +944,13 @@
     $('pa-logo-tirar').onclick = function () { logoNovo = ''; $('pa-logo-prev').textContent = 'sem logo'; };
     function lerForm() {
       var ate = $('pa-ate').value || prazoPadrao(empId), extras = {};
-      document.querySelectorAll('#modal [data-extra]').forEach(function (b) { if (!b.disabled) extras[b.dataset.extra] = b.checked; });
+      var dasOs = servicosDasOs(empId);
+      document.querySelectorAll('#modal [data-extra]').forEach(function (b) {
+        var k = b.dataset.extra;
+        if (b.checked && !dasOs[k]) extras[k] = true;       // contratado fora das OS
+        else if (!b.checked && dasOs[k]) extras[k] = false; // vem das OS, mas tirado do portal
+        else extras[k] = null;                               // igual às OS
+      });
       return { empresaId: empId, nome: c.nome || '', contatoNome: $('pa-contato').value.trim(), email: $('pa-email').value.trim().toLowerCase(), whatsapp: $('pa-whats').value.trim(),
         acessoAte: ate, acessoAteMs: new Date(ate + 'T23:59:59-03:00').getTime(), servicosExtras: extras, logo: logoNovo, bloqueado: $('pa-bloq') ? $('pa-bloq').checked : false, atualizadoEm: agora() };
     }
