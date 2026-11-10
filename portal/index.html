@@ -297,7 +297,8 @@
         db.collection('portal_usuarios').doc(u.uid).update({ ultimoAcesso: new Date().toISOString() }).catch(function () {});
         try { sessionStorage.setItem('portal-acesso-' + u.uid, '1'); } catch (e) {}
       }
-      painel();
+      // Aberto pelo cartão NR-13 (?pagina=nr13): página só dos relatórios NR-13, como um portal do sistema de relatórios
+      if (PAGINA === 'nr13') telaRelatorios(); else painel();
     } catch (e) {
       console.error(e);
       // Sem permissão no meio do caminho = o contrato venceu agora ou o acesso foi retirado
@@ -324,7 +325,7 @@
     var conf = total ? Math.round(((c.emdia || 0) + (c.vencendo || 0)) / total * 100) : 0;
     var cards = SERVICOS.map(function (s) {
       var ativo = !!sv[s[0]], info = s[2];
-      if (ativo && s[0] === 'nr13') { var vv = d.vasos || [], ven = vv.filter(function (x) { return x.situacao === 'vencido'; }).length, prox = vv.filter(function (x) { return x.situacao === 'vencendo'; }).length; info = vv.length + ' equipamento(s)' + (ven ? ' · ' + ven + ' vencido(s)' : '') + (prox ? ' · ' + prox + ' vencendo' : ''); }
+      if (ativo && s[0] === 'nr13') { var vv = d.vasos || [], ven = vv.filter(function (x) { return x.situacao === 'vencido'; }).length, prox = vv.filter(function (x) { return x.situacao === 'vencendo'; }).length; info = vv.length + ' equipamento(s)' + (ven ? ' · ' + ven + ' vencido(s)' : '') + (prox ? ' · ' + prox + ' vencendo' : '') + ' · ver relatórios ›'; }
       if (ativo && s[0] === 'calibracao') info = (d.certificados || []).length + ' certificado(s)';
       if (ativo && s[0] === 'termografia' && d.termografia) info = d.termografia.laudos + ' ponto(s) inspecionado(s)' + (d.termografia.criticos ? ' · ' + d.termografia.criticos + ' crítico(s)' : '') + ' · ver laudos ›';
       if (!ativo) return '<div class="serv trancado"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Não contratado"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
@@ -369,9 +370,9 @@
       var par = [['Apto', conta(vv, 'parecer', 'APTO'), COR.ok], ['Apto com restrições', conta(vv, 'parecer', 'APTO_COM_RESTRICOES'), COR.warn], ['Inapto', conta(vv, 'parecer', 'INAPTO'), COR.bad]];
       var semPar = vv.length - par[0][1] - par[1][1] - par[2][1]; if (semPar) par.push(['Sem parecer', semPar, COR.cinza]);
       var pz = [['Em dia', conta(vv, 'situacao', 'emdia'), COR.ok], ['Vence em 90 dias', conta(vv, 'situacao', 'vencendo'), COR.warn], ['Vencido', conta(vv, 'situacao', 'vencido'), COR.bad]];
-      cards.push('<div class="cond"><div class="cond-top"><span class="nome">NR-13</span><span class="cond-num"><b>' + vv.length + '</b> equipamento(s)</span></div>' +
+      cards.push('<div class="cond ativo" data-ir="nr13" tabindex="0" role="button" title="Abrir os relatórios NR-13" style="cursor:pointer"><div class="cond-top"><span class="nome">NR-13</span><span class="cond-num"><b>' + vv.length + '</b> equipamento(s)</span></div>' +
         '<span class="cond-rot">Condição (parecer do laudo)</span>' + barra(par) + legenda(par) +
-        '<span class="cond-rot">Prazo da próxima inspeção</span>' + barra(pz) + legenda(pz) + '</div>');
+        '<span class="cond-rot">Prazo da próxima inspeção</span>' + barra(pz) + legenda(pz) + '<span style="font-size:13px;font-weight:600;color:var(--amb-t);margin-top:4px">Ver relatórios NR-13 ›</span></div>');
     }
     if (sv.calibracao) {
       var cc = d.certificados || [];
@@ -448,14 +449,19 @@
   var NOME_EXAME = { externo: 'Exame externo', interno: 'Exame interno' };
   function telaRelatorios(irPara) {
     var d = estado.dados, docs = todosDocs();
+    var soNr13 = PAGINA === 'nr13';
+    if (soNr13) docs = docs.filter(function (x) { return x.tipo === 'nr13'; });
     var docsPdf = docs.filter(function (x) { return x.tipo !== 'termografia'; });
     var laudos = docs.filter(function (x) { return x.tipo === 'nr13'; });
     var termos = docs.filter(function (x) { return x.tipo === 'termografia'; });
-    var vasos = d.vasos || [], certs = d.certificados || [];
+    var vasos = d.vasos || [], certs = soNr13 ? [] : (d.certificados || []);
     var docDaTag = function (tag) { tag = String(tag || '').toUpperCase(); return laudos.filter(function (x) { return x.tag === tag; })[0]; };
     // OS: as do Cronos mais as que só aparecem nos documentos liberados
     var oss = (d.os || []).map(function (o) { return { codigo: o.codigo, status: o.status, abertura: o.abertura, servicos: o.servicos || [], descricao: o.descricao }; });
     docs.forEach(function (x) { if (x.os && !oss.some(function (o) { return o.codigo === x.os; })) oss.push({ codigo: x.os, status: '', abertura: isoDe(x.dataInspecao), servicos: [] }); });
+    if (soNr13) oss = oss.filter(function (o) {
+      return docs.some(function (x) { return x.os === o.codigo; }) || vasos.some(function (v) { return v.os === o.codigo; }) || o.servicos.some(function (n) { return /NR-13|prontu|PMTA/i.test(n); });
+    });
     oss.sort(function (a, b) { return String(b.abertura || '') < String(a.abertura || '') ? -1 : 1; });
     var andamento = oss.filter(function (o) { return o.status === 'aberta' || o.status === 'execucao'; }).length;
     var vencidos = vasos.filter(function (v) { return v.situacao === 'vencido'; }).length + certs.filter(function (c) { return c.situacao === 'vencido'; }).length;
@@ -503,12 +509,12 @@
 
     tela.innerHTML = cabecalhoCliente(d.empresa) +
       '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px"><div><button class="btn sec peq" id="r-voltar" type="button">← Voltar ao painel</button>' +
-      '<h1 style="font-size:24px;margin-top:12px">Meus relatórios</h1><span class="sub">Cópias para consulta. Os originais assinados digitalmente ficam arquivados na IDEALLE e são enviados sob solicitação.</span></div>' +
+      '<h1 style="font-size:24px;margin-top:12px">' + (soNr13 ? 'Relatórios NR-13' : 'Meus relatórios') + '</h1><span class="sub">Cópias para consulta. Os originais assinados digitalmente ficam arquivados na IDEALLE e são enviados sob solicitação.</span></div>' +
       (docsPdf.length ? '<button class="btn" id="r-zip-todos" type="button">' + iconeBaixar() + '&nbsp;Baixar todos os PDFs (ZIP)</button>' : '') + '</div>' +
       '<div class="rkpis">' +
         kpi(oss.length, 'var(--texto)', 'Ordens de serviço', andamento + ' em andamento · ' + (oss.length - andamento) + ' concluída(s)') +
-        kpi(vasos.length, 'var(--amb-t)', 'Vasos / TAGs', certs.length + ' instrumento(s) calibrado(s)') +
-        kpi(docsPdf.length, 'var(--texto)', 'Documentos disponíveis', laudos.length + ' laudo(s) · ' + certsPub.length + ' certificado(s)' + (termos.length ? ' · ' + termos.length + ' OS de termografia' : '')) +
+        kpi(vasos.length, 'var(--amb-t)', 'Vasos / TAGs', soNr13 ? vasos.filter(function (v) { return docDaTag(v.tag); }).length + ' com laudo disponível' : certs.length + ' instrumento(s) calibrado(s)') +
+        kpi(docsPdf.length, 'var(--texto)', soNr13 ? 'Laudos disponíveis' : 'Documentos disponíveis', soNr13 ? 'cópias para consulta em PDF' : laudos.length + ' laudo(s) · ' + certsPub.length + ' certificado(s)' + (termos.length ? ' · ' + termos.length + ' OS de termografia' : '')) +
         kpi(vencidos + vencendo, vencidos ? 'var(--bad)' : vencendo ? 'var(--amb-t)' : 'var(--ok)', 'Prazos a cuidar', vencidos + ' vencido(s) · ' + vencendo + ' vencendo em 90 dias') +
       '</div>' +
       '<section class="card" id="rel-os"><div class="tit-sec"><h2>' + IC_OS + ' ORDENS DE SERVIÇO (' + oss.length + ')</h2></div>' + (cartoesOs || '<p class="vazio">Nenhuma OS ainda.</p>') + '</section>' +
@@ -516,7 +522,10 @@
         (linhasVasos || '<tr><td colspan="7" class="vazio">Nenhum equipamento.</td></tr>') + '</tbody></table></div><p class="sub" style="margin:10px 0 0">Bolinha verde: laudo disponível · olho mostra o PDF · seta baixa o PDF</p></section>' : '') +
       (certsPub.length ? '<section class="card" id="rel-calibracao"><div class="tit-sec"><h2>' + IC_VASO + ' CERTIFICADOS DE CALIBRAÇÃO (' + certsPub.length + ')</h2></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Instrumento</th><th>Calibração</th><th>Validade</th><th style="text-align:right">PDF</th></tr></thead><tbody>' + linhasCert + '</tbody></table></div></section>' : '');
 
-    $('r-voltar').onclick = function () { painel(); window.scrollTo(0, 0); };
+    $('r-voltar').onclick = function () {
+      if (soNr13) { location.href = location.pathname; return; } // página aberta pelo cartão NR-13: volta ao painel do portal
+      painel(); window.scrollTo(0, 0);
+    };
     var zt = $('r-zip-todos'); if (zt) zt.onclick = function () { baixarZip(docsPdf, this); };
     tela.querySelectorAll('[data-zipos]').forEach(function (b) {
       b.onclick = function () { var cod = b.dataset.zipos; baixarZip(docsPdf.filter(function (x) { return x.os === cod; }), b); };
@@ -666,6 +675,8 @@
       var ir = function () {
         var t = estado.dados && estado.dados.termografia;
         if (el.dataset.ir === 'termografia' && t && t.link) { window.open(t.link, '_blank', 'noopener'); return; }
+        // NR-13: abre a página dos relatórios NR-13 numa aba própria, como o portal do sistema de relatórios
+        if (el.dataset.ir === 'nr13') { window.open(location.pathname + '?pagina=nr13', '_blank'); return; }
         telaRelatorios(el.dataset.ir);
       };
       el.onclick = ir; el.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ir(); } };
@@ -693,6 +704,7 @@
   $('btn-sair').onclick = function () { estado = { dados: null, acesso: null }; auth.signOut(); };
   db.collection('config').doc('portal').get().then(function (s) { if (s.exists) Object.assign(contato, s.data()); }).catch(function () {});
   var convite = new URLSearchParams(location.search).get('convite');
+  var PAGINA = new URLSearchParams(location.search).get('pagina') || '';
   var modoConvite = !!convite, conviteAberto = false;
   auth.onAuthStateChanged(function (u) {
     if (estado.criando) return; // o convite termina de gravar e abre o painel sozinho
