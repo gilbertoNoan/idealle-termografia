@@ -60,6 +60,11 @@
   .serv .nome { font-weight: 700; color: var(--texto); }
   .serv.trancado .nome { color: var(--sub); }
   .serv .info { font-size: 13px; color: var(--muted); flex: 1; }
+  /* Quantidades em destaque nos cartões dos serviços (ex.: PSV 1 / PI 1) */
+  .serv .qtd { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 4px 0; border-top: 1px solid var(--linha); }
+  .serv .qtd:first-child { border-top: 0; }
+  .serv .qtd .rot { font-size: 14px; font-weight: 700; color: var(--texto); letter-spacing: .02em; }
+  .serv .qtd .num { font-size: 26px; font-weight: 800; color: var(--amb-t); line-height: 1.1; font-variant-numeric: tabular-nums; }
   .chip { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
   .c-ok { background: var(--ok-f); color: var(--ok); } .c-warn { background: var(--amb-f); color: var(--amb-c); } .c-bad { background: var(--bad-f); color: var(--bad-c); } .c-cinza { background: var(--linha); color: var(--sub); } .c-azul { background: var(--azul-f); color: var(--azul); }
   .tabela { overflow-x: auto; }
@@ -343,7 +348,7 @@
       }
       if (!ativo) return '<div class="serv trancado"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Não contratado"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
         '<span class="info">' + esc(s[2]) + '</span><a class="btn sec peq" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + ' e quero uma proposta de ' + s[1] + ' (' + s[2] + ').')) + '">Quero contratar</a></div>';
-      return '<div class="serv ativo" data-ir="' + s[0] + '" tabindex="0" role="button"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><span class="chip c-ok">Contratado</span></span><span class="info" style="white-space:pre-line">' + esc(info) + '</span></div>';
+      return '<div class="serv ativo" data-ir="' + s[0] + '" tabindex="0" role="button"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><span class="chip c-ok">Contratado</span></span><span class="info">' + infoHtml(info) + '</span></div>';
     }).join('');
     var ativos = SERVICOS.filter(function (s) { return sv[s[0]]; }).length;
     tela.innerHTML =
@@ -444,6 +449,12 @@
       if (tipo === 'psv') psv++; else pi++;
     });
     return { psv: psv, pi: pi };
+  }
+  // "Rótulo: N" (uma por linha) vira linhas com o número grande; outro texto sai como está
+  function infoHtml(info) {
+    var linhas = String(info || '').split('\n');
+    if (!linhas.every(function (l) { return /^[^:]+:\s*\d+$/.test(l.trim()); })) return '<span style="white-space:pre-line">' + esc(info) + '</span>';
+    return linhas.map(function (l) { var m = l.trim().match(/^([^:]+):\s*(\d+)$/); return '<span class="qtd"><span class="rot">' + esc(m[1]) + '</span><span class="num">' + m[2] + '</span></span>'; }).join('');
   }
   function plural(n, um, varios) { return n + ' ' + (n === 1 ? um : varios); }
   function todosDocs() {
