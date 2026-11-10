@@ -6,7 +6,7 @@
          (Configuracoes > Administracao). Codigo da trava: painel-central/guard/guard.ts -->
     <script>(function(){var l=location,h=l.hostname;if(l.protocol!=='https:'||/^(localhost|127\.0\.0\.1)$/.test(h)||/(claudeusercontent\.com|claude\.ai|claude\.site)$/.test(h))return;if(new URLSearchParams(l.search).has('cliente'))return;window.__cronosGuard=new Promise(function(r){window.__cronosGuardPronto=r});var d=document,s=d.createElement('style');s.id='cronos-guard-hide';s.textContent='body{visibility:hidden!important}';d.head.appendChild(s);var g=d.createElement('script');g.src='https://painel-central-rosy.vercel.app/guard.js';g.setAttribute('data-sistema','termografia-descaracterizacao');g.setAttribute('data-recarregar','1');g.onerror=function(){d.title='CRONOS';d.documentElement.innerHTML='<body style="font-family:sans-serif;padding:40px;background:#03060c;color:#e2e8f0">N&atilde;o foi poss&iacute;vel verificar o acesso ao CRONOS. Verifique a internet e recarregue a p&aacute;gina.</body>'};d.head.appendChild(g);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.11.10-1" />
+<meta name="app-version" content="2026.11.10-2" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -1830,6 +1830,9 @@
   document.getElementById('dash-empresa').addEventListener('change', function () {
     dashEmpresaId = this.value || '';
     renderLista();
+    // Escolheu uma empresa: abre a página dela (localização, CNPJ, OS e quadros)
+    var empAbrir = dashEmpresaId ? empresasCache.find(function (e) { return e.id === dashEmpresaId; }) : null;
+    if (empAbrir) { filtroSeveridade = null; filtroEmpresaOrdens = empAbrir; mostrarView('ordens'); window.scrollTo(0, 0); }
   });
 
   function atualizarDashboard() {
@@ -2322,9 +2325,10 @@
     var kpi = function (n, rot) { return '<div class="pag-emp-kpi"><b>' + n + '</b><span>' + rot + '</span></div>'; };
     return '<div class="pag-emp"><div class="pag-emp-logo">' + (e.logo ? '<img src="' + escapeHtml(e.logo) + '" alt="">' : escapeHtml(ini)) + '</div>' +
       '<div style="min-width:0;flex:1"><div class="pag-emp-nome">' + escapeHtml(e.nome || '') + '</div><div class="pag-emp-dados">' +
-      (e.cnpj ? '<span>CNPJ: <b>' + escapeHtml(e.cnpj) + '</b></span>' : '') + (endereco ? '<span>' + escapeHtml(endereco) + '</span>' : '') +
+      (e.cnpj ? '<span>CNPJ: <b>' + escapeHtml(e.cnpj) + '</b></span>' : '') + (endereco ? '<span>Localização: <b>' + escapeHtml(endereco) + '</b> · <a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([e.endereco, e.cidade, e.uf, e.cep].filter(Boolean).join(', ')) + '" target="_blank" rel="noopener" style="color:#7CACFF;font-weight:700;">ver no mapa</a></span>' : '<span>Localização: <i>não cadastrada</i> (edite a empresa para informar)</span>') +
       (e.codigo ? '<span>Cliente ' + escapeHtml(e.codigo) + '</span>' : '') + '</div></div></div>' +
       '<div class="pag-emp-kpis">' + kpi(oss.length, 'OS · ' + abertas + ' em aberto') + kpi(pts.length, 'quadros inspecionados') + kpi(criticos, 'críticos (urgência/emergência)') + '</div>' +
+      '<div style="margin-top:12px;"><button type="button" class="btn-secondary" data-action="link-cliente-painel" data-id="' + escapeHtml(e.id) + '">Copiar link do cliente</button></div>' +
       '<div class="pag-emp-niveis">' + Object.keys(SEVERIDADE_LABEL).map(function (k) { return '<span class="filtro-badge ' + k + '">' + SEVERIDADE_LABEL[k] + ': ' + (porNivel[k] || 0) + '</span>'; }).join('') + '</div>';
   }
   function renderEmpresas() {
@@ -2649,6 +2653,11 @@
     sugerirProximoNumeroOS();
   }
 
+  document.getElementById('painel-empresa').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-action="link-cliente-painel"]'); if (!b) return;
+    var emp = empresasCache.find(function (x) { return x.id === b.getAttribute('data-id'); });
+    if (emp) copiarParaAreaDeTransferencia(linkClienteDaEmpresa(emp.nome), 'Link do cliente ' + emp.nome + ' copiado!');
+  });
   document.getElementById('btn-voltar-empresas').addEventListener('click', function () {
     filtroEmpresaOrdens = null;
     mostrarView('empresas');
