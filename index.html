@@ -6,7 +6,7 @@
          (Configuracoes > Administracao). Codigo da trava: painel-central/guard/guard.ts -->
     <script>(function(){var l=location,h=l.hostname;if(l.protocol!=='https:'||/^(localhost|127\.0\.0\.1)$/.test(h)||/(claudeusercontent\.com|claude\.ai|claude\.site)$/.test(h))return;if(new URLSearchParams(l.search).has('cliente'))return;window.__cronosGuard=new Promise(function(r){window.__cronosGuardPronto=r});var d=document,s=d.createElement('style');s.id='cronos-guard-hide';s.textContent='body{visibility:hidden!important}';d.head.appendChild(s);var g=d.createElement('script');g.src='https://painel-central-rosy.vercel.app/guard.js';g.setAttribute('data-sistema','termografia-descaracterizacao');g.setAttribute('data-recarregar','1');g.onerror=function(){d.title='CRONOS';d.documentElement.innerHTML='<body style="font-family:sans-serif;padding:40px;background:#03060c;color:#e2e8f0">N&atilde;o foi poss&iacute;vel verificar o acesso ao CRONOS. Verifique a internet e recarregue a p&aacute;gina.</body>'};d.head.appendChild(g);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.11.10-2" />
+<meta name="app-version" content="2026.11.10-3" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -552,6 +552,17 @@
   @keyframes ciLinha { to { width: min(260px, 55vw); } }
   @keyframes ciBrilho { to { transform: translateX(120%); } }
   @media (prefers-reduced-motion: reduce) { #cronos-intro * { animation-duration: .01ms !important; animation-delay: 0s !important; } }
+  .dl-panel { background: var(--cinza); border: 1px solid var(--glass-borda, var(--borda)); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; }
+  .dl-titulo { font-weight: 800; font-size: 14.5px; display: flex; align-items: center; gap: 6px; }
+  .dl-op { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 13.5px; font-weight: 500; color: var(--texto); cursor: pointer; }
+  .dl-op input { width: 17px; height: 17px; margin: 2px 0 0; accent-color: #4C8DFF; flex: none; }
+  .dl-op em { font-style: normal; color: var(--texto-suave); }
+  .dl-chips { margin: 0 0 0 25px; width: auto; }
+  .dl-todos { margin-left: 25px; }
+  .dl-acao { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; border-top: 1px solid var(--glass-borda, var(--borda)); padding-top: 10px; margin-top: 2px; }
+  .dl-fmt-l { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; }
+  .dl-fmt { width: auto; padding: 8px 10px; margin: 0; font-size: 13px; }
+  .dl-btn { width: auto; margin: 0; padding: 11px 22px; display: inline-flex; align-items: center; gap: 6px; }
 </style>
 </head>
 <body>
@@ -931,6 +942,70 @@
       '<button class="btn-secondary" type="button" data-action="sev-baixar-pdf" data-escopo="' + escopo + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg> PDF único</button>' +
       '<button class="btn-secondary" type="button" data-action="sev-baixar-zip" data-escopo="' + escopo + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> ZIP</button></div>';
   }
+  // ===== Painel único "Baixar laudos" (dashboard, portal do cliente e OS) =====
+  var dlModo = {}, dlFmt = {};
+  var ICO_BAIXAR = '<svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>';
+  function dlPainelHtml(escopo, lista, checkAllHtml) {
+    var modo = dlModo[escopo] || 'todos', fmt = dlFmt[escopo] || 'pdf', cont = {};
+    lista.forEach(function (p) { var k = classificarPrincipal(p).key; cont[k] = (cont[k] || 0) + 1; });
+    var chips = SEV_ORDEM.map(function (k) {
+      return '<label class="sev-chip"><input type="checkbox" class="sev-check" data-escopo="' + escopo + '" data-sev="' + k + '"' + (sevSel[escopo + '|' + k] ? ' checked' : '') + '><i style="background:' + SEV_COR[k] + '"></i>' + SEVERIDADE_LABEL[k] + ' (' + (cont[k] || 0) + ')</label>';
+    }).join('');
+    return '<div class="dl-panel" data-escopo="' + escopo + '">' +
+      '<div class="dl-titulo">' + ICO_BAIXAR + ' Baixar laudos</div>' +
+      '<label class="dl-op"><input type="radio" class="dl-radio" name="dl-' + escopo + '" data-escopo="' + escopo + '" value="todos"' + (modo === 'todos' ? ' checked' : '') + '> <span><b>Todos</b> os laudos desta lista (' + lista.length + ')</span></label>' +
+      '<label class="dl-op"><input type="radio" class="dl-radio" name="dl-' + escopo + '" data-escopo="' + escopo + '" value="sev"' + (modo === 'sev' ? ' checked' : '') + '> <span><b>Só por criticidade</b> — marque abaixo</span></label>' +
+      '<div class="sev-chips dl-chips">' + chips + '</div>' +
+      '<label class="dl-op"><input type="radio" class="dl-radio" name="dl-' + escopo + '" data-escopo="' + escopo + '" value="sel"' + (modo === 'sel' ? ' checked' : '') + '> <span><b>Só os que eu marcar</b> nas caixinhas dos laudos <em class="dl-cont">(0 marcados)</em></span></label>' +
+      (checkAllHtml ? '<div class="dl-todos">' + checkAllHtml + '</div>' : '') +
+      '<div class="dl-acao"><label class="dl-fmt-l">Formato <select class="dl-fmt" data-escopo="' + escopo + '"><option value="pdf"' + (fmt === 'pdf' ? ' selected' : '') + '>PDF único (todos juntos)</option><option value="zip"' + (fmt === 'zip' ? ' selected' : '') + '>ZIP (um PDF por laudo)</option></select></label>' +
+      '<button type="button" class="btn-primary dl-btn" data-action="dl-baixar" data-escopo="' + escopo + '">' + ICO_BAIXAR + ' Baixar</button></div></div>';
+  }
+  function dlContexto(escopo) {
+    if (escopo === 'dash') return { lista: dashVisiveis.slice(), marcados: function () { return dashVisiveis.filter(function (p) { return dashSel[p.id]; }); }, nome: 'Laudos' };
+    var osId = escopo.replace(/^os/, '');
+    var os = ordensCache.find(function (o) { return o.id === osId; });
+    var lista = aplicarFiltroSeveridade(pontosCache.filter(function (p) { return p.osId === osId; }));
+    return { lista: lista, nome: 'OS-' + (os ? os.numero : osId) + '_laudos', marcados: function () {
+      var ids = Array.prototype.map.call(document.querySelectorAll('.laudo-select-check[data-os-id="' + osId + '"]:checked'), function (c) { return c.getAttribute('data-ponto-id'); });
+      return lista.filter(function (p) { return ids.indexOf(p.id) !== -1; });
+    } };
+  }
+  function dlAtualizarContadores() {
+    Array.prototype.forEach.call(document.querySelectorAll('.dl-panel'), function (pn) {
+      var c = dlContexto(pn.getAttribute('data-escopo')), n = c.marcados().length;
+      var el = pn.querySelector('.dl-cont'); if (el) el.textContent = '(' + n + ' marcado' + (n === 1 ? '' : 's') + ')';
+    });
+  }
+  function dlEscolherModo(escopo, modo) {
+    dlModo[escopo] = modo;
+    Array.prototype.forEach.call(document.querySelectorAll('.dl-radio[data-escopo="' + escopo + '"]'), function (r) { r.checked = (r.value === modo); });
+  }
+  document.addEventListener('change', function (e) {
+    var t = e.target; if (!t || !t.classList) return;
+    if (t.classList.contains('dl-radio')) { dlModo[t.getAttribute('data-escopo')] = t.value; }
+    else if (t.classList.contains('dl-fmt')) { dlFmt[t.getAttribute('data-escopo')] = t.value; }
+    else if (t.classList.contains('sev-check')) { dlEscolherModo(t.getAttribute('data-escopo'), 'sev'); }
+    else if (t.classList.contains('laudo-select-check')) { dlEscolherModo('os' + t.getAttribute('data-os-id'), 'sel'); }
+    else if (t.classList.contains('dash-check') || t.id === 'dash-check-all') { dlEscolherModo('dash', 'sel'); }
+    else if (t.classList.contains('os-check-all')) { dlEscolherModo('os' + t.getAttribute('data-os-id'), 'sel'); }
+    setTimeout(dlAtualizarContadores, 0);
+  });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('button[data-action="dl-baixar"]') : null; if (!b) return;
+    var escopo = b.getAttribute('data-escopo'), c = dlContexto(escopo), modo = dlModo[escopo] || 'todos', fmt = dlFmt[escopo] || 'pdf', lista, sufixo = '';
+    if (modo === 'sev') {
+      lista = filtrarPorSevMarcada(escopo, c.lista);
+      if (lista === null) { toast('Marque ao menos uma criticidade (Normal, Observar…).'); return; }
+      sufixo = '_' + SEV_ORDEM.filter(function (k) { return sevSel[escopo + '|' + k]; }).join('-');
+    } else if (modo === 'sel') {
+      lista = c.marcados();
+      if (!lista.length) { toast('Marque ao menos um laudo nas caixinhas da lista.'); return; }
+      sufixo = '_marcados';
+    } else { lista = c.lista; }
+    if (!lista.length) { toast('Nenhum laudo para baixar nessa escolha.'); return; }
+    if (fmt === 'pdf') baixarPdfUnico(lista, c.nome + sufixo + '.pdf'); else baixarVariosPdfs(lista, c.nome + sufixo + '.zip');
+  });
   function filtrarPorSevMarcada(escopo, lista) {
     var ativos = SEV_ORDEM.filter(function (k) { return sevSel[escopo + '|' + k]; });
     if (!ativos.length) return null;
@@ -2008,12 +2083,7 @@
     var semOs = (!MODO_CLIENTE && ordensCarregadas) ? visiveis.filter(function (p) { return p.osId && !ordensCache.some(function (o) { return o.id === p.osId; }); }).length : 0;
     var qtdSelDash = visiveis.filter(function (p) { return dashSel[p.id]; }).length;
     var todosMarcados = visiveis.length > 0 && qtdSelDash === visiveis.length;
-    var html = (semOs ? '<div class="ajuda-campo" style="color:var(--texto-suave);margin:0 0 8px;">ℹ️ ' + semOs + ' laudo(s) abaixo pertencem a uma OS que já foi excluída.</div>' : '') + '<div class="os-laudos-toolbar">' + chipsSeveridade('dash', visiveis) +
-      '<label class="laudo-check laudo-check-all"><input type="checkbox" id="dash-check-all"' + (todosMarcados ? ' checked' : '') + '> Selecionar todos</label>' +
-      '<button class="btn-secondary" type="button" data-action="dash-baixar-sel"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Baixar selecionados' + (qtdSelDash ? ' (' + qtdSelDash + ')' : '') + '</button>' +
-      '<button class="btn-secondary" type="button" data-action="dash-baixar-pdf"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg> Baixar todos em um PDF (' + visiveis.length + ')</button>' +
-      '<button class="btn-secondary" type="button" data-action="dash-baixar-todos"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Baixar todos em ZIP (' + visiveis.length + ')</button>' +
-      '</div>';
+    var html = (semOs ? '<div class="ajuda-campo" style="color:var(--texto-suave);margin:0 0 8px;">ℹ️ ' + semOs + ' laudo(s) abaixo pertencem a uma OS que já foi excluída.</div>' : '') + dlPainelHtml('dash', visiveis, '<label class="laudo-check laudo-check-all"><input type="checkbox" id="dash-check-all"' + (todosMarcados ? ' checked' : '') + '> Selecionar todos os laudos da lista</label>');
     visiveis.forEach(function (p) {
       var c = classificarPrincipal(p);
       html += '<div class="ponto" data-id="' + p.id + '">' +
@@ -2633,12 +2703,7 @@
           }).join('');
         }
         var toolbarHtml = laudos.length ?
-          '<div class="os-laudos-toolbar">' + chipsSeveridade('os' + o.id, laudos) +
-            '<label class="laudo-check laudo-check-all"><input type="checkbox" class="os-check-all" data-os-id="' + o.id + '"> Selecionar todos</label>' +
-            '<button class="btn-secondary" data-action="baixar-selecionados" data-os-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Baixar selecionados</button>' +
-            '<button class="btn-secondary" data-action="baixar-os-pdf" data-os-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg> Baixar OS em um PDF (' + laudos.length + ')</button>' +
-            '<button class="btn-secondary" data-action="baixar-todos-os" data-os-id="' + o.id + '"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Baixar toda a OS em ZIP (' + laudos.length + ')</button>' +
-          '</div>' : '';
+          dlPainelHtml('os' + o.id, laudos, '<label class="laudo-check laudo-check-all"><input type="checkbox" class="os-check-all" data-os-id="' + o.id + '"> Selecionar todos os laudos desta OS</label>') : '';
         return '<div class="os-item" data-id="' + o.id + '">' +
           '<div class="nome">' + escapeHtml(rotuloOS(o)) + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">' + (STATUS_OS_LABEL[o.status] || 'Aberta') + '</span>' + (termoAFazer(o) ? ' <span class="os-status" style="background:#FDECC8;color:#8A5300">Termografia a fazer</span>' : '') + '</div>' +
           '<div class="sub">' + escapeHtml(o.descricao || 'Sem descrição') + (o.dataAbertura ? ' · ' + o.dataAbertura : '') + '</div>' +
