@@ -320,6 +320,7 @@
       // Laudos NR-13 publicados pelo Relatório NR-13 (cópia para consulta)
       try { var li = await db.collection('portal_laudos').doc(empId).get(); estado.laudos = li.exists ? (li.data().laudos || {}) : {}; } catch (e) { estado.laudos = {}; }
       soLiberados();
+      aplicarEscolhaDeServicos();
       if (!sessionStorage.getItem('portal-acesso-' + u.uid)) {
         db.collection('portal_usuarios').doc(u.uid).update({ ultimoAcesso: new Date().toISOString() }).catch(function () {});
         try { sessionStorage.setItem('portal-acesso-' + u.uid, '1'); } catch (e) {}
@@ -465,6 +466,12 @@
   // O cliente só vê o que a IDEALLE enviou pelo botão "Enviar ao portal do cliente" de cada sistema
   // (relatórios NR-13, certificados de calibração e laudos de termografia). O resumo que o Cronos publica
   // serve só para completar os dados (prazos, validade) do que já foi enviado.
+  // Serviços marcados/desmarcados na aba Portal do Cliente do Cronos valem na hora, mesmo antes de o Cronos republicar
+  function aplicarEscolhaDeServicos() {
+    var ext = (estado.acesso && estado.acesso.servicosExtras) || {}, sv = Object.assign({}, (estado.dados && estado.dados.servicos) || {});
+    Object.keys(ext).forEach(function (k) { if (ext[k] === true) sv[k] = true; else if (ext[k] === false) delete sv[k]; });
+    if (estado.dados) estado.dados.servicos = sv;
+  }
   function soLiberados() {
     var d = estado.dados || {}, docs = todosDocs();
     var tipo = function (t) { return docs.filter(function (x) { return x.tipo === t; }); };

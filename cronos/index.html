@@ -774,8 +774,8 @@
     });
     return sv;
   }
-  function dadosPortal(empId) {
-    var emp = porId('empresas', empId) || {}, ac = portalAcesso(empId) || {};
+  function dadosPortal(empId, acNovo) {
+    var emp = porId('empresas', empId) || {}, ac = Object.assign({}, portalAcesso(empId) || {}, acNovo || {});
     var ords = cache.ordens.filter(function (o) { return o.empresaId === empId && statusOS(o) !== 'cancelada'; })
       .sort(function (a, b) { return String(b.dataAbertura || '') < String(a.dataAbertura || '') ? -1 : 1; });
     var sv = {};
@@ -958,13 +958,15 @@
       var v = lerForm();
       if (!ac.id) v.criadoEm = agora();
       await banco.atualizar('portal_acessos', empId, v);
-      var dd = dadosPortal(empId); dd.atualizadoEm = agora();
+      // Publica com a escolha que acabou de ser salva (sem depender de a lista local já ter recebido a mudança)
+      var dd = dadosPortal(empId, v), h = hashTexto(JSON.stringify(dd)); dd.atualizadoEm = agora();
       await banco.gravar('portal_dados', empId, dd);
-      await banco.atualizar('portal_acessos', empId, { hashDados: hashTexto(JSON.stringify(dadosPortal(empId))), contagem: dd.contagem, publicadoEm: dd.atualizadoEm });
+      await banco.atualizar('portal_acessos', empId, { hashDados: h, contagem: dd.contagem, publicadoEm: dd.atualizadoEm });
+      v.servicosPublicados = PORTAL_SERVICOS.filter(function (s) { return dd.servicos[s[0]]; }).map(function (s) { return s[1]; });
       return v;
     }
     $('pa-fechar').onclick = fecharModal;
-    $('pa-salvar').onclick = async function () { try { await salvar(); toast('Acesso salvo.'); fecharModal(); } catch (e) { toast('Erro: ' + e.message); } };
+    $('pa-salvar').onclick = async function () { try { var sv = await salvar(); toast('Acesso salvo. No portal: ' + (sv.servicosPublicados.join(', ') || 'nenhum serviço') + '.'); fecharModal(); } catch (e) { toast('Erro: ' + e.message); } };
     $('modal').querySelectorAll('[data-tirar]').forEach(function (b) {
       b.onclick = async function () {
         if (!confirm('Tirar o acesso deste usuário ao portal?')) return;
