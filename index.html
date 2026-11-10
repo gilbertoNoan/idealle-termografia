@@ -6,7 +6,7 @@
          (Configuracoes > Administracao). Codigo da trava: painel-central/guard/guard.ts -->
     <script>(function(){var l=location,h=l.hostname;if(l.protocol!=='https:'||/^(localhost|127\.0\.0\.1)$/.test(h)||/(claudeusercontent\.com|claude\.ai|claude\.site)$/.test(h))return;if(new URLSearchParams(l.search).has('cliente'))return;window.__cronosGuard=new Promise(function(r){window.__cronosGuardPronto=r});var d=document,s=d.createElement('style');s.id='cronos-guard-hide';s.textContent='body{visibility:hidden!important}';d.head.appendChild(s);var g=d.createElement('script');g.src='https://painel-central-rosy.vercel.app/guard.js';g.setAttribute('data-sistema','termografia-descaracterizacao');g.setAttribute('data-recarregar','1');g.onerror=function(){d.title='CRONOS';d.documentElement.innerHTML='<body style="font-family:sans-serif;padding:40px;background:#03060c;color:#e2e8f0">N&atilde;o foi poss&iacute;vel verificar o acesso ao CRONOS. Verifique a internet e recarregue a p&aacute;gina.</body>'};d.head.appendChild(g);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.11.10-9" />
+<meta name="app-version" content="2026.11.10-10" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -2476,6 +2476,7 @@
     var os = ordensCache.find(function (o) { return o.id === osId; });
     if (!os) { toast('A OS aberta pelo Cronos não foi encontrada aqui.'); return; }
     mostrarView('novo');
+    garantirOpcaoEmpresaNovo(os.empresaId);
     document.getElementById('novo-empresa').value = os.empresaId || '';
     atualizarSelectOsNovo(os.empresaId, false);
     document.getElementById('f-os').value = os.id;
@@ -2630,12 +2631,31 @@
     if (atualOs) selOs.value = atualOs;
     document.getElementById('aviso-sem-empresa').style.display = empresasCache.length ? 'none' : 'block';
 
-    var selNovoEmp = document.getElementById('novo-empresa');
+    popularEmpresasNovoLaudo();
+  }
+
+  // Novo laudo: só aparecem as empresas que têm OS de termografia em aberto (para fazer)
+  function garantirOpcaoEmpresaNovo(id) {
+    var sel = document.getElementById('novo-empresa');
+    if (!id || Array.prototype.some.call(sel.options, function (o) { return o.value === id; })) return;
+    var e = empresasCache.find(function (x) { return x.id === id; });
+    if (e) { var op = document.createElement('option'); op.value = e.id; op.text = e.nome; sel.add(op); }
+  }
+  function popularEmpresasNovoLaudo() {
+    var selNovoEmp = document.getElementById('novo-empresa'); if (!selNovoEmp) return;
     var atualNovoEmp = selNovoEmp.value;
-    selNovoEmp.innerHTML = '<option value="">Selecione a empresa…</option>' +
-      empresasCache.map(function (e) { return '<option value="' + e.id + '">' + escapeHtml(e.nome) + '</option>'; }).join('');
+    var abertas = {};
+    ordensCache.forEach(function (o) {
+      if (o.status === 'concluida' || o.status === 'faturada' || o.status === 'cancelada') return;
+      abertas[o.empresaId] = (abertas[o.empresaId] || 0) + 1;
+    });
+    var lista = empresasCache.filter(function (e) { return abertas[e.id] || e.id === atualNovoEmp; });
+    selNovoEmp.innerHTML = '<option value="">' + (lista.length ? 'Selecione a empresa…' : 'Nenhuma empresa com OS de termografia em aberto') + '</option>' +
+      lista.map(function (e) { var n = abertas[e.id] || 0; return '<option value="' + e.id + '">' + escapeHtml(e.nome) + (n ? ' — ' + n + ' OS em aberto' : '') + '</option>'; }).join('');
     if (atualNovoEmp) selNovoEmp.value = atualNovoEmp;
-    document.getElementById('aviso-sem-empresa-novo').style.display = empresasCache.length ? 'none' : 'block';
+    var aviso = document.getElementById('aviso-sem-empresa-novo');
+    aviso.style.display = lista.length ? 'none' : 'block';
+    aviso.textContent = empresasCache.length ? 'Nenhuma empresa tem OS de termografia em aberto. As OS são abertas no Gestão & Financeiro.' : 'Cadastre uma empresa primeiro na aba "Empresas".';
   }
 
   function limparFormEmpresa() {
@@ -2872,6 +2892,7 @@
         '</div>';
       }).join('');
     }
+    popularEmpresasNovoLaudo();
     var empresaSelecionadaNovo = document.getElementById('novo-empresa').value;
     if (empresaSelecionadaNovo && !document.getElementById('f-os').disabled) atualizarSelectOsNovo(empresaSelecionadaNovo, true);
     sugerirProximoNumeroOS();
@@ -3284,6 +3305,7 @@
     editandoPontoOriginal = ponto;
     mostrarView('novo');
     var osDoPonto = ordensCache.find(function (o) { return o.id === ponto.osId; });
+    if (osDoPonto) garantirOpcaoEmpresaNovo(osDoPonto.empresaId);
     document.getElementById('novo-empresa').value = osDoPonto ? osDoPonto.empresaId : '';
     document.getElementById('novo-empresa').disabled = true;
     atualizarSelectOsNovo(osDoPonto ? osDoPonto.empresaId : '', false);
