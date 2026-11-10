@@ -60,6 +60,19 @@
   .serv .nome { font-weight: 700; color: var(--texto); }
   .serv.trancado .nome { color: var(--sub); }
   .serv .info { font-size: 13px; color: var(--muted); flex: 1; }
+  /* Notificações da planta */
+  .notif-lista { display: grid; gap: 8px; max-height: 420px; overflow: auto; }
+  .notif { display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left; font: inherit; color: var(--texto); background: var(--card); border: 1px solid var(--linha); border-left: 4px solid var(--muted); border-radius: 12px; padding: 12px 14px; }
+  button.notif { cursor: pointer; }
+  button.notif:hover { border-color: var(--borda); }
+  .notif i { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; background: var(--muted); }
+  .notif div { flex: 1; min-width: 0; }
+  .notif b { display: block; font-size: 14.5px; }
+  .notif span { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .notif em { font-style: normal; font-size: 12.5px; font-weight: 700; color: var(--sub); white-space: nowrap; align-self: center; }
+  .notif.bad { border-left-color: var(--bad); } .notif.bad i { background: var(--bad); box-shadow: 0 0 0 4px rgba(248,113,113,.15); }
+  .notif.warn { border-left-color: var(--amb); } .notif.warn i { background: var(--amb); box-shadow: 0 0 0 4px rgba(245,158,11,.15); }
+  .notif.ok { border-left-color: var(--ok); } .notif.ok i { background: var(--ok); }
   /* Quantidades em destaque nos cartões dos serviços (ex.: PSV 1 / PI 1) */
   .serv .qtd { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 4px 0; border-top: 1px solid var(--linha); }
   .serv .qtd:first-child { border-top: 0; }
@@ -335,8 +348,6 @@
 
   function painel() {
     var d = estado.dados, c = d.contagem || {}, sv = d.servicos || {};
-    var total = (c.emdia || 0) + (c.vencendo || 0) + (c.vencidos || 0);
-    var conf = total ? Math.round(((c.emdia || 0) + (c.vencendo || 0)) / total * 100) : 0;
     var cards = SERVICOS.map(function (s) {
       var ativo = !!sv[s[0]], info = s[2];
       if (ativo && s[0] === 'nr13') { var nLaudos = todosDocs().filter(function (x) { return x.tipo === 'nr13'; }).length; info = 'Relatórios: ' + nLaudos; }
@@ -355,8 +366,7 @@
       cabecalhoCliente(d.empresa) +
       '<div class="resumo"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px"><h1 style="font-size:22px">Situação da sua planta</h1>' +
       (temDocumentos() ? '<button class="btn" id="b-relatorios" type="button">' + IC_DOC + ' Ver e baixar meus relatórios</button>' : '') + '</div>' +
-      '<div class="kpis"><div class="kpi"><b>' + (total ? conf + '%' : '—') + '</b><span>em conformidade</span></div><div class="kpi"><b style="color:var(--ok)">' + (c.emdia || 0) + '</b><span>em dia</span></div>' +
-      '<div class="kpi"><b style="color:var(--amb-t)">' + (c.vencendo || 0) + '</b><span>vencem em 90 dias</span></div><div class="kpi" style="border-color:var(--bad-b)"><b style="color:var(--bad)">' + (c.vencidos || 0) + '</b><span>vencidos</span></div></div></div>' +
+      '</div>' + secNotificacoes() +
       faixaContrato() +
       secCondicoes() +
       '<section><div class="tit-sec"><h2>Seus serviços</h2><span class="sub">' + ativos + ' contratado(s) · ' + (SERVICOS.length - ativos) + ' disponível(is)</span></div><div class="servicos">' + cards + '</div></section>' +
@@ -365,6 +375,46 @@
     ligarBuscas();
     var br = $('b-relatorios'); if (br) br.onclick = function () { telaRelatorios(); };
     tela.querySelectorAll('[data-relatorios]').forEach(function (b) { b.onclick = function () { telaRelatorios(); }; });
+    tela.querySelectorAll('[data-notif]').forEach(function (b) {
+      b.onclick = function () { var srv = tela.querySelector('.serv[data-ir="' + b.getAttribute('data-notif') + '"]'); if (srv) srv.click(); };
+    });
+  }
+
+  // ---------- Notificações da planta: inspeção atrasada, vencendo em 90 dias, não conforme ----------
+  function notificacoesDaPlanta() {
+    var d = estado.dados || {}, lista = [];
+    var add = function (nivel, servico, titulo, detalhe, ordem) { lista.push({ nivel: nivel, servico: servico, titulo: titulo, detalhe: detalhe, ordem: ordem || '' }); };
+    (d.vasos || []).forEach(function (v) {
+      var nome = (v.tag || 'Vaso') + (v.nome ? ' · ' + v.nome : '');
+      if (v.situacao === 'vencido') add('bad', 'nr13', 'Inspeção atrasada — ' + nome, 'O prazo da próxima inspeção NR-13 venceu em ' + data(v.proximo) + '.', v.proximo);
+      else if (v.situacao === 'vencendo') add('warn', 'nr13', 'Inspeção vencendo — ' + nome, 'Próxima inspeção NR-13 até ' + data(v.proximo) + ' (' + dias(v.proximo) + ' dias).', v.proximo);
+      if (v.parecer === 'INAPTO') add('bad', 'nr13', 'Não conforme — ' + nome, 'O laudo indica o equipamento como inapto para operação.', '0');
+      else if (v.parecer === 'APTO_COM_RESTRICOES') add('warn', 'nr13', 'Apto com restrições — ' + nome, 'O laudo pede correções. Veja as recomendações no relatório.', '1');
+    });
+    var vistos = {};
+    (d.certificados || []).concat(todosDocs().filter(function (x) { return x.tipo === 'calibracao'; })).forEach(function (c) {
+      var val = isoDe(c.validade); if (!val) return;
+      var tipo = /valvula|psv|safety/i.test(String(c.tipo || c.equipamento || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')) ? 'Válvula de segurança (PSV)' : 'Manômetro (PI)';
+      var chave = tipo + (c.tag || '') + (c.numero || '') + val; if (vistos[chave]) return; vistos[chave] = 1;
+      var nome = tipo + (c.tag ? ' · ' + c.tag : '');
+      if (val < hoje()) add('bad', 'calibracao', 'Calibração vencida — ' + nome, 'A validade do certificado' + (c.numero ? ' ' + c.numero : '') + ' terminou em ' + data(val) + '.', val);
+      else if (dias(val) <= 90) add('warn', 'calibracao', 'Calibração vencendo — ' + nome, 'Validade até ' + data(val) + ' (' + dias(val) + ' dias).', val);
+    });
+    var te = d.termografia, pn = (te && te.porNivel) || {};
+    var crit = (pn.urgencia || 0) + (pn.emergencia || 0);
+    if (crit) add('bad', 'termografia', crit + ' quadro(s) em urgência/emergência na termografia', 'Pontos com aquecimento que pedem correção imediata.', '0');
+    if (pn.programar) add('warn', 'termografia', pn.programar + ' quadro(s) para programar manutenção', 'Aquecimento que deve entrar na próxima manutenção.', '1');
+    return lista.sort(function (a, b) { return (a.nivel === b.nivel ? 0 : a.nivel === 'bad' ? -1 : 1) || String(a.ordem).localeCompare(String(b.ordem)); });
+  }
+  function secNotificacoes() {
+    var n = notificacoesDaPlanta();
+    var nb = n.filter(function (x) { return x.nivel === 'bad'; }).length, nw = n.length - nb;
+    var cab = '<div class="tit-sec" style="margin-top:14px"><h2>Notificações da planta</h2><span class="sub">' +
+      (n.length ? (nb ? nb + ' crítica(s)' : '') + (nb && nw ? ' · ' : '') + (nw ? nw + ' de atenção' : '') : 'nada pendente') + '</span></div>';
+    if (!n.length) return '<section class="notifs">' + cab + '<div class="notif ok"><i></i><div><b>Tudo em dia na sua planta</b><span>Nenhum prazo atrasado, vencendo nos próximos 90 dias ou item não conforme.</span></div></div></section>';
+    return '<section class="notifs">' + cab + '<div class="notif-lista">' + n.map(function (x) {
+      return '<button type="button" class="notif ' + x.nivel + '" data-notif="' + x.servico + '"><i></i><div><b>' + esc(x.titulo) + '</b><span>' + esc(x.detalhe) + '</span></div><em>Ver ›</em></button>';
+    }).join('') + '</div></section>';
   }
 
   var IC_DOC = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="margin-right:8px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 12v6M9 15l3 3 3-3"/></svg>';
