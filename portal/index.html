@@ -108,6 +108,21 @@
   .aba span { color: var(--muted); font-weight: 400; margin-left: 4px; }
   .aba.on { background: var(--amb); border-color: var(--amb); color: #111827; } .aba.on span { color: #111827; }
   input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--amb); }
+  .rkpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .rk { background: var(--card); border: 1px solid var(--linha); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 2px; }
+  .rk b { font-size: 30px; line-height: 1.1; }
+  .rk-t { font-weight: 700; } .rk-s { font-size: 12px; color: var(--muted); }
+  .oscard { border: 1px solid var(--linha); border-left: 4px solid var(--amb); border-radius: 12px; padding: 14px 16px; background: #0b1324; display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+  .oscab { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .tagchips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tagchip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px 4px 10px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; font-size: 13px; color: var(--amb-t); white-space: nowrap; }
+  .tagchip i { width: 8px; height: 8px; border-radius: 50%; background: var(--borda); } .tagchip i.ok { background: var(--ok); }
+  .tagolho, .bicone { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--borda); background: transparent; color: var(--sub); border-radius: 8px; cursor: pointer; }
+  .tagolho { width: 28px; height: 26px; margin-left: 4px; }
+  .bicones { display: inline-flex; gap: 6px; } .bicone { width: 38px; height: 36px; }
+  .tagolho:hover, .bicone:hover { color: var(--amb-t); border-color: var(--amb-b); }
+  .osacoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--linha); padding-top: 10px; }
+  .relcta { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; border-color: var(--amb-b); }
   .rodape { color: var(--muted); font-size: 12px; text-align: center; padding: 8px 0 0; }
   .carregando { text-align: center; color: var(--muted); padding: 18vh 16px; }
   .esconder { display: none !important; }
@@ -326,10 +341,11 @@
       faixaContrato() +
       secCondicoes() +
       '<section><div class="tit-sec"><h2>Seus serviços</h2><span class="sub">' + ativos + ' contratado(s) · ' + (SERVICOS.length - ativos) + ' disponível(is)</span></div><div class="servicos">' + cards + '</div></section>' +
-      (sv.nr13 ? secVasos() + secLaudos() : '') + (sv.calibracao ? secCertificados() : '') + (sv.termografia && d.termografia ? secTermografia() : '') + secOs() +
+      secAcessoRelatorios() +
       '<p class="rodape">Dados atualizados em ' + data(d.atualizadoEm) + '. Os documentos assinados ficam com a IDEALLE e são enviados sob solicitação. IDEALLE Inspeções e Serviços · CREA-SP · ' + esc(contato.telefone) + '</p>';
     ligarBuscas();
-    var br = $('b-relatorios'); if (br) br.onclick = function () { telaRelatorios('todos'); };
+    var br = $('b-relatorios'); if (br) br.onclick = function () { telaRelatorios(); };
+    tela.querySelectorAll('[data-relatorios]').forEach(function (b) { b.onclick = function () { telaRelatorios(); }; });
   }
 
   var IC_DOC = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="margin-right:8px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 12v6M9 15l3 3 3-3"/></svg>';
@@ -422,41 +438,102 @@
     }
     botao.disabled = false; botao.textContent = txt;
   }
-  function telaRelatorios(filtro) {
-    var docs = todosDocs(), tipos = Object.keys(TIPOS_DOC).filter(function (t) { return docs.some(function (x) { return x.tipo === t; }); });
-    estado.filtroRel = filtro || 'todos';
-    tela.innerHTML = cabecalhoCliente(estado.dados.empresa) +
-      '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px"><div><button class="btn sec peq" id="r-voltar" type="button">← Voltar ao painel</button><h1 style="font-size:24px;margin-top:12px">Meus relatórios</h1>' +
-      '<span class="sub">Cópias para consulta. Os originais assinados digitalmente ficam arquivados na IDEALLE e são enviados sob solicitação.</span></div>' +
-      '<div style="display:flex;flex-wrap:wrap;gap:8px"><button class="btn sec" id="r-zip-sel" type="button">Baixar marcados (ZIP)</button><button class="btn" id="r-zip-todos" type="button">Baixar todos (ZIP)</button></div></div>' +
-      '<section class="card"><div class="busca" style="align-items:center"><div class="abas" role="tablist">' +
-      ['todos'].concat(tipos).map(function (t) { var n = t === 'todos' ? docs.length : docs.filter(function (x) { return x.tipo === t; }).length; return '<button type="button" role="tab" class="aba' + (t === estado.filtroRel ? ' on' : '') + '" data-filtro="' + t + '">' + (t === 'todos' ? 'Todos' : TIPOS_DOC[t][0]) + ' <span>' + n + '</span></button>'; }).join('') +
-      '</div><input type="search" id="r-busca" placeholder="Buscar por TAG, equipamento, número ou OS" aria-label="Buscar relatório"></div>' +
-      '<div class="tabela"><table><thead><tr><th style="width:36px"><input type="checkbox" id="r-todos" aria-label="Marcar todos"></th><th>Tipo</th><th>TAG</th><th>Documento</th><th>Data</th><th>OS</th><th></th></tr></thead><tbody id="r-linhas"></tbody></table></div></section>';
-    function filtrados() {
-      var q = normal(($('r-busca') || {}).value || '');
-      return docs.filter(function (x) { return (estado.filtroRel === 'todos' || x.tipo === estado.filtroRel) && (!q || normal([x.tag, x.equipamento, x.numero, x.os].join(' ')).indexOf(q) >= 0); });
-    }
-    function desenhar() {
-      var ff = filtrados();
-      $('r-linhas').innerHTML = ff.length ? ff.map(function (x) {
-        var t = TIPOS_DOC[x.tipo] || TIPOS_DOC.nr13, eTermo = x.tipo === 'termografia';
-        var docTxt = eTermo ? (x.qtd || 0) + ' ponto(s) inspecionado(s)' : esc(x.equipamento || '') + (x.numero ? '<div class="sub">Certificado ' + esc(x.numero) + (x.validade ? ' · validade ' + data(isoDe(x.validade)) : '') + '</div>' : '');
-        return '<tr><td>' + (eTermo ? '' : '<input type="checkbox" class="r-sel" value="' + esc(x.chave) + '" aria-label="Marcar ' + esc(x.tag || '') + '">') + '</td>' +
-          '<td><span class="chip ' + t[1] + '">' + t[0] + '</span></td><td class="mono">' + esc(x.tag || '—') + '</td><td>' + docTxt + '</td><td>' + data(isoDe(x.dataInspecao)) + '</td><td class="mono">' + esc(x.os || '') + '</td>' +
-          '<td style="text-align:right;white-space:nowrap">' + (eTermo ? '<a class="btn peq" href="' + esc(x.link) + '" target="_blank" rel="noopener">Ver e baixar laudos</a>' : botoesLaudo(x)) + '</td></tr>';
-      }).join('') : '<tr><td colspan="7" class="vazio">Nenhum relatório encontrado.</td></tr>';
-      $('r-todos').checked = false;
-    }
-    desenhar();
+  // ---------- Página "Meus relatórios" (no modelo da página do cliente do sistema de relatórios) ----------
+  function iconeOlho() { return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>'; }
+  function iconeBaixar() { return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>'; }
+  function botoesIcone(x) {
+    return '<span class="bicones"><button type="button" class="bicone" data-laudo="' + esc(x.chave) + '" data-acao="ver" title="Ver o PDF" aria-label="Ver o PDF de ' + esc(x.tag || '') + '">' + iconeOlho() + '</button>' +
+      '<button type="button" class="bicone" data-laudo="' + esc(x.chave) + '" data-acao="baixar" title="Baixar o PDF" aria-label="Baixar o PDF de ' + esc(x.tag || '') + '">' + iconeBaixar() + '</button></span>';
+  }
+  var NOME_EXAME = { externo: 'Exame externo', interno: 'Exame interno' };
+  function telaRelatorios(irPara) {
+    var d = estado.dados, docs = todosDocs();
+    var docsPdf = docs.filter(function (x) { return x.tipo !== 'termografia'; });
+    var laudos = docs.filter(function (x) { return x.tipo === 'nr13'; });
+    var termos = docs.filter(function (x) { return x.tipo === 'termografia'; });
+    var vasos = d.vasos || [], certs = d.certificados || [];
+    var docDaTag = function (tag) { tag = String(tag || '').toUpperCase(); return laudos.filter(function (x) { return x.tag === tag; })[0]; };
+    // OS: as do Cronos mais as que só aparecem nos documentos liberados
+    var oss = (d.os || []).map(function (o) { return { codigo: o.codigo, status: o.status, abertura: o.abertura, servicos: o.servicos || [], descricao: o.descricao }; });
+    docs.forEach(function (x) { if (x.os && !oss.some(function (o) { return o.codigo === x.os; })) oss.push({ codigo: x.os, status: '', abertura: isoDe(x.dataInspecao), servicos: [] }); });
+    oss.sort(function (a, b) { return String(b.abertura || '') < String(a.abertura || '') ? -1 : 1; });
+    var andamento = oss.filter(function (o) { return o.status === 'aberta' || o.status === 'execucao'; }).length;
+    var vencidos = vasos.filter(function (v) { return v.situacao === 'vencido'; }).length + certs.filter(function (c) { return c.situacao === 'vencido'; }).length;
+    var vencendo = vasos.filter(function (v) { return v.situacao === 'vencendo'; }).length + certs.filter(function (c) { return c.situacao === 'vencendo'; }).length;
+
+    var kpi = function (n, cor, tit, sub) { return '<div class="rk"><b style="color:' + cor + '">' + n + '</b><span class="rk-t">' + tit + '</span><span class="rk-s">' + sub + '</span></div>'; };
+    var cartoesOs = oss.map(function (o) {
+      var docsOs = docs.filter(function (x) { return x.os === o.codigo; });
+      var pdfsOs = docsOs.filter(function (x) { return x.tipo !== 'termografia'; });
+      var termo = docsOs.filter(function (x) { return x.tipo === 'termografia'; })[0];
+      var tagsSemDoc = vasos.filter(function (v) { return v.os === o.codigo && !pdfsOs.some(function (x) { return x.tag === v.tag; }); });
+      var st = STATUS_OS[o.status] || '';
+      var chips = pdfsOs.map(function (x) {
+        return '<span class="tagchip"><i class="ok"></i>' + esc(x.tag || x.numero || 'Documento') + '<button type="button" class="tagolho" data-laudo="' + esc(x.chave) + '" data-acao="ver" title="Ver o PDF" aria-label="Ver o PDF de ' + esc(x.tag || '') + '">' + iconeOlho() + '</button></span>';
+      }).join('') + tagsSemDoc.map(function (v) { return '<span class="tagchip" title="Laudo ainda não liberado"><i></i>' + esc(v.tag) + '</span>'; }).join('');
+      return '<div class="oscard"><div class="oscab"><span class="mono" style="font-size:17px">' + esc(o.codigo) + '</span>' +
+        (st ? '<span class="chip ' + (st === 'Concluída' ? 'c-ok' : 'c-warn') + '">' + esc(st === 'Concluída' ? 'Concluída' : 'Em andamento') + '</span>' : '') +
+        '<span class="sub">' + data(o.abertura) + ' · ' + (pdfsOs.length || !termo ? pdfsOs.length + ' documento(s)' : (termo.qtd || 0) + ' ponto(s) de termografia') + (o.servicos.length ? ' · ' + esc(o.servicos.join(', ')) : '') + '</span></div>' +
+        (chips ? '<div class="tagchips">' + chips + '</div>' : '') +
+        '<div class="osacoes">' +
+        (termo ? '<a class="btn sec peq" href="' + esc(termo.link) + '" target="_blank" rel="noopener">Ver laudos de termografia (' + (termo.qtd || 0) + ')</a>' : '') +
+        (pdfsOs.length ? '<button type="button" class="btn sec peq" data-zipos="' + esc(o.codigo) + '">' + iconeBaixar() + '&nbsp;Baixar documentos da OS (ZIP)</button>' : '') +
+        (!pdfsOs.length && !termo ? '<span class="sub">Documentos ainda não liberados pela IDEALLE.</span>' : '') +
+        '</div></div>';
+    }).join('');
+
+    var linhasVasos = vasos.slice().sort(function (a, b) { return a.tag < b.tag ? -1 : 1; }).map(function (v) {
+      var x = docDaTag(v.tag), p = PARECER[v.parecer];
+      var qual = v.proximo && v.proximo === v.externo ? 'externo' : v.proximo && v.proximo === v.interno ? 'interno' : '';
+      var cor = v.situacao === 'vencido' ? 'c-bad' : v.situacao === 'vencendo' ? 'c-warn' : v.situacao === 'emdia' ? 'c-ok' : 'c-cinza';
+      return '<tr><td><span class="tagchip"><i class="' + (x ? 'ok' : '') + '"></i>' + esc(v.tag) + '</span></td>' +
+        '<td><b style="text-transform:uppercase">' + esc(v.nome || '—') + '</b><div class="sub">' + esc([v.area, v.categoria ? 'cat. ' + v.categoria : ''].filter(Boolean).join(' · ')) + '</div></td>' +
+        '<td>' + data(v.dataInspecao) + '<div class="sub">OS ' + esc(v.os || '') + '</div></td>' +
+        '<td>' + (v.proximo ? '<span class="chip ' + cor + '">' + mesAno(v.proximo) + (qual ? ' · ' + NOME_EXAME[qual] : '') + '</span>' : '<span class="sub">—</span>') + '</td>' +
+        '<td>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '<span class="sub">—</span>') + '</td>' +
+        '<td>' + (x ? '<span class="chip c-azul">Disponível</span>' : '<a class="sub" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + ' e preciso da cópia do laudo NR-13 do equipamento ' + v.tag + '.')) + '">Pedir cópia</a>') + '</td>' +
+        '<td style="text-align:right">' + (x ? botoesIcone(x) : '') + '</td></tr>';
+    }).join('');
+
+    var certsPub = docs.filter(function (x) { return x.tipo === 'calibracao'; });
+    var linhasCert = certsPub.map(function (x) {
+      var val = isoDe(x.validade), sit = !val ? 'sem' : val < hoje() ? 'vencido' : dias(val) <= 90 ? 'vencendo' : 'emdia';
+      return '<tr><td><span class="tagchip"><i class="ok"></i>' + esc(x.tag || '—') + '</span></td><td>' + esc(x.equipamento || '') + '<div class="sub">Certificado ' + esc(x.numero || '—') + '</div></td><td>' + data(isoDe(x.dataInspecao)) + '<div class="sub">OS ' + esc(x.os || '') + '</div></td><td>' + chipSit(sit, val) + '<div class="sub">validade ' + data(val) + '</div></td><td style="text-align:right">' + botoesIcone(x) + '</td></tr>';
+    }).join('');
+
+    tela.innerHTML = cabecalhoCliente(d.empresa) +
+      '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px"><div><button class="btn sec peq" id="r-voltar" type="button">← Voltar ao painel</button>' +
+      '<h1 style="font-size:24px;margin-top:12px">Meus relatórios</h1><span class="sub">Cópias para consulta. Os originais assinados digitalmente ficam arquivados na IDEALLE e são enviados sob solicitação.</span></div>' +
+      (docsPdf.length ? '<button class="btn" id="r-zip-todos" type="button">' + iconeBaixar() + '&nbsp;Baixar todos os PDFs (ZIP)</button>' : '') + '</div>' +
+      '<div class="rkpis">' +
+        kpi(oss.length, 'var(--texto)', 'Ordens de serviço', andamento + ' em andamento · ' + (oss.length - andamento) + ' concluída(s)') +
+        kpi(vasos.length, 'var(--amb-t)', 'Vasos / TAGs', certs.length + ' instrumento(s) calibrado(s)') +
+        kpi(docsPdf.length, 'var(--texto)', 'Documentos disponíveis', laudos.length + ' laudo(s) · ' + certsPub.length + ' certificado(s)' + (termos.length ? ' · ' + termos.length + ' OS de termografia' : '')) +
+        kpi(vencidos + vencendo, vencidos ? 'var(--bad)' : vencendo ? 'var(--amb-t)' : 'var(--ok)', 'Prazos a cuidar', vencidos + ' vencido(s) · ' + vencendo + ' vencendo em 90 dias') +
+      '</div>' +
+      '<section class="card" id="rel-os"><div class="tit-sec"><h2>' + IC_OS + ' ORDENS DE SERVIÇO (' + oss.length + ')</h2></div>' + (cartoesOs || '<p class="vazio">Nenhuma OS ainda.</p>') + '</section>' +
+      (vasos.length || laudos.length ? '<section class="card" id="rel-nr13"><div class="tit-sec"><h2>' + IC_VASO + ' VASOS & LAUDOS (' + vasos.length + ')</h2></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Equipamento</th><th>Última inspeção</th><th>Próximo prazo</th><th>Parecer</th><th>Laudo</th><th style="text-align:right">PDF</th></tr></thead><tbody>' +
+        (linhasVasos || '<tr><td colspan="7" class="vazio">Nenhum equipamento.</td></tr>') + '</tbody></table></div><p class="sub" style="margin:10px 0 0">Bolinha verde: laudo disponível · olho mostra o PDF · seta baixa o PDF</p></section>' : '') +
+      (certsPub.length ? '<section class="card" id="rel-calibracao"><div class="tit-sec"><h2>' + IC_VASO + ' CERTIFICADOS DE CALIBRAÇÃO (' + certsPub.length + ')</h2></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Instrumento</th><th>Calibração</th><th>Validade</th><th style="text-align:right">PDF</th></tr></thead><tbody>' + linhasCert + '</tbody></table></div></section>' : '');
+
     $('r-voltar').onclick = function () { painel(); window.scrollTo(0, 0); };
-    $('r-busca').oninput = desenhar;
-    $('r-todos').onchange = function () { var v = this.checked; tela.querySelectorAll('.r-sel').forEach(function (c) { c.checked = v; }); };
-    tela.querySelectorAll('[data-filtro]').forEach(function (b) { b.onclick = function () { telaRelatorios(b.dataset.filtro); }; });
-    var porChave = function (k) { return docs.filter(function (x) { return x.chave === k; })[0]; };
-    $('r-zip-sel').onclick = function () { baixarZip(Array.prototype.map.call(tela.querySelectorAll('.r-sel:checked'), function (c) { return porChave(c.value); }), this); };
-    $('r-zip-todos').onclick = function () { baixarZip(filtrados().filter(function (x) { return x.tipo !== 'termografia'; }), this); };
-    window.scrollTo(0, 0);
+    var zt = $('r-zip-todos'); if (zt) zt.onclick = function () { baixarZip(docsPdf, this); };
+    tela.querySelectorAll('[data-zipos]').forEach(function (b) {
+      b.onclick = function () { var cod = b.dataset.zipos; baixarZip(docsPdf.filter(function (x) { return x.os === cod; }), b); };
+    });
+    var alvo = irPara && $('rel-' + irPara);
+    if (alvo) alvo.scrollIntoView({ block: 'start' }); else window.scrollTo(0, 0);
+  }
+  var IC_OS = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>';
+  var IC_VASO = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>';
+
+  // Painel: em vez das tabelas, um cartão que leva à página dos relatórios
+  function secAcessoRelatorios() {
+    var docs = todosDocs();
+    var n = function (t) { return docs.filter(function (x) { return x.tipo === t; }).length; };
+    return '<section class="card relcta"><div><h2 style="margin:0 0 4px">Relatórios e documentos</h2><span class="sub">' +
+      (docs.length ? n('nr13') + ' laudo(s) NR-13 · ' + n('calibracao') + ' certificado(s) · ' + n('termografia') + ' OS de termografia, para ver e baixar em PDF.' : 'Os relatórios aparecem aqui assim que a IDEALLE liberar.') +
+      '</span></div><button class="btn" type="button" data-relatorios="">' + IC_DOC + ' Ver e baixar meus relatórios</button></section>';
   }
 
   var IC = {
@@ -584,7 +661,8 @@
   function ligarBuscas() {
     var b = $('b-vasos'); if (b) b.oninput = function () { $('t-vasos').innerHTML = linhasVasos(normal(b.value)); };
     tela.querySelectorAll('[data-ir]').forEach(function (el) {
-      var ir = function () { var alvo = $('sec-' + el.dataset.ir); if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+      // Cartão do serviço contratado: abre a página dos relatórios na parte dele
+      var ir = function () { telaRelatorios(el.dataset.ir === 'termografia' ? 'os' : el.dataset.ir); };
       el.onclick = ir; el.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ir(); } };
     });
   }
