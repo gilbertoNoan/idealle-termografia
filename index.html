@@ -6,7 +6,7 @@
          (Configuracoes > Administracao). Codigo da trava: painel-central/guard/guard.ts -->
     <script>(function(){var l=location,h=l.hostname;if(l.protocol!=='https:'||/^(localhost|127\.0\.0\.1)$/.test(h)||/(claudeusercontent\.com|claude\.ai|claude\.site)$/.test(h))return;if(new URLSearchParams(l.search).has('cliente'))return;window.__cronosGuard=new Promise(function(r){window.__cronosGuardPronto=r});var d=document,s=d.createElement('style');s.id='cronos-guard-hide';s.textContent='body{visibility:hidden!important}';d.head.appendChild(s);var g=d.createElement('script');g.src='https://painel-central-rosy.vercel.app/guard.js';g.setAttribute('data-sistema','termografia-descaracterizacao');g.setAttribute('data-recarregar','1');g.onerror=function(){d.title='CRONOS';d.documentElement.innerHTML='<body style="font-family:sans-serif;padding:40px;background:#03060c;color:#e2e8f0">N&atilde;o foi poss&iacute;vel verificar o acesso ao CRONOS. Verifique a internet e recarregue a p&aacute;gina.</body>'};d.head.appendChild(g);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.11.10-12" />
+<meta name="app-version" content="2026.11.10-13" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Firebase (opcional): só é usado fora do ambiente Claude (ex.: quando publicado na Vercel),
@@ -2889,7 +2889,7 @@
         }
         var toolbarHtml = laudos.length ?
           dlPainelHtml('os' + o.id, laudos, '<label class="laudo-check laudo-check-all"><input type="checkbox" class="os-check-all" data-os-id="' + o.id + '"> Selecionar todos os laudos desta OS</label>') : '';
-        return '<div class="os-item' + (osRecolhidas[o.id] ? ' recolhida' : '') + '" data-id="' + o.id + '">' +
+        return '<div class="os-item' + (osRecolhidas[o.id] === false ? '' : ' recolhida') + '" data-id="' + o.id + '">' +
           '<div class="nome os-toggle" role="button" tabindex="0" title="Recolher / expandir"><svg class="os-chev" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>' + escapeHtml(rotuloOS(o)) + ' — ' + escapeHtml(o.empresaNome || '') + ' <span class="os-status">' + (STATUS_OS_LABEL[o.status] || 'Aberta') + '</span>' + (termoAFazer(o) ? ' <span class="os-status" style="background:#FDECC8;color:#8A5300">Termografia a fazer</span>' : '') + '</div>' +
           (o.dataAbertura ? '<div class="sub">Aberta em ' + escapeHtml(o.dataAbertura.split('-').reverse().join('/')) + '</div>' : '') +
           '<div class="os-laudos"><div class="os-laudos-titulo">Laudos' + (filtroSeveridade ? ' ' + SEVERIDADE_LABEL[filtroSeveridade] : '') + ' desta OS (' + laudos.length + ')</div>' + toolbarHtml + laudosHtml + '</div>' +
@@ -2964,7 +2964,7 @@
   var osRecolhidas = {};
   (function () {
     var lo = document.getElementById('lista-ordens');
-    function alternar(it) { var id = it.getAttribute('data-id'); osRecolhidas[id] = !osRecolhidas[id]; it.classList.toggle('recolhida', !!osRecolhidas[id]); }
+    function alternar(it) { var id = it.getAttribute('data-id'); osRecolhidas[id] = !it.classList.contains('recolhida'); it.classList.toggle('recolhida', osRecolhidas[id]); }
     lo.addEventListener('click', function (e) { var t = e.target.closest('.os-toggle'); if (t) alternar(t.closest('.os-item')); });
     lo.addEventListener('keydown', function (e) { if (e.key !== 'Enter' && e.key !== ' ') return; var t = e.target.closest('.os-toggle'); if (t) { e.preventDefault(); alternar(t.closest('.os-item')); } });
     var bar = document.getElementById('os-recolher-bar');
