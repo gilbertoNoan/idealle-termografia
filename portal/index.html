@@ -337,13 +337,13 @@
       if (ativo && s[0] === 'nr13') { var nLaudos = todosDocs().filter(function (x) { return x.tipo === 'nr13'; }).length; info = 'Relatórios: ' + nLaudos; }
       if (ativo && s[0] === 'calibracao') {
         var docsCal = todosDocs().filter(function (x) { return x.tipo === 'calibracao'; }), qc = contarCalibracao((d.certificados || []).concat(docsCal));
-        info = 'PI: ' + qc.pi + ' · PSV: ' + qc.psv; }
+        info = 'PSV: ' + qc.psv + '\nPI: ' + qc.pi; }
       if (ativo && s[0] === 'termografia') {
         info = 'Laudos: ' + ((d.termografia && d.termografia.laudos) || 0);
       }
       if (!ativo) return '<div class="serv trancado"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Não contratado"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
         '<span class="info">' + esc(s[2]) + '</span><a class="btn sec peq" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + ' e quero uma proposta de ' + s[1] + ' (' + s[2] + ').')) + '">Quero contratar</a></div>';
-      return '<div class="serv ativo" data-ir="' + s[0] + '" tabindex="0" role="button"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><span class="chip c-ok">Contratado</span></span><span class="info">' + esc(info) + '</span></div>';
+      return '<div class="serv ativo" data-ir="' + s[0] + '" tabindex="0" role="button"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><span class="chip c-ok">Contratado</span></span><span class="info" style="white-space:pre-line">' + esc(info) + '</span></div>';
     }).join('');
     var ativos = SERVICOS.filter(function (s) { return sv[s[0]]; }).length;
     tela.innerHTML =
