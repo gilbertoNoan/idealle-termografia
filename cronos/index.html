@@ -6,7 +6,7 @@
          (Configuracoes > Administracao). Codigo da trava: painel-central/guard/guard.ts -->
     <script>(function(){var l=location,h=l.hostname;if(l.protocol!=='https:'||/^(localhost|127\.0\.0\.1)$/.test(h)||/(claudeusercontent\.com|claude\.ai|claude\.site)$/.test(h))return;window.__cronosGuard=new Promise(function(r){window.__cronosGuardPronto=r});var d=document,s=d.createElement('style');s.id='cronos-guard-hide';s.textContent='body{visibility:hidden!important}';d.head.appendChild(s);var g=d.createElement('script');g.src='https://painel-central-rosy.vercel.app/guard.js';g.setAttribute('data-sistema','financeiro-cronos');g.setAttribute('data-recarregar','1');g.onerror=function(){d.title='CRONOS';d.documentElement.innerHTML='<body style="font-family:sans-serif;padding:40px;background:#03060c;color:#e2e8f0">N&atilde;o foi poss&iacute;vel verificar o acesso ao CRONOS. Verifique a internet e recarregue a p&aacute;gina.</body>'};d.head.appendChild(g);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cronos · Ideal LESP</title>
+<title>Finanças · Idealle</title>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.js"></script>
@@ -203,7 +203,7 @@
 
 <header id="cabecalho" style="display:none">
   <div class="top">
-    <div class="marca">Cronos <small>Idealle</small></div>
+    <div class="marca">Finanças <small>Idealle</small></div>
     <div class="usuario"><button class="btn sec peq" id="btn-ocultar">👁 Ocultar valores</button><span id="usuario-nome"></span><button class="btn sec peq" id="btn-sair">Sair</button></div>
   </div>
   <nav id="menu">
@@ -219,7 +219,7 @@
 </header>
 
 <div id="tela-login" class="card" style="display:none">
-  <h2>Cronos</h2>
+  <h2>Finanças</h2>
   <p class="muted">Entre com seu e-mail e senha da Idealle.</p>
   <label>E-mail</label><input id="login-email" type="email" autocomplete="username">
   <label>Senha</label><input id="login-senha" type="password" autocomplete="current-password">
@@ -296,7 +296,7 @@
   <!-- PORTAL DO CLIENTE -->
   <section class="view" id="v-portal">
     <h2>Portal do Cliente <span style="font-size:15px;font-weight:400"><button class="btn sec peq" id="btn-portal-config">Contato da IDEALLE</button> <button class="btn sec peq" id="btn-portal-publicar">Atualizar dados agora</button></span></h2>
-    <p class="muted" style="margin-top:-6px">Quem tem acesso ao portal, até quando (fim do contrato) e o convite para criar a senha. Os dados das OS vão para o portal sozinhos enquanto o Cronos está aberto, sem valores e sem os laudos assinados.</p>
+    <p class="muted" style="margin-top:-6px">Quem tem acesso ao portal, até quando (fim do contrato) e o convite para criar a senha. Os dados das OS vão para o portal sozinhos enquanto o Finanças está aberto, sem valores e sem os laudos assinados.</p>
     <div id="portal-aviso"></div>
     <div class="grid" id="portal-kpis" style="margin-bottom:12px"></div>
     <div class="busca">
@@ -334,7 +334,7 @@
     messagingSenderId: "577776042104",
     appId: "1:577776042104:web:508a131e13a4ef4afbed8d"
   };
-  // Sistemas técnicos onde a OS é executada. A Termografia (mesmo site: o Cronos fica em /cronos/) já está
+  // Sistemas técnicos onde a OS é executada. A Termografia (mesmo site: o Finanças fica em /cronos/) já está
   // integrada: abre direto na OS e devolve o resumo dos laudos em ordens/{id}.resultados.Termografia.
   // Os demais recebem ?cronos_os=<id> e devolvem o resumo em ordens/{id}.resultados[<nome do sistema>].
   var SISTEMAS = {
@@ -344,7 +344,7 @@
     'Calculadora NR-13': 'https://calculadora-iota-swart.vercel.app/',
     'Gerador de Certificados': 'https://app-certificados-de-calibra-o.vercel.app/'
   };
-  // Sistemas já ligados ao Cronos e o nome do parâmetro que recebe o id da OS
+  // Sistemas já ligados ao Finanças e o nome do parâmetro que recebe o id da OS
   var INTEGRADOS = { 'Termografia': 'os', 'Relatório NR-13': 'cronos_os', 'PMTA Calc': 'cronos_os', 'Calculadora NR-13': 'cronos_os', 'Gerador de Certificados': 'cronos_os' };
   function linkSistema(o, nome) {
     var url = SISTEMAS[nome];
@@ -383,7 +383,7 @@
   // Calculadora NR-13 manda cada avaliação de desenquadramento (resultados['Calculadora NR-13'].itens: tag, enquadrado).
   // A mesma conta é feita no Relatório NR-13 (src/services/pendencias.ts) para o aviso na TAG.
   // [chave, nome, sistema onde é feito]. A OS aparece no sistema de cada serviço marcado (lista "A fazer").
-  // Serviço sem sistema ('') fica só no Cronos: o laudo é feito fora e a OS é concluída na própria OS.
+  // Serviço sem sistema ('') fica só no Finanças: o laudo é feito fora e a OS é concluída na própria OS.
   var SERVICOS_OS = [
     ['relatorio', 'Relatório NR-13', 'Relatório NR-13'],
     ['prontuario', 'Abertura de prontuário (com PMTA)', 'Relatório NR-13'],
@@ -570,7 +570,7 @@
       // merge: true preserva campos que outros sistemas (como a Termografia) gravaram no mesmo documento
       atualizar: function (col, id, doc) { return db.collection(col).doc(id).set(doc, { merge: true }); },
       excluir: function (col, id) { return db.collection(col).doc(id).delete(); },
-      // Muda um campo em todos os documentos onde ele é igual a `de` (coleções que o Cronos não carrega, como os pontos da Termografia)
+      // Muda um campo em todos os documentos onde ele é igual a `de` (coleções que o Finanças não carrega, como os pontos da Termografia)
       trocarCampo: async function (col, campo, de, para) {
         var snap = await db.collection(col).where(campo, '==', de).get(), n = 0;
         for (var i = 0; i < snap.docs.length; i++) { var u = {}; u[campo] = para; await snap.docs[i].ref.update(u); n++; }
@@ -702,7 +702,7 @@
     };
     auth.getRedirectResult().catch(function (e) { $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message); });
     auth.onAuthStateChanged(function (u) {
-      if (u && !permitido(u)) { auth.signOut(); telaLogin('A conta ' + u.email + ' não tem acesso ao Cronos.'); return; }
+      if (u && !permitido(u)) { auth.signOut(); telaLogin('A conta ' + u.email + ' não tem acesso ao Finanças.'); return; }
       if (u) { if (!iniciado) { iniciado = true; iniciarApp(u.email); } }
       else if (iniciado) { location.reload(); }
       else telaLogin();
@@ -730,7 +730,7 @@
   }
 
   // ===================== PORTAL DO CLIENTE =====================
-  // O cliente entra em /portal/ com login próprio e vê só o que o Cronos publica para a empresa dele
+  // O cliente entra em /portal/ com login próprio e vê só o que o Finanças publica para a empresa dele
   // em portal_dados/<empresaId> (equipamentos, prazos, certificados, OS sem valores). O acesso vale até
   // portal_acessos/<empresaId>.acessoAte (fim do contrato); depois o portal mostra só a tela de renovação.
   // Os laudos assinados nunca vão para o portal. Regras do banco em painel-central/firestore.rules.
@@ -827,7 +827,7 @@
     };
   }
 
-  // Publica sozinho (enquanto o Cronos está aberto) o que mudou para cada cliente com acesso ao portal
+  // Publica sozinho (enquanto o Finanças está aberto) o que mudou para cada cliente com acesso ao portal
   function agendarPublicacaoPortal() {
     if (!portalCarregado.portal_acessos || !portalCarregado.ordens || !portalCarregado.empresas) return;
     clearTimeout(portalTimer); portalTimer = setTimeout(function () { publicarPortal(false); }, 4000);
@@ -1289,7 +1289,7 @@
     abrirModal('<h3>Unificar clientes repetidos</h3>' +
       '<p class="muted">Cada grupo tem o mesmo CNPJ ou o mesmo nome. Escolha qual cadastro fica: as propostas, OS, faturas, lançamentos e laudos da Termografia dos outros passam para ele, ' +
       'os campos vazios dele são completados com os dos outros, e os outros são apagados. Os sistemas NR-13, PMTA e Certificados juntam os clientes deles na próxima vez que abrirem. ' +
-      'Antes de unificar o Cronos baixa uma cópia (arquivo .json) do que vai mudar.</p>' +
+      'Antes de unificar o Finanças baixa uma cópia (arquivo .json) do que vai mudar.</p>' +
       grupos.map(function (g, i) {
         return '<div class="card" style="margin:8px 0;padding:8px 10px"><div style="display:flex;gap:8px;align-items:center"><input type="checkbox" style="width:auto;margin:0" data-ugrupo="' + i + '" id="ugrupo-' + i + '" checked><b><span onclick="document.getElementById(\'ugrupo-' + i + '\').click()" style="cursor:pointer">Unificar este grupo</span></b></div>' +
           '<table><thead><tr><th>Fica</th><th>Código</th><th>Cliente</th><th>CNPJ</th><th>Cidade</th><th class="num">Prop.</th><th class="num">OS</th><th class="num">Fat.</th></tr></thead><tbody>' +
@@ -2288,7 +2288,7 @@
     ligar('pv-aprovar', async function () {
       // Proposta antiga sem serviços marcados: marca pelos itens, para a OS aparecer nos sistemas
       var sv = temServicos(p) ? p.servicos : servicosDosItens(p.titulo + ' ' + (p.objeto || ''), p.itens);
-      var nomesSv = SERVICOS_OS.filter(function (s) { return sv[s[0]]; }).map(function (s) { return s[1] + ' → ' + (s[2] || 'só no Cronos (sem sistema)'); });
+      var nomesSv = SERVICOS_OS.filter(function (s) { return sv[s[0]]; }).map(function (s) { return s[1] + ' → ' + (s[2] || 'só no Finanças (sem sistema)'); });
       if (!confirm('Confirmar aprovação e abrir a OS?' + (nomesSv.length ? '\n\nA OS vai aparecer para fazer em:\n• ' + nomesSv.join('\n• ') : '\n\nNenhum serviço marcado: a OS não vai para a lista "A fazer" dos sistemas (dá para marcar depois em Editar OS).'))) return;
       var numero = p.numero;
       // Campos numero/empresaId/empresaNome/descricao/dataAbertura seguem o formato da Termografia,
@@ -2766,7 +2766,7 @@
     function lin(r, v) { return v == null || v === '' ? '' : '<div><dt>' + r + '</dt><dd>' + v + '</dd></div>'; }
     var div = f.valorServico != null && Math.abs(num(f.valorServico) - num(f.valor)) > 0.5;
     abrirModal('<h3>NF ' + esc(f.nf) + ' ' + tag('fatura', f.status, f.vencimento) + '</h3><div>' + esc(nomeCliente(f.clienteId, f.clienteNome)) + (f.osCodigo ? ' · ' + esc(f.osCodigo) : '') + '</div>' +
-      '<dl class="detalhe linha">' + lin('Emissão', data(f.emissao)) + lin('Vencimento', data(f.vencimento)) + lin('Valor no Cronos', brl(f.valor)) +
+      '<dl class="detalhe linha">' + lin('Emissão', data(f.emissao)) + lin('Vencimento', data(f.vencimento)) + lin('Valor no Finanças', brl(f.valor)) +
       lin('Valor da nota', f.valorServico != null ? brl(f.valorServico) + (div ? ' <span class="tag t-warn">diferente</span>' : '') : '') +
       lin('Tomador', esc(f.tomador || '')) + lin('CNPJ', esc(f.tomadorCnpj || '')) + lin('Município', esc(f.tomadorMunicipio || '')) +
       lin('ISS', f.aliquotaISS != null ? String(f.aliquotaISS).replace('.', ',') + '%' + (f.valorISS ? ' · ' + brl(f.valorISS) : '') + (f.issRetido ? ' · retido' : '') : '') +
@@ -2784,7 +2784,7 @@
   }
   // ===================== PREPARAR A NOTA (GissOnline / Emissor Nacional) =====================
   // Monta os campos da nota a partir da OS e das notas anteriores do mesmo cliente, cada um com botão de copiar.
-  // Depois de emitir, o número da nota volta para o Cronos e vira a fatura.
+  // Depois de emitir, o número da nota volta para o Finanças e vira a fatura.
   var EMISSORES = [['Abrir GissOnline', 'https://guarulhos.giss.com.br/'], ['Abrir Emissor Nacional', 'https://www.nfse.gov.br/EmissorNacional']];
   // Códigos que a Idealle já usou, para cliente sem nota anterior (a palavra da descrição escolhe o código)
   var CODIGOS_NF = [
@@ -2937,7 +2937,7 @@
       .forEach(function (o) { ops.push(['o:' + o.id, codOS(o) + ' · ' + nomeCliente(o.empresaId, o.empresaNome) + ' · ' + (o.descricao || '').slice(0, 50) + ' · ' + (STATUS.os[statusOS(o)] || [statusOS(o)])[0] + (o.valor ? ' · ' + brl(o.valor) : '')]); });
     cache.faturas.filter(function (f) { return f.status === 'pendente' && !f.nf && !(f.osId && porId('ordens', f.osId)); })
       .forEach(function (f) { ops.push(['f:' + f.id, codFatura(f) + ' · ' + nomeCliente(f.clienteId, f.clienteNome) + ' · ' + (f.descricao || '').slice(0, 50) + ' · ' + brl(f.valor)]); });
-    abrirModal('<h3>Emitir nota fiscal</h3><p class="muted" style="margin-top:0">Escolha a OS do serviço. O Cronos monta os dados para copiar no GissOnline (ou no Emissor Nacional).</p>' +
+    abrirModal('<h3>Emitir nota fiscal</h3><p class="muted" style="margin-top:0">Escolha a OS do serviço. O Finanças monta os dados para copiar no GissOnline (ou no Emissor Nacional).</p>' +
       (ops.length ? '<label>OS</label><select id="en-os">' + ops.map(function (x) { return '<option value="' + x[0] + '">' + esc(x[1]) + '</option>'; }).join('') + '</select>' : '<div class="vazio">Nenhuma OS sem nota. Abra uma OS (ou aprove a proposta) primeiro.</div>') +
       '<div class="acoes">' + (ops.length ? '<button class="btn ok" id="en-ok">Preparar nota fiscal</button>' : '') + '<button class="btn sec" id="en-cancelar">Cancelar</button></div>');
     $('en-cancelar').onclick = fecharModal;
@@ -3110,7 +3110,7 @@
       var d; try { d = JSON.parse(leitor.result); } catch (e) { toast('Arquivo inválido.'); return; }
       if (d.tipo === 'status-notas') { d.faturas = d.faturas || []; d.avisos = d.avisos || []; conferirStatusNotas(d); return; }
       if (d.tipo === 'complemento') { ['propostas', 'faturas', 'clientes', 'avisos'].forEach(function (k) { d[k] = d[k] || []; }); conferirComplemento(d); return; }
-      if (!(d.clientes && d.propostas && d.ordens && d.faturas) && !d.modelos && !d.financas) { toast('Este arquivo não é uma importação do Cronos.'); return; }
+      if (!(d.clientes && d.propostas && d.ordens && d.faturas) && !d.modelos && !d.financas) { toast('Este arquivo não é uma importação do Finanças.'); return; }
       ['clientes', 'propostas', 'ordens', 'faturas', 'modelos', 'avisos'].forEach(function (k) { d[k] = d[k] || []; });
       conferirImportacao(d);
     };
@@ -3204,7 +3204,7 @@
         if (doc.status === 'aprovada') doc.aprovadaEm = doc.data || '';
         id = await banco.criar('propostas', doc); criados.propostas++;
       } else {
-        // proposta que já existe: só completa os textos que estão vazios no Cronos (ex.: o objeto da inspeção)
+        // proposta que já existe: só completa os textos que estão vazios no Finanças (ex.: o objeto da inspeção)
         var ep = porId('propostas', id), comp = {};
         TEXTOS.forEach(function (t) { if (p[t[0]] && ep && !ep[t[0]]) comp[t[0]] = p[t[0]]; });
         if (Object.keys(comp).length) await banco.atualizar('propostas', id, comp);
@@ -3251,7 +3251,7 @@
     }, aviso, 'Notas fiscais');
 
     // Modelos de proposta: os que já vieram de uma importação anterior (mesma chave) não são sobrescritos,
-    // para não desfazer ajustes feitos aqui no Cronos
+    // para não desfazer ajustes feitos aqui no Finanças
     var modExist = {};
     cache.modelos.forEach(function (m) { if (m.chave) modExist[m.chave] = true; });
     await emLotes(d.modelos, async function (m) {
@@ -3282,7 +3282,7 @@
       await emLotes(fn.recebimentos, async function (r) {
         var id = idNF[r.nf]; if (!id) return;
         var atual = porId('faturas', id) || {};
-        if (atual.grupo && (!r.dataPagamento || (atual.status === 'paga' && !atual.recebimentoPresumido))) return; // já ajustada aqui no Cronos
+        if (atual.grupo && (!r.dataPagamento || (atual.status === 'paga' && !atual.recebimentoPresumido))) return; // já ajustada aqui no Finanças
         var upd = { grupo: r.grupo, categoria: r.categoria };
         if (r.dataPagamento) Object.assign(upd, { status: 'paga', dataPagamento: r.dataPagamento, contaId: idBanco[normal(r.banco)] || '', recebimentoPresumido: false });
         await banco.atualizar('faturas', id, upd); nr++;
@@ -3295,7 +3295,7 @@
 
   // ===================== COMPLEMENTO (TEXTOS DAS PROPOSTAS E DADOS DAS NOTAS) =====================
   // Arquivo gerado a partir dos documentos das propostas e dos PDFs das notas fiscais na nuvem.
-  // Só preenche o que está vazio: valor, status e o que já foi editado aqui no Cronos não mudam.
+  // Só preenche o que está vazio: valor, status e o que já foi editado aqui no Finanças não mudam.
   var CAMPOS_NF = ['codVerificacao', 'tomador', 'tomadorCnpj', 'tomadorMunicipio', 'discriminacao', 'valorServico', 'aliquotaISS', 'valorISS', 'issRetido', 'valorLiquido', 'pedidoNF', 'substituiNF', 'situacao', 'arquivo',
     'codServico', 'codNacional', 'codMunicipal', 'nbs', 'codDescricao', 'localPrestacao', 'tomadorEmail', 'retencoes'];
   function acharProposta(c, porNum) {
@@ -3358,11 +3358,11 @@
       '<div class="tabela"><table><tbody>' + (d.propostas.length ?
       '<tr><td>Propostas com texto a preencher</td><td class="num">' + pAt + '</td><td class="muted">de ' + d.propostas.length + ' documentos lidos · ' + pIt + ' com os itens do objeto</td></tr>' : '') + (d.faturas.length ?
       '<tr><td>Notas fiscais com dados a completar</td><td class="num">' + fAt + '</td><td class="muted">tomador, CNPJ, discriminação, ISS, código do serviço, NBS, local da prestação</td></tr>' +
-      '<tr><td>Notas que ainda não estão no Cronos</td><td class="num">' + fNova + '</td><td class="muted">entram como a receber</td></tr>' : '') +
+      '<tr><td>Notas que ainda não estão no Finanças</td><td class="num">' + fNova + '</td><td class="muted">entram como a receber</td></tr>' : '') +
       (d.clientes.length ? '<tr><td>Clientes com cadastro a completar</td><td class="num">' + cAt + '</td><td class="muted">CNPJ, endereço, cidade, UF e CEP da nota mais recente</td></tr>' : '') +
       '</tbody></table></div>' +
-      '<p class="muted">Só os campos vazios são preenchidos. Valor, status e o que você já editou no Cronos ficam como estão. Nas propostas, o valor global continua no total; no PDF com valores ele aparece no primeiro item.</p>' +
-      (pSem.length ? '<details><summary>Propostas do arquivo que não foram achadas no Cronos (' + pSem.length + ')</summary><div class="muted">' + esc(pSem.join(' · ')) + '</div></details>' : '') +
+      '<p class="muted">Só os campos vazios são preenchidos. Valor, status e o que você já editou no Finanças ficam como estão. Nas propostas, o valor global continua no total; no PDF com valores ele aparece no primeiro item.</p>' +
+      (pSem.length ? '<details><summary>Propostas do arquivo que não foram achadas no Finanças (' + pSem.length + ')</summary><div class="muted">' + esc(pSem.join(' · ')) + '</div></details>' : '') +
       (d.avisos.length ? '<details><summary>Avisos (' + d.avisos.length + ')</summary><div class="muted">' + d.avisos.map(function (a) { return '<div>' + esc(a) + '</div>'; }).join('') + '</div></details>' : '') +
       '<p id="imp-progresso" class="muted"></p>' +
       '<div class="acoes"><button class="btn ok" id="imp-ok">Completar</button><button class="btn sec" id="imp-cancelar">Cancelar</button></div>');
@@ -3417,7 +3417,7 @@
     cache.faturas.forEach(function (f) { if (f.nf && porNF[f.nf]) porNF[f.nf].c.push(f); });
     var ultima = d.faturas.map(function (n) { return n.emissao || ''; }).sort().pop() || '';
     Object.keys(porNF).forEach(function (nf) {
-      // Cada nota do Cronos fica com uma linha da planilha: mesmo vencimento primeiro (parcelas), depois o valor mais próximo
+      // Cada nota do Finanças fica com uma linha da planilha: mesmo vencimento primeiro (parcelas), depois o valor mais próximo
       var g = porNF[nf], pares = [], usoP = {}, usoC = {};
       g.c.forEach(function (f, i) { g.p.forEach(function (n, j) { pares.push([((n.vencimento || '') === (f.vencimento || '') ? 0 : 1e9) + Math.abs(num(n.valor) - num(f.valor)), i, j]); }); });
       pares.sort(function (a, b) { return a[0] - b[0]; }).forEach(function (x) {
@@ -3431,12 +3431,12 @@
         if (n.status !== 'cancelada' && !num(f.valor) && num(n.valor)) u.valor = n.valor;
         if (n.status === 'pendente' && !f.vencimento && n.vencimento) u.vencimento = n.vencimento;
         if (n.parcela && f.parcela !== n.parcela) { u.parcela = n.parcela; if (n.vencimento && n.vencimento !== f.vencimento) u.vencimento = n.vencimento; }
-        // Recebida aqui no Cronos (com data e banco) e branca na planilha: pode ser que a planilha ainda não foi pintada
+        // Recebida aqui no Finanças (com data e banco) e branca na planilha: pode ser que a planilha ainda não foi pintada
         if (Object.keys(u).length) mud.push({ f: f, n: n, u: u, marcar: !(f.status === 'paga' && !f.recebimentoPresumido && n.status === 'pendente') });
       });
       g.p.forEach(function (n, j) { if (!usoP[j] && n.status !== 'cancelada') novas.push({ n: n, marcar: true }); });
     });
-    // A receber no Cronos sem estar na planilha: as antigas passam a recebidas; as emitidas depois da planilha ficam desmarcadas
+    // A receber no Finanças sem estar na planilha: as antigas passam a recebidas; as emitidas depois da planilha ficam desmarcadas
     var fora = cache.faturas.filter(function (f) { return f.status === 'pendente' && !(f.nf && porNF[f.nf]); }).map(function (f) {
       return { f: f, n: { nf: f.nf || '(sem nº)', status: 'paga', emissao: f.emissao, vencimento: f.vencimento }, fora: true,
         u: { status: 'paga', dataPagamento: [f.vencimento || f.emissao || h, h].sort()[0], recebimentoPresumido: true }, marcar: !!(f.nf && f.emissao && f.emissao <= ultima) };
@@ -3465,7 +3465,7 @@
       var f = x.f || {}, n = x.n;
       return '<tr><td><input type="checkbox" data-st="' + (nova ? 'n' : 'm') + i + '"' + (x.marcar ? ' checked' : '') + ' style="width:auto"></td><td><b>' + esc(n.nf) + '</b>' + (n.parcela ? ' <span class="muted">parcela ' + esc(n.parcela) + '</span>' : '') + '<div class="muted">' + data(n.emissao) + '</div></td><td>' +
         esc(nova ? n.clienteNome : nomeCliente(f.clienteId, f.clienteNome)) + '<div class="muted">' + esc(n.osCodigo || f.osCodigo || '') + '</div></td><td class="num">' + brl(x.u && x.u.valor || f.valor || n.valor) + '</td><td>' + data((x.u && x.u.vencimento) || n.vencimento || f.vencimento) + '</td><td>' +
-        (nova ? 'não está no Cronos' : esc(nomes[f.status] || f.status) + (f.status === 'paga' && !f.recebimentoPresumido ? ' (marcada aqui' + (f.dataPagamento ? ' em ' + data(f.dataPagamento) : '') + ')' : f.recebimentoPresumido ? ' (presumida)' : '')) +
+        (nova ? 'não está no Finanças' : esc(nomes[f.status] || f.status) + (f.status === 'paga' && !f.recebimentoPresumido ? ' (marcada aqui' + (f.dataPagamento ? ' em ' + data(f.dataPagamento) : '') + ')' : f.recebimentoPresumido ? ' (presumida)' : '')) +
         ' → <b>' + esc(nomes[n.status]) + '</b>' + (x.fora ? '<div class="muted">não está na planilha</div>' : '') + '</td></tr>';
     }
     function bloco(titulo, l, html, soma) {
@@ -3474,7 +3474,7 @@
     var html = grupos.map(function (g) {
       var l = pl.mud.map(function (x, i) { return [x, i]; }).filter(function (p) { return (p[0].u.status || '') === g[0]; });
       return bloco(g[1], l, l.map(function (p) { return linha(p[0], p[1]); }).join(''), l.reduce(function (s, p) { return s + num(p[0].u.valor || p[0].f.valor); }, 0));
-    }).join('') + bloco('Notas da planilha que não estão no Cronos', pl.novas, pl.novas.map(function (x, i) { return linha(x, i, true); }).join(''), pl.novas.reduce(function (s, x) { return s + num(x.n.valor); }, 0)) +
+    }).join('') + bloco('Notas da planilha que não estão no Finanças', pl.novas, pl.novas.map(function (x, i) { return linha(x, i, true); }).join(''), pl.novas.reduce(function (s, x) { return s + num(x.n.valor); }, 0)) +
       bloco('Ordens de Serviço', po.mud, po.mud.map(function (x, i) {
         return '<tr><td><input type="checkbox" data-st="o' + i + '" checked style="width:auto"></td><td><b>' + esc(x.o.codigo) + '</b></td><td>' + esc(nomeCliente(x.o.empresaId, x.o.empresaNome)) + '<div class="muted">' + esc(x.o.descricao || '') + '</div></td><td class="num">' + brl(x.o.valor) + '</td><td>' +
           esc((STATUS.os[x.o.status] || [x.o.status])[0]) + ' → <b>' + esc((STATUS.os[x.u.status] || [x.u.status])[0]) + '</b><div class="muted">planilha: ' + esc(OS_PLANILHA[x.p.status]) + '</div></td></tr>';
@@ -3482,9 +3482,9 @@
     var manuais = pl.mud.filter(function (x) { return !x.marcar; }).length;
     abrirModal('<h3>Atualizar status das notas e das OS</h3><p class="muted">' + esc(d.fonte || '') + '</p>' +
       (html || '<p>Nada a mudar: notas e OS já estão iguais às planilhas.</p>') +
-      (manuais ? '<p class="muted">' + manuais + ' nota(s) ficaram desmarcadas: recebidas aqui no Cronos mas brancas na planilha, ou a receber no Cronos e emitidas depois da última nota da planilha (' + data(pl.ultima) + '). Marque as que quiser mudar.</p>' : '') +
+      (manuais ? '<p class="muted">' + manuais + ' nota(s) ficaram desmarcadas: recebidas aqui no Finanças mas brancas na planilha, ou a receber no Finanças e emitidas depois da última nota da planilha (' + data(pl.ultima) + '). Marque as que quiser mudar.</p>' : '') +
       '<p class="muted">Recebidas sem data ficam com a data do vencimento, marcadas como presumidas, e não somam no saldo dos bancos: esse dinheiro já está no saldo que você informa em Financeiro › Bancos e categorias.</p>' +
-      (po.faltam.length ? '<details><summary>OS da planilha que não estão no Cronos (' + po.faltam.length + ')</summary><div class="muted">' + esc(po.faltam.join(' · ')) + '</div></details>' : '') +
+      (po.faltam.length ? '<details><summary>OS da planilha que não estão no Finanças (' + po.faltam.length + ')</summary><div class="muted">' + esc(po.faltam.join(' · ')) + '</div></details>' : '') +
       (d.avisos.length ? '<details><summary>Avisos (' + d.avisos.length + ')</summary><div class="muted">' + d.avisos.map(function (a) { return '<div>' + esc(a) + '</div>'; }).join('') + '</div></details>' : '') +
       '<p id="imp-progresso" class="muted"></p>' +
       '<div class="acoes">' + (html ? '<button class="btn ok" id="imp-ok">Atualizar marcadas</button>' : '') + '<button class="btn sec" id="imp-cancelar">' + (html ? 'Cancelar' : 'Fechar') + '</button></div>');
@@ -3980,7 +3980,7 @@
     if (!confirm('Lançar o DAS de ' + nomeMes(ym) + ' (' + brl(r.imposto) + ', vence ' + data(r.vencimento) + ') em Contas a pagar?')) return;
     await salvar(function () {
       return banco.criar('lancamentos', { tipo: 'despesa', descricao: 'DAS ' + nomeMes(ym) + ' (estimado)', grupo: 'Deduções sobre Vendas', categoria: 'DAS - Simples Nacional', pessoa: 'Receita Federal',
-        valor: r.imposto, vencimento: r.vencimento, pagamento: '', contaId: contaPrincipal(), documento: 'Boleto', dataDoc: hoje(), obs: 'Valor estimado pelo Cronos. Ajuste para o valor da guia quando ela sair.', createdAt: agora() });
+        valor: r.imposto, vencimento: r.vencimento, pagamento: '', contaId: contaPrincipal(), documento: 'Boleto', dataDoc: hoje(), obs: 'Valor estimado pelo Finanças. Ajuste para o valor da guia quando ela sair.', createdAt: agora() });
     }, 'DAS lançado em Contas a pagar.');
   }
 
@@ -4038,7 +4038,7 @@
     var d = dadosFaturamento(movimentos()), cli = fin.fatCliente ? nomeCliente(fin.fatCliente) : '';
     $('print').innerHTML = '<div class="pp"><div class="pp-topo"><div>' + logoIdealle() + '<div>' + esc(EMPRESA.razao) + ' · CNPJ ' + esc(EMPRESA.cnpj) + '</div></div><div style="text-align:right">Relatório de faturamento<br>' + data(hoje()) + '</div></div>' +
       '<h4>Faturamento ' + d.per[0].toLowerCase() + ' · ' + (d.caixa ? 'pela data do recebimento' : 'pela data da nota fiscal') + (cli ? ' · cliente ' + esc(cli) : '') + ' · ' + d.anos[0] + ' a ' + d.anos[d.anos.length - 1] + '</h4>' +
-      tabelaFaturamento(d, true) + '<p style="font-size:9pt;margin-top:10px">A variação compara com o mesmo período do ano anterior. Gerado pelo Cronos.</p></div>';
+      tabelaFaturamento(d, true) + '<p style="font-size:9pt;margin-top:10px">A variação compara com o mesmo período do ano anterior. Gerado pelo Finanças.</p></div>';
     window.print();
   }
 
