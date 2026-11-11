@@ -569,6 +569,7 @@
       },
       // Grava o documento inteiro com id escolhido (sem juntar com o que havia)
       gravar: function (col, id, doc) { return db.collection(col).doc(id).set(doc); },
+      ler: function (col, id) { return db.collection(col).doc(id).get().then(function (d) { return d.exists ? d.data() : null; }); },
       criar: function (col, doc) { return db.collection(col).add(doc).then(function (r) { return r.id; }); },
       // merge: true preserva campos que outros sistemas (como a Termografia) gravaram no mesmo documento
       atualizar: function (col, id, doc) { return db.collection(col).doc(id).set(doc, { merge: true }); },
@@ -594,13 +595,15 @@
     if (!dados) dados = exemplo();
     COLECOES.concat(COLECOES_PORTAL, ['portal_dados']).forEach(function (c) { dados[c] = dados[c] || []; });
     function salvar() { try { localStorage.setItem(CH, JSON.stringify(dados)); } catch (e) {} }
+    function col_(c) { return (dados[c] = dados[c] || []); }
     function avisar(col) { (ouvintes[col] || []).forEach(function (cb) { cb(dados[col].map(function (x) { return Object.assign({}, x); })); }); }
     return {
       ouvir: function (col, cb) { (ouvintes[col] = ouvintes[col] || []).push(cb); setTimeout(function () { avisar(col); }, 0); },
       criar: function (col, doc) { doc = Object.assign({}, doc); doc.id = 'L' + Date.now() + Math.random().toString(36).slice(2, 6); dados[col].push(doc); salvar(); avisar(col); return Promise.resolve(doc.id); },
-      atualizar: function (col, id, doc) { var i = dados[col].findIndex(function (x) { return x.id === id; }); if (i >= 0) Object.assign(dados[col][i], doc); else dados[col].push(Object.assign({ id: id }, doc)); salvar(); avisar(col); return Promise.resolve(); },
-      excluir: function (col, id) { dados[col] = dados[col].filter(function (x) { return x.id !== id; }); salvar(); avisar(col); return Promise.resolve(); },
-      gravar: function (col, id, doc) { dados[col] = dados[col].filter(function (x) { return x.id !== id; }); dados[col].push(Object.assign({ id: id }, doc)); salvar(); avisar(col); return Promise.resolve(); },
+      ler: function (col, id) { var x = col_(col).find(function (y) { return y.id === id; }); return Promise.resolve(x ? JSON.parse(JSON.stringify(x)) : null); },
+      atualizar: function (col, id, doc) { col_(col); var i = dados[col].findIndex(function (x) { return x.id === id; }); if (i >= 0) Object.assign(dados[col][i], doc); else dados[col].push(Object.assign({ id: id }, doc)); salvar(); avisar(col); return Promise.resolve(); },
+      excluir: function (col, id) { dados[col] = col_(col).filter(function (x) { return x.id !== id; }); salvar(); avisar(col); return Promise.resolve(); },
+      gravar: function (col, id, doc) { dados[col] = col_(col).filter(function (x) { return x.id !== id; }); dados[col].push(Object.assign({ id: id }, doc)); salvar(); avisar(col); return Promise.resolve(); },
       trocarCampo: function () { return Promise.resolve(0); },
       atualizarOnde: function () { return Promise.resolve(0); }
     };
@@ -898,6 +901,110 @@
     return somarDias(base, 365);
   }
 
+  // ---------- PDFs antigos no Portal do Cliente (relatórios NR-13 e certificados feitos antes dos sistemas) ----------
+  // Cada PDF vai como cópia para consulta (faixa no rodapé), no mesmo lugar que os sistemas publicam (portal_laudos).
+  var TAM_PARTE_PORTAL = 700000;
+  function carregarPdfLib() {
+    if (window.PDFLib) return Promise.resolve(window.PDFLib);
+    return new Promise(function (ok, erro) {
+      var sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+      sc.onload = function () { ok(window.PDFLib); }; sc.onerror = function () { erro(new Error('não foi possível carregar o leitor de PDF')); };
+      document.head.appendChild(sc);
+    });
+  }
+  async function pdfParaConsulta(bytes) {
+    var L = await carregarPdfLib();
+    var doc = await L.PDFDocument.load(bytes, { ignoreEncryption: true });
+    var fonte = await doc.embedFont(L.StandardFonts.HelveticaBold);
+    var texto = 'COPIA PARA CONSULTA - o original assinado digitalmente fica arquivado na IDEALLE';
+    doc.getPages().forEach(function (pg) {
+      var w = pg.getSize().width, tam = 6.5;
+      pg.drawText(texto, { x: (w - fonte.widthOfTextAtSize(texto, tam)) / 2, y: 3, size: tam, font: fonte, color: L.rgb(0.75, 0.2, 0.1) });
+    });
+    return doc.save();
+  }
+  function base64De(bytes) { var s = ''; for (var i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + 0x8000))); return btoa(s); }
+  // TAG, data, OS e tipo tirados do nome do arquivo (o usuário confere e corrige na lista)
+  function lerNomePdf(nome) {
+    var base = nome.replace(/\.pdf$/i, ''), m, r = { tag: '', data: '', os: '', psv: /psv|v[aá]lvula|valvula/i.test(base) };
+    if ((m = base.match(/\b(IDE?-\d{3,4}[\/_-]\d{4})\b/i))) r.os = m[1].toUpperCase().replace(/_/g, '/').replace(/^(IDE?-\d+)-(\d{4})$/, '$1/$2');
+    if ((m = base.match(/TAG[\s_-]*([A-Z0-9][A-Z0-9.\-]*[0-9][A-Z0-9.]*)/i))) r.tag = m[1];
+    else if ((m = base.match(/\b((?:VP|VS|RAC|RA|PSV|PI|PG|TQ|CL|CA|FL|SP|AC|TK)[\s_-]?\d+[A-Z0-9.\-]*)\b/i))) r.tag = m[1];
+    if ((m = base.match(/(\d{2})[.\/_-](\d{2})[.\/_-](\d{4})/))) r.data = m[3] + '-' + m[2] + '-' + m[1];
+    else if ((m = base.match(/(\d{4})-(\d{2})-(\d{2})/))) r.data = m[0];
+    r.tag = r.tag.toUpperCase().replace(/_/g, '-');
+    return r;
+  }
+  function telaPdfsAntigos(empId) {
+    var emp = porId('empresas', empId) || {}, lista = [];
+    abrirModal('<h3>Subir PDFs antigos · ' + esc(emp.nome || '') + '</h3>' +
+      '<p class="muted" style="margin-top:0">Relatórios NR-13 e certificados de calibração feitos antes dos sistemas. O cliente vê e baixa como cópia para consulta (faixa no rodapé). Baixe a pasta do Google Drive e escolha os arquivos ou a pasta inteira.</p>' +
+      '<div class="grid"><div><label>Tipo</label><select id="pp-tipo"><option value="nr13">Relatórios NR-13</option><option value="calibracao">Certificados de calibração</option></select></div>' +
+      '<div><label>OS (para todos os que não tiverem no nome)</label><input id="pp-os" placeholder="ex.: ID-0123/2025"></div>' +
+      '<div><label>Data da inspeção/calibração (quando não estiver no nome)</label><input id="pp-data" type="date"></div>' +
+      '<div><label>Validade da calibração (só certificados)</label><input id="pp-val" type="date"></div></div>' +
+      '<div class="acoes" style="justify-content:flex-start"><label class="btn sec" style="cursor:pointer">Escolher PDFs<input id="pp-arq" type="file" accept="application/pdf,.pdf" multiple style="display:none"></label>' +
+      '<label class="btn sec" style="cursor:pointer">Escolher pasta<input id="pp-pasta" type="file" webkitdirectory multiple style="display:none"></label></div>' +
+      '<div id="pp-lista" class="muted">Nenhum arquivo escolhido.</div><p id="pp-status" class="muted"></p>' +
+      '<div class="acoes"><button class="btn" id="pp-enviar" disabled>Enviar ao portal</button><button class="btn sec" id="pp-voltar">Voltar</button></div>');
+    function desenhar() {
+      if (!lista.length) { $('pp-lista').innerHTML = 'Nenhum arquivo escolhido.'; $('pp-enviar').disabled = true; return; }
+      var cal = $('pp-tipo').value === 'calibracao';
+      $('pp-lista').innerHTML = '<div style="max-height:300px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>TAG</th>' + (cal ? '<th>Instrumento</th>' : '') + '<th>OS</th><th>Data</th><th></th></tr></thead><tbody>' +
+        lista.map(function (x, i) {
+          return '<tr><td style="max-width:240px;word-break:break-all">' + esc(x.arquivo) + '</td>' +
+            '<td><input data-i="' + i + '" data-c="tag" value="' + esc(x.tag) + '" style="width:110px"></td>' +
+            (cal ? '<td><select data-i="' + i + '" data-c="psv"><option value="0"' + (x.psv ? '' : ' selected') + '>Manômetro (PI)</option><option value="1"' + (x.psv ? ' selected' : '') + '>Válvula (PSV)</option></select></td>' : '') +
+            '<td><input data-i="' + i + '" data-c="os" value="' + esc(x.os) + '" placeholder="da caixa acima" style="width:120px"></td>' +
+            '<td><input data-i="' + i + '" data-c="data" type="date" value="' + esc(x.data) + '"></td>' +
+            '<td><button class="btn sec" data-tirar="' + i + '" title="Tirar da lista">×</button></td></tr>';
+        }).join('') + '</tbody></table></div><p class="muted">' + lista.length + ' arquivo(s). Confira a TAG de cada um; ela aparece para o cliente.</p>';
+      $('pp-lista').querySelectorAll('[data-c]').forEach(function (el) {
+        el.onchange = function () { var x = lista[+el.dataset.i], c = el.dataset.c; x[c] = c === 'psv' ? el.value === '1' : el.value.trim(); };
+      });
+      $('pp-lista').querySelectorAll('[data-tirar]').forEach(function (b) { b.onclick = function () { lista.splice(+b.dataset.tirar, 1); desenhar(); }; });
+      $('pp-enviar').disabled = false;
+    }
+    function adicionar(files) {
+      Array.from(files || []).filter(function (f) { return /\.pdf$/i.test(f.name); }).forEach(function (f) {
+        if (lista.some(function (x) { return x.file.name === f.name && x.file.size === f.size; })) return;
+        var g = lerNomePdf(f.name); lista.push({ file: f, arquivo: f.name, tag: g.tag, os: g.os, data: g.data, psv: g.psv });
+      });
+      desenhar();
+    }
+    $('pp-arq').onchange = function (e) { adicionar(e.target.files); e.target.value = ''; };
+    $('pp-pasta').onchange = function (e) { adicionar(e.target.files); e.target.value = ''; };
+    $('pp-tipo').onchange = desenhar;
+    $('pp-voltar').onclick = function () { telaAcessoPortal(empId); };
+    $('pp-enviar').onclick = async function () {
+      var tipo = $('pp-tipo').value, osPadrao = $('pp-os').value.trim().toUpperCase(), dataPadrao = $('pp-data').value, val = $('pp-val').value;
+      var b = this; b.disabled = true; var ok = 0, falhas = [];
+      var indice = (await banco.ler('portal_laudos', empId).catch(function () { return null; })) || {}, antigos = indice.laudos || {};
+      for (var i = 0; i < lista.length; i++) {
+        var x = lista[i];
+        $('pp-status').textContent = 'Enviando ' + (i + 1) + ' de ' + lista.length + ': ' + x.arquivo + '…';
+        try {
+          var bytes = await pdfParaConsulta(new Uint8Array(await x.file.arrayBuffer()));
+          var b64 = base64De(bytes), chave = 'a_' + hashTexto(empId + '|' + tipo + '|' + x.arquivo), versao = Date.now().toString(36);
+          var partes = Math.ceil(b64.length / TAM_PARTE_PORTAL);
+          for (var n = 0; n < partes; n++) await banco.gravar('portal_laudos_partes', chave + '__' + versao + '__' + n, { empresaId: empId, laudo: chave, parte: n, dados: b64.slice(n * TAM_PARTE_PORTAL, (n + 1) * TAM_PARTE_PORTAL) });
+          var meta = { tipo: tipo, tag: String(x.tag || '').toUpperCase(), os: x.os ? x.os.toUpperCase() : (osPadrao || 'Documentos antigos'), arquivo: x.arquivo,
+            dataInspecao: x.data || dataPadrao || '', versao: versao, partes: partes, tamanho: bytes.length, publicadoEm: agora(), antigo: true,
+            equipamento: tipo === 'calibracao' ? (x.psv ? 'Válvula de segurança' : 'Manômetro') : x.arquivo.replace(/\.pdf$/i, '') };
+          if (tipo === 'calibracao') meta.validade = val || '';
+          var campos = { empresaId: empId, laudos: {} }; campos.laudos[chave] = meta;
+          await banco.atualizar('portal_laudos', empId, campos);
+          var velho = antigos[chave];
+          if (velho && velho.versao && velho.versao !== versao) for (var k = 0; k < (velho.partes || 0); k++) await banco.excluir('portal_laudos_partes', chave + '__' + velho.versao + '__' + k).catch(function () {});
+          ok++;
+        } catch (e) { console.error(e); falhas.push(x.arquivo + ' (' + (e.message || e) + ')'); }
+      }
+      $('pp-status').innerHTML = esc(ok + ' arquivo(s) enviado(s) ao portal.') + (falhas.length ? '<br><span style="color:var(--bad,#f87171)">Não foram: ' + esc(falhas.join('; ')) + '</span>' : '') +
+        '<br>Confira se o serviço (' + (tipo === 'nr13' ? 'NR-13' : 'Calibração') + ') está marcado em Serviços liberados.';
+      toast(ok + ' PDF(s) enviado(s) ao portal.');
+      lista = lista.filter(function (x) { return falhas.some(function (f) { return f.indexOf(x.arquivo) === 0; }); }); desenhar(); b.disabled = !lista.length;
+    };
+  }
   function telaAcessoPortal(empId) {
     var c = porId('empresas', empId) || {}, ac = portalAcesso(empId) || {}, d = dadosPortal(empId);
     var ext = ac.servicosExtras || {};
@@ -925,6 +1032,7 @@
       '<div id="pa-convite"></div>' +
       '<div class="acoes"><button class="btn" id="pa-enviar">Salvar e gerar convite</button><button class="btn sec" id="pa-salvar">Só salvar</button>' +
       (us.length ? '<a class="btn sec" href="' + esc(urlPortal()) + '" target="_blank" rel="noopener">Abrir o portal</a>' : '') +
+      '<button class="btn sec" id="pa-pdfs" title="Relatórios NR-13 e certificados de calibração antigos (PDF), para o cliente ver e baixar">Subir PDFs antigos</button>' +
       '<button class="btn sec" id="pa-fechar">Fechar</button></div>');
 
     var logoNovo = ac.logo || '';
@@ -971,6 +1079,7 @@
       return v;
     }
     $('pa-fechar').onclick = fecharModal;
+    $('pa-pdfs').onclick = function () { telaPdfsAntigos(empId); };
     $('pa-salvar').onclick = async function () { try { var sv = await salvar(); toast('Acesso salvo. No portal: ' + (sv.servicosPublicados.join(', ') || 'nenhum serviço') + '.'); fecharModal(); } catch (e) { toast('Erro: ' + e.message); } };
     $('modal').querySelectorAll('[data-tirar]').forEach(function (b) {
       b.onclick = async function () {
