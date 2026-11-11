@@ -31,6 +31,9 @@
   button, input { font: inherit; }
   .topo { background: var(--topo); border-bottom: 1px solid var(--linha); }
   .topo-in { max-width: 1240px; margin: 0 auto; padding: 0 16px; min-height: 64px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .banner-idealle { margin: 0 0 18px; border-radius: 16px; overflow: hidden; border: 1px solid var(--linha); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .banner-idealle img { display: block; width: 100%; height: auto; max-height: 260px; object-fit: cover; }
+  .banner-idealle + .entrar { margin-top: 0; }
   .marca { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .12em; }
   .marca small { letter-spacing: 0; font-weight: 400; color: var(--muted); font-size: 13px; }
   .topo .dir { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
@@ -239,9 +242,11 @@
       '<b style="color:var(--azul)">Use como aplicativo:</b> ' + (ios ? 'no Safari, toque em <b>Compartilhar</b> (quadrado com seta) e depois em <b>Adicionar à Tela de Início</b>.' : 'no menu do navegador (⋮), toque em <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.') + '</div>';
   }
 
+  // Faixa com o logo da IDEALLE no topo da entrada e do painel
+  var BANNER = '<div class="banner-idealle"><img src="banner-idealle.jpg" alt="IDEALLE Inspeções e Serviços Ltda" width="1024" height="305"></div>';
   function telaEntrar(aviso) {
     $('btn-sair').classList.add('esconder'); $('quem').textContent = '';
-    tela.innerHTML = '<div class="card entrar"><h1>Entrar</h1><p class="sub">Acompanhe seus equipamentos, prazos de inspeção e certificados.</p>' +
+    tela.innerHTML = BANNER + '<div class="card entrar"><h1>Entrar</h1><p class="sub">Acompanhe seus equipamentos, prazos de inspeção e certificados.</p>' +
       (aviso ? '<p class="erro">' + esc(aviso) + '</p>' : '') +
       '<form id="f-entrar"><label for="e-email">E-mail</label><input id="e-email" type="email" autocomplete="username" required>' +
       '<label for="e-senha">Senha</label><input id="e-senha" type="password" autocomplete="current-password" required>' +
@@ -366,7 +371,7 @@
       return '<div class="serv ativo" data-ir="' + s[0] + '" tabindex="0" role="button"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><span class="chip c-ok">Contratado</span></span><span class="info">' + infoHtml(info) + '</span></div>';
     }).join('');
     var ativos = SERVICOS.filter(function (s) { return sv[s[0]]; }).length;
-    tela.innerHTML =
+    tela.innerHTML = BANNER +
       cabecalhoCliente(d.empresa) +
       '<div class="resumo"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px"><h1 style="font-size:22px">Situação da sua planta</h1>' +
       '</div>' +
