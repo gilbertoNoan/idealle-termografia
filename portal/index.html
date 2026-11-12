@@ -208,6 +208,10 @@
     ['linhavida', 'Linha de vida', 'Inspeção e certificação'],
     ['obra', 'Obra', 'Acompanhamento da obra']
   ];
+  // Serviços que ainda não têm sistema no portal (feitos sob demanda): aparecem sempre com "Quero contratar".
+  // Quando o sistema de um deles ficar pronto, é só tirar daqui.
+  var SEM_SISTEMA = ['spda', 'nr10', 'avcb', 'linhavida'];
+  function servicoAtivo(sv, k) { return !!sv[k] && SEM_SISTEMA.indexOf(k) < 0; }
 
   // Fala com a IDEALLE: WhatsApp quando cadastrado, senão e-mail, senão telefone
   // "Quero contratar": vai para o WhatsApp comercial (sócio), com a mensagem já escrita
@@ -357,7 +361,7 @@
   function painel() {
     var d = estado.dados, c = d.contagem || {}, sv = d.servicos || {};
     var cards = SERVICOS.map(function (s) {
-      var ativo = !!sv[s[0]], info = s[2];
+      var ativo = servicoAtivo(sv, s[0]), info = s[2];
       if (ativo && s[0] === 'nr13') { var nLaudos = todosDocs().filter(function (x) { return x.tipo === 'nr13'; }).length; info = 'Relatórios: ' + nLaudos; }
       if (ativo && s[0] === 'calibracao') {
         var docsCal = todosDocs().filter(function (x) { return x.tipo === 'calibracao'; }), qc = contarCalibracao((d.certificados || []).concat(docsCal));
@@ -370,7 +374,7 @@
         '<span class="info">' + esc(s[2]) + '</span><a class="btn sec peq" target="_blank" rel="noopener" href="' + esc(pedirProposta('Olá! Sou da ' + nomeEmpresa() + ' e quero uma proposta de ' + s[1] + ' (' + s[2] + ').')) + '">Quero contratar</a></div>';
       return '<div class="serv ativo" data-ir="' + s[0] + '" tabindex="0" role="button"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><span class="chip c-ok">Contratado</span></span><span class="info">' + infoHtml(info) + '</span></div>';
     }).join('');
-    var ativos = SERVICOS.filter(function (s) { return sv[s[0]]; }).length;
+    var ativos = SERVICOS.filter(function (s) { return servicoAtivo(sv, s[0]); }).length;
     tela.innerHTML =
       cabecalhoCliente(d.empresa) +
       '<div class="resumo"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px"><h1 style="font-size:22px">Situação da sua planta</h1>' +
