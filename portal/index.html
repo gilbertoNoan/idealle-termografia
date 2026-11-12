@@ -322,8 +322,12 @@
       estado.empId = empId;
       // Laudos NR-13 publicados pelo Relatório NR-13 (cópia para consulta)
       try { var li = await db.collection('portal_laudos').doc(empId).get(); estado.laudos = li.exists ? (li.data().laudos || {}) : {}; } catch (e) { estado.laudos = {}; }
+      // Obras de engenharia civil publicadas pela Gestão de Obra (avanço, cronograma e diários de obra)
+      try { var po = await db.collection('portal_obras').doc(empId).get(); estado.obras = po.exists ? (po.data().obras || {}) : {}; } catch (e) { estado.obras = {}; }
       soLiberados();
       aplicarEscolhaDeServicos();
+      var ext0 = (estado.acesso && estado.acesso.servicosExtras) || {};
+      if (Object.keys(estado.obras).length && ext0.obra !== false) { estado.dados.servicos = estado.dados.servicos || {}; estado.dados.servicos.obra = true; }
       if (!sessionStorage.getItem('portal-acesso-' + u.uid)) {
         db.collection('portal_usuarios').doc(u.uid).update({ ultimoAcesso: new Date().toISOString() }).catch(function () {});
         try { sessionStorage.setItem('portal-acesso-' + u.uid, '1'); } catch (e) {}
@@ -361,6 +365,7 @@
       if (ativo && s[0] === 'termografia') {
         info = 'Quadros: ' + ((d.termografia && d.termografia.laudos) || 0);
       }
+      if (ativo && s[0] === 'obra') { var obs = listaObras(); info = obs.length ? 'Obras: ' + obs.length + '\nAvanço %: ' + Math.round(obs[0].avanco || 0) : 'Acompanhamento da obra'; }
       if (!ativo) return '<div class="serv trancado"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Não contratado"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
         '<span class="info">' + esc(s[2]) + '</span><a class="btn sec peq" target="_blank" rel="noopener" href="' + esc(pedirProposta('Olá! Sou da ' + nomeEmpresa() + ' e quero uma proposta de ' + s[1] + ' (' + s[2] + ').')) + '">Quero contratar</a></div>';
       return '<div class="serv ativo" data-ir="' + s[0] + '" tabindex="0" role="button"><span style="display:flex;justify-content:space-between;align-items:center"><span class="nome">' + esc(s[1]) + '</span><span class="chip c-ok">Contratado</span></span><span class="info">' + infoHtml(info) + '</span></div>';
@@ -832,10 +837,64 @@
         }
         // NR-13: abre a página dos relatórios NR-13 na mesma aba, como o portal do sistema de relatórios
         if (el.dataset.ir === 'nr13' || el.dataset.ir === 'calibracao') { location.href = location.pathname + '?pagina=' + el.dataset.ir; return; }
+        if (el.dataset.ir === 'obra') { telaObras(); return; }
         telaRelatorios(el.dataset.ir);
       };
       el.onclick = ir; el.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ir(); } };
     });
+  }
+
+  // ---------- Obras (Gestão de Obra) ----------
+  function listaObras() {
+    var o = estado.obras || {};
+    return Object.keys(o).map(function (k) { return Object.assign({ id: k }, o[k]); })
+      .sort(function (a, b) { return (a.status === 'concluida') - (b.status === 'concluida') || String(b.inicio || '').localeCompare(String(a.inicio || '')); });
+  }
+  var STATUS_OBRA = { planejamento: ['Planejamento', 'c-azul'], andamento: ['Em andamento', 'c-warn'], paralisada: ['Paralisada', 'c-bad'], concluida: ['Concluída', 'c-ok'] };
+  function pctTxt(v) { return (Math.round((Number(v) || 0) * 10) / 10).toString().replace('.', ',') + '%'; }
+  function telaObras(abrirId) {
+    var obs = listaObras(), d = estado.dados || {};
+    if (!obs.length) { alert('Nenhuma obra publicada ainda. Assim que a IDEALLE liberar o acompanhamento, ela aparece aqui.'); return; }
+    var ob = obs.find(function (x) { return x.id === abrirId; }) || obs[0];
+    var st = STATUS_OBRA[ob.status] || STATUS_OBRA.andamento;
+    var ini = ob.inicio, fim = ob.previsaoFim;
+    var nDias = Math.max(1, Math.round((new Date(fim) - new Date(ini)) / 864e5) + 1);
+    var P = function (iso) { return Math.max(0, Math.min(100, Math.round((new Date(iso) - new Date(ini)) / 864e5) / nDias * 100)); };
+    var hojeP = hoje() >= ini && hoje() <= fim ? '<div style="position:absolute;top:0;bottom:0;left:' + P(hoje()) + '%;width:2px;background:var(--bad-c);opacity:.7" title="hoje"></div>' : '';
+    var etapas = (ob.etapas || []).map(function (e) {
+      var l = P(e.inicio), w = Math.max(1, P(e.fim) - l + 100 / nDias);
+      return '<div class="ob-et"><div class="ob-et-n"><b>' + esc(e.nome) + '</b><span class="sub">' + data(e.inicio) + ' a ' + data(e.fim) + '</span></div>' +
+        '<div class="ob-et-t">' + hojeP + '<div style="position:absolute;left:' + l + '%;width:' + w + '%;top:7px;height:10px;border-radius:4px;background:var(--borda)"></div>' +
+        '<div style="position:absolute;left:' + l + '%;width:' + (w * Math.min(100, e.avanco || 0) / 100) + '%;top:7px;height:10px;border-radius:4px;background:var(--amb)"></div></div>' +
+        '<div class="ob-et-p">' + pctTxt(e.avanco) + '</div></div>';
+    }).join('');
+    var rdos = (ob.rdos || []).map(function (r) {
+      return '<div class="card" style="padding:14px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>Diário de obra nº ' + r.numero + ' · ' + data(r.data) + '</b><span class="sub">' + esc(r.climaManha) + ' / ' + esc(r.climaTarde) + ' · ' + r.equipe + ' pessoa(s)' + (r.praticavel ? '' : ' · <span class="chip c-warn">Impraticável</span>') + '</span></div>' +
+        '<p style="white-space:pre-line;margin:8px 0 0">' + esc(r.atividades) + '</p>' +
+        (r.ocorrencias ? '<p style="margin:8px 0 0"><span class="chip c-warn">Ocorrências</span> ' + esc(r.ocorrencias) + '</p>' : '') +
+        ((r.fotos || []).length ? '<div class="ob-fotos">' + r.fotos.map(function (f) { return '<button type="button" data-foto="' + esc(f.id) + '" title="' + esc(f.legenda || 'Ver foto') + '"><img src="' + esc(f.thumb) + '" alt="' + esc(f.legenda || 'Foto da obra') + '"></button>'; }).join('') + '</div>' : '') + '</div>';
+    }).join('');
+    tela.innerHTML = cabecalhoCliente(d.empresa || {}) +
+      '<style>.ob-et{display:grid;grid-template-columns:minmax(120px,30%) 1fr 54px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--linha)}.ob-et-n{display:flex;flex-direction:column;font-size:14px}.ob-et-t{position:relative;height:24px}.ob-et-p{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}' +
+      '.ob-fotos{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.ob-fotos button{padding:0;border:1px solid var(--linha);border-radius:8px;overflow:hidden;cursor:pointer;background:none}.ob-fotos img{width:84px;height:84px;object-fit:cover;display:block}' +
+      '.ob-sel{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.ob-foto-g{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:50;padding:16px;gap:10px}.ob-foto-g img{max-width:100%;max-height:82vh;border-radius:8px}</style>' +
+      '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px"><div><button class="btn sec peq" id="o-voltar" type="button">← Voltar ao painel</button><h1 style="margin-top:10px">Acompanhamento da obra</h1></div></div>' +
+      (obs.length > 1 ? '<div class="ob-sel">' + obs.map(function (x) { return '<button class="btn ' + (x.id === ob.id ? '' : 'sec ') + 'peq" data-ob="' + esc(x.id) + '">' + esc(x.titulo || x.os) + '</button>'; }).join('') + '</div>' : '') +
+      '<section class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><h2 style="margin:0">' + esc(ob.titulo) + '</h2><span class="sub">OS ' + esc(ob.os) + (ob.area ? ' · ' + esc(ob.area) + ' ' + esc(ob.unidade || 'm²') : '') + '</span></div><span class="chip ' + st[1] + '" style="align-self:flex-start">' + st[0] + '</span></div>' +
+      '<div class="kpis" style="margin-top:14px"><div class="kpi"><b>' + pctTxt(ob.avanco) + '</b><span>concluído</span></div><div class="kpi"><b>' + pctTxt(ob.previsto) + '</b><span>previsto para hoje</span></div>' +
+      '<div class="kpi"><b>' + data(ini) + '</b><span>início</span></div><div class="kpi"><b>' + data(fim) + '</b><span>término previsto</span></div></div>' +
+      '<div class="barra" style="margin-top:12px" role="img" aria-label="' + pctTxt(ob.avanco) + ' concluído"><div style="width:' + Math.min(100, ob.avanco || 0) + '%"></div></div></section>' +
+      '<section class="card"><h2>Cronograma</h2><p class="sub" style="margin:0 0 6px">Barra cinza: prazo previsto de cada etapa · laranja: quanto já foi executado.</p>' + etapas + '</section>' +
+      '<section><div class="tit-sec"><h2>Diários de obra</h2><span class="sub">' + (ob.rdos || []).length + ' registro(s)</span></div>' + (rdos || '<div class="card vazio">Nenhum diário publicado ainda.</div>') + '</section>' +
+      '<p class="rodape">Atualizado em ' + data(ob.atualizadoEm) + '. Informações publicadas pela IDEALLE a partir do diário de obra.</p>';
+    $('o-voltar').onclick = function () { painel(); window.scrollTo(0, 0); };
+    tela.querySelectorAll('[data-ob]').forEach(function (b) { b.onclick = function () { telaObras(b.dataset.ob); }; });
+    tela.querySelectorAll('[data-foto]').forEach(function (b) { b.onclick = async function () {
+      var g = document.createElement('div'); g.className = 'ob-foto-g'; g.innerHTML = '<div class="carregando">Abrindo a foto…</div>'; g.onclick = function () { g.remove(); }; document.body.appendChild(g);
+      try { var f = await db.collection('portal_obras_fotos').doc(b.dataset.foto).get(); g.innerHTML = f.exists ? '<img src="' + esc(f.data().dataUrl) + '" alt=""><div style="color:#fff">' + esc(f.data().legenda || '') + '</div><button class="btn sec peq">Fechar</button>' : '<div style="color:#fff">Foto indisponível.</div>'; }
+      catch (e) { g.innerHTML = '<div style="color:#fff">Não foi possível abrir a foto.</div>'; }
+    }; });
+    window.scrollTo(0, 0);
   }
 
   function telaEncerrado() {

@@ -1,0 +1,1071 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+    <!-- Trava de acesso CRONOS: a pagina so abre para quem tem este sistema liberado no painel
+         (Configuracoes > Administracao). Codigo da trava: painel-central/guard/guard.ts -->
+    <script>(function(){var l=location,h=l.hostname;if(l.protocol!=='https:'||/^(localhost|127\.0\.0\.1)$/.test(h)||/(claudeusercontent\.com|claude\.ai|claude\.site)$/.test(h)||/[?&]demo=1/.test(l.search))return;window.__cronosGuard=new Promise(function(r){window.__cronosGuardPronto=r});var d=document,s=d.createElement('style');s.id='cronos-guard-hide';s.textContent='body{visibility:hidden!important}';d.head.appendChild(s);var g=d.createElement('script');g.src='https://painel-central-rosy.vercel.app/guard.js';g.setAttribute('data-sistema','gestao-obras');g.setAttribute('data-recarregar','1');g.onerror=function(){d.title='CRONOS';d.documentElement.innerHTML='<body style="font-family:sans-serif;padding:40px;background:#03060c;color:#e2e8f0">N&atilde;o foi poss&iacute;vel verificar o acesso ao CRONOS. Verifique a internet e recarregue a p&aacute;gina.</body>'};d.head.appendChild(g);})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestão de Obra · Idealle</title>
+<link rel="icon" type="image/png" sizes="48x48" href="/icones/obras-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icones/obras-192.png">
+<link rel="apple-touch-icon" href="/icones/obras-180.png">
+<meta name="theme-color" content="#12151c">
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.js"></script>
+<style>
+  :root {
+    --bg: #f4f6f9; --card: #ffffff; --text: #1d2433; --muted: #667085; --line: #e3e7ee;
+    --pri: #c2410c; --pri-2: #fff1e6; --ok: #16794c; --ok-2: #e6f4ec; --warn: #9a6400; --warn-2: #fdf3df;
+    --bad: #b42318; --bad-2: #fdecea; --gray-2: #eef0f4; --azul: #0b5cad; --azul-2: #e8f1fb;
+    --prev: #f3c08f; --real: #ea7a1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151c; --card: #1b2029; --text: #e7eaf0; --muted: #9aa3b2; --line: #2b3240;
+      --pri: #f59e4b; --pri-2: #3a2614; --ok: #4cc38a; --ok-2: #173326; --warn: #e3b04b; --warn-2: #3a2e15;
+      --bad: #f07a6f; --bad-2: #3d1d1b; --gray-2: #252b36; --azul: #5aa2ec; --azul-2: #1c2c40;
+      --prev: #6b4a2a; --real: #f59e4b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
+  header { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+  .top { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; max-width: 1200px; margin: 0 auto; gap: 12px; }
+  .marca { font-weight: 700; font-size: 18px; letter-spacing: .3px; display: flex; align-items: center; gap: 10px; }
+  .marca img { width: 32px; height: 32px; border-radius: 8px; }
+  .marca small { font-weight: 400; color: var(--muted); font-size: 13px; }
+  .usuario { color: var(--muted); font-size: 13px; display: flex; gap: 8px; align-items: center; }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 22px; margin: 4px 0 2px; } h2 { font-size: 17px; margin: 0 0 10px; } h3 { margin: 0 0 12px; font-size: 17px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .btn { background: var(--pri); color: #fff; border: 1px solid var(--pri); border-radius: 8px; padding: 9px 14px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
+  .btn.sec { background: transparent; color: var(--text); border-color: var(--line); }
+  .btn.ok { background: var(--ok); border-color: var(--ok); }
+  .btn.perigo { background: transparent; color: var(--bad); border-color: var(--bad); }
+  .btn.peq { padding: 5px 10px; font-size: 13px; min-height: 32px; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  input, select, textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font-size: 15px; font-family: inherit; }
+  textarea { min-height: 76px; resize: vertical; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; font-weight: 600; }
+  .linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 12px; }
+  .chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; background: var(--gray-2); color: var(--muted); }
+  .chip.ok { background: var(--ok-2); color: var(--ok); } .chip.warn { background: var(--warn-2); color: var(--warn); } .chip.bad { background: var(--bad-2); color: var(--bad); } .chip.pri { background: var(--pri-2); color: var(--pri); } .chip.azul { background: var(--azul-2); color: var(--azul); }
+  .barra { height: 8px; border-radius: 999px; background: var(--gray-2); overflow: hidden; }
+  .barra > div { height: 100%; background: var(--real); border-radius: 999px; }
+  .grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .obra-card { cursor: pointer; display: flex; flex-direction: column; gap: 8px; margin: 0; }
+  .obra-card:hover { border-color: var(--pri); }
+  .obra-card .tit { font-weight: 700; font-size: 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .kpi b { display: block; font-size: 24px; line-height: 1.2; }
+  .kpi span { font-size: 12px; color: var(--muted); }
+  .abas { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); margin: 10px 0 14px; }
+  .abas button { background: none; border: none; border-bottom: 3px solid transparent; padding: 10px 12px; color: var(--muted); font-size: 15px; cursor: pointer; white-space: nowrap; }
+  .abas button.ativo { color: var(--pri); border-bottom-color: var(--pri); font-weight: 600; }
+  .filtros { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 14px; }
+  .filtros button { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+  .filtros button.ativo { background: var(--pri); border-color: var(--pri); color: #fff; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; padding: 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 9px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tabela { overflow-x: auto; }
+  .vazio { color: var(--muted); padding: 22px; text-align: center; }
+  .voltar { background: none; border: none; color: var(--pri); cursor: pointer; padding: 4px 0; font-size: 14px; }
+  /* Gantt */
+  .gantt { overflow-x: auto; }
+  .g-wrap { min-width: 720px; }
+  .g-row { display: grid; grid-template-columns: 230px 1fr; align-items: center; border-top: 1px solid var(--line); min-height: 46px; }
+  .g-row.cab { border-top: 0; min-height: 26px; font-size: 11px; color: var(--muted); }
+  .g-nome { padding: 6px 10px 6px 0; font-size: 13px; cursor: pointer; }
+  .g-nome b { display: block; font-size: 14px; }
+  .g-track { position: relative; height: 40px; }
+  .g-bar { position: absolute; height: 12px; border-radius: 4px; }
+  .g-bar.prev { top: 8px; background: var(--prev); opacity: .85; }
+  .g-bar.real { top: 22px; background: var(--real); }
+  .g-hoje { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--bad); opacity: .7; }
+  .g-tick { position: absolute; top: 4px; transform: translateX(-50%); white-space: nowrap; }
+  .g-pct { position: absolute; top: 20px; font-size: 11px; font-weight: 700; color: var(--text); padding-left: 4px; white-space: nowrap; }
+  .legenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legenda i { display: inline-block; width: 14px; height: 8px; border-radius: 3px; margin-right: 5px; vertical-align: middle; }
+  /* RDO */
+  .rdo { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .rdo .fotos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .rdo .fotos img, .thumbs img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+  .thumbs { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  .thumbs .t { display: flex; flex-direction: column; gap: 4px; width: 120px; }
+  .thumbs .t img { width: 120px; height: 90px; }
+  .thumbs .t input { font-size: 12px; padding: 5px 6px; }
+  .eq-linha { display: grid; grid-template-columns: 1fr 80px 40px; gap: 6px; margin-bottom: 6px; }
+  .av-linha { display: grid; grid-template-columns: 1fr 140px 64px; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+  .av-linha input[type=range] { padding: 0; }
+  /* modal */
+  .fundo { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: flex-start; justify-content: center; z-index: 50; overflow-y: auto; padding: 24px 12px; }
+  .fundo.aberto { display: flex; }
+  .modal { background: var(--card); border-radius: 12px; padding: 18px; width: 100%; max-width: 720px; border: 1px solid var(--line); }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #1d2433; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 14px; z-index: 60; display: none; max-width: 92vw; }
+  #tela-login { max-width: 400px; margin: 10vh auto; }
+  .aviso { background: var(--warn-2); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
+  .curva svg { width: 100%; height: auto; display: block; }
+  .so-dono { }
+  @media (max-width: 640px) {
+    main { padding: 12px; }
+    .g-row { grid-template-columns: 150px 1fr; }
+    .av-linha { grid-template-columns: 1fr 90px 54px; }
+    .modal { padding: 14px; }
+    .marca small { display: none; }
+    #usuario-nome { display: none; }
+  }
+</style>
+</head>
+<body>
+<header id="cabecalho" style="display:none">
+  <div class="top">
+    <div class="marca"><img src="/icones/obras-192.png" alt=""> Gestão de Obra <small>Idealle · engenharia civil</small></div>
+    <div class="usuario"><span id="usuario-nome"></span><button class="btn sec peq" id="btn-sair">Sair</button></div>
+  </div>
+</header>
+
+<div id="tela-login" class="card" style="display:none">
+  <h1>Gestão de Obra</h1>
+  <p class="muted">Entre com o mesmo login do CRONOS.</p>
+  <label>E-mail</label><input id="login-email" type="email" autocomplete="username">
+  <label>Senha</label><input id="login-senha" type="password" autocomplete="current-password">
+  <div class="acoes"><button class="btn" id="btn-entrar">Entrar</button><button class="btn sec" id="btn-google">Entrar com Google</button></div>
+  <p id="login-erro" style="color:var(--bad);font-size:14px;min-height:20px"></p>
+  <button class="btn sec peq" id="btn-demo">Testar sem banco</button>
+</div>
+
+<main id="app" style="display:none">
+  <div id="aviso-modo" class="aviso" style="display:none"></div>
+  <div id="view"></div>
+</main>
+
+<div class="fundo" id="fundo"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ===================== CONFIGURAÇÃO =====================
+  // Mesmo banco Firebase do Finanças e da Termografia. A obra nasce de uma OS de engenharia civil
+  // (ordens com servicos.civil) e usa os dados da proposta (ordens.obra: área, equipe, etapas com dias).
+  // Coleções: obras/<osId> (cronograma), obras_rdo (diário de obra), obras_fotos (fotos do diário),
+  // obras_financeiro/<osId> (medições e orçado: só os sócios), portal_obras/<empresaId> e
+  // portal_obras_fotos (o que o cliente vê no Portal do Cliente). Custos lançados aqui viram despesas
+  // do Finanças (lancamentos com osId). Regras do banco em painel-central/firestore.rules.
+  var FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAN72-6pCbPaBowiGA2jciJ_lzB9d6z110",
+    authDomain: "idealle-termografia.firebaseapp.com",
+    projectId: "idealle-termografia",
+    storageBucket: "idealle-termografia.firebasestorage.app",
+    messagingSenderId: "577776042104",
+    appId: "1:577776042104:web:508a131e13a4ef4afbed8d"
+  };
+  // Manter igual a DONOS da trava (painel-central/guard/guard.ts) e ao firestore.rules
+  var DONOS = ['gilberto2902@gmail.com', 'digoeerika@gmail.com'];
+  var NOME_SISTEMA = 'Gestão de Obra';
+
+  var CLIMAS = ['Bom', 'Nublado', 'Chuva fraca', 'Chuva forte'];
+  var FUNCOES = ['Encarregado', 'Pedreiro', 'Servente', 'Pintor', 'Carpinteiro', 'Armador', 'Eletricista', 'Encanador', 'Azulejista', 'Ajudante', 'Técnico de segurança', 'Engenheiro'];
+  // Categorias de custo da obra e onde caem no plano de contas do Finanças
+  var CATEGORIAS = [
+    ['mo', 'Mão de obra', 'Custos Variáveis', 'Serviços terceirizados'],
+    ['mat', 'Materiais', 'Custos Variáveis', 'Matéria-prima'],
+    ['equip', 'Equipamentos e apoio', 'Custos Variáveis', 'Insumos'],
+    ['desl', 'Deslocamento e alimentação', 'Deslocamentos Serviços', 'Deslocamentos'],
+    ['coord', 'Coordenação', 'Custos Variáveis', 'Serviços terceirizados'],
+    ['outros', 'Outros', 'Outras Despesas', 'Outras']
+  ];
+  var STATUS = { planejamento: ['Planejamento', 'azul'], andamento: ['Em andamento', 'pri'], paralisada: ['Paralisada', 'warn'], concluida: ['Concluída', 'ok'] };
+
+  // ===================== UTILITÁRIOS =====================
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function hoje() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+  function agora() { return new Date().toISOString(); }
+  function dt(iso) { if (!iso) return '—'; var p = String(iso).slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
+  function dtc(iso) { if (!iso) return ''; var p = String(iso).slice(0, 10).split('-'); return p[2] + '/' + p[1]; }
+  function ms(iso) { return new Date(String(iso).slice(0, 10) + 'T12:00:00').getTime(); }
+  function somarDias(iso, n) { var d = new Date(ms(iso) + n * 864e5); return d.toISOString().slice(0, 10); }
+  function difDias(a, b) { return Math.round((ms(b) - ms(a)) / 864e5); }
+  function num(v) { if (typeof v === 'number') return isFinite(v) ? v : 0; var s = String(v == null ? '' : v).trim(); if (!s) return 0; if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.'); var n = parseFloat(s); return isFinite(n) ? n : 0; }
+  function brl(v) { return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+  function pct(v, d) { return (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }) + '%'; }
+  function numCampo(v) { return v == null || v === '' ? '' : String(v).replace('.', ','); }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function toast(m) { var t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { t.style.display = 'none'; }, 3500); }
+  function abrirModal(html) { $('modal').innerHTML = html; $('fundo').classList.add('aberto'); window.scrollTo(0, 0); }
+  function fecharModal() { $('fundo').classList.remove('aberto'); $('modal').innerHTML = ''; }
+  $('fundo').addEventListener('click', function (e) { if (e.target === $('fundo')) fecharModal(); });
+  function plural(n, um, varios) { return n + ' ' + (n === 1 ? um : varios); }
+  function textoDias(n) { return plural(n, 'dia', 'dias'); }
+
+  // ===================== BANCO =====================
+  var banco = null, modoDemo = /[?&]demo=1/.test(location.search), usuario = '', dono = false;
+
+  function bancoFirestore(db) {
+    function lista(snap) { return snap.docs.map(function (d) { var x = d.data() || {}; x.id = d.id; return x; }); }
+    return {
+      ouvir: function (col, filtro, cb, erro) {
+        var q = db.collection(col);
+        if (filtro) q = q.where(filtro[0], filtro[1], filtro[2]);
+        return q.onSnapshot(function (s) { cb(lista(s)); }, function (e) { console.error(col, e); if (erro) erro(e); else toast('Erro ao ler ' + col + ': ' + e.message); });
+      },
+      ouvirDoc: function (col, id, cb, erro) {
+        return db.collection(col).doc(id).onSnapshot(function (d) { cb(d.exists ? Object.assign({ id: d.id }, d.data()) : null); }, function (e) { console.error(col, e); if (erro) erro(e); });
+      },
+      buscar: function (col, filtro) { return db.collection(col).where(filtro[0], filtro[1], filtro[2]).get().then(lista); },
+      todos: function (col) { return db.collection(col).get().then(lista); },
+      ler: function (col, id) { return db.collection(col).doc(id).get().then(function (d) { return d.exists ? Object.assign({ id: d.id }, d.data()) : null; }); },
+      // merge: true não apaga os campos gravados pelo Finanças e pelos outros sistemas
+      atualizar: function (col, id, doc) { return db.collection(col).doc(id).set(doc, { merge: true }); },
+      gravar: function (col, id, doc) { return db.collection(col).doc(id).set(doc); },
+      criar: function (col, doc) { return db.collection(col).add(doc).then(function (r) { return r.id; }); },
+      excluir: function (col, id) { return db.collection(col).doc(id).delete(); },
+      apagarCampo: function (col, id, campo) { var u = {}; u[campo] = firebase.firestore.FieldValue.delete(); return db.collection(col).doc(id).update(u).catch(function () {}); }
+    };
+  }
+
+  // Modo de teste: tudo no navegador, com uma obra de exemplo
+  function bancoLocal() {
+    var CH = 'obras-demo-v1', ouvintes = [], dados;
+    try { dados = JSON.parse(localStorage.getItem(CH) || 'null'); } catch (e) { dados = null; }
+    if (!dados) dados = exemplo();
+    function salvar() { try { localStorage.setItem(CH, JSON.stringify(dados)); } catch (e) { toast('Armazenamento do navegador cheio (fotos).'); } }
+    function col(c) { return (dados[c] = dados[c] || []); }
+    function casa(x, f) { if (!f) return true; var v = f[0].split('.').reduce(function (o, k) { return o == null ? undefined : o[k]; }, x); return f[1] === '==' ? v === f[2] : true; }
+    function copia(x) { return JSON.parse(JSON.stringify(x)); }
+    function avisar() { ouvintes.forEach(function (o) { if (o.doc) { var x = col(o.col).find(function (y) { return y.id === o.doc; }); o.cb(x ? copia(x) : null); } else o.cb(col(o.col).filter(function (x) { return casa(x, o.f); }).map(copia)); }); }
+    function mesclar(a, b) { Object.keys(b).forEach(function (k) { var v = b[k]; if (v && typeof v === 'object' && !Array.isArray(v) && a[k] && typeof a[k] === 'object' && !Array.isArray(a[k])) mesclar(a[k], v); else a[k] = copia(v); }); return a; }
+    return {
+      ouvir: function (c, f, cb) { var o = { col: c, f: f, cb: cb }; ouvintes.push(o); setTimeout(function () { if (ouvintes.indexOf(o) >= 0) cb(col(c).filter(function (x) { return casa(x, f); }).map(copia)); }, 0); return function () { ouvintes = ouvintes.filter(function (y) { return y !== o; }); }; },
+      ouvirDoc: function (c, id, cb) { var o = { col: c, doc: id, cb: cb }; ouvintes.push(o); setTimeout(avisar, 0); return function () { ouvintes = ouvintes.filter(function (y) { return y !== o; }); }; },
+      todos: function (c) { return Promise.resolve(col(c).map(copia)); },
+      buscar: function (c, f) { return Promise.resolve(col(c).filter(function (x) { return casa(x, f); }).map(copia)); },
+      ler: function (c, id) { var x = col(c).find(function (y) { return y.id === id; }); return Promise.resolve(x ? copia(x) : null); },
+      atualizar: function (c, id, doc) { var x = col(c).find(function (y) { return y.id === id; }); if (x) mesclar(x, doc); else col(c).push(mesclar({ id: id }, doc)); salvar(); avisar(); return Promise.resolve(); },
+      gravar: function (c, id, doc) { dados[c] = col(c).filter(function (y) { return y.id !== id; }); dados[c].push(Object.assign({ id: id }, copia(doc))); salvar(); avisar(); return Promise.resolve(); },
+      criar: function (c, doc) { var id = 'L' + uid(); col(c).push(Object.assign({ id: id }, copia(doc))); salvar(); avisar(); return Promise.resolve(id); },
+      excluir: function (c, id) { dados[c] = col(c).filter(function (y) { return y.id !== id; }); salvar(); avisar(); return Promise.resolve(); },
+      apagarCampo: function (c, id, campo) { var x = col(c).find(function (y) { return y.id === id; }); if (x) { var p = campo.split('.'), o = x; for (var i = 0; i < p.length - 1; i++) o = o[p[i]] || {}; delete o[p[p.length - 1]]; } salvar(); avisar(); return Promise.resolve(); }
+    };
+  }
+
+  function exemplo() {
+    var h = hoje(), ini = somarDias(h, -12);
+    return {
+      ordens: [
+        { id: 'os1', codigo: 'ID-0123/2026', empresaId: 'c1', empresaNome: 'Benassi Indústria (exemplo)', descricao: 'Revestimento cerâmico da fachada', status: 'execucao', valor: 48600, dataAbertura: somarDias(h, -20), propostaId: 'p1', servicos: { civil: true },
+          obra: { area: 420, unidade: 'm²', equipe: '1 encarregado, 3 azulejistas e 2 serventes', etapas: [
+            { nome: 'Mobilização e proteção', atividade: 'Canteiro, andaimes e proteção do piso', dias: 3 },
+            { nome: 'Remoção do revestimento antigo', atividade: 'Retirada e limpeza da base', dias: 6 },
+            { nome: 'Regularização da base', atividade: 'Chapisco e emboço onde necessário', dias: 7 },
+            { nome: 'Assentamento cerâmico', atividade: 'Argamassa AC-III e cerâmica 10x10', dias: 12 },
+            { nome: 'Rejunte e limpeza final', atividade: 'Rejunte flexível, limpeza e entrega', dias: 4 }] } },
+        { id: 'os2', codigo: 'ID-0131/2026', empresaId: 'c2', empresaNome: 'Hospital Modelo (exemplo)', descricao: 'Reforma do piso da casa de máquinas', status: 'aberta', valor: 18900, dataAbertura: somarDias(h, -3), servicos: { civil: true },
+          obra: { area: 85, unidade: 'm²', equipe: '1 pedreiro e 1 servente', etapas: [{ nome: 'Demolição do piso', dias: 2 }, { nome: 'Contrapiso', dias: 3 }, { nome: 'Piso epóxi', dias: 4 }] } }
+      ],
+      empresas: [{ id: 'c1', nome: 'Benassi Indústria (exemplo)', endereco: 'Av. Industrial, 1000', cidade: 'Guarulhos', uf: 'SP' }, { id: 'c2', nome: 'Hospital Modelo (exemplo)', cidade: 'Campinas', uf: 'SP' }],
+      obras: [{ id: 'os1', osId: 'os1', osCodigo: 'ID-0123/2026', empresaId: 'c1', empresaNome: 'Benassi Indústria (exemplo)', titulo: 'Revestimento cerâmico da fachada', area: 420, unidade: 'm²', equipePrevista: '1 encarregado, 3 azulejistas e 2 serventes', status: 'andamento', portal: true, criadoEm: agora(),
+        etapas: [
+          { id: 'e1', nome: 'Mobilização e proteção', atividade: 'Canteiro, andaimes e proteção do piso', inicio: ini, dias: 3, avanco: 100, inicioReal: ini, fimReal: somarDias(ini, 2) },
+          { id: 'e2', nome: 'Remoção do revestimento antigo', atividade: 'Retirada e limpeza da base', inicio: somarDias(ini, 3), dias: 6, avanco: 100, inicioReal: somarDias(ini, 3), fimReal: somarDias(ini, 9) },
+          { id: 'e3', nome: 'Regularização da base', atividade: 'Chapisco e emboço onde necessário', inicio: somarDias(ini, 9), dias: 7, avanco: 40, inicioReal: somarDias(ini, 10) },
+          { id: 'e4', nome: 'Assentamento cerâmico', atividade: 'Argamassa AC-III e cerâmica 10x10', inicio: somarDias(ini, 16), dias: 12, avanco: 0 },
+          { id: 'e5', nome: 'Rejunte e limpeza final', atividade: 'Rejunte flexível, limpeza e entrega', inicio: somarDias(ini, 28), dias: 4, avanco: 0 }],
+        historico: [{ data: somarDias(ini, 2), avanco: 9 }, { data: somarDias(ini, 6), avanco: 19 }, { data: somarDias(ini, 9), avanco: 28 }, { data: somarDias(h, -1), avanco: 37 }] }],
+      obras_rdo: [
+        { id: 'r1', obraId: 'os1', numero: 1, data: somarDias(h, -2), climaManha: 'Bom', climaTarde: 'Nublado', praticavel: true, horaInicio: '07:00', horaFim: '17:00', equipe: [{ funcao: 'Encarregado', qtd: 1 }, { funcao: 'Pedreiro', qtd: 2 }, { funcao: 'Servente', qtd: 2 }], atividades: 'Chapisco na fachada norte (eixos 1 a 4).\nEmboço iniciado no eixo 1.', ocorrencias: '', equipamentos: 'Andaime fachadeiro, betoneira 400 L', avancos: [{ etapaId: 'e3', nome: 'Regularização da base', de: 20, para: 40 }], avancoGeral: 37, fotos: [], cliente: true, autor: 'exemplo', criadoEm: agora() }
+      ],
+      obras_fotos: [], obras_financeiro: [], portal_obras: [], portal_obras_fotos: [],
+      propostas: [{ id: 'p1', calculo: { encSoc: 132.57808, encD: 2.5, mo: [{ d: 'Azulejista', q: 3, h: 176, v: 28, t: 'D' }, { d: 'Servente', q: 2, h: 176, v: 16, t: 'D' }], mat: [{ d: 'Argamassa e rejunte', q: 1, v: 3800, i: 0 }], apoio: [{ d: 'Andaime (locação)', q: 1, v: 2400, i: 0 }], desp: [{ d: 'Alimentação', q: 6, u: 22, v: 25 }], coord: [{ d: 'Engenheiro', q: 1, h: 20, v: 90 }] } }],
+      lancamentos: [{ id: 'l1', tipo: 'despesa', descricao: 'Argamassa AC-III (exemplo)', valor: 1840, vencimento: somarDias(h, -8), pagamento: somarDias(h, -8), grupo: 'Custos Variáveis', categoria: 'Matéria-prima', pessoa: 'Depósito Exemplo', osId: 'os1', obraCategoria: 'mat', origem: NOME_SISTEMA }],
+      contas: [{ id: 'b1', nome: 'Banco principal' }]
+    };
+  }
+
+  // ===================== ESTADO =====================
+  var cache = { ordens: [], obras: [] };
+  var tela = { obraId: '', aba: 'resumo', filtro: 'ativas' };
+  var atual = { rdos: [], fin: null, lanc: [], proposta: null, empresa: null, contas: [] };
+  var ouvintesObra = [];
+
+  function osDe(id) { return cache.ordens.find(function (o) { return o.id === id; }); }
+  function obraDe(id) { return cache.obras.find(function (o) { return o.id === id; }); }
+
+  // ===================== CÁLCULOS DO CRONOGRAMA =====================
+  function fimEtapa(e) { return somarDias(e.inicio || hoje(), Math.max(1, num(e.dias)) - 1); }
+  function peso(e) { return num(e.peso) || Math.max(1, num(e.dias)); }
+  function inicioObra(ob) { var l = (ob.etapas || []).map(function (e) { return e.inicio; }).filter(Boolean).sort(); return l[0] || ob.inicioPrevisto || hoje(); }
+  function fimObra(ob) { var l = (ob.etapas || []).map(fimEtapa).sort(); return l[l.length - 1] || inicioObra(ob); }
+  function avancoGeral(ob) {
+    var es = ob.etapas || [], tot = es.reduce(function (s, e) { return s + peso(e); }, 0);
+    return tot ? es.reduce(function (s, e) { return s + peso(e) * clamp(num(e.avanco), 0, 100); }, 0) / tot : 0;
+  }
+  // % que deveria estar pronto na data, pelo cronograma previsto (cada etapa avança por igual nos seus dias)
+  function previstoEm(ob, iso) {
+    var es = ob.etapas || [], tot = es.reduce(function (s, e) { return s + peso(e); }, 0);
+    if (!tot) return 0;
+    return es.reduce(function (s, e) { var d = Math.max(1, num(e.dias)); return s + peso(e) * clamp((difDias(e.inicio || hoje(), iso) + 1) / d, 0, 1) * 100; }, 0) / tot;
+  }
+  function situacaoEtapa(e) {
+    var a = num(e.avanco);
+    if (a >= 100) return ['Concluída', 'ok'];
+    if (fimEtapa(e) < hoje()) return ['Atrasada', 'bad'];
+    if (a > 0) return ['Em andamento', 'pri'];
+    if (e.inicio && e.inicio <= hoje()) return ['Deveria ter começado', 'warn'];
+    return ['A iniciar', ''];
+  }
+  function situacaoObra(ob) {
+    if (ob.status === 'concluida') return ['Concluída', 'ok'];
+    if (ob.status === 'paralisada') return ['Paralisada', 'warn'];
+    if (ob.status === 'planejamento') return ['Planejamento', 'azul'];
+    var real = avancoGeral(ob), prev = previstoEm(ob, hoje());
+    if (fimObra(ob) < hoje() && real < 100) return ['Prazo vencido', 'bad'];
+    if (prev - real > 10) return ['Atrasada ' + pct(prev - real) + '', 'bad'];
+    if (prev - real > 3) return ['Atenção', 'warn'];
+    return ['No prazo', 'ok'];
+  }
+  function registrarHistorico(ob, data) {
+    var h = (ob.historico || []).filter(function (x) { return x.data !== data; });
+    h.push({ data: data, avanco: Math.round(avancoGeral(ob) * 10) / 10 });
+    h.sort(function (a, b) { return a.data < b.data ? -1 : 1; });
+    ob.historico = h.slice(-400);
+  }
+  function encadear(etapas, inicio) {
+    var d = inicio;
+    etapas.forEach(function (e) { e.inicio = d; d = somarDias(d, Math.max(1, num(e.dias))); });
+  }
+
+  // ===================== INICIALIZAÇÃO =====================
+  var firebaseOk = typeof firebase !== 'undefined';
+  function iniciarApp(email) {
+    usuario = email || '';
+    dono = modoDemo || DONOS.indexOf(String(email || '').toLowerCase()) >= 0;
+    $('tela-login').style.display = 'none';
+    $('cabecalho').style.display = 'block';
+    $('app').style.display = 'block';
+    $('usuario-nome').textContent = modoDemo ? 'Modo de teste' : email;
+    if (modoDemo) { $('aviso-modo').style.display = 'block'; $('aviso-modo').innerHTML = 'Modo de teste: os dados ficam só neste navegador e não vão para o banco. <a href="' + location.pathname + '">Sair do modo de teste</a>'; }
+    // OS de engenharia civil (o Finanças marca servicos.civil quando a proposta tem dados de obra)
+    banco.ouvir('ordens', ['servicos.civil', '==', true], function (l) { cache.ordens = l; render(); });
+    banco.ouvir('obras', null, function (l) { cache.obras = l; render(); });
+    var p = new URLSearchParams(location.search), osq = p.get('cronos_os') || p.get('os');
+    if (osq) { tela.obraId = osq; tela.aba = 'resumo'; abrirObra(osq); }
+    window.addEventListener('popstate', function () { var id = new URLSearchParams(location.search).get('obra') || ''; if (id !== tela.obraId) { tela.obraId = id; if (id) abrirObra(id); else { pararOuvintes(); render(); } } });
+    var ob = p.get('obra'); if (ob && !osq) { tela.obraId = ob; abrirObra(ob); }
+    render();
+  }
+  function telaLogin(msg) { $('tela-login').style.display = 'block'; $('cabecalho').style.display = 'none'; $('app').style.display = 'none'; $('login-erro').textContent = msg || ''; }
+  $('btn-demo').addEventListener('click', function () { location.search = '?demo=1'; });
+
+  if (modoDemo || !firebaseOk) {
+    modoDemo = true; banco = bancoLocal(); iniciarApp('');
+    $('btn-sair').textContent = 'Usar banco real';
+    $('btn-sair').addEventListener('click', function () { location.href = location.pathname; });
+  } else {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    banco = bancoFirestore(firebase.firestore());
+    var auth = firebase.auth(), iniciado = false;
+    var erroLogin = { 'auth/invalid-credential': 'E-mail ou senha incorretos.', 'auth/wrong-password': 'E-mail ou senha incorretos.', 'auth/user-not-found': 'Usuário não cadastrado.', 'auth/popup-closed-by-user': 'Login cancelado.' };
+    auth.getRedirectResult().catch(function (e) { $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message); });
+    auth.onAuthStateChanged(function (u) {
+      if (u) { if (!iniciado) { iniciado = true; iniciarApp(u.email); } }
+      else if (iniciado) location.reload();
+      else telaLogin();
+    });
+    $('btn-entrar').addEventListener('click', function () {
+      var e = $('login-email').value.trim(), s = $('login-senha').value;
+      if (!e || !s) { $('login-erro').textContent = 'Informe e-mail e senha.'; return; }
+      $('login-erro').textContent = 'Entrando…';
+      auth.signInWithEmailAndPassword(e, s).catch(function (x) { $('login-erro').textContent = erroLogin[x.code] || ('Não foi possível entrar: ' + x.message); });
+    });
+    $('btn-google').addEventListener('click', function () {
+      var prov = new firebase.auth.GoogleAuthProvider(); prov.setCustomParameters({ prompt: 'select_account' });
+      auth.signInWithPopup(prov).catch(function (x) { if (x.code === 'auth/popup-blocked' || x.code === 'auth/operation-not-supported-in-this-environment') return auth.signInWithRedirect(prov); $('login-erro').textContent = erroLogin[x.code] || ('Não foi possível entrar: ' + x.message); });
+    });
+    $('login-senha').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('btn-entrar').click(); });
+    $('btn-sair').addEventListener('click', function () { auth.signOut(); });
+  }
+
+  async function salvar(fn, msg) {
+    try { var r = await fn(); if (msg) toast(msg); return r; }
+    catch (e) { console.error(e); toast(e.code === 'permission-denied' ? 'Sem permissão para gravar. As regras do banco precisam ser atualizadas (veja o LEIA-ME).' : 'Erro: ' + (e.message || e)); throw e; }
+  }
+
+  // ===================== NAVEGAÇÃO =====================
+  function irPara(obraId) {
+    var u = new URL(location.href);
+    u.searchParams.delete('cronos_os'); u.searchParams.delete('os');
+    if (obraId) u.searchParams.set('obra', obraId); else u.searchParams.delete('obra');
+    history.pushState({}, '', u.toString());
+    tela.obraId = obraId; tela.aba = 'resumo';
+    if (obraId) abrirObra(obraId); else { pararOuvintes(); render(); }
+    window.scrollTo(0, 0);
+  }
+  function pararOuvintes() { ouvintesObra.forEach(function (f) { if (typeof f === 'function') f(); }); ouvintesObra = []; atual = { rdos: [], fin: null, lanc: [], proposta: null, empresa: null, contas: [] }; }
+  function abrirObra(id) {
+    pararOuvintes();
+    ouvintesObra.push(banco.ouvir('obras_rdo', ['obraId', '==', id], function (l) { atual.rdos = l.sort(function (a, b) { return (b.numero || 0) - (a.numero || 0); }); render(); }));
+    if (dono) {
+      ouvintesObra.push(banco.ouvirDoc('obras_financeiro', id, function (f) {
+        atual.fin = f || {}; render();
+      }, function () { atual.fin = {}; atual.semFin = true; render(); }));
+      ouvintesObra.push(banco.ouvir('lancamentos', ['osId', '==', id], function (l) { atual.lanc = l; render(); }, function () { atual.lanc = []; render(); }));
+      banco.todos('contas').catch(function () { return []; }).then(function (l) { atual.contas = l; });
+    }
+    var os = osDe(id);
+    var empId = (obraDe(id) || os || {}).empresaId;
+    if (empId) banco.ler('empresas', empId).then(function (e) { atual.empresa = e; render(); }).catch(function () {});
+    render();
+  }
+
+  function render() {
+    if (!banco) return;
+    var v = $('view');
+    if (tela.obraId) return renderObra(v);
+    renderLista(v);
+  }
+
+  // ===================== LISTA DE OBRAS =====================
+  function renderLista(v) {
+    var itens = cache.ordens.filter(function (o) { return o.status !== 'cancelada'; }).map(function (o) { return { os: o, ob: obraDe(o.id) }; });
+    // obras cujo OS não está mais marcada como civil continuam aparecendo
+    cache.obras.forEach(function (ob) { if (!itens.some(function (x) { return x.os.id === ob.id; })) itens.push({ os: { id: ob.id, codigo: ob.osCodigo, empresaNome: ob.empresaNome, descricao: ob.titulo }, ob: ob }); });
+    var f = tela.filtro;
+    var filtradas = itens.filter(function (x) {
+      var st = x.ob ? x.ob.status : 'nova';
+      if (f === 'ativas') return st !== 'concluida';
+      if (f === 'novas') return !x.ob;
+      if (f === 'concluidas') return st === 'concluida';
+      return true;
+    }).sort(function (a, b) { return (a.ob ? 1 : 0) - (b.ob ? 1 : 0) || String(b.os.dataAbertura || '').localeCompare(String(a.os.dataAbertura || '')); });
+    var nAnd = itens.filter(function (x) { return x.ob && (x.ob.status === 'andamento' || x.ob.status === 'planejamento'); }).length;
+    var nAtr = itens.filter(function (x) { return x.ob && x.ob.status === 'andamento' && situacaoObra(x.ob)[1] === 'bad'; }).length;
+    var nNovas = itens.filter(function (x) { return !x.ob; }).length;
+    var cont = function (k, t) { return '<button data-f="' + k + '"' + (f === k ? ' class="ativo"' : '') + '>' + t + '</button>'; };
+    v.innerHTML = '<h1>Obras</h1><p class="muted">Cada obra nasce de uma OS de engenharia civil aberta no Finanças, com as etapas e prazos da proposta.</p>' +
+      '<div class="kpis"><div class="kpi"><b>' + nAnd + '</b><span>em andamento</span></div><div class="kpi"><b style="color:var(--bad)">' + nAtr + '</b><span>atrasadas</span></div><div class="kpi"><b style="color:var(--azul)">' + nNovas + '</b><span>OS civis aguardando início</span></div></div>' +
+      '<div class="filtros">' + cont('ativas', 'Ativas') + cont('novas', 'Aguardando início') + cont('concluidas', 'Concluídas') + cont('todas', 'Todas') + '</div>' +
+      (filtradas.length ? '<div class="grade">' + filtradas.map(cartaoObra).join('') + '</div>' :
+        '<div class="card vazio">' + (itens.length ? 'Nenhuma obra neste filtro.' : 'Nenhuma OS de engenharia civil ainda. No Finanças, marque <b>Engenharia civil</b> nos serviços da proposta; ao aprovar, a OS aparece aqui.') + '</div>');
+    v.querySelectorAll('[data-f]').forEach(function (b) { b.onclick = function () { tela.filtro = b.dataset.f; render(); }; });
+    v.querySelectorAll('[data-obra]').forEach(function (b) { b.onclick = function () { irPara(b.dataset.obra); }; });
+  }
+  function cartaoObra(x) {
+    var o = x.os, ob = x.ob;
+    if (!ob) {
+      var et = ((o.obra && o.obra.etapas) || []), d = et.reduce(function (s, e) { return s + num(e.dias); }, 0);
+      return '<div class="card obra-card" data-obra="' + esc(o.id) + '"><div style="display:flex;justify-content:space-between;gap:8px"><span class="chip azul">Aguardando início</span><span class="muted">' + esc(o.codigo || '') + '</span></div>' +
+        '<div class="tit">' + esc(o.descricao || 'Obra') + '</div><div class="muted">' + esc(o.empresaNome || '') + '</div>' +
+        '<div class="muted">' + (et.length ? plural(et.length, 'etapa', 'etapas') + ' · ' + textoDias(d) + ' previstos' : 'Sem etapas na proposta') + (o.obra && o.obra.area ? ' · ' + esc(o.obra.area) + ' ' + esc(o.obra.unidade || 'm²') : '') + '</div>' +
+        '<div><button class="btn peq">Iniciar gestão da obra</button></div></div>';
+    }
+    var av = avancoGeral(ob), sit = situacaoObra(ob);
+    return '<div class="card obra-card" data-obra="' + esc(ob.id) + '"><div style="display:flex;justify-content:space-between;gap:8px"><span class="chip ' + sit[1] + '">' + esc(sit[0]) + '</span><span class="muted">' + esc(ob.osCodigo || '') + '</span></div>' +
+      '<div class="tit">' + esc(ob.titulo || 'Obra') + '</div><div class="muted">' + esc(ob.empresaNome || '') + '</div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:13px"><span>Avanço físico <b>' + pct(av) + '</b></span><span class="muted">previsto ' + pct(previstoEm(ob, hoje())) + '</span></div>' +
+      '<div class="barra"><div style="width:' + av.toFixed(1) + '%"></div></div>' +
+      '<div class="muted">' + dt(inicioObra(ob)) + ' → ' + dt(fimObra(ob)) + '</div></div>';
+  }
+
+  // ===================== OBRA =====================
+  function renderObra(v) {
+    var id = tela.obraId, ob = obraDe(id), os = osDe(id);
+    if (!ob && !os) { v.innerHTML = '<button class="voltar" id="b-voltar">← Obras</button><div class="card vazio">Carregando a obra…</div>'; $('b-voltar').onclick = function () { irPara(''); }; return; }
+    if (!ob) return renderIniciar(v, os);
+    // primeira vez: custo orçado vem da memória de cálculo da proposta
+    if (dono && atual.fin && !atual.semFin && !atual.fin.orcado && !atual.orcBusca && os) { atual.orcBusca = true; orcadoDaProposta(os).then(function (o) { if (o) banco.atualizar('obras_financeiro', id, { orcado: o, atualizadoEm: agora() }); }).catch(function () {}); }
+    var empId = ob.empresaId;
+    if (empId && !atual.empresa && atual.empBusca !== empId) { atual.empBusca = empId; banco.ler('empresas', empId).then(function (e) { atual.empresa = e; render(); }).catch(function () {}); }
+    var abas = [['resumo', 'Resumo'], ['cronograma', 'Cronograma'], ['diario', 'Diário de obra']];
+    if (dono) abas.push(['medicoes', 'Medições'], ['custos', 'Custos']);
+    if (!abas.some(function (a) { return a[0] === tela.aba; })) tela.aba = 'resumo';
+    var sit = situacaoObra(ob);
+    v.innerHTML = '<button class="voltar" id="b-voltar">← Obras</button>' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap"><div><h1>' + esc(ob.titulo || 'Obra') + '</h1>' +
+      '<div class="muted">' + esc(ob.osCodigo || '') + ' · ' + esc(ob.empresaNome || '') + (ob.area ? ' · ' + esc(ob.area) + ' ' + esc(ob.unidade || 'm²') : '') + '</div></div>' +
+      '<span class="chip ' + sit[1] + '" style="font-size:13px;padding:4px 12px">' + esc(sit[0]) + '</span></div>' +
+      '<div class="abas">' + abas.map(function (a) { return '<button data-aba="' + a[0] + '"' + (tela.aba === a[0] ? ' class="ativo"' : '') + '>' + a[1] + '</button>'; }).join('') + '</div><div id="aba"></div>';
+    $('b-voltar').onclick = function () { irPara(''); };
+    v.querySelectorAll('[data-aba]').forEach(function (b) { b.onclick = function () { tela.aba = b.dataset.aba; render(); }; });
+    var a = $('aba');
+    ({ resumo: abaResumo, cronograma: abaCronograma, diario: abaDiario, medicoes: abaMedicoes, custos: abaCustos })[tela.aba](a, ob, os);
+  }
+
+  function renderIniciar(v, os) {
+    var et = ((os.obra && os.obra.etapas) || []);
+    v.innerHTML = '<button class="voltar" id="b-voltar">← Obras</button><h1>' + esc(os.descricao || 'Obra') + '</h1><div class="muted">' + esc(os.codigo || '') + ' · ' + esc(os.empresaNome || '') + '</div>' +
+      '<div class="card" style="margin-top:14px"><h2>Iniciar a gestão desta obra</h2>' +
+      '<p class="muted">As etapas e os dias vêm da proposta aprovada. Escolha a data de início: as etapas são encadeadas uma depois da outra (dá para ajustar depois no Cronograma).</p>' +
+      '<div class="linha"><div><label>Data de início</label><input type="date" id="i-ini" value="' + hoje() + '"></div><div><label>Situação</label><select id="i-st"><option value="andamento">Em andamento (já começou)</option><option value="planejamento">Planejamento (ainda não começou)</option></select></div></div>' +
+      (et.length ? '<div class="tabela" style="margin-top:12px"><table><thead><tr><th>Etapa</th><th>Atividade</th><th class="num">Dias</th></tr></thead><tbody>' + et.map(function (e) { return '<tr><td>' + esc(e.nome) + '</td><td class="muted">' + esc(e.atividade || '') + '</td><td class="num">' + num(e.dias) + '</td></tr>'; }).join('') + '</tbody></table></div>' :
+        '<p class="aviso" style="margin-top:12px">A proposta não tem etapas. A obra começa com uma etapa; acrescente as outras no Cronograma.</p>') +
+      '<div class="acoes"><button class="btn" id="i-ok">Iniciar gestão da obra</button></div></div>';
+    $('b-voltar').onclick = function () { irPara(''); };
+    $('i-ok').onclick = async function () {
+      var ini = $('i-ini').value || hoje();
+      var etapas = (et.length ? et : [{ nome: 'Execução', atividade: os.descricao || '', dias: 10 }]).map(function (e) { return { id: uid(), nome: e.nome || 'Etapa', atividade: e.atividade || '', dias: Math.max(1, num(e.dias) || 1), avanco: 0 }; });
+      encadear(etapas, ini);
+      var ob = { osId: os.id, osCodigo: os.codigo || '', empresaId: os.empresaId || '', empresaNome: os.empresaNome || '', titulo: os.descricao || 'Obra', area: (os.obra && os.obra.area) || '', unidade: (os.obra && os.obra.unidade) || 'm²',
+        equipePrevista: (os.obra && os.obra.equipe) || '', etapas: etapas, status: $('i-st').value, portal: true, historico: [], criadoEm: agora(), criadoPor: usuario, atualizadoEm: agora() };
+      this.disabled = true;
+      await salvar(function () { return banco.gravar('obras', os.id, ob); }, 'Gestão da obra iniciada.');
+      if (dono) {
+        var orc = await orcadoDaProposta(os).catch(function () { return null; });
+        await banco.atualizar('obras_financeiro', os.id, { valorContrato: num(os.valor), orcado: orc || {}, medicoes: [], atualizadoEm: agora() }).catch(function () {});
+      }
+      gravarResultadoOS(Object.assign({ id: os.id }, ob));
+    };
+  }
+
+  // Custos previstos a partir da memória de cálculo da proposta (sem BDI, impostos e lucro)
+  async function orcadoDaProposta(os) {
+    if (!os.propostaId) return null;
+    var p = await banco.ler('propostas', os.propostaId);
+    var c = p && p.calculo; if (!c) return null;
+    var t = function (s, f) { return (c[s] || []).reduce(function (a, r) { return a + f(r); }, 0); };
+    var fES = 1 + num(c.encSoc) / 100;
+    var moR = t('mo', function (r) { return r.t === 'R' ? num(r.q) * num(r.h) * num(r.v) : 0; });
+    var moD = t('mo', function (r) { return r.t !== 'R' ? num(r.q) * num(r.h) * num(r.v) : 0; });
+    var horasD = t('mo', function (r) { return r.t !== 'R' ? num(r.q) * num(r.h) : 0; });
+    var r2 = function (v) { return Math.round(v * 100) / 100; };
+    return {
+      mo: r2(moR * fES + moD + horasD * num(c.encD) * (fES - 1)),
+      mat: r2(t('mat', function (r) { return num(r.q) * num(r.v) * (1 + num(r.i) / 100); })),
+      equip: r2(t('apoio', function (r) { return num(r.q) * num(r.v) * (1 + num(r.i) / 100); })),
+      desl: r2(t('desp', function (r) { return num(r.q) * num(r.u) * num(r.v); })),
+      coord: r2(t('coord', function (r) { return num(r.q) * num(r.h) * num(r.v); })),
+      outros: 0, origem: 'proposta'
+    };
+  }
+
+  // Resumo da obra na OS (contrato de integração do Finanças: resultados[<sistema>], sempre com merge)
+  function gravarResultadoOS(ob, extra) {
+    var r = {}; r[NOME_SISTEMA] = { avanco: Math.round(avancoGeral(ob)), status: ob.status, rdos: atual.rdos.length, inicio: inicioObra(ob), previsaoFim: fimObra(ob), resumo: 'Avanço físico ' + pct(avancoGeral(ob)) + ' · ' + STATUS[ob.status || 'andamento'][0], link: location.origin + '/obras/?obra=' + ob.id, atualizadoEm: agora() };
+    var doc = Object.assign({ resultados: r, servicos: { civil: true } }, extra || {});
+    return banco.atualizar('ordens', ob.id, doc).catch(function (e) { console.warn('OS', e); });
+  }
+
+  // ---------- Resumo ----------
+  function abaResumo(a, ob, os) {
+    var av = avancoGeral(ob), prev = previstoEm(ob, hoje()), ini = inicioObra(ob), fim = fimObra(ob);
+    var total = difDias(ini, fim) + 1, decorridos = clamp(difDias(ini, hoje()) + 1, 0, total);
+    var ult = atual.rdos[0];
+    var emAnd = (ob.etapas || []).filter(function (e) { return num(e.avanco) > 0 && num(e.avanco) < 100; });
+    var proximas = (ob.etapas || []).filter(function (e) { return num(e.avanco) === 0; }).slice(0, 3);
+    var end = atual.empresa ? [atual.empresa.endereco, atual.empresa.cidade, atual.empresa.uf].filter(Boolean).join(', ') : '';
+    a.innerHTML = '<div class="kpis">' +
+      '<div class="kpi"><b>' + pct(av) + '</b><span>avanço físico realizado</span><div class="barra" style="margin-top:6px"><div style="width:' + av.toFixed(1) + '%"></div></div></div>' +
+      '<div class="kpi"><b style="color:' + (prev - av > 3 ? 'var(--bad)' : 'var(--text)') + '">' + pct(prev) + '</b><span>previsto para hoje</span></div>' +
+      '<div class="kpi"><b>' + decorridos + '/' + total + '</b><span>dias corridos do prazo</span></div>' +
+      '<div class="kpi"><b>' + dt(fim) + '</b><span>término previsto (' + (fim >= hoje() ? 'faltam ' + textoDias(difDias(hoje(), fim)) : 'venceu há ' + textoDias(difDias(fim, hoje()))) + ')</span></div></div>' +
+      '<div class="card curva"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>Curva de avanço (previsto × realizado)</h2>' +
+      '<div class="legenda" style="margin:0"><span><i style="background:var(--prev)"></i>Previsto</span><span><i style="background:var(--real)"></i>Realizado</span></div></div>' + curvaS(ob) + '</div>' +
+      '<div class="grade" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">' +
+      '<div class="card" style="margin:0"><h2>Em andamento</h2>' + (emAnd.length ? emAnd.map(linhaEtapaResumo).join('') : '<p class="muted">Nenhuma etapa em andamento.</p>') +
+      (proximas.length ? '<h2 style="margin-top:14px">Próximas</h2>' + proximas.map(linhaEtapaResumo).join('') : '') + '</div>' +
+      '<div class="card" style="margin:0"><h2>Último diário de obra</h2>' + (ult ? '<div><b>RDO nº ' + ult.numero + '</b> · ' + dt(ult.data) + ' · ' + plural(totalEquipe(ult), 'pessoa', 'pessoas') + '</div><p style="white-space:pre-line;margin:6px 0" class="muted">' + esc((ult.atividades || '').slice(0, 280)) + '</p><button class="btn sec peq" id="r-diario">Ver diário</button>' : '<p class="muted">Nenhum RDO ainda.</p><button class="btn peq" id="r-novo">+ Novo RDO</button>') + '</div>' +
+      '<div class="card" style="margin:0"><h2>Dados da obra</h2>' +
+      '<label>Situação</label><select id="r-status">' + Object.keys(STATUS).map(function (k) { return '<option value="' + k + '"' + (ob.status === k ? ' selected' : '') + '>' + STATUS[k][0] + '</option>'; }).join('') + '</select>' +
+      (end ? '<label>Local</label><div>' + esc(end) + '</div>' : '') +
+      (ob.equipePrevista ? '<label>Equipe prevista na proposta</label><div>' + esc(ob.equipePrevista) + '</div>' : '') +
+      '<label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="r-portal" style="width:auto"' + (ob.portal ? ' checked' : '') + '> Cliente acompanha pelo Portal do Cliente</label>' +
+      '<div class="muted">' + (ob.portal ? 'O cliente vê o avanço, o cronograma e os RDOs marcados para ele.' + (ob.portalEm ? ' Atualizado em ' + dt(ob.portalEm) + '.' : '') : 'Desligado: o cliente não vê esta obra.') + '</div>' +
+      '<div class="acoes"><button class="btn sec peq" id="r-pub">Atualizar portal agora</button></div></div></div>';
+    var bd = $('r-diario'); if (bd) bd.onclick = function () { tela.aba = 'diario'; render(); };
+    var bn = $('r-novo'); if (bn) bn.onclick = function () { formRdo(ob); };
+    $('r-status').onchange = async function () {
+      var st = this.value, extra = null;
+      if (st === 'concluida' && os && ['aberta', 'execucao'].indexOf(os.status || 'aberta') >= 0 && confirm('Concluir também a OS ' + (ob.osCodigo || '') + ' no Finanças (fica pronta para faturar)?')) extra = { status: 'concluida', dataConclusao: hoje() };
+      if (st === 'andamento' && os && (os.status || 'aberta') === 'aberta') extra = { status: 'execucao' };
+      await salvar(function () { return banco.atualizar('obras', ob.id, { status: st, atualizadoEm: agora() }); }, 'Situação salva.');
+      ob.status = st; gravarResultadoOS(ob, extra); if (ob.portal) publicarPortal(ob);
+    };
+    $('r-portal').onchange = async function () {
+      var on = this.checked;
+      await salvar(function () { return banco.atualizar('obras', ob.id, { portal: on, atualizadoEm: agora() }); }, on ? 'O cliente passa a ver esta obra no portal.' : 'Obra retirada do portal.');
+      ob.portal = on; if (on) publicarPortal(ob, true); else tirarDoPortal(ob);
+    };
+    $('r-pub').onclick = function () { if (!ob.portal) { toast('Ligue "Cliente acompanha pelo Portal" primeiro.'); return; } publicarPortal(ob, true); };
+  }
+  function linhaEtapaResumo(e) {
+    var s = situacaoEtapa(e);
+    return '<div style="padding:6px 0;border-top:1px solid var(--line)"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:14px">' + esc(e.nome) + '</b><span class="chip ' + s[1] + '">' + s[0] + '</span></div>' +
+      '<div style="display:flex;gap:8px;align-items:center;margin-top:4px"><div class="barra" style="flex:1"><div style="width:' + clamp(num(e.avanco), 0, 100) + '%"></div></div><span style="font-size:12px;width:38px;text-align:right">' + pct(e.avanco) + '</span></div>' +
+      '<div class="muted">' + dt(e.inicio) + ' → ' + dt(fimEtapa(e)) + '</div></div>';
+  }
+  function totalEquipe(r) { return (r.equipe || []).reduce(function (s, x) { return s + num(x.qtd); }, 0); }
+
+  function curvaS(ob) {
+    var ini = inicioObra(ob), fim = fimObra(ob), n = Math.max(1, difDias(ini, fim) + 1);
+    var W = 720, H = 220, L = 38, R = 12, T = 12, B = 26, w = W - L - R, h = H - T - B;
+    var X = function (iso) { return L + clamp(difDias(ini, iso) / n, 0, 1.08) * w; }, Y = function (p) { return T + h - clamp(p, 0, 100) / 100 * h; };
+    var passo = Math.max(1, Math.ceil(n / 60)), pts = [];
+    for (var i = 0; i <= n; i += passo) { var d = somarDias(ini, i); pts.push(X(d).toFixed(1) + ',' + Y(previstoEm(ob, somarDias(d, -1))).toFixed(1)); }
+    pts.push(X(somarDias(fim, 1)).toFixed(1) + ',' + Y(100).toFixed(1));
+    var hist = (ob.historico || []).filter(function (x) { return x.data >= ini; });
+    var real = [X(ini).toFixed(1) + ',' + Y(0)].concat(hist.map(function (x) { return X(x.data).toFixed(1) + ',' + Y(x.avanco).toFixed(1); }));
+    var grade = [0, 25, 50, 75, 100].map(function (p) { return '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(p) + '" y2="' + Y(p) + '" stroke="currentColor" stroke-opacity=".12"/><text x="' + (L - 6) + '" y="' + (Y(p) + 4) + '" text-anchor="end" font-size="10" fill="currentColor" fill-opacity=".6">' + p + '%</text>'; }).join('');
+    var marcas = [], nm = Math.min(6, n); for (var k = 0; k <= nm; k++) { var dd = somarDias(ini, Math.round(k * (n - 1) / Math.max(1, nm))); marcas.push('<text x="' + X(dd) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity=".6">' + dtc(dd) + '</text>'); }
+    var hx = X(hoje());
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Curva de avanço previsto e realizado" style="color:var(--text)">' + grade + marcas.join('') +
+      (hoje() >= ini && hoje() <= somarDias(fim, Math.round(n * .08)) ? '<line x1="' + hx + '" x2="' + hx + '" y1="' + T + '" y2="' + (T + h) + '" stroke="var(--bad)" stroke-dasharray="3 3" stroke-opacity=".7"/><text x="' + (hx + 3) + '" y="' + (T + 10) + '" font-size="10" fill="var(--bad)">hoje</text>' : '') +
+      '<polyline fill="none" stroke="var(--prev)" stroke-width="2.5" points="' + pts.join(' ') + '"/>' +
+      '<polyline fill="none" stroke="var(--real)" stroke-width="3" points="' + real.join(' ') + '"/>' +
+      hist.map(function (x) { return '<circle cx="' + X(x.data).toFixed(1) + '" cy="' + Y(x.avanco).toFixed(1) + '" r="3" fill="var(--real)"><title>' + dt(x.data) + ': ' + pct(x.avanco, 1) + '</title></circle>'; }).join('') + '</svg>';
+  }
+
+  // ---------- Cronograma (Gantt) ----------
+  function abaCronograma(a, ob) {
+    var es = ob.etapas || [];
+    a.innerHTML = '<div class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center"><h2 style="margin:0">Cronograma</h2>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn peq" id="c-nova">+ Etapa</button><button class="btn sec peq" id="c-encadear" title="Cada etapa começa no dia seguinte ao fim da anterior">Encadear datas</button><button class="btn sec peq" id="c-pdf">Imprimir</button></div></div>' +
+      '<p class="muted">Clique numa etapa para editar datas, dias, peso e avanço. O avanço também é atualizado pelos diários de obra.</p>' +
+      gantt(ob) + '<div class="legenda"><span><i style="background:var(--prev)"></i>Previsto</span><span><i style="background:var(--real)"></i>Realizado</span><span><i style="background:var(--bad)"></i>Hoje</span></div></div>' +
+      '<div class="card tabela"><table><thead><tr><th>Etapa</th><th>Início</th><th>Fim</th><th class="num">Dias</th><th class="num">Peso</th><th class="num">Avanço</th><th>Situação</th></tr></thead><tbody>' +
+      es.map(function (e) { var s = situacaoEtapa(e); return '<tr data-et="' + e.id + '" style="cursor:pointer"><td><b>' + esc(e.nome) + '</b><div class="muted">' + esc(e.atividade || '') + '</div></td><td>' + dt(e.inicio) + (e.inicioReal ? '<div class="muted">real ' + dt(e.inicioReal) + '</div>' : '') + '</td><td>' + dt(fimEtapa(e)) + (e.fimReal ? '<div class="muted">real ' + dt(e.fimReal) + '</div>' : '') + '</td><td class="num">' + num(e.dias) + '</td><td class="num">' + pct(peso(e) / es.reduce(function (t, x) { return t + peso(x); }, 0) * 100, 1) + '</td><td class="num"><b>' + pct(e.avanco) + '</b></td><td><span class="chip ' + s[1] + '">' + s[0] + '</span></td></tr>'; }).join('') +
+      '</tbody></table></div>';
+    a.querySelectorAll('[data-et]').forEach(function (r) { r.onclick = function () { formEtapa(ob, r.dataset.et); }; });
+    $('c-nova').onclick = function () { formEtapa(ob, ''); };
+    $('c-encadear').onclick = async function () {
+      if (!confirm('Refazer as datas previstas em sequência, a partir de ' + dt(inicioObra(ob)) + '?')) return;
+      var et = JSON.parse(JSON.stringify(ob.etapas || [])); encadear(et, inicioObra(ob));
+      await salvar(function () { return banco.atualizar('obras', ob.id, { etapas: et, atualizadoEm: agora() }); }, 'Datas encadeadas.');
+      ob.etapas = et; depoisDeMudar(ob);
+    };
+    $('c-pdf').onclick = function () { imprimirCronograma(ob); };
+  }
+  function gantt(ob) {
+    var es = ob.etapas || [];
+    if (!es.length) return '<div class="vazio">Sem etapas.</div>';
+    var ini = inicioObra(ob), fim = fimObra(ob);
+    es.forEach(function (e) { if (e.fimReal && e.fimReal > fim) fim = e.fimReal; if (e.inicioReal && e.inicioReal < ini) ini = e.inicioReal; });
+    if (hoje() > fim && es.some(function (e) { return num(e.avanco) < 100; })) fim = hoje();
+    var n = difDias(ini, fim) + 1, P = function (iso) { return clamp(difDias(ini, iso) / n * 100, 0, 100); };
+    var nt = Math.min(10, n), ticks = '';
+    for (var k = 0; k < nt; k++) { var d = somarDias(ini, Math.round(k * n / nt)); ticks += '<span class="g-tick" style="left:' + P(d).toFixed(2) + '%">' + dtc(d) + '</span>'; }
+    var hj = hoje() >= ini && hoje() <= fim ? '<div class="g-hoje" style="left:' + P(hoje()).toFixed(2) + '%"></div>' : '';
+    return '<div class="gantt"><div class="g-wrap"><div class="g-row cab"><div></div><div class="g-track" style="height:22px">' + ticks + '</div></div>' +
+      es.map(function (e) {
+        var l = P(e.inicio), w = Math.max(.6, P(somarDias(fimEtapa(e), 1)) - l), real = '', fimBarra = l + w;
+        if (num(e.avanco) > 0) {
+          var ri = e.inicioReal || e.inicio, rf = num(e.avanco) >= 100 ? (e.fimReal || fimEtapa(e)) : hoje();
+          if (rf < ri) rf = ri;
+          var rl = P(ri), rw = Math.max(.6, P(somarDias(rf, 1)) - rl);
+          real = '<div class="g-bar real" style="left:' + rl.toFixed(2) + '%;width:' + rw.toFixed(2) + '%"></div>';
+          fimBarra = Math.max(fimBarra, rl + rw);
+        }
+        return '<div class="g-row"><div class="g-nome" data-et="' + e.id + '"><b>' + esc(e.nome) + '</b><span class="muted">' + dtc(e.inicio) + ' – ' + dtc(fimEtapa(e)) + ' · ' + pct(e.avanco) + '</span></div><div class="g-track">' + hj +
+          '<div class="g-bar prev" style="left:' + l.toFixed(2) + '%;width:' + w.toFixed(2) + '%" title="Previsto: ' + dt(e.inicio) + ' a ' + dt(fimEtapa(e)) + '"></div>' + real +
+          '<span class="g-pct" style="left:' + Math.min(92, fimBarra).toFixed(2) + '%">' + (num(e.avanco) ? pct(e.avanco) : '') + '</span></div></div>';
+      }).join('') + '</div></div>';
+  }
+  function formEtapa(ob, etId) {
+    var es = JSON.parse(JSON.stringify(ob.etapas || [])), i = es.findIndex(function (x) { return x.id === etId; });
+    var e = i >= 0 ? es[i] : { id: uid(), nome: '', atividade: '', inicio: es.length ? somarDias(fimEtapa(es[es.length - 1]), 1) : hoje(), dias: 5, avanco: 0 };
+    abrirModal('<h3>' + (i >= 0 ? 'Editar etapa' : 'Nova etapa') + '</h3>' +
+      '<label>Etapa *</label><input id="e-nome" value="' + esc(e.nome) + '">' +
+      '<label>Atividade / descrição</label><input id="e-ativ" value="' + esc(e.atividade) + '">' +
+      '<div class="linha"><div><label>Início previsto</label><input type="date" id="e-ini" value="' + esc(e.inicio) + '"></div><div><label>Dias previstos</label><input id="e-dias" inputmode="numeric" value="' + num(e.dias) + '"></div>' +
+      '<div><label title="Quanto a etapa pesa no avanço da obra. Vazio = proporcional aos dias">Peso (vazio = dias)</label><input id="e-peso" inputmode="decimal" value="' + esc(numCampo(e.peso)) + '"></div></div>' +
+      '<label>Avanço: <b id="e-avt">' + pct(e.avanco) + '</b></label><input type="range" id="e-av" min="0" max="100" step="5" value="' + clamp(num(e.avanco), 0, 100) + '">' +
+      '<div class="linha"><div><label>Início real</label><input type="date" id="e-ir" value="' + esc(e.inicioReal || '') + '"></div><div><label>Fim real</label><input type="date" id="e-fr" value="' + esc(e.fimReal || '') + '"></div></div>' +
+      '<div class="acoes"><button class="btn" id="e-ok">Salvar</button>' + (i >= 0 ? '<button class="btn sec" id="e-cima">↑</button><button class="btn sec" id="e-baixo">↓</button><button class="btn perigo" id="e-exc">Excluir</button>' : '') + '<button class="btn sec" id="e-can">Cancelar</button></div>');
+    $('e-av').oninput = function () { $('e-avt').textContent = pct(this.value); };
+    $('e-can').onclick = fecharModal;
+    async function gravar(lista, msg) {
+      await salvar(function () { return banco.atualizar('obras', ob.id, { etapas: lista, atualizadoEm: agora() }); }, msg);
+      ob.etapas = lista; registrarHistorico(ob, hoje()); banco.atualizar('obras', ob.id, { historico: ob.historico }); fecharModal(); depoisDeMudar(ob);
+    }
+    $('e-ok').onclick = function () {
+      var x = { id: e.id, nome: $('e-nome').value.trim(), atividade: $('e-ativ').value.trim(), inicio: $('e-ini').value || hoje(), dias: Math.max(1, Math.round(num($('e-dias').value)) || 1), peso: $('e-peso').value.trim() ? num($('e-peso').value) : '', avanco: num($('e-av').value), inicioReal: $('e-ir').value, fimReal: $('e-fr').value };
+      if (!x.nome) { toast('Informe o nome da etapa.'); return; }
+      if (x.avanco > 0 && !x.inicioReal) x.inicioReal = hoje() < x.inicio ? hoje() : x.inicio;
+      if (x.avanco >= 100 && !x.fimReal) x.fimReal = hoje();
+      if (x.avanco < 100) x.fimReal = x.fimReal && x.avanco >= 100 ? x.fimReal : '';
+      if (i >= 0) es[i] = x; else es.push(x);
+      gravar(es, 'Etapa salva.');
+    };
+    if (i >= 0) {
+      $('e-exc').onclick = function () { if (confirm('Excluir a etapa "' + e.nome + '"?')) { es.splice(i, 1); gravar(es, 'Etapa excluída.'); } };
+      $('e-cima').onclick = function () { if (i > 0) { var t = es[i - 1]; es[i - 1] = es[i]; es[i] = t; gravar(es); } };
+      $('e-baixo').onclick = function () { if (i < es.length - 1) { var t = es[i + 1]; es[i + 1] = es[i]; es[i] = t; gravar(es); } };
+    }
+  }
+  function depoisDeMudar(ob) { gravarResultadoOS(ob); if (ob.portal) agendarPortal(ob); render(); }
+
+  // ---------- Diário de obra (RDO) ----------
+  function abaDiario(a, ob) {
+    var rs = atual.rdos;
+    a.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px"><div class="muted">' + plural(rs.length, 'diário registrado', 'diários registrados') + '</div><button class="btn" id="d-novo">+ Novo RDO</button></div>' +
+      (rs.length ? rs.map(function (r) {
+        return '<div class="card rdo"><div><div><b>RDO nº ' + r.numero + '</b> · ' + dt(r.data) + ' · ' + esc(r.climaManha || '—') + ' / ' + esc(r.climaTarde || '—') + (r.praticavel === false ? ' · <span class="chip warn">Impraticável</span>' : '') + (r.cliente ? '' : ' · <span class="chip">Só interno</span>') + '</div>' +
+          '<div class="muted">' + plural(totalEquipe(r), 'pessoa', 'pessoas') + (r.horaInicio ? ' · ' + esc(r.horaInicio) + '–' + esc(r.horaFim || '') : '') + ((r.avancos || []).length ? ' · avanço: ' + r.avancos.map(function (x) { return esc(x.nome) + ' ' + pct(x.para); }).join(', ') : '') + '</div>' +
+          '<div style="white-space:pre-line;margin-top:6px">' + esc((r.atividades || '').slice(0, 400)) + '</div>' +
+          (r.ocorrencias ? '<div style="margin-top:6px"><span class="chip warn">Ocorrências</span> ' + esc(r.ocorrencias.slice(0, 200)) + '</div>' : '') +
+          ((r.fotos || []).length ? '<div class="fotos">' + r.fotos.map(function (f) { return '<img src="' + esc(f.thumb) + '" alt="' + esc(f.legenda || '') + '" title="' + esc(f.legenda || '') + '">'; }).join('') + '</div>' : '') + '</div>' +
+          '<div style="display:flex;flex-direction:column;gap:6px"><button class="btn sec peq" data-pdf="' + r.id + '">PDF</button><button class="btn sec peq" data-ed="' + r.id + '">Editar</button>' + (dono ? '<button class="btn perigo peq" data-ex="' + r.id + '">Excluir</button>' : '') + '</div></div>';
+      }).join('') : '<div class="card vazio">Nenhum diário de obra ainda. Registre o dia: equipe, clima, o que foi feito, avanço das etapas e fotos.</div>');
+    $('d-novo').onclick = function () { formRdo(ob); };
+    a.querySelectorAll('[data-ed]').forEach(function (b) { b.onclick = function () { formRdo(ob, atual.rdos.find(function (r) { return r.id === b.dataset.ed; })); }; });
+    a.querySelectorAll('[data-pdf]').forEach(function (b) { b.onclick = function () { imprimirRdo(ob, atual.rdos.find(function (r) { return r.id === b.dataset.pdf; })); }; });
+    a.querySelectorAll('[data-ex]').forEach(function (b) { b.onclick = async function () {
+      var r = atual.rdos.find(function (x) { return x.id === b.dataset.ex; });
+      if (!confirm('Excluir o RDO nº ' + r.numero + ' de ' + dt(r.data) + '? O avanço das etapas não volta atrás.')) return;
+      await salvar(async function () { for (var i = 0; i < (r.fotos || []).length; i++) await banco.excluir('obras_fotos', r.fotos[i].id).catch(function () {}); return banco.excluir('obras_rdo', r.id); }, 'RDO excluído.');
+      if (ob.portal) agendarPortal(ob);
+    }; });
+  }
+
+  function formRdo(ob, r) {
+    var novo = !r;
+    r = r ? JSON.parse(JSON.stringify(r)) : { data: hoje(), climaManha: 'Bom', climaTarde: 'Bom', praticavel: true, horaInicio: '07:00', horaFim: '17:00', equipe: equipeSugerida(), atividades: '', ocorrencias: '', equipamentos: '', avancos: [], fotos: [], cliente: true };
+    var novasFotos = [], removidas = [];
+    var etapas = (ob.etapas || []).filter(function (e) { return num(e.avanco) < 100 || (r.avancos || []).some(function (x) { return x.etapaId === e.id; }); });
+    var avDe = function (e) { var x = (r.avancos || []).find(function (y) { return y.etapaId === e.id; }); return x ? num(x.para) : num(e.avanco); };
+    abrirModal('<h3>' + (novo ? 'Novo diário de obra (RDO)' : 'RDO nº ' + r.numero) + '</h3>' +
+      '<div class="linha"><div><label>Data</label><input type="date" id="f-data" value="' + esc(r.data) + '"></div><div><label>Início</label><input type="time" id="f-hi" value="' + esc(r.horaInicio || '') + '"></div><div><label>Fim</label><input type="time" id="f-hf" value="' + esc(r.horaFim || '') + '"></div></div>' +
+      '<div class="linha"><div><label>Clima manhã</label><select id="f-cm">' + CLIMAS.map(function (c) { return '<option' + (c === r.climaManha ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></div>' +
+      '<div><label>Clima tarde</label><select id="f-ct">' + CLIMAS.map(function (c) { return '<option' + (c === r.climaTarde ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></div>' +
+      '<div><label>Condição de trabalho</label><select id="f-pr"><option value="1"' + (r.praticavel !== false ? ' selected' : '') + '>Praticável</option><option value="0"' + (r.praticavel === false ? ' selected' : '') + '>Impraticável</option></select></div></div>' +
+      '<label>Equipe no dia</label><div id="f-eq"></div><datalist id="f-funcoes">' + FUNCOES.map(function (f) { return '<option value="' + esc(f) + '">'; }).join('') + '</datalist><button class="btn sec peq" id="f-eq-add" type="button">+ Função</button>' +
+      '<label>Atividades executadas</label><textarea id="f-ativ" rows="4" placeholder="O que foi feito hoje, onde (eixo, pavimento, fachada)…">' + esc(r.atividades) + '</textarea>' +
+      (etapas.length ? '<label>Avanço das etapas (%)</label><div>' + etapas.map(function (e) { var v = avDe(e); return '<div class="av-linha"><div style="font-size:14px">' + esc(e.nome) + '<div class="muted">antes: ' + pct(e.avanco) + '</div></div><input type="range" min="0" max="100" step="5" data-av="' + e.id + '" value="' + v + '"><input data-avn="' + e.id + '" inputmode="numeric" value="' + v + '"></div>'; }).join('') + '</div>' : '') +
+      '<label>Equipamentos em uso</label><input id="f-equip" value="' + esc(r.equipamentos) + '" placeholder="Andaime, betoneira…">' +
+      '<label>Ocorrências / interferências</label><textarea id="f-oc" rows="2" placeholder="Chuva, falta de material, liberação de área, acidente…">' + esc(r.ocorrencias) + '</textarea>' +
+      '<label>Fotos</label><input type="file" id="f-fotos" accept="image/*" multiple><div class="thumbs" id="f-th"></div>' +
+      '<label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="f-cli" style="width:auto"' + (r.cliente !== false ? ' checked' : '') + '> Mostrar este RDO ao cliente no portal</label>' +
+      '<div class="acoes"><button class="btn" id="f-ok">Salvar RDO</button><button class="btn sec" id="f-can">Cancelar</button></div>');
+    var eq = r.equipe && r.equipe.length ? r.equipe : [{ funcao: '', qtd: '' }];
+    function desenharEquipe() {
+      $('f-eq').innerHTML = eq.map(function (x, i) { return '<div class="eq-linha"><input list="f-funcoes" data-fn="' + i + '" value="' + esc(x.funcao) + '" placeholder="Função"><input data-qt="' + i + '" inputmode="numeric" value="' + esc(x.qtd) + '" placeholder="Qtd"><button class="btn sec peq" data-rm="' + i + '" type="button">✕</button></div>'; }).join('');
+      $('f-eq').querySelectorAll('[data-fn]').forEach(function (el) { el.oninput = function () { eq[el.dataset.fn].funcao = el.value; }; });
+      $('f-eq').querySelectorAll('[data-qt]').forEach(function (el) { el.oninput = function () { eq[el.dataset.qt].qtd = el.value; }; });
+      $('f-eq').querySelectorAll('[data-rm]').forEach(function (el) { el.onclick = function () { eq.splice(Number(el.dataset.rm), 1); if (!eq.length) eq.push({ funcao: '', qtd: '' }); desenharEquipe(); }; });
+    }
+    desenharEquipe();
+    $('f-eq-add').onclick = function () { eq.push({ funcao: '', qtd: '' }); desenharEquipe(); };
+    document.querySelectorAll('[data-av]').forEach(function (el) { el.oninput = function () { document.querySelector('[data-avn="' + el.dataset.av + '"]').value = el.value; }; });
+    document.querySelectorAll('[data-avn]').forEach(function (el) { el.oninput = function () { document.querySelector('[data-av="' + el.dataset.avn + '"]').value = clamp(num(el.value), 0, 100); }; });
+    function desenharFotos() {
+      var ex = (r.fotos || []).filter(function (f) { return removidas.indexOf(f.id) < 0; });
+      $('f-th').innerHTML = ex.map(function (f) { return '<div class="t"><img src="' + esc(f.thumb) + '" alt=""><input data-lg-ex="' + f.id + '" value="' + esc(f.legenda || '') + '" placeholder="Legenda"><button class="btn sec peq" data-rm-ex="' + f.id + '" type="button">Remover</button></div>'; }).join('') +
+        novasFotos.map(function (f, i) { return '<div class="t"><img src="' + f.thumb + '" alt=""><input data-lg-n="' + i + '" value="' + esc(f.legenda) + '" placeholder="Legenda"><button class="btn sec peq" data-rm-n="' + i + '" type="button">Remover</button></div>'; }).join('');
+      $('f-th').querySelectorAll('[data-lg-ex]').forEach(function (el) { el.oninput = function () { var f = r.fotos.find(function (x) { return x.id === el.dataset.lgEx; }); f.legenda = el.value; f.mudou = true; }; });
+      $('f-th').querySelectorAll('[data-rm-ex]').forEach(function (el) { el.onclick = function () { removidas.push(el.dataset.rmEx); desenharFotos(); }; });
+      $('f-th').querySelectorAll('[data-lg-n]').forEach(function (el) { el.oninput = function () { novasFotos[el.dataset.lgN].legenda = el.value; }; });
+      $('f-th').querySelectorAll('[data-rm-n]').forEach(function (el) { el.onclick = function () { novasFotos.splice(Number(el.dataset.rmN), 1); desenharFotos(); }; });
+    }
+    desenharFotos();
+    $('f-fotos').onchange = async function () {
+      var fs = Array.from(this.files || []); this.value = '';
+      for (var i = 0; i < fs.length; i++) {
+        try { var full = await reduzir(fs[i], 1400, .72), th = await reduzir(fs[i], 220, .6); novasFotos.push({ dataUrl: full, thumb: th, legenda: '' }); desenharFotos(); }
+        catch (e) { toast('Não foi possível ler a foto ' + fs[i].name); }
+      }
+    };
+    $('f-can').onclick = fecharModal;
+    $('f-ok').onclick = async function () {
+      var bt = this; bt.disabled = true; bt.textContent = 'Salvando…';
+      try {
+        var d = { obraId: ob.id, data: $('f-data').value || hoje(), horaInicio: $('f-hi').value, horaFim: $('f-hf').value, climaManha: $('f-cm').value, climaTarde: $('f-ct').value, praticavel: $('f-pr').value === '1',
+          equipe: eq.filter(function (x) { return String(x.funcao).trim() || num(x.qtd); }).map(function (x) { return { funcao: String(x.funcao).trim(), qtd: num(x.qtd) }; }),
+          atividades: $('f-ativ').value.trim(), equipamentos: $('f-equip').value.trim(), ocorrencias: $('f-oc').value.trim(), cliente: $('f-cli').checked, atualizadoEm: agora() };
+        if (!d.atividades && !novasFotos.length) { toast('Descreva as atividades do dia.'); bt.disabled = false; bt.textContent = 'Salvar RDO'; return; }
+        // avanço das etapas: grava no cronograma
+        var et = JSON.parse(JSON.stringify(ob.etapas || [])), avancos = [];
+        document.querySelectorAll('[data-av]').forEach(function (el) {
+          var e = et.find(function (x) { return x.id === el.dataset.av; }); if (!e) return;
+          var para = clamp(num(el.value), 0, 100), antes = (r.avancos || []).find(function (x) { return x.etapaId === e.id; }), de = antes ? num(antes.de) : num(e.avanco);
+          if (para !== num(e.avanco) || antes) {
+            if (para !== de || antes) avancos.push({ etapaId: e.id, nome: e.nome, de: de, para: para });
+            e.avanco = para;
+            if (para > 0 && !e.inicioReal) e.inicioReal = d.data;
+            if (para >= 100) { if (!e.fimReal) e.fimReal = d.data; } else e.fimReal = '';
+          }
+        });
+        d.avancos = avancos.filter(function (x) { return x.de !== x.para; });
+        var ob2 = Object.assign({}, ob, { etapas: et }); registrarHistorico(ob2, d.data);
+        d.avancoGeral = Math.round(avancoGeral(ob2) * 10) / 10;
+        var id = r.id;
+        if (novo) {
+          d.numero = atual.rdos.reduce(function (m, x) { return Math.max(m, num(x.numero)); }, 0) + 1; d.criadoEm = agora(); d.autor = usuario; d.fotos = [];
+          id = await salvar(function () { return banco.criar('obras_rdo', d); });
+        }
+        // fotos: cada uma no seu documento; o RDO guarda só a miniatura
+        var fotos = (r.fotos || []).filter(function (f) { return removidas.indexOf(f.id) < 0; }).map(function (f) { return { id: f.id, thumb: f.thumb, legenda: f.legenda || '' }; });
+        for (var i = 0; i < removidas.length; i++) await banco.excluir('obras_fotos', removidas[i]).catch(function () {});
+        for (var j = 0; j < (r.fotos || []).length; j++) { var fx = r.fotos[j]; if (fx.mudou && removidas.indexOf(fx.id) < 0) await banco.atualizar('obras_fotos', fx.id, { legenda: fx.legenda || '' }).catch(function () {}); }
+        for (var k = 0; k < novasFotos.length; k++) {
+          bt.textContent = 'Enviando fotos ' + (k + 1) + '/' + novasFotos.length + '…';
+          var fid = await banco.criar('obras_fotos', { obraId: ob.id, rdoId: id, dataUrl: novasFotos[k].dataUrl, legenda: novasFotos[k].legenda || '', data: d.data, criadoEm: agora() });
+          fotos.push({ id: fid, thumb: novasFotos[k].thumb, legenda: novasFotos[k].legenda || '' });
+        }
+        d.fotos = fotos;
+        await salvar(function () { return banco.atualizar('obras_rdo', id, d); });
+        var upd = { etapas: et, historico: ob2.historico, atualizadoEm: agora() };
+        if (ob.status === 'planejamento') upd.status = 'andamento';
+        await salvar(function () { return banco.atualizar('obras', ob.id, upd); }, 'RDO salvo.');
+        Object.assign(ob, upd);
+        var os = osDe(ob.id);
+        gravarResultadoOS(ob, os && (os.status || 'aberta') === 'aberta' ? { status: 'execucao' } : null);
+        if (ob.portal) agendarPortal(ob);
+        fecharModal();
+      } catch (e) { bt.disabled = false; bt.textContent = 'Salvar RDO'; }
+    };
+  }
+  function equipeSugerida() {
+    var u = atual.rdos[0];
+    return u && u.equipe && u.equipe.length ? u.equipe.map(function (x) { return { funcao: x.funcao, qtd: x.qtd }; }) : [{ funcao: 'Encarregado', qtd: 1 }, { funcao: '', qtd: '' }];
+  }
+  function reduzir(file, max, q) {
+    return new Promise(function (ok, erro) {
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        var k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+        ok(c.toDataURL('image/jpeg', q));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); erro(new Error('imagem')); };
+      img.src = url;
+    });
+  }
+
+  // ---------- Medições (só sócios) ----------
+  function fin() { return atual.fin || {}; }
+  function valorContrato(ob) { var f = fin(), os = osDe(ob.id); return f.valorContrato != null && f.valorContrato !== '' ? num(f.valorContrato) : num(os && os.valor); }
+  function abaMedicoes(a, ob) {
+    if (atual.semFin) { a.innerHTML = '<div class="card aviso">Sem permissão para ler as medições. As regras do banco precisam ser atualizadas (veja o LEIA-ME).</div>'; return; }
+    var ms = (fin().medicoes || []).slice().sort(function (x, y) { return x.numero - y.numero; });
+    var vc = valorContrato(ob), medido = ms.reduce(function (s, m) { return s + num(m.valor); }, 0), acum = ms.length ? num(ms[ms.length - 1].acumulado) : 0, av = avancoGeral(ob);
+    var faturado = ms.filter(function (m) { return m.status === 'faturada'; }).reduce(function (s, m) { return s + num(m.valor); }, 0);
+    a.innerHTML = '<div class="kpis"><div class="kpi"><b>' + brl(vc) + '</b><span>valor do contrato <button class="btn sec peq" id="m-vc" style="margin-left:4px">Alterar</button></span></div>' +
+      '<div class="kpi"><b>' + brl(medido) + '</b><span>medido (' + pct(vc ? medido / vc * 100 : 0, 1) + ')</span></div>' +
+      '<div class="kpi"><b>' + brl(faturado) + '</b><span>faturado no Finanças</span></div>' +
+      '<div class="kpi"><b>' + pct(av - acum, 1) + '</b><span>avanço ainda não medido (' + brl(vc * Math.max(0, av - acum) / 100) + ')</span></div></div>' +
+      '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">Boletins de medição</h2><button class="btn" id="m-nova">+ Nova medição</button></div>' +
+      '<p class="muted">A medição usa o avanço físico das etapas. Depois de aprovada pelo cliente, fature no Finanças: na OS, <b>Faturar parte</b> mostra as medições para escolher.</p>' +
+      (ms.length ? '<div class="tabela"><table><thead><tr><th>Nº</th><th>Período</th><th class="num">No período</th><th class="num">Acumulado</th><th class="num">Valor</th><th>Situação</th><th></th></tr></thead><tbody>' +
+        ms.slice().reverse().map(function (m) { var st = m.status === 'faturada' ? ['Faturada' + (m.nf ? ' · NF ' + m.nf : ''), 'ok'] : m.status === 'aprovada' ? ['Aprovada · a faturar', 'warn'] : ['Rascunho', '']; return '<tr><td><b>' + m.numero + '</b></td><td>' + dt(m.inicio) + ' a ' + dt(m.fim) + '</td><td class="num">' + pct(m.percentual, 1) + '</td><td class="num">' + pct(m.acumulado, 1) + '</td><td class="num"><b>' + brl(m.valor) + '</b></td><td><span class="chip ' + st[1] + '">' + esc(st[0]) + '</span></td><td style="white-space:nowrap"><button class="btn sec peq" data-mpdf="' + m.id + '">PDF</button> ' + (m.status !== 'faturada' ? '<button class="btn sec peq" data-med="' + m.id + '">Editar</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="vazio">Nenhuma medição ainda.</div>') + '</div>';
+    $('m-nova').onclick = function () { formMedicao(ob); };
+    $('m-vc').onclick = async function () {
+      var v = prompt('Valor do contrato (R$):', numCampo(vc)); if (v == null) return;
+      await salvar(function () { return banco.atualizar('obras_financeiro', ob.id, { valorContrato: num(v), atualizadoEm: agora() }); }, 'Valor salvo.');
+    };
+    a.querySelectorAll('[data-med]').forEach(function (b) { b.onclick = function () { formMedicao(ob, (fin().medicoes || []).find(function (m) { return m.id === b.dataset.med; })); }; });
+    a.querySelectorAll('[data-mpdf]').forEach(function (b) { b.onclick = function () { imprimirMedicao(ob, (fin().medicoes || []).find(function (m) { return m.id === b.dataset.mpdf; })); }; });
+  }
+  function formMedicao(ob, m) {
+    var ms = (fin().medicoes || []).slice().sort(function (x, y) { return x.numero - y.numero; });
+    var outras = ms.filter(function (x) { return !m || x.id !== m.id; });
+    var ant = outras.filter(function (x) { return !m || x.numero < m.numero; }).pop();
+    var acAnt = ant ? num(ant.acumulado) : 0, vc = valorContrato(ob);
+    var novo = !m;
+    m = m ? JSON.parse(JSON.stringify(m)) : { id: uid(), numero: (ms.length ? ms[ms.length - 1].numero : 0) + 1, inicio: ant ? somarDias(ant.fim, 1) : inicioObra(ob), fim: hoje(), acumulado: Math.round(avancoGeral(ob) * 10) / 10, status: 'aprovada', obs: '' };
+    function calc() { var ac = clamp(num($('m-ac').value), 0, 100), p = Math.max(0, ac - acAnt); $('m-per').textContent = pct(p, 1); if (!$('m-vm').dataset.manual) $('m-v').value = numCampo((Math.round(vc * p) / 100).toFixed(2)); }
+    abrirModal('<h3>' + (novo ? 'Nova medição' : 'Medição nº ' + m.numero) + '</h3>' +
+      '<div class="linha"><div><label>Nº</label><input id="m-n" inputmode="numeric" value="' + m.numero + '"></div><div><label>De</label><input type="date" id="m-ini" value="' + esc(m.inicio) + '"></div><div><label>Até</label><input type="date" id="m-fim" value="' + esc(m.fim) + '"></div></div>' +
+      '<div class="linha"><div><label>Avanço acumulado (%)</label><input id="m-ac" inputmode="decimal" value="' + numCampo(m.acumulado) + '"><div class="muted">anterior: ' + pct(acAnt, 1) + ' · atual da obra: ' + pct(avancoGeral(ob), 1) + '</div></div>' +
+      '<div><label>Medido no período</label><div style="font-size:20px;font-weight:700;padding-top:6px" id="m-per"></div></div>' +
+      '<div><label>Valor (R$)</label><input id="m-v" inputmode="decimal" value="' + (novo ? '' : numCampo(m.valor)) + '"><div class="muted" id="m-vm"' + (novo ? '' : ' data-manual="1"') + '>' + pct(0) + ' de ' + brl(vc) + '</div></div></div>' +
+      '<label>Situação</label><select id="m-st"><option value="rascunho"' + (m.status === 'rascunho' ? ' selected' : '') + '>Rascunho (ainda não enviada ao cliente)</option><option value="aprovada"' + (m.status !== 'rascunho' ? ' selected' : '') + '>Aprovada pelo cliente · a faturar</option></select>' +
+      '<label>Observações</label><textarea id="m-obs">' + esc(m.obs) + '</textarea>' +
+      '<div class="acoes"><button class="btn" id="m-ok">Salvar</button>' + (!novo ? '<button class="btn perigo" id="m-exc">Excluir</button>' : '') + '<button class="btn sec" id="m-can">Cancelar</button></div>');
+    $('m-ac').oninput = calc; $('m-v').oninput = function () { $('m-vm').dataset.manual = '1'; };
+    calc();
+    $('m-can').onclick = fecharModal;
+    async function gravar(lista, msg) { await salvar(function () { return banco.atualizar('obras_financeiro', ob.id, { medicoes: lista, atualizadoEm: agora() }); }, msg); fecharModal(); }
+    $('m-ok').onclick = function () {
+      var x = Object.assign({}, m, { numero: Math.round(num($('m-n').value)) || m.numero, inicio: $('m-ini').value, fim: $('m-fim').value, acumulado: clamp(num($('m-ac').value), 0, 100), valor: num($('m-v').value), status: $('m-st').value, obs: $('m-obs').value.trim(), atualizadoEm: agora() });
+      x.percentual = Math.round(Math.max(0, x.acumulado - acAnt) * 10) / 10;
+      x.etapas = (ob.etapas || []).map(function (e) { return { nome: e.nome, peso: Math.round(peso(e) / (ob.etapas || []).reduce(function (t, y) { return t + peso(y); }, 0) * 1000) / 10, avanco: num(e.avanco) }; });
+      if (!x.valor) { toast('Informe o valor da medição.'); return; }
+      if (novo) x.criadoEm = agora();
+      gravar(outras.concat([x]).sort(function (p, q) { return p.numero - q.numero; }), 'Medição salva.');
+    };
+    if (!novo) $('m-exc').onclick = function () { if (confirm('Excluir a medição nº ' + m.numero + '?')) gravar(outras, 'Medição excluída.'); };
+  }
+
+  // ---------- Custos (só sócios): orçado x realizado, lançados como despesas do Finanças ----------
+  function catDe(l) {
+    if (l.obraCategoria) return l.obraCategoria;
+    if (l.grupo === 'Deslocamentos Serviços') return 'desl';
+    if (/mat[eé]ria|mercadoria/i.test(l.categoria || '')) return 'mat';
+    if (/terceir|m[aã]o de obra|pessoal/i.test((l.categoria || '') + ' ' + (l.grupo || ''))) return 'mo';
+    if (/insumo|loca[cç][aã]o|equip/i.test(l.categoria || '')) return 'equip';
+    return 'outros';
+  }
+  function abaCustos(a, ob) {
+    if (atual.semFin) { a.innerHTML = '<div class="card aviso">Sem permissão para ler os custos. As regras do banco precisam ser atualizadas (veja o LEIA-ME).</div>'; return; }
+    var orc = fin().orcado || {}, ls = (atual.lanc || []).filter(function (l) { return l.tipo !== 'receita' && l.tipo !== 'transferencia'; });
+    var real = {}; ls.forEach(function (l) { var c = catDe(l); real[c] = (real[c] || 0) + num(l.valor); });
+    var tO = CATEGORIAS.reduce(function (s, c) { return s + num(orc[c[0]]); }, 0), tR = ls.reduce(function (s, l) { return s + num(l.valor); }, 0), vc = valorContrato(ob);
+    var av = avancoGeral(ob), esperado = tO * av / 100;
+    a.innerHTML = '<div class="kpis"><div class="kpi"><b>' + brl(tO) + '</b><span>custo orçado' + (orc.origem === 'proposta' ? ' (da proposta)' : '') + '</span></div>' +
+      '<div class="kpi"><b style="color:' + (tR > tO && tO ? 'var(--bad)' : 'var(--text)') + '">' + brl(tR) + '</b><span>custo realizado (' + pct(tO ? tR / tO * 100 : 0) + ' do orçado)</span></div>' +
+      '<div class="kpi"><b style="color:' + (tR > esperado * 1.1 && tO ? 'var(--bad)' : 'var(--ok)') + '">' + brl(esperado) + '</b><span>custo esperado para ' + pct(av) + ' de avanço</span></div>' +
+      '<div class="kpi"><b>' + brl(vc - tR) + '</b><span>contrato − realizado (margem até agora)</span></div></div>' +
+      '<div class="card tabela"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">Orçado × realizado</h2><button class="btn sec peq" id="u-orc">Editar orçado</button></div>' +
+      '<table style="margin-top:8px"><thead><tr><th>Categoria</th><th class="num">Orçado</th><th class="num">Realizado</th><th class="num">Saldo</th><th style="width:30%"></th></tr></thead><tbody>' +
+      CATEGORIAS.map(function (c) { var o = num(orc[c[0]]), r = real[c[0]] || 0, p = o ? r / o * 100 : (r ? 100 : 0); return '<tr><td>' + c[1] + '</td><td class="num">' + brl(o) + '</td><td class="num">' + brl(r) + '</td><td class="num" style="color:' + (o - r < 0 ? 'var(--bad)' : 'inherit') + '">' + brl(o - r) + '</td><td><div class="barra"><div style="width:' + Math.min(100, p).toFixed(0) + '%;background:' + (p > 100 || (!o && r) ? 'var(--bad)' : 'var(--real)') + '"></div></div></td></tr>'; }).join('') +
+      '<tr><td><b>Total</b></td><td class="num"><b>' + brl(tO) + '</b></td><td class="num"><b>' + brl(tR) + '</b></td><td class="num"><b>' + brl(tO - tR) + '</b></td><td></td></tr></tbody></table></div>' +
+      '<div class="card tabela"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">Lançamentos da obra</h2><button class="btn" id="u-novo">+ Lançar custo</button></div>' +
+      '<p class="muted">Cada custo lançado aqui entra no Finanças como despesa ligada à OS ' + esc(ob.osCodigo || '') + ' (Contas a pagar, fluxo de caixa e resultado por OS). Despesas ligadas a esta OS lá no Finanças também aparecem aqui.</p>' +
+      (ls.length ? '<table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Fornecedor</th><th class="num">Valor</th><th>Pago</th><th></th></tr></thead><tbody>' +
+        ls.slice().sort(function (x, y) { return String(y.vencimento).localeCompare(String(x.vencimento)); }).map(function (l) { var c = CATEGORIAS.find(function (k) { return k[0] === catDe(l); }); return '<tr><td>' + dt(l.vencimento) + '</td><td>' + esc(l.descricao) + (l.origem === NOME_SISTEMA ? '' : ' <span class="chip">Finanças</span>') + '</td><td>' + esc(c ? c[1] : '') + '</td><td>' + esc(l.pessoa || '') + '</td><td class="num">' + brl(l.valor) + '</td><td>' + (l.pagamento ? '<span class="chip ok">' + dt(l.pagamento) + '</span>' : '<span class="chip warn">a pagar</span>') + '</td><td><button class="btn sec peq" data-lc="' + l.id + '">Editar</button></td></tr>'; }).join('') + '</tbody></table>' : '<div class="vazio">Nenhum custo lançado.</div>') + '</div>';
+    $('u-novo').onclick = function () { formCusto(ob); };
+    $('u-orc').onclick = function () { formOrcado(ob); };
+    a.querySelectorAll('[data-lc]').forEach(function (b) { b.onclick = function () { formCusto(ob, atual.lanc.find(function (l) { return l.id === b.dataset.lc; })); }; });
+  }
+  function formOrcado(ob) {
+    var orc = fin().orcado || {};
+    abrirModal('<h3>Custo orçado da obra</h3><p class="muted">Custos diretos previstos (sem impostos, BDI e lucro).' + (orc.origem === 'proposta' ? ' Valores vindos da memória de cálculo da proposta.' : '') + '</p>' +
+      '<div class="linha">' + CATEGORIAS.map(function (c) { return '<div><label>' + c[1] + '</label><input data-o="' + c[0] + '" inputmode="decimal" value="' + numCampo(orc[c[0]] || '') + '"></div>'; }).join('') + '</div>' +
+      '<div class="acoes"><button class="btn" id="o-ok">Salvar</button><button class="btn sec" id="o-prop">Buscar da proposta</button><button class="btn sec" id="o-can">Cancelar</button></div>');
+    $('o-can').onclick = fecharModal;
+    $('o-prop').onclick = async function () {
+      var os = osDe(ob.id), o = os ? await orcadoDaProposta(os).catch(function () { return null; }) : null;
+      if (!o) { toast('A proposta desta OS não tem memória de cálculo.'); return; }
+      CATEGORIAS.forEach(function (c) { document.querySelector('[data-o="' + c[0] + '"]').value = numCampo(o[c[0]] || ''); });
+      toast('Valores da proposta carregados. Confira e salve.');
+    };
+    $('o-ok').onclick = async function () {
+      var o = { origem: 'manual' }; CATEGORIAS.forEach(function (c) { o[c[0]] = num(document.querySelector('[data-o="' + c[0] + '"]').value); });
+      await salvar(function () { return banco.atualizar('obras_financeiro', ob.id, { orcado: o, atualizadoEm: agora() }); }, 'Orçado salvo.'); fecharModal();
+    };
+  }
+  function formCusto(ob, l) {
+    l = l || {}; var novo = !l.id, cat = l.id ? catDe(l) : 'mat';
+    abrirModal('<h3>' + (novo ? 'Lançar custo da obra' : 'Editar custo') + '</h3>' +
+      '<label>Descrição *</label><input id="u-desc" value="' + esc(l.descricao) + '" placeholder="Ex.: Argamassa AC-III, diária de pedreiro…">' +
+      '<div class="linha"><div><label>Categoria</label><select id="u-cat">' + CATEGORIAS.map(function (c) { return '<option value="' + c[0] + '"' + (c[0] === cat ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select></div>' +
+      '<div><label>Valor (R$) *</label><input id="u-val" inputmode="decimal" value="' + numCampo(l.valor) + '"></div><div><label>Data / vencimento *</label><input type="date" id="u-venc" value="' + esc(l.vencimento || hoje()) + '"></div></div>' +
+      '<div class="linha"><div><label>Fornecedor</label><input id="u-pes" value="' + esc(l.pessoa) + '"></div><div><label>Banco</label><select id="u-conta"><option value="">—</option>' + (atual.contas || []).map(function (c) { return '<option value="' + c.id + '"' + (c.id === l.contaId ? ' selected' : '') + '>' + esc(c.nome) + '</option>'; }).join('') + '</select></div></div>' +
+      '<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="u-pago" style="width:auto"' + (novo || l.pagamento ? ' checked' : '') + '> Já pago em <input type="date" id="u-pag" style="width:auto" value="' + esc(l.pagamento || hoje()) + '"></label>' +
+      '<div class="acoes"><button class="btn" id="u-ok">Salvar</button>' + (!novo ? '<button class="btn perigo" id="u-exc">Excluir</button>' : '') + '<button class="btn sec" id="u-can">Cancelar</button></div>');
+    $('u-can').onclick = fecharModal;
+    $('u-ok').onclick = async function () {
+      var c = CATEGORIAS.find(function (k) { return k[0] === $('u-cat').value; });
+      var d = { tipo: 'despesa', descricao: $('u-desc').value.trim(), valor: num($('u-val').value), vencimento: $('u-venc').value, pessoa: $('u-pes').value.trim(), contaId: $('u-conta').value, pagamento: $('u-pago').checked ? ($('u-pag').value || hoje()) : '',
+        osId: ob.id, obraCategoria: c[0], updatedAt: agora() };
+      if (!d.descricao || !d.valor || !d.vencimento) { toast('Informe descrição, valor e data.'); return; }
+      if (novo || l.origem === NOME_SISTEMA) { d.grupo = c[2]; d.categoria = c[3]; }
+      if (novo) { d.origem = NOME_SISTEMA; d.documento = ''; d.dataDoc = hoje(); d.createdAt = agora(); d.obs = 'Obra ' + (ob.osCodigo || '') + ' · ' + (ob.titulo || ''); }
+      await salvar(function () { return novo ? banco.criar('lancamentos', d) : banco.atualizar('lancamentos', l.id, d); }, 'Custo salvo no Finanças.');
+      fecharModal();
+    };
+    if (!novo) $('u-exc').onclick = async function () { if (confirm('Excluir este custo também do Finanças?')) { await salvar(function () { return banco.excluir('lancamentos', l.id); }, 'Excluído.'); fecharModal(); } };
+  }
+
+  // ===================== PORTAL DO CLIENTE =====================
+  // portal_obras/<empresaId>.obras.<obraId>: avanço, cronograma e os RDOs marcados para o cliente (sem custos nem valores).
+  // As fotos desses RDOs são copiadas para portal_obras_fotos/<fotoId> (com empresaId), que o cliente lê enquanto o contrato vale.
+  var timerPortal = 0;
+  function agendarPortal(ob) { clearTimeout(timerPortal); timerPortal = setTimeout(function () { publicarPortal(obraDe(ob.id) || ob); }, 2500); }
+  async function publicarPortal(ob, avisar) {
+    if (!ob.empresaId) { if (avisar) toast('A OS desta obra não tem cliente ligado.'); return; }
+    try {
+      var rdos = (await banco.buscar('obras_rdo', ['obraId', '==', ob.id])).filter(function (r) { return r.cliente !== false; }).sort(function (a, b) { return b.numero - a.numero; });
+      var publicadas = ob.portalFotos || [], fotosAgora = [];
+      for (var i = 0; i < rdos.length; i++) {
+        for (var j = 0; j < (rdos[i].fotos || []).length; j++) {
+          var f = rdos[i].fotos[j]; fotosAgora.push(f.id);
+          if (publicadas.indexOf(f.id) >= 0) continue;
+          var full = await banco.ler('obras_fotos', f.id);
+          if (full) await banco.gravar('portal_obras_fotos', f.id, { empresaId: ob.empresaId, obraId: ob.id, dataUrl: full.dataUrl, legenda: f.legenda || '', criadoEm: agora() });
+        }
+      }
+      for (var k = 0; k < publicadas.length; k++) if (fotosAgora.indexOf(publicadas[k]) < 0) await banco.excluir('portal_obras_fotos', publicadas[k]).catch(function () {});
+      var item = {
+        titulo: ob.titulo || '', os: ob.osCodigo || '', status: ob.status || 'andamento', situacao: situacaoObra(ob)[0], area: ob.area || '', unidade: ob.unidade || '',
+        avanco: Math.round(avancoGeral(ob) * 10) / 10, previsto: Math.round(previstoEm(ob, hoje()) * 10) / 10, inicio: inicioObra(ob), previsaoFim: fimObra(ob),
+        etapas: (ob.etapas || []).map(function (e) { return { nome: e.nome, inicio: e.inicio, fim: fimEtapa(e), avanco: num(e.avanco), inicioReal: e.inicioReal || '', fimReal: e.fimReal || '' }; }),
+        historico: (ob.historico || []).slice(-120),
+        rdos: rdos.slice(0, 120).map(function (r) { return { numero: r.numero, data: r.data, climaManha: r.climaManha || '', climaTarde: r.climaTarde || '', praticavel: r.praticavel !== false, equipe: totalEquipe(r), atividades: r.atividades || '', ocorrencias: r.ocorrencias || '', fotos: (r.fotos || []).map(function (f) { return { id: f.id, thumb: f.thumb, legenda: f.legenda || '' }; }) }; }),
+        atualizadoEm: agora()
+      };
+      var doc = { obras: {}, atualizadoEm: agora() }; doc.obras[ob.id] = item;
+      await banco.atualizar('portal_obras', ob.empresaId, doc);
+      await banco.atualizar('obras', ob.id, { portalFotos: fotosAgora, portalEm: agora() });
+      if (avisar) toast('Portal do cliente atualizado.');
+    } catch (e) { console.error(e); if (avisar) toast(e.code === 'permission-denied' ? 'Sem permissão para publicar no portal. As regras do banco precisam ser atualizadas.' : 'Não foi possível atualizar o portal: ' + (e.message || e)); }
+  }
+  async function tirarDoPortal(ob) {
+    try {
+      await banco.apagarCampo('portal_obras', ob.empresaId, 'obras.' + ob.id);
+      var pf = ob.portalFotos || []; for (var i = 0; i < pf.length; i++) await banco.excluir('portal_obras_fotos', pf[i]).catch(function () {});
+      await banco.atualizar('obras', ob.id, { portalFotos: [] });
+    } catch (e) { console.error(e); }
+  }
+
+  // ===================== IMPRESSÃO (PDF) =====================
+  function janelaImpressao(titulo, corpo) {
+    var w = window.open('', '_blank');
+    if (!w) { toast('Libere as janelas (pop-up) deste site para gerar o PDF.'); return; }
+    w.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>' + esc(titulo) + '</title><style>' +
+      '@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;color:#1d2433;font-size:12px;margin:0}' +
+      '.cab{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #c2410c;padding-bottom:8px;margin-bottom:12px}.cab img{height:44px}.cab h1{font-size:17px;margin:0;text-align:right}.cab div{font-size:11px;color:#667085;text-align:right}' +
+      'table{width:100%;border-collapse:collapse;margin:6px 0 12px}th,td{border:1px solid #cfd5df;padding:5px 6px;text-align:left;vertical-align:top}th{background:#f4f6f9;font-size:11px}' +
+      'h2{font-size:13px;background:#fff1e6;color:#9a3412;padding:5px 8px;margin:14px 0 6px;border-left:4px solid #c2410c}.num{text-align:right}.fotos{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fotos figure{margin:0;break-inside:avoid}.fotos img{width:100%;height:230px;object-fit:cover;border:1px solid #cfd5df}.fotos figcaption{font-size:11px;color:#667085;margin-top:3px}' +
+      '.ass{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:46px}.ass div{border-top:1px solid #1d2433;padding-top:4px;text-align:center;font-size:11px}.pre{white-space:pre-line}.rod{margin-top:18px;font-size:10px;color:#667085;text-align:center}' +
+      '.bar{height:8px;background:#eef0f4;border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:#ea7a1c}</style></head><body>' + corpo +
+      '<div class="rod">IDEALLE Inspeções e Serviços · CREA-SP · documento gerado pelo sistema Gestão de Obra em ' + dt(hoje()) + '</div>' +
+      '<script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script></body></html>');
+    w.document.close();
+  }
+  function cabecalho(titulo, ob) {
+    return '<div class="cab"><img src="' + location.origin + '/portal/logo-idealle.jpg" alt="IDEALLE"><div><h1>' + esc(titulo) + '</h1><div>' + esc(ob.titulo || '') + '<br>' + esc(ob.empresaNome || '') + ' · OS ' + esc(ob.osCodigo || '') + '</div></div></div>';
+  }
+  async function imprimirRdo(ob, r) {
+    var fotos = [];
+    for (var i = 0; i < (r.fotos || []).length; i++) { var f = await banco.ler('obras_fotos', r.fotos[i].id).catch(function () { return null; }); fotos.push({ src: f ? f.dataUrl : r.fotos[i].thumb, legenda: r.fotos[i].legenda || '' }); }
+    var corpo = cabecalho('Relatório Diário de Obra · RDO nº ' + r.numero, ob) +
+      '<table><tr><th>Data</th><td>' + dt(r.data) + '</td><th>Horário</th><td>' + esc(r.horaInicio || '') + ' às ' + esc(r.horaFim || '') + '</td></tr>' +
+      '<tr><th>Clima manhã</th><td>' + esc(r.climaManha || '') + '</td><th>Clima tarde</th><td>' + esc(r.climaTarde || '') + '</td></tr>' +
+      '<tr><th>Condição</th><td>' + (r.praticavel === false ? 'Impraticável' : 'Praticável') + '</td><th>Avanço da obra</th><td>' + pct(r.avancoGeral || 0, 1) + '</td></tr></table>' +
+      '<h2>Equipe</h2><table><tr><th>Função</th><th class="num">Quantidade</th></tr>' + (r.equipe || []).map(function (x) { return '<tr><td>' + esc(x.funcao) + '</td><td class="num">' + num(x.qtd) + '</td></tr>'; }).join('') + '<tr><th>Total</th><th class="num">' + totalEquipe(r) + '</th></tr></table>' +
+      '<h2>Atividades executadas</h2><div class="pre">' + esc(r.atividades || '—') + '</div>' +
+      ((r.avancos || []).length ? '<h2>Avanço das etapas</h2><table><tr><th>Etapa</th><th class="num">Antes</th><th class="num">Depois</th></tr>' + r.avancos.map(function (x) { return '<tr><td>' + esc(x.nome) + '</td><td class="num">' + pct(x.de) + '</td><td class="num">' + pct(x.para) + '</td></tr>'; }).join('') + '</table>' : '') +
+      (r.equipamentos ? '<h2>Equipamentos</h2><div class="pre">' + esc(r.equipamentos) + '</div>' : '') +
+      '<h2>Ocorrências</h2><div class="pre">' + esc(r.ocorrencias || 'Sem ocorrências.') + '</div>' +
+      (fotos.length ? '<h2>Registro fotográfico</h2><div class="fotos">' + fotos.map(function (f) { return '<figure><img src="' + f.src + '"><figcaption>' + esc(f.legenda) + '</figcaption></figure>'; }).join('') + '</div>' : '') +
+      '<div class="ass"><div>Responsável IDEALLE</div><div>Fiscalização do cliente</div></div>';
+    janelaImpressao('RDO ' + r.numero + ' - ' + (ob.osCodigo || ''), corpo);
+  }
+  function imprimirCronograma(ob) {
+    var es = ob.etapas || [], ini = inicioObra(ob), fim = fimObra(ob), n = difDias(ini, fim) + 1;
+    var P = function (iso) { return clamp(difDias(ini, iso) / n * 100, 0, 100); };
+    var corpo = cabecalho('Cronograma físico da obra', ob) +
+      '<table><tr><th>Início</th><td>' + dt(ini) + '</td><th>Término previsto</th><td>' + dt(fim) + '</td><th>Avanço</th><td>' + pct(avancoGeral(ob), 1) + ' (previsto ' + pct(previstoEm(ob, hoje()), 1) + ')</td></tr></table>' +
+      '<table><tr><th>Etapa</th><th>Início</th><th>Fim</th><th class="num">Dias</th><th class="num">Avanço</th><th style="width:38%">Previsto (claro) × realizado</th></tr>' +
+      es.map(function (e) { var l = P(e.inicio), w = Math.max(1, P(somarDias(fimEtapa(e), 1)) - l); return '<tr><td>' + esc(e.nome) + '</td><td>' + dt(e.inicio) + '</td><td>' + dt(fimEtapa(e)) + '</td><td class="num">' + num(e.dias) + '</td><td class="num">' + pct(e.avanco) + '</td><td><div style="position:relative;height:14px;background:#f4f6f9"><div style="position:absolute;left:' + l + '%;width:' + w + '%;top:0;height:14px;background:#f3c08f"></div><div style="position:absolute;left:' + l + '%;width:' + (w * clamp(num(e.avanco), 0, 100) / 100) + '%;top:4px;height:6px;background:#c2410c"></div></div></td></tr>'; }).join('') + '</table>';
+    janelaImpressao('Cronograma ' + (ob.osCodigo || ''), corpo);
+  }
+  function imprimirMedicao(ob, m) {
+    var ms = (fin().medicoes || []).slice().sort(function (x, y) { return x.numero - y.numero; }), ant = ms.filter(function (x) { return x.numero < m.numero; }).pop();
+    var vc = valorContrato(ob), acum = ms.filter(function (x) { return x.numero <= m.numero; }).reduce(function (s, x) { return s + num(x.valor); }, 0);
+    var antEt = (ant && ant.etapas) || [];
+    var corpo = cabecalho('Boletim de Medição nº ' + m.numero, ob) +
+      '<table><tr><th>Período</th><td>' + dt(m.inicio) + ' a ' + dt(m.fim) + '</td><th>Valor do contrato</th><td class="num">' + brl(vc) + '</td></tr>' +
+      '<tr><th>Avanço anterior</th><td>' + pct(ant ? ant.acumulado : 0, 1) + '</td><th>Avanço acumulado</th><td class="num">' + pct(m.acumulado, 1) + '</td></tr></table>' +
+      '<h2>Avanço físico por etapa</h2><table><tr><th>Etapa</th><th class="num">Peso</th><th class="num">Anterior</th><th class="num">Atual</th><th class="num">No período</th></tr>' +
+      (m.etapas || []).map(function (e) { var a = antEt.find(function (x) { return x.nome === e.nome; }), av = a ? num(a.avanco) : 0; return '<tr><td>' + esc(e.nome) + '</td><td class="num">' + pct(e.peso, 1) + '</td><td class="num">' + pct(av) + '</td><td class="num">' + pct(e.avanco) + '</td><td class="num">' + pct(Math.max(0, num(e.avanco) - av)) + '</td></tr>'; }).join('') + '</table>' +
+      '<h2>Valores</h2><table><tr><th>Medido neste boletim (' + pct(m.percentual, 1) + ')</th><td class="num"><b>' + brl(m.valor) + '</b></td></tr><tr><th>Acumulado medido</th><td class="num">' + brl(acum) + '</td></tr><tr><th>Saldo do contrato</th><td class="num">' + brl(vc - acum) + '</td></tr></table>' +
+      (m.obs ? '<h2>Observações</h2><div class="pre">' + esc(m.obs) + '</div>' : '') +
+      '<div class="ass"><div>IDEALLE Inspeções e Serviços</div><div>Aprovação do cliente</div></div>';
+    janelaImpressao('Medicao ' + m.numero + ' - ' + (ob.osCodigo || ''), corpo);
+  }
+})();
+</script>
+</body>
+</html>

@@ -82,4 +82,5 @@ O cliente entra em `/portal/` (mesmo site) com e-mail e senha próprios. No Cron
 | --- | --- |
 | Termografia | Sim: abre na OS, grava `resultados.Termografia` (laudos por nível) e conclui a OS |
 | Relatório NR-13 | Sim: lê OS e cliente pela API do Firestore, cria empresa/OS locais (`cronosOsId`), grava `resultados["Relatório NR-13"]` (laudos, pareceres, TAGs) e conclui a OS quando ela é concluída lá |
+| Gestão de Obra (`/obras/`) | Sim: lista as OS com `servicos.civil`, cria `obras/<osId>` com as etapas de `ordens.obra`, grava `resultados["Gestão de Obra"]` e `status`; custos viram `lancamentos` com `osId`; medições em `obras_financeiro/<osId>` aparecem em Faturar parte. Ver `obras/LEIA-ME.md` |
 | PMTA Calc, Calculadora NR-13, Gerador de Certificados | Sim: abrem o novo cálculo/avaliação/certificado com cliente e OS; acham a OS do Cronos pelo código (ID-0042/2026, consulta `codigo ==`) e gravam `resultados[<sistema>]` quando os laudos mudam |

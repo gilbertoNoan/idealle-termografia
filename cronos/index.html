@@ -358,10 +358,11 @@
     'Relatório NR-13': 'https://app-nr13.vercel.app/',
     'PMTA Calc': 'https://pmta-eta.vercel.app/',
     'Calculadora NR-13': 'https://calculadora-iota-swart.vercel.app/',
-    'Gerador de Certificados': 'https://app-certificados-de-calibra-o.vercel.app/'
+    'Gerador de Certificados': 'https://app-certificados-de-calibra-o.vercel.app/',
+    'Gestão de Obra': '/obras/'
   };
   // Sistemas já ligados ao Finanças e o nome do parâmetro que recebe o id da OS
-  var INTEGRADOS = { 'Termografia': 'os', 'Relatório NR-13': 'cronos_os', 'PMTA Calc': 'cronos_os', 'Calculadora NR-13': 'cronos_os', 'Gerador de Certificados': 'cronos_os' };
+  var INTEGRADOS = { 'Termografia': 'os', 'Relatório NR-13': 'cronos_os', 'PMTA Calc': 'cronos_os', 'Calculadora NR-13': 'cronos_os', 'Gerador de Certificados': 'cronos_os', 'Gestão de Obra': 'cronos_os' };
   function linkSistema(o, nome) {
     var url = SISTEMAS[nome];
     if (!url) return '';
@@ -408,7 +409,7 @@
     ['desenquadramento', 'Desenquadramento (laudo não obrigatório)', 'Calculadora NR-13'],
     ['termografia', 'Termografia', 'Termografia'],
     ['spda', 'SPDA (NBR 5419)', ''],
-    ['civil', 'Engenharia civil (obras e serviços civis)', '']
+    ['civil', 'Engenharia civil (obras e serviços civis)', 'Gestão de Obra']
   ];
   // Sistemas que têm trabalho a fazer nesta OS (pelos serviços marcados)
   function sistemasDosServicos(sv) {
@@ -494,7 +495,7 @@
     if (sv.termografia && !(res.Termografia && res.Termografia.qtdLaudos)) gerais.push('Termografia: nenhum laudo ainda');
     // SPDA não tem sistema próprio: fica pendente até a OS ser concluída (laudo entregue)
     if (sv.spda && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0) gerais.push('SPDA: laudo feito fora dos sistemas, conclua a OS quando entregar');
-    if (sv.civil && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0) gerais.push('Engenharia civil: obra acompanhada fora dos sistemas, conclua a OS na entrega');
+    if (sv.civil && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0 && !res['Gestão de Obra']) gerais.push('Engenharia civil: inicie a gestão da obra (Gestão de Obra)');
     var qtd = gerais.length + linhas.reduce(function (n, l) { return n + l.itens.filter(function (i) { return !i.ok; }).length; }, 0);
     return { linhas: linhas, gerais: gerais, qtd: qtd };
   }
@@ -2969,6 +2970,7 @@
         '<div id="fa-parcelas"></div><div class="muted" id="fa-parc-soma" style="font-size:.85em"></div></div>' +
       '<div class="linha" id="fa-bloco-unica"><div><label>Valor desta fatura (R$) *</label><input id="fa-valor" inputmode="decimal" value="' + esc(o.contrato ? '' : sugerido != null ? String(sugerido).replace('.', ',') : '') + '"></div><div><label>Vencimento (recebimento)</label><input id="fa-venc" type="date" value="' + somarDias(hoje(), 30) + '"></div></div>' +
       '<div class="linha"><div><label>Emissão</label><input id="fa-emissao" type="date" value="' + hoje() + '"></div><div><label>Nº da nota fiscal</label><input id="fa-nf"></div><div><label>Forma de pagamento</label><select id="fa-forma"><option>Boleto</option><option>PIX</option><option>Transferência</option><option>Outro</option></select></div></div>' +
+      '<div id="fa-medicoes"></div>' +
       '<label>Observações</label><textarea id="fa-obs"></textarea>' +
       '<div class="acoes"><button class="btn ok" id="fa-salvar">Gerar fatura</button><button class="btn sec" id="fa-cancelar">Cancelar</button></div>');
     $('fa-cancelar').onclick = function () { verOS(o.id); };
@@ -3002,6 +3004,20 @@
       };
     });
     aplicarModo();
+    // Obra (Gestão de Obra): as medições aprovadas aparecem para faturar com um clique
+    var medEscolhida = null;
+    if ((o.servicos && o.servicos.civil) || (o.resultados && o.resultados['Gestão de Obra'])) banco.ler('obras_financeiro', o.id).then(function (fo) {
+      var ms = ((fo && fo.medicoes) || []).filter(function (m) { return m.status === 'aprovada'; }).sort(function (a, b) { return a.numero - b.numero; });
+      if (!ms.length || !$('fa-medicoes')) return;
+      $('fa-medicoes').innerHTML = '<label>Medições da obra aprovadas, a faturar</label><div style="display:flex;flex-wrap:wrap;gap:6px">' + ms.map(function (m) { return '<button class="btn sec" type="button" data-fmed="' + esc(m.id) + '">Medição nº ' + m.numero + ' · ' + data(m.inicio) + ' a ' + data(m.fim) + ' · ' + brl(m.valor) + '</button>'; }).join('') + '</div>';
+      document.querySelectorAll('[data-fmed]').forEach(function (b) { b.onclick = function () {
+        medEscolhida = ms.find(function (m) { return m.id === b.dataset.fmed; });
+        document.querySelectorAll('[data-fmed]').forEach(function (x) { x.className = 'btn' + (x === b ? '' : ' sec'); });
+        var rp = document.querySelector('input[name="fa-modo"][value="parcial"]'); if (rp) { rp.checked = true; aplicarModo(); }
+        $('fa-valor').value = brlN(medEscolhida.valor);
+        $('fa-obs').value = 'Medição nº ' + medEscolhida.numero + ' · período ' + data(medEscolhida.inicio) + ' a ' + data(medEscolhida.fim) + ' · avanço no período ' + String(medEscolhida.percentual).replace('.', ',') + '% (acumulado ' + String(medEscolhida.acumulado).replace('.', ',') + '%)';
+      }; });
+    }).catch(function () {});
     if ($('fa-metade')) $('fa-metade').onclick = function (e) { e.preventDefault(); $('fa-valor').value = brlN(num(o.valor) / 2); };
     $('fa-salvar').onclick = async function () {
       var m = modo(), itens = [];
@@ -3018,11 +3034,19 @@
       for (var k = 0; k < itens.length; k++) {
         d = { numero: num0 + k, clienteId: o.empresaId, clienteNome: nomeCliente(o.empresaId, o.empresaNome), osId: o.id, osNumero: o.numero, osCodigo: codOS(o), descricao: (o.descricao || '') + (entrega ? ' — ' + entrega : ''), valor: itens[k].valor, emissao: $('fa-emissao').value, vencimento: itens[k].vencimento, nf: $('fa-nf').value.trim(), forma: $('fa-forma').value, obs: $('fa-obs').value.trim(), status: 'pendente', createdAt: agora() };
         if (entrega) d.entrega = entrega;
+        if (medEscolhida) { d.descricao += ' — Medição nº ' + medEscolhida.numero; d.medicaoId = medEscolhida.id; }
         if (m === 'parcelas') d.parcela = nJa ? (nJa + k + 1) + 'ª' : (k + 1) + '/' + itens.length;
         else if (ap.parcela) d.parcela = ap.parcela;
         fid = await salvar(function () { return banco.criar('faturas', d); });
       }
       await salvar(function () { return banco.atualizar('ordens', o.id, { status: ap.status, faturaId: fid }); }, (itens.length > 1 ? itens.length + ' parcelas geradas.' : 'Fatura ' + codFatura(d) + ' gerada.') + (ap.status === 'parcial' && saldo != null ? ' Falta faturar ' + brl(saldo - v) + '.' : ''));
+      if (medEscolhida) {
+        var nfMed = $('fa-nf') ? $('fa-nf').value.trim() : '';
+        await banco.ler('obras_financeiro', o.id).then(function (fo) {
+          var ms = ((fo && fo.medicoes) || []).map(function (m) { return m.id === medEscolhida.id ? Object.assign({}, m, { status: 'faturada', faturaId: fid, nf: nfMed, faturadaEm: hoje() }) : m; });
+          return banco.atualizar('obras_financeiro', o.id, { medicoes: ms, atualizadoEm: agora() });
+        }).catch(function (e) { console.warn('medição', e); });
+      }
       fecharModal(); mostrar('faturas');
     };
   }
