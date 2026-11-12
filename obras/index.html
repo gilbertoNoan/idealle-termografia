@@ -480,19 +480,20 @@
     if (dono && atual.fin && !atual.semFin && !atual.fin.orcado && !atual.orcBusca && os) { atual.orcBusca = true; orcadoDaProposta(os).then(function (o) { if (o) banco.atualizar('obras_financeiro', id, { orcado: o, atualizadoEm: agora() }); }).catch(function () {}); }
     var empId = ob.empresaId;
     if (empId && !atual.empresa && atual.empBusca !== empId) { atual.empBusca = empId; banco.ler('empresas', empId).then(function (e) { atual.empresa = e; render(); }).catch(function () {}); }
-    var abas = [['resumo', 'Resumo'], ['cronograma', 'Cronograma'], ['diario', 'Diário de obra'], ['materiais', 'Materiais'], ['checklists', 'Segurança & Qualidade']];
+    var abas = [['resumo', 'Resumo'], ['cronograma', 'Cronograma'], ['diario', 'Diário de obra'], ['fotos', 'Fotos'], ['materiais', 'Materiais'], ['checklists', 'Segurança & Qualidade']];
     if (dono) abas.push(['medicoes', 'Medições'], ['custos', 'Custos']);
     if (!abas.some(function (a) { return a[0] === tela.aba; })) tela.aba = 'resumo';
     var sit = situacaoObra(ob);
     v.innerHTML = '<button class="voltar" id="b-voltar">← Obras</button>' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap"><div><h1>' + esc(ob.titulo || 'Obra') + '</h1>' +
       '<div class="muted">' + esc(ob.osCodigo || '') + ' · ' + esc(ob.empresaNome || '') + (ob.area ? ' · ' + esc(ob.area) + ' ' + esc(ob.unidade || 'm²') : '') + '</div></div>' +
-      '<span class="chip ' + sit[1] + '" style="font-size:13px;padding:4px 12px">' + esc(sit[0]) + '</span></div>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="chip ' + sit[1] + '" style="font-size:13px;padding:4px 12px">' + esc(sit[0]) + '</span><button class="btn" id="b-fotos-dia">📷 Fotos do dia</button></div></div>' +
       '<div class="abas">' + abas.map(function (a) { return '<button data-aba="' + a[0] + '"' + (tela.aba === a[0] ? ' class="ativo"' : '') + '>' + a[1] + '</button>'; }).join('') + '</div><div id="aba"></div>';
     $('b-voltar').onclick = function () { irPara(''); };
+    $('b-fotos-dia').onclick = function () { fotosDoDia(ob); };
     v.querySelectorAll('[data-aba]').forEach(function (b) { b.onclick = function () { tela.aba = b.dataset.aba; render(); }; });
     var a = $('aba');
-    ({ resumo: abaResumo, cronograma: abaCronograma, diario: abaDiario, materiais: abaMateriais, checklists: abaChecklists, medicoes: abaMedicoes, custos: abaCustos })[tela.aba](a, ob, os);
+    ({ resumo: abaResumo, cronograma: abaCronograma, diario: abaDiario, fotos: abaFotos, materiais: abaMateriais, checklists: abaChecklists, medicoes: abaMedicoes, custos: abaCustos })[tela.aba](a, ob, os);
   }
 
   function renderIniciar(v, os) {
@@ -703,7 +704,7 @@
     var rs = atual.rdos;
     a.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px"><div class="muted">' + plural(rs.length, 'diário registrado', 'diários registrados') + '</div><button class="btn" id="d-novo">+ Novo RDO</button></div>' +
       (rs.length ? rs.map(function (r) {
-        return '<div class="card rdo"><div><div><b>RDO nº ' + r.numero + '</b> · ' + dt(r.data) + ' · ' + esc(r.climaManha || '—') + ' / ' + esc(r.climaTarde || '—') + (r.praticavel === false ? ' · <span class="chip warn">Impraticável</span>' : '') + (r.cliente ? '' : ' · <span class="chip">Só interno</span>') + '</div>' +
+        return '<div class="card rdo"><div><div><b>RDO nº ' + r.numero + '</b> · ' + dt(r.data) + ' · ' + esc(r.climaManha || '—') + ' / ' + esc(r.climaTarde || '—') + (r.praticavel === false ? ' · <span class="chip warn">Impraticável</span>' : '') + (r.cliente ? '' : ' · <span class="chip">Só interno</span>') + (!r.atividades ? ' · <span class="chip warn">Falta preencher as atividades</span>' : '') + '</div>' +
           '<div class="muted">' + plural(totalEquipe(r), 'pessoa', 'pessoas') + (r.horaInicio ? ' · ' + esc(r.horaInicio) + '–' + esc(r.horaFim || '') : '') + ((r.avancos || []).length ? ' · avanço: ' + r.avancos.map(function (x) { return esc(x.nome) + ' ' + pct(x.para); }).join(', ') : '') + '</div>' +
           '<div style="white-space:pre-line;margin-top:6px">' + esc((r.atividades || '').slice(0, 400)) + '</div>' +
           (r.ocorrencias ? '<div style="margin-top:6px"><span class="chip warn">Ocorrências</span> ' + esc(r.ocorrencias.slice(0, 200)) + '</div>' : '') +
@@ -818,6 +819,85 @@
       } catch (e) { bt.disabled = false; bt.textContent = 'Salvar RDO'; }
     };
   }
+  // ===== Fotos do dia (atalho do encarregado no celular) =====
+  // As fotos vão para o diário de obra (RDO) do dia: se ainda não existe RDO de hoje, ele é criado só com as fotos
+  // e o encarregado completa o resto depois.
+  function fotosDoDia(ob) {
+    var novas = [], etapas = (ob.etapas || []).filter(function (e) { return num(e.avanco) < 100; });
+    var rHoje = atual.rdos.find(function (x) { return x.data === hoje(); });
+    abrirModal('<h3>📷 Fotos do dia · ' + dt(hoje()) + '</h3>' +
+      '<p class="muted" style="margin-top:0">' + (rHoje ? 'Entram no RDO nº ' + rHoje.numero + ' de hoje' + ((rHoje.fotos || []).length ? ' (já tem ' + plural(rHoje.fotos.length, 'foto', 'fotos') + ')' : '') + '.' : 'Vai criar o diário de obra de hoje com as fotos; o resto do RDO pode ser preenchido depois.') + '</p>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+      '<label class="btn" style="justify-content:center;text-align:center;padding:16px 10px;margin:0;font-size:15px">📷 Tirar foto<input type="file" id="fd-cam" accept="image/*" capture="environment" multiple style="display:none"></label>' +
+      '<label class="btn sec" style="justify-content:center;text-align:center;padding:16px 10px;margin:0;font-size:15px">🖼️ Da galeria<input type="file" id="fd-gal" accept="image/*" multiple style="display:none"></label></div>' +
+      (etapas.length ? '<label>Etapa (opcional)</label><select id="fd-et"><option value="">—</option>' + etapas.map(function (e) { return '<option value="' + esc(e.nome) + '">' + esc(e.nome) + '</option>'; }).join('') + '</select>' : '') +
+      '<div class="thumbs" id="fd-th" style="margin-top:10px"></div>' +
+      '<div class="acoes"><button class="btn ok" id="fd-ok" disabled>Enviar fotos</button><button class="btn sec" id="fd-c">Cancelar</button></div>');
+    function desenhar() {
+      $('fd-th').innerHTML = novas.map(function (f, i) { return '<div class="t"><img src="' + f.thumb + '" alt=""><input data-lg="' + i + '" value="' + esc(f.legenda) + '" placeholder="Legenda (onde / o quê)"><button class="btn sec peq" data-rm="' + i + '">Tirar</button></div>'; }).join('');
+      $('fd-th').querySelectorAll('[data-lg]').forEach(function (el) { el.oninput = function () { novas[el.dataset.lg].legenda = el.value; }; });
+      $('fd-th').querySelectorAll('[data-rm]').forEach(function (el) { el.onclick = function () { novas.splice(Number(el.dataset.rm), 1); desenhar(); }; });
+      $('fd-ok').disabled = !novas.length; $('fd-ok').textContent = novas.length ? 'Enviar ' + plural(novas.length, 'foto', 'fotos') : 'Enviar fotos';
+    }
+    async function ler() {
+      var fs = Array.from(this.files || []); this.value = '';
+      for (var i = 0; i < fs.length; i++) {
+        try { var full = await reduzir(fs[i], 1400, .72), th = await reduzir(fs[i], 220, .6); novas.push({ dataUrl: full, thumb: th, legenda: '' }); desenhar(); }
+        catch (e) { toast('Não foi possível ler a foto ' + fs[i].name); }
+      }
+    }
+    $('fd-cam').onchange = ler; $('fd-gal').onchange = ler;
+    $('fd-c').onclick = fecharModal;
+    $('fd-ok').onclick = async function () {
+      var bt = this; bt.disabled = true; bt.textContent = 'Enviando…';
+      try {
+        var et = $('fd-et') ? $('fd-et').value : '';
+        var r = atual.rdos.find(function (x) { return x.data === hoje(); }), id = r && r.id;
+        if (!r) {
+          var d = { obraId: ob.id, data: hoje(), horaInicio: '07:00', horaFim: '17:00', climaManha: 'Bom', climaTarde: 'Bom', praticavel: true, equipe: equipeSugerida(),
+            atividades: '', equipamentos: '', ocorrencias: '', avancos: [], cliente: true, fotos: [], avancoGeral: Math.round(avancoGeral(ob) * 10) / 10,
+            numero: atual.rdos.reduce(function (m, x) { return Math.max(m, num(x.numero)); }, 0) + 1, criadoEm: agora(), atualizadoEm: agora(), autor: usuario, soFotos: true };
+          id = await salvar(function () { return banco.criar('obras_rdo', d); });
+          r = Object.assign({ id: id }, d);
+        }
+        var fotos = (r.fotos || []).slice();
+        for (var k = 0; k < novas.length; k++) {
+          bt.textContent = 'Enviando ' + (k + 1) + '/' + novas.length + '…';
+          var leg = [et, novas[k].legenda].filter(Boolean).join(' · ');
+          var fid = await banco.criar('obras_fotos', { obraId: ob.id, rdoId: id, dataUrl: novas[k].dataUrl, legenda: leg, data: hoje(), criadoEm: agora(), autor: usuario });
+          fotos.push({ id: fid, thumb: novas[k].thumb, legenda: leg });
+        }
+        await salvar(function () { return banco.atualizar('obras_rdo', id, { fotos: fotos, atualizadoEm: agora() }); }, plural(novas.length, 'foto enviada', 'fotos enviadas') + ' para o RDO de hoje.');
+        if (ob.portal) agendarPortal(ob);
+        fecharModal();
+      } catch (e) { bt.disabled = false; bt.textContent = 'Enviar fotos'; }
+    };
+  }
+
+  // ===== Aba Fotos: todas as fotos da obra, por dia =====
+  function abaFotos(a, ob) {
+    var dias = {};
+    atual.rdos.forEach(function (r) { (r.fotos || []).forEach(function (f) { (dias[r.data] = dias[r.data] || []).push({ f: f, r: r }); }); });
+    var datas = Object.keys(dias).sort().reverse(), total = datas.reduce(function (s, d) { return s + dias[d].length; }, 0);
+    a.innerHTML = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">Fotos da obra <span class="muted" style="font-weight:400;font-size:13px">' + plural(total, 'foto', 'fotos') + '</span></h2><button class="btn" id="ft-add">📷 Fotos do dia</button></div>' +
+      (datas.length ? datas.map(function (d) {
+        return '<h3 style="margin:16px 0 6px;font-size:14px">' + dt(d) + ' <span class="muted" style="font-weight:400">· RDO nº ' + dias[d][0].r.numero + ' · ' + plural(dias[d].length, 'foto', 'fotos') + '</span></h3>' +
+          '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px">' + dias[d].map(function (x) {
+            return '<figure style="margin:0;cursor:pointer" data-ver="' + x.f.id + '"><img src="' + esc(x.f.thumb) + '" alt="" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--line)">' + (x.f.legenda ? '<figcaption class="muted" style="font-size:11px;line-height:1.3;margin-top:2px">' + esc(x.f.legenda) + '</figcaption>' : '') + '</figure>';
+          }).join('') + '</div>';
+      }).join('') : '<div class="vazio">Nenhuma foto ainda. O encarregado manda as fotos do dia pelo botão <b>📷 Fotos do dia</b>, direto do celular.</div>') + '</div>';
+    $('ft-add').onclick = function () { fotosDoDia(ob); };
+    a.querySelectorAll('[data-ver]').forEach(function (el) {
+      el.onclick = async function () {
+        var leg = (el.querySelector('figcaption') || {}).textContent || '';
+        abrirModal('<div style="text-align:center"><div class="muted">Carregando…</div></div>');
+        var f = await banco.ler('obras_fotos', el.dataset.ver).catch(function () { return null; });
+        abrirModal('<img src="' + esc(f ? f.dataUrl : el.querySelector('img').src) + '" alt="" style="width:100%;border-radius:8px">' + (leg ? '<p>' + esc(leg) + '</p>' : '') + '<div class="acoes"><button class="btn sec" id="ft-x">Fechar</button></div>');
+        $('ft-x').onclick = fecharModal;
+      };
+    });
+  }
+
   function equipeSugerida() {
     var u = atual.rdos[0];
     return u && u.equipe && u.equipe.length ? u.equipe.map(function (x) { return { funcao: x.funcao, qtd: x.qtd }; }) : [{ funcao: 'Encarregado', qtd: 1 }, { funcao: '', qtd: '' }];
