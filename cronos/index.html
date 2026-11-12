@@ -1909,7 +1909,7 @@
   }
   // modelo: proposta no modelo C (logo, faixa lateral e rodapé desenhados em todas as páginas; o selo CREA-SP vai junto das assinaturas)
   // logo: LOGO_PROP (laranja) ou LOGO_IDE (azul, propostas elétricas IDE-); cod: número da proposta no rodapé
-  async function baixarPdf(html, nome, rodape, modelo, logo, cod, sub) {
+  async function baixarPdf(html, nome, rodape, modelo, logo, cod, sub, corAzul) {
     var ver = pdfVer;
     toast('Gerando o PDF…');
     try { await carregarHtml2pdf(); } catch (e) { toast('Não deu para carregar o gerador de PDF. Confira a internet e tente de novo.'); return; }
@@ -1926,9 +1926,10 @@
           pdf.setPage(i); pdf.setFontSize(7.5); pdf.setTextColor(60);
           if (modelo) {
             // modelo C: logo no topo, faixa colorida à esquerda e rodapé cinza com o número da proposta e a página
-            var azul = logo === LOGO_IDE, cor = azul ? [47, 159, 227] : [227, 155, 46], cor3 = azul ? [27, 118, 174] : [184, 118, 26];
+            // azul: setor elétrico (logo IDE) e engenharia civil (corAzul, com o logo normal)
+            var azul = logo === LOGO_IDE || !!corAzul, cor = azul ? [47, 159, 227] : [227, 155, 46], cor3 = azul ? [27, 118, 174] : [184, 118, 26];
             pdf.setFillColor(cor[0], cor[1], cor[2]); pdf.rect(0, 22, 6, h - 22 - 16, 'F');
-            if (azul) pdf.addImage(LOGO_IDE, 'JPEG', 22, 6.5, 58.1, 13);
+            if (logo === LOGO_IDE) pdf.addImage(LOGO_IDE, 'JPEG', 22, 6.5, 58.1, 13);
             else pdf.addImage(LOGO_PROP, 'JPEG', 22, 6.5, 60.1, 13);
             pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7); pdf.setTextColor(150);
             pdf.text(sub || 'Inspeções · Calibrações · Laudos técnicos', w - 16, 15.3, { align: 'right' });
@@ -2675,7 +2676,7 @@
       fim = ob.consideracoes ? secao('Considerações finais', par(ob.consideracoes) + '<p>Atenciosamente,</p>') : '<p>Atenciosamente,</p>';
     }
     var local = [c.cidade, c.uf].filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join(' - ');
-    var html = '<div class="pc' + (ide ? ' ide' : '') + '">' +
+    var html = '<div class="pc' + (ide || civil ? ' ide' : '') + '">' +
       '<div class="pc-top"><div class="pc-to"><small>Ao cliente</small><br><b class="cli">' + esc(String(c.nome || '').toUpperCase()) + '</b>' +
         (c.endereco ? '<br>' + esc(c.endereco) : '') + (local || c.cep ? '<br>' + esc(local) + (local && c.cep ? ' · ' : '') + (c.cep ? 'CEP ' + esc(c.cep) : '') : '') +
         (c.contato ? '<br>A/C: <b>' + esc(c.contato) + '</b>' + (c.setor ? ' – ' + esc(c.setor) : '') : '') + '</div>' +
@@ -2687,7 +2688,7 @@
       '<div class="pc-fim">' + fim + '<div class="pc-assin">' + EMPRESA.assinaturas.map(function (a) { return '<div><b>' + esc(a[0]) + '</b><span>' + esc(a[1]) + '</span></div>'; }).join('') +
         '<img src="' + SELO_CREA + '" alt="CREA-SP"></div></div>' +
       '</div>';
-    baixarPdf(html, nomePdf(p, comValores ? 'valores' : ''), null, true, ide ? LOGO_IDE : LOGO_PROP, cod, civil ? 'Engenharia · Serviços técnicos civis' : '');
+    baixarPdf(html, nomePdf(p, comValores ? 'valores' : ''), null, true, ide ? LOGO_IDE : LOGO_PROP, cod, civil ? 'Engenharia · Serviços técnicos civis' : '', civil);
   }
 
   // ===================== MODELOS DE PROPOSTA =====================
