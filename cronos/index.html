@@ -407,7 +407,8 @@
     ['calibracao', 'Certificado de calibração', 'Gerador de Certificados'],
     ['desenquadramento', 'Desenquadramento (laudo não obrigatório)', 'Calculadora NR-13'],
     ['termografia', 'Termografia', 'Termografia'],
-    ['spda', 'SPDA (NBR 5419)', '']
+    ['spda', 'SPDA (NBR 5419)', ''],
+    ['civil', 'Engenharia civil (obras e serviços civis)', '']
   ];
   // Sistemas que têm trabalho a fazer nesta OS (pelos serviços marcados)
   function sistemasDosServicos(sv) {
@@ -423,6 +424,7 @@
       var t = normal(l);
       if (/termogr/.test(t)) r.termografia = true;
       if (/spda|descargas? atmosf|para-?raio|5419/.test(t)) r.spda = true;
+      if (/engenharia civil|obras? civil|servicos? (tecnicos )?civis|revestimento (ceramico|de fachada)|fachada|alvenaria|assentamento|reboco|emboco|contrapiso|porcelanato/.test(t)) r.civil = true;
       if (/pmta/.test(t)) r.pmta = true;
       if (/prontuario|reconstitui/.test(t)) r.prontuario = true;
       if (/desenquadr/.test(t)) { r.desenquadramento = true; return; }
@@ -492,6 +494,7 @@
     if (sv.termografia && !(res.Termografia && res.Termografia.qtdLaudos)) gerais.push('Termografia: nenhum laudo ainda');
     // SPDA não tem sistema próprio: fica pendente até a OS ser concluída (laudo entregue)
     if (sv.spda && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0) gerais.push('SPDA: laudo feito fora dos sistemas, conclua a OS quando entregar');
+    if (sv.civil && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0) gerais.push('Engenharia civil: obra acompanhada fora dos sistemas, conclua a OS na entrega');
     var qtd = gerais.length + linhas.reduce(function (n, l) { return n + l.itens.filter(function (i) { return !i.ok; }).length; }, 0);
     return { linhas: linhas, gerais: gerais, qtd: qtd };
   }
@@ -1587,6 +1590,73 @@
     ['fornCliente', '6. Fornecimento do cliente (um por linha)', 3], ['prazoExecucao', '7. Prazo de execução', 1],
     ['obsPreco', 'Observações do preço (uma por linha)', 3]
   ];
+  // ===================== ENGENHARIA CIVIL (OBRA) =====================
+  // Proposta de serviço civil (modelo BENASSI revestimento de fachada, 12/11/2026). Além dos textos comuns (TEXTOS),
+  // guarda em p.obra os dados que servirão depois para a gestão de obra: área, equipe, etapas com atividade e
+  // prazo em dias, e os textos próprios do PDF civil. Quando a proposta vira OS, p.obra vai junto para a OS.
+  // obra = { area, unidade, equipe, etapas: [{ nome, atividade, dias }], abertura, premissas, garantia, precoIntro, programacao, consideracoes }
+  var OBRA_TEXTOS = [
+    ['abertura', 'Abertura (vem depois de "Prezados Senhores,")', 3],
+    ['premissas', '8. Premissas e exclusões técnicas (cada linha vira um parágrafo)', 4],
+    ['garantia', '9. Segurança, recebimento e garantia', 3],
+    ['precoIntro', '10. Preços: texto antes da tabela de atividades', 2],
+    ['programacao', '12. Programação e validade (antes da frase de validade)', 2],
+    ['consideracoes', '13. Considerações finais', 3]
+  ];
+  // Textos padrão de serviço civil (genéricos, sem cliente): preenchem só o que estiver vazio
+  var OBRA_PADRAO = {
+    abertura: 'Em atendimento à sua solicitação, apresentamos nossa proposta técnica e comercial para a execução dos serviços civis descritos a seguir. A IDEALLE disponibilizará profissionais técnicos experientes, com planejamento, organização de campo e controle das etapas de execução.',
+    premissas: 'A presente proposta considera a área apta a receber os serviços, com acesso convencional e sem intervenções estruturais. Não estão incluídos: fornecimento de materiais; impermeabilização; tratamento de trincas estruturais, infiltrações ou patologias; andaimes/plataformas elevatórias e serviços em altura que exijam meios especiais; instalações elétricas/hidráulicas; pintura; caçamba ou descarte especial.\nOcorrências não visíveis antes do início ou alterações de quantitativos e condições de acesso serão comunicadas ao cliente para avaliação e eventual orçamento complementar, antes da execução extra.',
+    garantia: 'As atividades serão executadas em conformidade com as exigências de segurança aplicáveis ao local e aos serviços efetivamente realizados. A entrega contemplará conferência visual conjunta e limpeza do trecho trabalhado. Garantia contratual de 90 dias para defeitos comprovadamente decorrentes da execução, sem prejuízo das garantias legais aplicáveis; excluem-se causas ligadas a movimentação da base, umidade/infiltração preexistente, materiais inadequados ou intervenções de terceiros.',
+    precoIntro: 'Para fins de composição do orçamento, apresentamos as atividades consideradas para a prestação dos serviços de mão de obra:',
+    programacao: 'Mobilização mediante aprovação formal, disponibilidade da equipe, liberação de acesso e confirmação de recebimento dos materiais. Recomenda-se programação com antecedência mínima de 05 dias úteis.',
+    consideracoes: 'A IDEALLE amplia sua atuação em serviços técnicos civis industriais, mantendo o padrão de planejamento, responsabilidade e atenção à qualidade já aplicado em suas atividades industriais. Nosso compromisso é executar o serviço com organização, comunicação transparente e cuidado com a apresentação final.\nAgradecemos a oportunidade e permanecemos à disposição para alinhamentos técnicos e comerciais.'
+  };
+  function ehCivil(x) { return !!(x && ((x.servicos && x.servicos.civil) || (x.obra && !temServicos(x)))); }
+  function diasObra(ob) { return ((ob && ob.etapas) || []).reduce(function (n, e) { return n + num(e.dias); }, 0); }
+  function textoDias(d) { d = num(d); return d ? fmtN(d, d % 1 ? 1 : 0) + (d === 1 ? ' dia' : ' dias') : ''; }
+  function linhaEtapa(e) {
+    e = e || { nome: '', atividade: '', dias: '' };
+    return '<tr><td style="width:110px"><input class="e-nome" value="' + esc(e.nome) + '" placeholder="Dia 1"></td><td><input class="e-ativ" value="' + esc(e.atividade) + '" placeholder="Atividade prevista"></td><td style="width:80px"><input class="e-dias" inputmode="decimal" value="' + esc(numCampo(e.dias)) + '" placeholder="dias"></td><td style="width:40px"><button class="btn sec peq e-del" title="Remover">✕</button></td></tr>';
+  }
+  // Bloco do formulário (proposta 'p-' ou modelo 'm-'): fica aberto quando o serviço civil está marcado
+  function blocoObra(pref, ob, aberto) {
+    ob = ob || {};
+    var et = ob.etapas && ob.etapas.length ? ob.etapas : [null];
+    return '<details id="' + pref + 'obra"' + (aberto ? ' open' : '') + ' style="margin-top:10px;border:1px solid var(--line);border-radius:6px;padding:6px 10px"><summary><b>Engenharia civil (obra)</b>: área, equipe, etapas com prazo e os textos do PDF civil' + (pref === 'p-' ? ' · abre sozinho ao marcar o serviço Engenharia civil' : '') + '</summary>' +
+      '<div class="linha"><div><label>Área / quantidade de referência</label><input id="' + pref + 'ob-area" inputmode="decimal" value="' + esc(numCampo(ob.area || '')) + '" placeholder="16"></div><div><label>Unidade</label><input id="' + pref + 'ob-un" value="' + esc(ob.unidade || 'm²') + '"></div><div><label>Profissionais na equipe</label><input id="' + pref + 'ob-equipe" inputmode="numeric" value="' + esc(numCampo(ob.equipe || '')) + '" placeholder="2"></div></div>' +
+      '<label>5. Planejamento: etapas (saem numa tabela no PDF; o total de dias vai para o resumo do topo)</label><div class="tabela"><table class="itens"><thead><tr><th>Etapa</th><th>Atividade prevista</th><th>Dias</th><th></th></tr></thead><tbody id="' + pref + 'etapas">' + et.map(linhaEtapa).join('') + '</tbody></table></div>' +
+      '<button class="btn sec peq" id="' + pref + 'add-etapa" style="margin-top:6px">+ Etapa</button> <span class="muted" id="' + pref + 'dias-obra"></span>' +
+      OBRA_TEXTOS.map(function (t) { return '<label>' + t[1] + '</label><textarea id="' + pref + 'ob-' + t[0] + '" rows="' + t[2] + '">' + esc(ob[t[0]]) + '</textarea>'; }).join('') +
+      '<div class="muted" style="margin-top:4px"><a href="#" id="' + pref + 'ob-padrao">Preencher os textos vazios com o padrão de serviço civil</a></div></details>';
+  }
+  function lerEtapas(pref) {
+    return Array.prototype.map.call(document.querySelectorAll('#' + pref + 'etapas tr'), function (tr) {
+      return { nome: tr.querySelector('.e-nome').value.trim(), atividade: tr.querySelector('.e-ativ').value.trim(), dias: num(tr.querySelector('.e-dias').value) };
+    }).filter(function (e) { return e.nome || e.atividade; });
+  }
+  // Devolve null quando o bloco está vazio (proposta que não é civil continua sem p.obra)
+  function lerObra(pref) {
+    if (!$(pref + 'obra')) return null;
+    var ob = { area: num($(pref + 'ob-area').value), unidade: $(pref + 'ob-un').value.trim() || 'm²', equipe: parseInt($(pref + 'ob-equipe').value, 10) || 0, etapas: lerEtapas(pref) };
+    OBRA_TEXTOS.forEach(function (t) { ob[t[0]] = $(pref + 'ob-' + t[0]).value.trim(); });
+    var vazio = !ob.area && !ob.equipe && !ob.etapas.length && OBRA_TEXTOS.every(function (t) { return !ob[t[0]]; });
+    return vazio ? null : ob;
+  }
+  function ligarObra(pref) {
+    var tb = $(pref + 'etapas');
+    if (!tb) return;
+    function dias() { var d = diasObra({ etapas: lerEtapas(pref) }); $(pref + 'dias-obra').textContent = d ? 'Total: ' + textoDias(d) : ''; }
+    tb.addEventListener('input', dias);
+    tb.addEventListener('click', function (e) { if (e.target.classList.contains('e-del')) { e.preventDefault(); e.target.closest('tr').remove(); dias(); } });
+    $(pref + 'add-etapa').onclick = function (e) { e.preventDefault(); tb.insertAdjacentHTML('beforeend', linhaEtapa({ nome: 'Dia ' + (tb.querySelectorAll('tr').length + 1), atividade: '', dias: 1 })); dias(); };
+    $(pref + 'ob-padrao').onclick = function (e) {
+      e.preventDefault(); var n = 0;
+      OBRA_TEXTOS.forEach(function (t) { var c = $(pref + 'ob-' + t[0]); if (!c.value.trim() && OBRA_PADRAO[t[0]]) { c.value = OBRA_PADRAO[t[0]]; n++; } });
+      toast(n ? n + ' texto(s) preenchido(s). Ajuste ao serviço e ao cliente.' : 'Os textos já estavam preenchidos.');
+    };
+    dias();
+  }
   var CONDICOES_PADRAO = 'Quando do término dos serviços e entrega dos relatórios e prontuários será emitida nota fiscal fatura com vencimento a 15 dias. Após o vencimento será aplicada multa de 2% mais juros de 1% ao mês.';
 
   function aplicarModelo(m) {
@@ -1594,6 +1664,7 @@
       validade: somarDias(hoje(), m.validadeDias || 30), itens: (m.itens || []).map(function (i) { return { descricao: i.descricao, qtd: i.qtd, valor: i.valor }; }) };
     TEXTOS.forEach(function (t) { d[t[0]] = m[t[0]] || ''; });
     if (m.calculo) d.calculo = JSON.parse(JSON.stringify(m.calculo));
+    if (m.obra) d.obra = JSON.parse(JSON.stringify(m.obra));
     return d;
   }
   // Junta vários modelos numa proposta só: itens somados, textos com as linhas de todos (sem repetir),
@@ -1602,7 +1673,7 @@
     ms = ms.filter(Boolean);
     if (!ms.length) return {};
     // os serviços (Termografia, SPDA, NR-13...) já vêm marcados pelo título e pelos itens dos modelos
-    var comServicos = function (x) { x.servicos = servicosDosItens(x.titulo + ' ' + (x.objeto || ''), x.itens); return x; };
+    var comServicos = function (x) { x.servicos = servicosDosItens(x.titulo + ' ' + (x.objeto || ''), x.itens); if (x.obra) x.servicos.civil = true; return x; };
     if (ms.length === 1) return comServicos(Object.assign(aplicarModelo(ms[0]), { modeloIds: [ms[0].id] }));
     var ds = ms.map(aplicarModelo), d = ds[0];
     d.modeloIds = ms.map(function (m) { return m.id; });
@@ -1629,6 +1700,8 @@
       cs[0].def = {}; cs[0].correcao = '';
     }
     if (cs.length) d.calculo = cs[0]; else delete d.calculo;
+    var obs = ds.filter(function (x) { return x.obra; });
+    if (obs.length) d.obra = obs[0].obra; else delete d.obra;
     return comServicos(d);
   }
   function textoFaixa(m) {
@@ -1836,7 +1909,7 @@
   }
   // modelo: proposta no modelo C (logo, faixa lateral e rodapé desenhados em todas as páginas; o selo CREA-SP vai junto das assinaturas)
   // logo: LOGO_PROP (laranja) ou LOGO_IDE (azul, propostas elétricas IDE-); cod: número da proposta no rodapé
-  async function baixarPdf(html, nome, rodape, modelo, logo, cod) {
+  async function baixarPdf(html, nome, rodape, modelo, logo, cod, sub) {
     var ver = pdfVer;
     toast('Gerando o PDF…');
     try { await carregarHtml2pdf(); } catch (e) { toast('Não deu para carregar o gerador de PDF. Confira a internet e tente de novo.'); return; }
@@ -1858,7 +1931,7 @@
             if (azul) pdf.addImage(LOGO_IDE, 'JPEG', 22, 6.5, 58.1, 13);
             else pdf.addImage(LOGO_PROP, 'JPEG', 22, 6.5, 60.1, 13);
             pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7); pdf.setTextColor(150);
-            pdf.text('Inspeções · Calibrações · Laudos técnicos', w - 16, 15.3, { align: 'right' });
+            pdf.text(sub || 'Inspeções · Calibrações · Laudos técnicos', w - 16, 15.3, { align: 'right' });
             pdf.text(EMPRESA.site, w - 16, 18.6, { align: 'right' });
             pdf.setFillColor(243, 243, 243); pdf.roundedRect(22, h - 13.5, w - 38, 7.5, 1, 1, 'F');
             var t1 = 'Idealle – ' + EMPRESA.slogan;
@@ -1926,6 +1999,7 @@
       (!p.id && modelos.length ? '<label>Começar de um ou mais modelos (marque quantos quiser: os itens e textos se juntam; nenhum = proposta em branco)</label><div id="p-modelos" style="display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:6px;padding:8px 10px">' +
         modelos.map(function (m) { return '<label style="display:flex;gap:8px;align-items:center;margin:0;font-weight:normal"><input type="checkbox" data-modelo="' + m.id + '" style="width:auto"' + (selModelos.indexOf(m.id) >= 0 ? ' checked' : '') + '> ' + esc(m.nome) + '</label>'; }).join('') + '</div>' : '') +
       (!p.id && !p.spda ? '<div class="muted" style="margin-top:6px">É SPDA / para-raios? <a href="#" id="p-spda">Use a proposta guiada</a>: perguntas simples e os itens saem calculados.</div>' : '') +
+      (!p.id && !p.obra ? '<div class="muted" style="margin-top:6px">É obra / serviço de engenharia civil? Marque <b>Engenharia civil</b> nos serviços (ou use o modelo civil): o PDF sai no formato civil, com etapas e prazos.</div>' : '') +
       (p.spda ? '<div class="muted" style="margin-top:6px">Montada pela proposta SPDA guiada' + (p.spda.resumo ? ': ' + esc(p.spda.resumo) : '') + '.' + (!p.id ? ' <a href="#" id="p-spda">Voltar às perguntas</a>' : '') + '</div>' : '') +
       '<label>Cliente *</label><select id="p-cliente">' + opcoesClientes(p.clienteId) + '</select>' +
       '<div class="muted" style="margin-top:4px">Cliente novo? <a href="#" id="p-novo-cliente">Cadastrar agora</a></div>' +
@@ -1945,6 +2019,7 @@
       '<details id="p-textos" open style="margin-top:10px"><summary><b>Texto da proposta</b> (todos os pontos que saem no PDF: referência, objetivo, local, escopo, fornecimentos, prazo, observações · clique aqui para recolher)</summary>' +
       TEXTOS.map(function (t) { return '<label>' + t[1] + '</label><textarea id="p-' + t[0] + '" rows="' + t[2] + '">' + esc(p[t[0]]) + '</textarea>'; }).join('') +
       '</details>' +
+      blocoObra('p-', p.obra, ehCivil(p)) +
       '<label>9. Condições de pagamento</label><textarea id="p-condicoes" rows="2">' + esc(p.condicoes || CONDICOES_PADRAO) + '</textarea>' +
       '<details id="p-calc" open style="margin-top:10px"><summary><b>Memória de cálculo</b> (interna, não sai na proposta do cliente · clique aqui para recolher)' + (p.calculo && p.calculo.resultado ? ' · ' + brl(p.calculo.resultado.final) : '') + '</summary>' +
       calcHtml(p.calculo || calcPadrao()) + '</details>' +
@@ -1974,6 +2049,9 @@
       toast(r.sobra ? 'Preço repartido nos itens. Sobrou ' + brl(r.sobra) + ' de arredondamento: ajuste um item.' : 'Preço repartido nos itens, na mesma proporção que eles tinham.');
     };
     atualizarTotal();
+    ligarObra('p-');
+    // marcar Engenharia civil abre o bloco da obra
+    if ($('p-sv-civil')) $('p-sv-civil').addEventListener('change', function () { if (this.checked) $('p-obra').open = true; });
     if ($('p-modelos')) $('p-modelos').onchange = function (e) {
       var id = e.target.dataset.modelo, cid = $('p-cliente').value;
       if (!id) return;
@@ -2028,6 +2106,7 @@
       var v = Object.assign({}, p, { pdfValores: $('p-pdf-valores').checked, clienteId: $('p-cliente').value, clienteNome: nomeCliente($('p-cliente').value, p.clienteNome), titulo: $('p-titulo').value.trim(), data: dt, validade: $('p-validade').value, itens: it, total: totalItens(it), condicoes: $('p-condicoes').value.trim() });
       TEXTOS.forEach(function (t) { v[t[0]] = $('p-' + t[0]).value.trim(); });
       v.servicos = lerServicos('p-sv-');
+      v.obra = lerObra('p-');
       if (!p.id || n !== numeroID(p)) { v.numero = n; v.ano = p.ano || parseInt(dt.slice(0, 4), 10); v.codigo = codID(n, v.ano, ehEletrica(v)); }
       else v.codigo = codAposEdicao(p, v, n, String(codProposta(p)).slice(-4)) || codProposta(p);
       if (!it.length) toast('A prévia está sem itens.');
@@ -2053,6 +2132,9 @@
       if (p.modeloId) { d.modeloId = p.modeloId; d.modeloNome = p.modeloNome || ''; }
       if (p.modeloIds && p.modeloIds.length > 1) d.modeloIds = p.modeloIds;
       if (p.spda) d.spda = p.spda;
+      var ob = lerObra('p-');
+      if (ob) { d.obra = ob; if (!temServicos(d)) d.servicos = Object.assign({}, d.servicos, { civil: true }); }
+      else if (p.obra) d.obra = null;
       d.pdfValores = $('p-pdf-valores').checked;
       if (usouCalc) d.calculo = limparCalculo(lerCalculo($('p-calc')));
       var nNum = parseInt($('p-numero').value, 10);
@@ -2223,7 +2305,7 @@
 
   // Nova revisão: guarda a versão atual (itens, valores, textos e memória de cálculo) e reabre a proposta para editar.
   // base = uma revisão anterior que serve de ponto de partida (o conteúdo dela vai para o formulário).
-  var CAMPOS_VERSAO = ['titulo', 'itens', 'total', 'condicoes', 'calculo'];
+  var CAMPOS_VERSAO = ['titulo', 'itens', 'total', 'condicoes', 'calculo', 'obra'];
   async function novaRevisao(p, base) {
     var prox = (p.rev || 0) + 1;
     var motivo = prompt('Nova revisão ' + codProposta(p) + ' Rev. ' + prox + (base ? ', a partir da Rev. ' + base.rev : '') + '.\nMotivo (opcional, ex.: cliente pediu revisão de valor):', base ? 'Baseada na Rev. ' + base.rev : '');
@@ -2231,11 +2313,12 @@
     var foto = { rev: p.rev || 0, data: p.data || '', validade: p.validade || '', titulo: p.titulo || '', itens: p.itens || [], total: num(p.total), condicoes: p.condicoes || '', status: p.status || '', guardadaEm: agora() };
     TEXTOS.forEach(function (t) { foto[t[0]] = p[t[0]] || ''; });
     if (p.calculo) foto.calculo = p.calculo;
+    if (p.obra) foto.obra = p.obra;
     // cada versão guarda o motivo que a criou (motivoRevisao); a Rev. 0 não tem
     foto.motivo = p.motivoRevisao || '';
     var mud = { rev: prox, revisoes: (p.revisoes || []).concat([foto]), motivoRevisao: motivo.trim(), data: hoje(), validade: somarDias(hoje(), p.data && p.validade ? diasEntre(p.data, p.validade) : 30), status: 'rascunho', updatedAt: agora() };
     if (base) {
-      CAMPOS_VERSAO.concat(TEXTOS.map(function (t) { return t[0]; })).forEach(function (k) { mud[k] = base[k] != null ? JSON.parse(JSON.stringify(base[k])) : (k === 'calculo' ? null : ''); });
+      CAMPOS_VERSAO.concat(TEXTOS.map(function (t) { return t[0]; })).forEach(function (k) { mud[k] = base[k] != null ? JSON.parse(JSON.stringify(base[k])) : (k === 'calculo' || k === 'obra' ? null : ''); });
     }
     await salvar(function () { return banco.atualizar('propostas', p.id, mud); }, 'Rev. ' + prox + ' criada' + (base ? ' a partir da Rev. ' + base.rev : '') + '. A Rev. ' + foto.rev + ' ficou guardada.');
     formProposta(Object.assign({}, p, mud));
@@ -2398,6 +2481,7 @@
     ligar('pv-modelo', function () {
       var m = { nome: p.titulo, titulo: p.titulo, sistema: p.sistema, condicoes: p.condicoes, validadeDias: p.data && p.validade ? diasEntre(p.data, p.validade) : 30, itens: p.itens };
       if (p.calculo) m.calculo = p.calculo;
+      if (p.obra) m.obra = p.obra;
       TEXTOS.forEach(function (t) { m[t[0]] = p[t[0]] || ''; });
       formModelo(m);
     });
@@ -2429,7 +2513,7 @@
       // Campos numero/empresaId/empresaNome/descricao/dataAbertura seguem o formato da Termografia,
       // para a OS aparecer lá automaticamente.
       var osId = await salvar(function () {
-        return banco.criar('ordens', { numero: numero, codigo: codProposta(p), empresaId: p.clienteId, empresaNome: nomeCliente(p.clienteId, p.clienteNome), descricao: p.titulo, dataAbertura: hoje(), createdAt: agora(), status: 'aberta', propostaId: p.id, propostaCodigo: codProposta(p), valor: p.total, sistema: p.sistema || '', servicos: sv || {} });
+        return banco.criar('ordens', { numero: numero, codigo: codProposta(p), empresaId: p.clienteId, empresaNome: nomeCliente(p.clienteId, p.clienteNome), descricao: p.titulo, dataAbertura: hoje(), createdAt: agora(), status: 'aberta', propostaId: p.id, propostaCodigo: codProposta(p), valor: p.total, sistema: p.sistema || '', servicos: sv || {}, obra: p.obra ? Object.assign({}, p.obra, { itens: p.itens || [] }) : null });
       });
       await salvar(function () { return banco.atualizar('propostas', p.id, { status: 'aprovada', aprovadaEm: agora(), osId: osId }); }, 'Proposta aprovada. OS ' + codProposta(p) + ' aberta.');
       fecharModal(); mostrar('ordens');
@@ -2521,10 +2605,13 @@
     var its = (p.itens || []).filter(function (i) { return num(i.qtd); });
     var cond = p.condicoes || CONDICOES_PADRAO, multa = (cond.match(/Após o vencimento[^.]*\./i) || [''])[0];
     // Resumo no topo: só entra o que dá para tirar dos textos da proposta
-    var mPrazo = String(p.prazoExecucao || '').match(/(\d+)\s*dias?(\s*[úu]teis)?/i);
-    var mPag = /[àa] vista/i.test(cond) ? 'À vista' : (cond.match(/(\d+)\s*dias/i) ? cond.match(/(\d+)\s*dias/i)[1] + ' dias após NF' : '');
+    var mPrazo = String(p.prazoExecucao || '').match(/(\d+)\s*(?:\([^)]*\)\s*)?dias?(\s*[úu]teis)?/i);
+    var mPag = /[àa] vista/i.test(cond) ? 'À vista' : (cond.match(/(\d+)\s*(?:\([^)]*\)\s*)?dias/i) ? cond.match(/(\d+)\s*(?:\([^)]*\)\s*)?dias/i)[1] + ' dias após NF' : '');
+    var civil = ehCivil(p), ob = p.obra || {}, dObra = diasObra(ob);
     var tiles = [['Investimento', brl(p.total)]];
+    if (civil && num(ob.area)) tiles.push(['Área de referência', fmtN(ob.area, num(ob.area) % 1 ? 2 : 0) + ' ' + (ob.unidade || 'm²')]);
     if (mPrazo) tiles.push(['Prazo de execução', 'Até ' + mPrazo[1] + ' dias' + (mPrazo[2] ? ' úteis' : '')]);
+    else if (civil && dObra) tiles.push(['Prazo de execução', 'Até ' + textoDias(dObra)]);
     if (mPag) tiles.push(['Pagamento', mPag]);
     tiles.push(['Validade', p.validade ? dataBR(p.validade) : dias + ' dias']);
     var corpo = '';
@@ -2552,6 +2639,41 @@
       (multa ? '<p><b>' + esc(multa) + '</b></p>' : ''));
     var fim = secao('Validade da proposta', '<p>Esta proposta é válida por ' + dias + ' dias, a partir da data de sua emissão, após o que estará sujeita a confirmação.<br>' +
       'Desde já agradecemos a oportunidade de participar desta tomada de preços e permaneceremos a sua inteira disposição para quaisquer esclarecimentos que se fizerem necessários.</p><p>Atenciosamente,</p>');
+    var abertura = 'Atendendo solicitação de V.S.as, apresentamos nossas melhores condições técnicas e comerciais para a execução do serviço em referência, conforme segue:';
+    // Engenharia civil: outra ordem de seções (modelo BENASSI revestimento de fachada), com etapas e preço por área
+    if (civil) {
+      n = 0; corpo = '';
+      if (ob.abertura) abertura = ob.abertura;
+      corpo += secao('Objetivo dos trabalhos', par(p.objetivo || p.titulo));
+      var lObj = linhas(p.objeto).map(function (l) { return l.replace(/^[-•*·]\s*/, ''); });
+      corpo += secao('Objeto do fornecimento', lObj.length ? itens(lObj.map(esc), n + 1) :
+        itens(its.map(function (i) { return esc(i.descricao + (num(i.qtd) !== 1 ? ' (' + fmtN(i.qtd, num(i.qtd) % 1 ? 2 : 0) + ')' : '')); }), n + 1));
+      corpo += secao('Local de execução', par(p.local || 'Nas instalações do Cliente conforme endereço acima.'));
+      if (p.escopo) corpo += secao('Escopo executivo e critérios de qualidade', lista(p.escopo, n + 1));
+      var ets = (ob.etapas || []).filter(function (e) { return e.nome || e.atividade; });
+      if (ets.length || p.prazoExecucao) corpo += secao('Planejamento e prazo de execução',
+        (ets.length ? '<table class="pc-tab"><thead><tr><th style="width:22%">Etapa</th><th>Atividade prevista</th><th class="n">Prazo referencial</th></tr></thead><tbody>' +
+          ets.map(function (e) { return '<tr><td>' + esc(e.nome) + '</td><td>' + esc(e.atividade) + '</td><td class="n">' + esc(textoDias(e.dias)) + '</td></tr>'; }).join('') + '</tbody></table>' : '') +
+        par(p.prazoExecucao));
+      if (p.fornIdealle) corpo += secao('Equipe e fornecimento Idealle', lista(p.fornIdealle, n + 1));
+      if (p.fornCliente) corpo += secao('Responsabilidades e fornecimento do cliente', lista(p.fornCliente, n + 1));
+      if (ob.premissas) corpo += secao('Premissas e exclusões técnicas', par(ob.premissas));
+      if (ob.garantia) corpo += secao('Segurança, recebimento e garantia', par(ob.garantia));
+      var porArea = num(ob.area) ? num(p.total) / num(ob.area) : 0;
+      corpo += secao('Preços e condições de fornecimento', par(ob.precoIntro) +
+        (its.length ? (comValores ?
+          '<table class="pc-tab"><thead><tr><th>Atividade / custo</th><th class="n">Qtd</th><th class="n">Valor unit.</th><th class="n">Total</th></tr></thead><tbody>' +
+            its.map(function (i) { return '<tr><td>' + esc(i.descricao) + '</td><td class="n">' + esc(numCampo(i.qtd)) + '</td><td class="n">' + brl(i.valor) + '</td><td class="n">' + brl(num(i.qtd) * num(i.valor)) + '</td></tr>'; }).join('') + '</tbody></table>' :
+          '<table class="pc-tab"><thead><tr><th>Atividade / custo</th></tr></thead><tbody>' + its.map(function (i) { return '<tr><td style="font-weight:normal;background:none">' + esc(i.descricao) + '</td></tr>'; }).join('') + '</tbody></table>') : '') +
+        '<div class="pc-preco">Valor global de investimento para execução dos trabalhos supracitados: <b class="v">' + brl(p.total) + '</b> <b>(' + esc(tituloCaso(extenso(p.total))) + ')</b>.' +
+          (porArea ? '<br>Valor por área de referência: <b>' + brl(porArea) + '/' + esc(ob.unidade || 'm²') + '</b>.' : '') + '</div>' +
+        obsPreco(p.obsPreco));
+      corpo += secao('Condições de pagamento e faturamento', par(multa ? cond.replace(multa, '') : cond) +
+        '<div class="pc-fat"><b>' + esc(EMPRESA.razao) + '</b> · ' + esc(EMPRESA.endereco) + '<br>CNPJ nº ' + esc(EMPRESA.cnpj) + ' · I. E. nº ' + esc(EMPRESA.ie) + '</div>' +
+        (multa ? '<p><b>' + esc(multa) + '</b></p>' : ''));
+      corpo += secao('Programação e validade', par(ob.programacao) + '<p>Esta proposta é válida por ' + dias + ' dias contados da data de emissão, sujeita a reavaliação em caso de mudança de escopo ou condições verificadas em campo.</p>');
+      fim = ob.consideracoes ? secao('Considerações finais', par(ob.consideracoes) + '<p>Atenciosamente,</p>') : '<p>Atenciosamente,</p>';
+    }
     var local = [c.cidade, c.uf].filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join(' - ');
     var html = '<div class="pc' + (ide ? ' ide' : '') + '">' +
       '<div class="pc-top"><div class="pc-to"><small>Ao cliente</small><br><b class="cli">' + esc(String(c.nome || '').toUpperCase()) + '</b>' +
@@ -2560,12 +2682,12 @@
         '<div class="pc-meta"><b>' + esc(cod) + '</b><br>Rev.' + pad(p.rev || 0, 2) + '<br>' + esc(EMPRESA.cidade) + ', ' + esc(dataExtenso(p.data)) + '</div></div>' +
       '<div class="pc-ref"><b>REF.:</b> ' + esc(p.ref || ('Proposta para a prestação de serviços de ' + p.titulo)) + '</div>' +
       '<div class="pc-tiles">' + tiles.map(function (t) { return '<div><small>' + t[0] + '</small><b>' + esc(t[1]) + '</b></div>'; }).join('') + '</div>' +
-      '<p>Prezados Senhores,<br>Atendendo solicitação de V.S.as, apresentamos nossas melhores condições técnicas e comerciais para a execução do serviço em referência, conforme segue:</p>' +
+      '<p>Prezados Senhores,<br>' + esc(abertura) + '</p>' +
       corpo +
       '<div class="pc-fim">' + fim + '<div class="pc-assin">' + EMPRESA.assinaturas.map(function (a) { return '<div><b>' + esc(a[0]) + '</b><span>' + esc(a[1]) + '</span></div>'; }).join('') +
         '<img src="' + SELO_CREA + '" alt="CREA-SP"></div></div>' +
       '</div>';
-    baixarPdf(html, nomePdf(p, comValores ? 'valores' : ''), null, true, ide ? LOGO_IDE : LOGO_PROP, cod);
+    baixarPdf(html, nomePdf(p, comValores ? 'valores' : ''), null, true, ide ? LOGO_IDE : LOGO_PROP, cod, civil ? 'Engenharia · Serviços técnicos civis' : '');
   }
 
   // ===================== MODELOS DE PROPOSTA =====================
@@ -2600,10 +2722,12 @@
       '<button class="btn sec peq" id="m-add-item" style="margin-top:6px">+ Item</button>' +
       (m.referencia ? '<div class="muted" style="margin-top:6px">' + textoFaixa(m) + '</div>' : '') +
       TEXTOS.map(function (t) { return '<label>' + t[1] + '</label><textarea id="m-' + t[0] + '" rows="' + t[2] + '">' + esc(m[t[0]]) + '</textarea>'; }).join('') +
+      blocoObra('m-', m.obra, !!m.obra) +
       '<label>Condições de pagamento</label><textarea id="m-condicoes" rows="2">' + esc(m.condicoes) + '</textarea>' +
       '<div class="acoes"><button class="btn" id="m-salvar">Salvar</button>' + (m.id ? '<button class="btn perigo" id="m-excluir">Excluir</button>' : '') + '<button class="btn sec" id="m-cancelar">Cancelar</button></div>');
     $('m-itens').addEventListener('click', function (e) { if (e.target.classList.contains('i-del')) e.target.closest('tr').remove(); });
     $('m-add-item').onclick = function () { $('m-itens').insertAdjacentHTML('beforeend', linhaItem()); };
+    ligarObra('m-');
     $('m-cancelar').onclick = fecharModal;
     if ($('m-excluir')) $('m-excluir').onclick = async function () { if (!confirm('Excluir o modelo "' + m.nome + '"? As propostas feitas com ele não mudam.')) return; await salvar(function () { return banco.excluir('modelos', m.id); }, 'Modelo excluído.'); fecharModal(); };
     $('m-salvar').onclick = async function () {
@@ -2614,6 +2738,8 @@
       var d = { nome: $('m-nome').value.trim(), titulo: $('m-titulo').value.trim(), validadeDias: parseInt($('m-validade').value, 10) || 30, sistema: $('m-sistema').value, itens: it, condicoes: $('m-condicoes').value.trim(), updatedAt: agora() };
       TEXTOS.forEach(function (t) { d[t[0]] = $('m-' + t[0]).value.trim(); });
       if (m.calculo && !m.id) d.calculo = m.calculo;
+      d.obra = lerObra('m-');
+      if (!d.obra && !m.obra) delete d.obra;
       if (m.id) await salvar(function () { return banco.atualizar('modelos', m.id, d); }, 'Modelo atualizado.');
       else { d.createdAt = agora(); await salvar(function () { return banco.criar('modelos', d); }, 'Modelo criado.'); }
       fecharModal(); mostrar('modelos');
