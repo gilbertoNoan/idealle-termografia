@@ -486,7 +486,7 @@
     if (dono && atual.fin && !atual.semFin && !atual.fin.orcado && !atual.orcBusca && os) { atual.orcBusca = true; orcadoDaProposta(os).then(function (o) { if (o) banco.atualizar('obras_financeiro', id, { orcado: o, atualizadoEm: agora() }); }).catch(function () {}); }
     var empId = ob.empresaId;
     if (empId && !atual.empresa && atual.empBusca !== empId) { atual.empBusca = empId; banco.ler('empresas', empId).then(function (e) { atual.empresa = e; render(); }).catch(function () {}); }
-    var abas = [['resumo', 'Resumo'], ['cronograma', 'Cronograma'], ['diario', 'Diário de obra']];
+    var abas = [['resumo', 'Resumo'], ['cronograma', 'Cronograma'], ['diario', 'Diário de obra'], ['materiais', 'Materiais'], ['checklists', 'Segurança & Qualidade']];
     if (dono) abas.push(['medicoes', 'Medições'], ['custos', 'Custos']);
     if (!abas.some(function (a) { return a[0] === tela.aba; })) tela.aba = 'resumo';
     var sit = situacaoObra(ob);
@@ -498,7 +498,7 @@
     $('b-voltar').onclick = function () { irPara(''); };
     v.querySelectorAll('[data-aba]').forEach(function (b) { b.onclick = function () { tela.aba = b.dataset.aba; render(); }; });
     var a = $('aba');
-    ({ resumo: abaResumo, cronograma: abaCronograma, diario: abaDiario, medicoes: abaMedicoes, custos: abaCustos })[tela.aba](a, ob, os);
+    ({ resumo: abaResumo, cronograma: abaCronograma, diario: abaDiario, materiais: abaMateriais, checklists: abaChecklists, medicoes: abaMedicoes, custos: abaCustos })[tela.aba](a, ob, os);
   }
 
   function renderIniciar(v, os) {
@@ -563,7 +563,7 @@
     var emAnd = (ob.etapas || []).filter(function (e) { return num(e.avanco) > 0 && num(e.avanco) < 100; });
     var proximas = (ob.etapas || []).filter(function (e) { return num(e.avanco) === 0; }).slice(0, 3);
     var end = atual.empresa ? [atual.empresa.endereco, atual.empresa.cidade, atual.empresa.uf].filter(Boolean).join(', ') : '';
-    a.innerHTML = '<div class="kpis">' +
+    a.innerHTML = avisosObra(ob) + '<div class="kpis">' +
       '<div class="kpi"><b>' + pct(av) + '</b><span>avanço físico realizado</span><div class="barra" style="margin-top:6px"><div style="width:' + av.toFixed(1) + '%"></div></div></div>' +
       '<div class="kpi"><b style="color:' + (prev - av > 3 ? 'var(--bad)' : 'var(--text)') + '">' + pct(prev) + '</b><span>previsto para hoje</span></div>' +
       '<div class="kpi"><b>' + decorridos + '/' + total + '</b><span>dias corridos do prazo</span></div>' +
@@ -582,6 +582,7 @@
       '<div class="muted">' + (ob.portal ? 'O cliente vê o avanço, o cronograma e os RDOs marcados para ele.' + (ob.portalEm ? ' Atualizado em ' + dt(ob.portalEm) + '.' : '') : 'Desligado: o cliente não vê esta obra.') + '</div>' +
       '<div class="acoes"><button class="btn sec peq" id="r-pub">Atualizar portal agora</button></div></div></div>';
     var bd = $('r-diario'); if (bd) bd.onclick = function () { tela.aba = 'diario'; render(); };
+    a.querySelectorAll('[data-ir]').forEach(function (l) { l.onclick = function (e) { e.preventDefault(); tela.aba = l.dataset.ir; render(); }; });
     var bn = $('r-novo'); if (bn) bn.onclick = function () { formRdo(ob); };
     $('r-status').onchange = async function () {
       var st = this.value, extra = null;
@@ -843,13 +844,227 @@
 
   // ---------- Medições (só sócios) ----------
   function fin() { return atual.fin || {}; }
-  function valorContrato(ob) { var f = fin(), os = osDe(ob.id); return f.valorContrato != null && f.valorContrato !== '' ? num(f.valorContrato) : num(os && os.valor); }
+  function valorBase(ob) { var f = fin(), os = osDe(ob.id); return f.valorContrato != null && f.valorContrato !== '' ? num(f.valorContrato) : num(os && os.valor); }
+  // valor do contrato com os aditivos (usado nas medições e nos custos)
+  function valorContrato(ob) { return valorBase(ob) + (fin().aditivos || []).reduce(function (s, x) { return s + num(x.valor); }, 0); }
+  // ===== Materiais (pedidos da obra) =====
+  var ST_MAT = { solicitado: ['Solicitado', 'warn'], comprado: ['Comprado', 'pri'], entregue: ['Entregue', 'ok'] };
+  function materialAtrasado(m) { return m.status !== 'entregue' && !!m.precisaEm && m.precisaEm < hoje(); }
+  function nomeEtapa(ob, id) { var e = (ob.etapas || []).find(function (x) { return x.id === id; }); return e ? e.nome : ''; }
+  function abaMateriais(a, ob) {
+    var ms = (ob.materiais || []).slice().sort(function (x, y) {
+      return ((x.status === 'entregue') - (y.status === 'entregue')) || String(x.precisaEm || '9999').localeCompare(String(y.precisaEm || '9999'));
+    });
+    var pend = ms.filter(function (m) { return m.status !== 'entregue'; }), atr = ms.filter(materialAtrasado);
+    var semana = somarDias(hoje(), 7), prox = pend.filter(function (m) { return m.precisaEm && m.precisaEm >= hoje() && m.precisaEm <= semana; });
+    a.innerHTML = '<div class="kpis">' +
+      '<div class="kpi"><b>' + pend.length + '</b><span>pedidos em aberto</span></div>' +
+      '<div class="kpi"><b style="color:' + (atr.length ? 'var(--bad)' : 'var(--text)') + '">' + atr.length + '</b><span>atrasados (precisava já estar na obra)</span></div>' +
+      '<div class="kpi"><b>' + prox.length + '</b><span>precisam chegar nos próximos 7 dias</span></div>' +
+      '<div class="kpi"><b>' + ms.filter(function (m) { return m.status === 'entregue'; }).length + '</b><span>entregues</span></div></div>' +
+      '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">Materiais e compras</h2><button class="btn" id="mt-novo">+ Pedir material</button></div>' +
+      '<p class="muted">Quem está na obra pede o material com a data em que ele precisa chegar; depois marca como comprado e entregue. Os valores ficam em Custos.</p>' +
+      (ms.length ? '<div class="tabela"><table><thead><tr><th>Material</th><th class="num">Qtd.</th><th>Etapa</th><th>Precisa em</th><th>Situação</th><th></th></tr></thead><tbody>' +
+        ms.map(function (m) {
+          var st = ST_MAT[m.status] || ST_MAT.solicitado, at = materialAtrasado(m);
+          var prox = m.status === 'solicitado' ? ['comprado', 'Comprado'] : m.status === 'comprado' ? ['entregue', 'Entregue'] : null;
+          return '<tr><td><b>' + esc(m.item) + '</b>' + (m.fornecedor ? '<div class="muted">' + esc(m.fornecedor) + '</div>' : '') + (m.obs ? '<div class="muted">' + esc(m.obs) + '</div>' : '') + '</td>' +
+            '<td class="num">' + esc(numCampo(m.qtd)) + ' ' + esc(m.unidade || '') + '</td><td>' + esc(nomeEtapa(ob, m.etapaId) || '—') + '</td>' +
+            '<td' + (at ? ' style="color:var(--bad);font-weight:700"' : '') + '>' + dt(m.precisaEm) + (at ? ' · atrasado' : '') + '</td>' +
+            '<td><span class="chip ' + st[1] + '">' + st[0] + '</span>' + (m.entregueEm ? '<div class="muted">' + dt(m.entregueEm) + '</div>' : '') + '</td>' +
+            '<td style="white-space:nowrap">' + (prox ? '<button class="btn sec peq" data-mav="' + m.id + '" data-para="' + prox[0] + '">✓ ' + prox[1] + '</button> ' : '') +
+            '<button class="btn sec peq" data-med="' + m.id + '">Editar</button></td></tr>';
+        }).join('') + '</tbody></table></div>' : '<div class="vazio">Nenhum material pedido ainda.</div>') + '</div>';
+    $('mt-novo').onclick = function () { formMaterial(ob); };
+    a.querySelectorAll('[data-med]').forEach(function (b) { b.onclick = function () { formMaterial(ob, b.dataset.med); }; });
+    a.querySelectorAll('[data-mav]').forEach(function (b) {
+      b.onclick = function () {
+        var l = JSON.parse(JSON.stringify(ob.materiais || [])), m = l.find(function (x) { return x.id === b.dataset.mav; }); if (!m) return;
+        m.status = b.dataset.para; if (m.status === 'entregue') m.entregueEm = hoje(); if (m.status === 'comprado') m.compradoEm = hoje();
+        gravarMateriais(ob, l, m.status === 'entregue' ? 'Material entregue.' : 'Material comprado.');
+      };
+    });
+  }
+  async function gravarMateriais(ob, lista, msg) {
+    await salvar(function () { return banco.atualizar('obras', ob.id, { materiais: lista, atualizadoEm: agora() }); }, msg);
+    ob.materiais = lista; fecharModal(); render();
+  }
+  function formMaterial(ob, id) {
+    var l = JSON.parse(JSON.stringify(ob.materiais || [])), i = l.findIndex(function (x) { return x.id === id; });
+    var m = i >= 0 ? l[i] : { id: uid(), item: '', qtd: '', unidade: 'un', etapaId: '', precisaEm: '', status: 'solicitado', fornecedor: '', obs: '', pedidoEm: hoje() };
+    var UN = ['un', 'm', 'm²', 'm³', 'kg', 'saco', 'lata', 'galão', 'barra', 'peça', 'cx', 'L', 'rolo', 'jogo'];
+    abrirModal('<h3>' + (i >= 0 ? 'Editar material' : 'Pedir material') + '</h3>' +
+      '<label>Material *</label><input id="mt-item" value="' + esc(m.item) + '" placeholder="Ex.: Argamassa AC-III">' +
+      '<div class="linha"><div><label>Quantidade</label><input id="mt-q" inputmode="decimal" value="' + esc(numCampo(m.qtd)) + '"></div>' +
+      '<div><label>Unidade</label><input id="mt-u" list="mt-uns" value="' + esc(m.unidade) + '"><datalist id="mt-uns">' + UN.map(function (u) { return '<option value="' + esc(u) + '">'; }).join('') + '</datalist></div>' +
+      '<div><label>Precisa chegar em</label><input type="date" id="mt-d" value="' + esc(m.precisaEm || '') + '"></div></div>' +
+      '<div class="linha"><div><label>Etapa</label><select id="mt-e"><option value="">—</option>' + (ob.etapas || []).map(function (e) { return '<option value="' + e.id + '"' + (e.id === m.etapaId ? ' selected' : '') + '>' + esc(e.nome) + '</option>'; }).join('') + '</select></div>' +
+      '<div><label>Situação</label><select id="mt-s">' + Object.keys(ST_MAT).map(function (k) { return '<option value="' + k + '"' + (k === m.status ? ' selected' : '') + '>' + ST_MAT[k][0] + '</option>'; }).join('') + '</select></div></div>' +
+      '<label>Fornecedor</label><input id="mt-f" value="' + esc(m.fornecedor || '') + '">' +
+      '<label>Observação</label><input id="mt-o" value="' + esc(m.obs || '') + '">' +
+      '<div class="acoes"><button class="btn" id="mt-ok">Salvar</button>' + (i >= 0 ? '<button class="btn perigo" id="mt-x">Excluir</button>' : '') + '<button class="btn sec" id="mt-c">Cancelar</button></div>');
+    $('mt-c').onclick = fecharModal;
+    $('mt-ok').onclick = function () {
+      var st = $('mt-s').value;
+      var x = Object.assign({}, m, { item: $('mt-item').value.trim(), qtd: $('mt-q').value.trim() ? num($('mt-q').value) : '', unidade: $('mt-u').value.trim(), precisaEm: $('mt-d').value, etapaId: $('mt-e').value, status: st, fornecedor: $('mt-f').value.trim(), obs: $('mt-o').value.trim() });
+      if (!x.item) { toast('Informe o material.'); return; }
+      if (st === 'entregue' && !x.entregueEm) x.entregueEm = hoje();
+      if (st !== 'entregue') x.entregueEm = '';
+      if (i >= 0) l[i] = x; else l.push(x);
+      gravarMateriais(ob, l, 'Material salvo.');
+    };
+    if (i >= 0) $('mt-x').onclick = function () { if (confirm('Excluir "' + m.item + '"?')) { l.splice(i, 1); gravarMateriais(ob, l, 'Material excluído.'); } };
+  }
+
+  // ===== Segurança & Qualidade (checklists) =====
+  var CHECKLISTS = {
+    seguranca: ['Segurança do trabalho (NR-18)', [
+      'Equipe usando EPI adequado ao serviço', 'DDS (diálogo diário de segurança) realizado', 'APR / permissão de trabalho emitida quando exigida',
+      'Trabalho em altura: cinto, talabarte e ancoragem (NR-35)', 'Andaimes, escadas e plataformas em bom estado', 'Área isolada e sinalizada',
+      'Extintores acessíveis e dentro da validade', 'Instalações elétricas provisórias protegidas', 'Canteiro organizado e limpo', 'Entulho e resíduos descartados corretamente']],
+    qualidade: ['Qualidade da execução', [
+      'Serviço conforme projeto e especificação', 'Materiais conferidos no recebimento', 'Prumo, nível e esquadro verificados',
+      'Tempo de cura / secagem respeitado', 'Acabamento sem defeitos aparentes', 'Área limpa e protegida após o serviço']]
+  };
+  function ncsAbertas(ob) {
+    var l = [];
+    (ob.inspecoes || []).forEach(function (insp) { (insp.itens || []).forEach(function (it, k) { if (it.r === 'NC' && !it.resolvidoEm) l.push({ insp: insp, it: it, k: k }); }); });
+    return l;
+  }
+  function prazoNc(x) { return x.it.prazo || ''; }
+  function abaChecklists(a, ob) {
+    var insp = (ob.inspecoes || []).slice().sort(function (x, y) { return String(y.data).localeCompare(String(x.data)); });
+    var abertas = ncsAbertas(ob).sort(function (x, y) { return String(prazoNc(x) || '9').localeCompare(String(prazoNc(y) || '9')); });
+    var ultS = insp.find(function (x) { return x.tipo === 'seguranca'; }), ultQ = insp.find(function (x) { return x.tipo === 'qualidade'; });
+    var conf = function (i) { var it = (i.itens || []).filter(function (x) { return x.r === 'C' || x.r === 'NC'; }); return it.length ? it.filter(function (x) { return x.r === 'C'; }).length / it.length * 100 : 100; };
+    a.innerHTML = '<div class="kpis">' +
+      '<div class="kpi"><b style="color:' + (abertas.length ? 'var(--bad)' : 'var(--ok)') + '">' + abertas.length + '</b><span>não conformidades em aberto</span></div>' +
+      '<div class="kpi"><b>' + (ultS ? pct(conf(ultS)) : '—') + '</b><span>última de segurança' + (ultS ? ' (' + dt(ultS.data) + ')' : '') + '</span></div>' +
+      '<div class="kpi"><b>' + (ultQ ? pct(conf(ultQ)) : '—') + '</b><span>última de qualidade' + (ultQ ? ' (' + dt(ultQ.data) + ')' : '') + '</span></div>' +
+      '<div class="kpi"><b>' + insp.length + '</b><span>inspeções feitas</span></div></div>' +
+      '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">Não conformidades a resolver</h2>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" id="ck-seg">+ Checklist de segurança</button><button class="btn sec" id="ck-qual">+ Checklist de qualidade</button></div></div>' +
+      (abertas.length ? '<div class="tabela" style="margin-top:10px"><table><thead><tr><th>Item</th><th>Inspeção</th><th>Prazo</th><th></th></tr></thead><tbody>' + abertas.map(function (x) {
+        var venc = prazoNc(x) && prazoNc(x) < hoje();
+        return '<tr><td><b>' + esc(x.it.t) + '</b>' + (x.it.obs ? '<div class="muted">' + esc(x.it.obs) + '</div>' : '') + (x.it.resp ? '<div class="muted">Responsável: ' + esc(x.it.resp) + '</div>' : '') + '</td>' +
+          '<td>' + esc(CHECKLISTS[x.insp.tipo] ? CHECKLISTS[x.insp.tipo][0] : '') + '<div class="muted">' + dt(x.insp.data) + '</div></td>' +
+          '<td' + (venc ? ' style="color:var(--bad);font-weight:700"' : '') + '>' + (prazoNc(x) ? dt(prazoNc(x)) + (venc ? ' · vencido' : '') : '—') + '</td>' +
+          '<td><button class="btn ok peq" data-res="' + x.insp.id + '|' + x.k + '">Resolver</button></td></tr>';
+      }).join('') + '</tbody></table></div>' : '<p class="muted" style="margin-top:10px">Nada pendente. ✓</p>') + '</div>' +
+      '<div class="card"><h2>Inspeções</h2>' + (insp.length ? '<div class="tabela"><table><thead><tr><th>Data</th><th>Checklist</th><th>Etapa</th><th class="num">Conformidade</th><th>NC</th><th></th></tr></thead><tbody>' + insp.map(function (i) {
+        var nc = (i.itens || []).filter(function (x) { return x.r === 'NC'; }), ab = nc.filter(function (x) { return !x.resolvidoEm; }).length;
+        return '<tr><td>' + dt(i.data) + '</td><td>' + esc(CHECKLISTS[i.tipo] ? CHECKLISTS[i.tipo][0] : i.tipo) + (i.resp ? '<div class="muted">' + esc(i.resp) + '</div>' : '') + '</td><td>' + esc(nomeEtapa(ob, i.etapaId) || '—') + '</td>' +
+          '<td class="num">' + pct(conf(i)) + '</td><td>' + (nc.length ? '<span class="chip ' + (ab ? 'bad' : 'ok') + '">' + (ab ? ab + ' aberta' + (ab > 1 ? 's' : '') : 'resolvidas') + '</span>' : '—') + '</td>' +
+          '<td style="white-space:nowrap"><button class="btn sec peq" data-ckpdf="' + i.id + '">PDF</button> <button class="btn sec peq" data-cked="' + i.id + '">Abrir</button></td></tr>';
+      }).join('') + '</tbody></table></div>' : '<div class="vazio">Nenhuma inspeção ainda. Faça o checklist de segurança no início de cada frente de serviço.</div>') + '</div>';
+    $('ck-seg').onclick = function () { formChecklist(ob, 'seguranca'); };
+    $('ck-qual').onclick = function () { formChecklist(ob, 'qualidade'); };
+    a.querySelectorAll('[data-cked]').forEach(function (b) { b.onclick = function () { var i = (ob.inspecoes || []).find(function (x) { return x.id === b.dataset.cked; }); if (i) formChecklist(ob, i.tipo, i); }; });
+    a.querySelectorAll('[data-ckpdf]').forEach(function (b) { b.onclick = function () { var i = (ob.inspecoes || []).find(function (x) { return x.id === b.dataset.ckpdf; }); if (i) imprimirChecklist(ob, i); }; });
+    a.querySelectorAll('[data-res]').forEach(function (b) {
+      b.onclick = async function () {
+        var p = b.dataset.res.split('|'), acao = prompt('O que foi feito para resolver?', ''); if (acao == null) return;
+        var l = JSON.parse(JSON.stringify(ob.inspecoes || [])), insp = l.find(function (x) { return x.id === p[0]; }); if (!insp) return;
+        var it = insp.itens[num(p[1])]; it.resolvidoEm = hoje(); it.acao = acao.trim();
+        await gravarInspecoes(ob, l, 'Não conformidade resolvida.');
+      };
+    });
+  }
+  async function gravarInspecoes(ob, lista, msg) {
+    await salvar(function () { return banco.atualizar('obras', ob.id, { inspecoes: lista, atualizadoEm: agora() }); }, msg);
+    ob.inspecoes = lista; fecharModal(); render();
+  }
+  function formChecklist(ob, tipo, insp) {
+    var l = JSON.parse(JSON.stringify(ob.inspecoes || [])), novo = !insp;
+    var x = insp ? JSON.parse(JSON.stringify(insp)) : { id: uid(), tipo: tipo, data: hoje(), resp: '', etapaId: '', obs: '', itens: CHECKLISTS[tipo][1].map(function (t) { return { t: t, r: '' }; }) };
+    var opc = function (k, it) { return ['C', 'NC', 'NA'].map(function (r) { return '<label style="display:inline-flex;gap:4px;align-items:center;margin:0 8px 0 0;font-weight:600;color:' + (r === 'NC' ? 'var(--bad)' : r === 'C' ? 'var(--ok)' : 'var(--muted)') + '"><input type="radio" style="width:auto" name="ck-' + k + '" value="' + r + '"' + (it.r === r ? ' checked' : '') + '>' + r + '</label>'; }).join(''); };
+    abrirModal('<h3>' + esc(CHECKLISTS[tipo][0]) + '</h3>' +
+      '<div class="linha"><div><label>Data</label><input type="date" id="ck-d" value="' + esc(x.data) + '"></div><div><label>Responsável pela inspeção</label><input id="ck-r" value="' + esc(x.resp || '') + '"></div>' +
+      '<div><label>Etapa</label><select id="ck-e"><option value="">Obra toda</option>' + (ob.etapas || []).map(function (e) { return '<option value="' + e.id + '"' + (e.id === x.etapaId ? ' selected' : '') + '>' + esc(e.nome) + '</option>'; }).join('') + '</select></div></div>' +
+      '<p class="muted" style="margin:10px 0 4px">C = conforme · NC = não conforme · NA = não se aplica. Em cada NC, diga o que está errado, quem resolve e até quando.</p>' +
+      x.itens.map(function (it, k) {
+        return '<div style="border-top:1px solid var(--line);padding:8px 0"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>' + esc(it.t) + '</span><span>' + opc(k, it) + '</span></div>' +
+          '<div class="linha nc-' + k + '" style="' + (it.r === 'NC' ? '' : 'display:none') + '"><div><label>O que está errado</label><input id="ck-o' + k + '" value="' + esc(it.obs || '') + '"></div><div><label>Quem resolve</label><input id="ck-p' + k + '" value="' + esc(it.resp || '') + '"></div><div><label>Prazo</label><input type="date" id="ck-z' + k + '" value="' + esc(it.prazo || '') + '"></div></div>' +
+          (it.resolvidoEm ? '<div class="muted" style="color:var(--ok)">Resolvida em ' + dt(it.resolvidoEm) + (it.acao ? ': ' + esc(it.acao) : '') + '</div>' : '') + '</div>';
+      }).join('') +
+      '<label>Observações</label><textarea id="ck-obs" rows="2">' + esc(x.obs || '') + '</textarea>' +
+      '<div class="acoes"><button class="btn" id="ck-ok">Salvar</button><button class="btn sec" id="ck-todos">Marcar vazios como C</button>' + (!novo ? '<button class="btn perigo" id="ck-x">Excluir</button>' : '') + '<button class="btn sec" id="ck-c">Cancelar</button></div>');
+    x.itens.forEach(function (it, k) { document.querySelectorAll('input[name="ck-' + k + '"]').forEach(function (r) { r.onchange = function () { document.querySelector('.nc-' + k).style.display = this.value === 'NC' ? '' : 'none'; }; }); });
+    $('ck-c').onclick = fecharModal;
+    $('ck-todos').onclick = function () { x.itens.forEach(function (it, k) { if (!document.querySelector('input[name="ck-' + k + '"]:checked')) document.querySelector('input[name="ck-' + k + '"][value="C"]').checked = true; }); };
+    $('ck-ok').onclick = function () {
+      var falta = 0;
+      x.itens.forEach(function (it, k) {
+        var r = document.querySelector('input[name="ck-' + k + '"]:checked'); it.r = r ? r.value : ''; if (!it.r) falta++;
+        if (it.r === 'NC') { it.obs = $('ck-o' + k).value.trim(); it.resp = $('ck-p' + k).value.trim(); it.prazo = $('ck-z' + k).value; } else { delete it.resolvidoEm; delete it.acao; }
+      });
+      if (falta && !confirm(plural(falta, 'item ficou', 'itens ficaram') + ' sem resposta. Salvar assim mesmo?')) return;
+      x.data = $('ck-d').value || hoje(); x.resp = $('ck-r').value.trim(); x.etapaId = $('ck-e').value; x.obs = $('ck-obs').value.trim();
+      var i = l.findIndex(function (y) { return y.id === x.id; }); if (i >= 0) l[i] = x; else l.push(x);
+      gravarInspecoes(ob, l, 'Checklist salvo.');
+    };
+    if (!novo) $('ck-x').onclick = function () { if (confirm('Excluir este checklist?')) gravarInspecoes(ob, l.filter(function (y) { return y.id !== x.id; }), 'Checklist excluído.'); };
+  }
+  function imprimirChecklist(ob, i) {
+    var w = window.open('', '_blank'); if (!w) { toast('Libere as janelas (pop-up) para gerar o PDF.'); return; }
+    var nome = CHECKLISTS[i.tipo] ? CHECKLISTS[i.tipo][0] : i.tipo;
+    w.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>' + esc(nome) + ' - ' + esc(ob.osCodigo || '') + '</title><style>body{font:13px Arial,sans-serif;color:#111;margin:24px}h1{font-size:18px;margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:12px}td,th{border:1px solid #999;padding:6px;text-align:left;vertical-align:top}th{background:#eee}.c{color:#15803d;font-weight:700}.nc{color:#b91c1c;font-weight:700}.ass{margin-top:60px;display:flex;gap:40px}.ass div{flex:1;border-top:1px solid #000;text-align:center;padding-top:4px}</style></head><body>' +
+      '<h1>' + esc(nome) + '</h1><div>' + esc(ob.titulo || '') + ' · ' + esc(ob.osCodigo || '') + ' · ' + esc(ob.empresaNome || '') + '</div>' +
+      '<div>Data: ' + dt(i.data) + (i.resp ? ' · Responsável: ' + esc(i.resp) : '') + (i.etapaId ? ' · Etapa: ' + esc(nomeEtapa(ob, i.etapaId)) : '') + '</div>' +
+      '<table><thead><tr><th>Item verificado</th><th style="width:60px">Result.</th><th>Não conformidade / ação</th></tr></thead><tbody>' +
+      (i.itens || []).map(function (it) { return '<tr><td>' + esc(it.t) + '</td><td class="' + (it.r === 'C' ? 'c' : it.r === 'NC' ? 'nc' : '') + '">' + esc(it.r || '—') + '</td><td>' + (it.r === 'NC' ? esc(it.obs || '') + (it.resp ? '<br>Responsável: ' + esc(it.resp) : '') + (it.prazo ? '<br>Prazo: ' + dt(it.prazo) : '') + (it.resolvidoEm ? '<br><b>Resolvida em ' + dt(it.resolvidoEm) + '</b>' + (it.acao ? ': ' + esc(it.acao) : '') : '') : '') + '</td></tr>'; }).join('') +
+      '</tbody></table>' + (i.obs ? '<p><b>Observações:</b> ' + esc(i.obs) + '</p>' : '') +
+      '<div class="ass"><div>Responsável pela inspeção</div><div>Encarregado da obra</div></div><script>window.onload=function(){window.print()}<\/script></body></html>');
+    w.document.close();
+  }
+
+  // ===== Aditivos de contrato (só sócios, dentro de Medições) =====
+  function aditivos() { return (fin().aditivos || []).slice().sort(function (x, y) { return String(x.data).localeCompare(String(y.data)); }); }
+  function cartaoAditivos(ob) {
+    var ad = aditivos(), tv = ad.reduce(function (s, x) { return s + num(x.valor); }, 0), td = ad.reduce(function (s, x) { return s + num(x.dias); }, 0);
+    return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">Aditivos de contrato</h2><button class="btn sec" id="ad-novo">+ Aditivo</button></div>' +
+      '<p class="muted">Serviço a mais (ou a menos) e prazo extra combinados com o cliente. O valor entra no valor do contrato usado nas medições.</p>' +
+      (ad.length ? '<div class="tabela"><table><thead><tr><th>Nº</th><th>Data</th><th>Descrição</th><th class="num">Valor</th><th class="num">Prazo</th><th></th></tr></thead><tbody>' +
+        ad.map(function (x, k) { return '<tr><td>' + (k + 1) + '</td><td>' + dt(x.data) + '</td><td>' + esc(x.descricao) + '</td><td class="num">' + brl(x.valor) + '</td><td class="num">' + (num(x.dias) ? '+' + textoDias(num(x.dias)) : '—') + '</td><td><button class="btn sec peq" data-ad="' + x.id + '">Editar</button></td></tr>'; }).join('') +
+        '<tr><td colspan="3"><b>Total dos aditivos</b></td><td class="num"><b>' + brl(tv) + '</b></td><td class="num"><b>' + (td ? '+' + textoDias(td) : '—') + '</b></td><td></td></tr></tbody></table></div>' : '<div class="vazio">Nenhum aditivo.</div>') + '</div>';
+  }
+  function ligarAditivos(ob) {
+    var b = $('ad-novo'); if (b) b.onclick = function () { formAditivo(ob); };
+    document.querySelectorAll('[data-ad]').forEach(function (x) { x.onclick = function () { formAditivo(ob, x.dataset.ad); }; });
+  }
+  function formAditivo(ob, id) {
+    var l = JSON.parse(JSON.stringify(fin().aditivos || [])), i = l.findIndex(function (x) { return x.id === id; });
+    var x = i >= 0 ? l[i] : { id: uid(), data: hoje(), descricao: '', valor: '', dias: '' };
+    abrirModal('<h3>' + (i >= 0 ? 'Editar aditivo' : 'Novo aditivo') + '</h3>' +
+      '<label>Descrição *</label><input id="ad-d" value="' + esc(x.descricao) + '" placeholder="Ex.: Regularização de contrapiso na área B">' +
+      '<div class="linha"><div><label>Data</label><input type="date" id="ad-dt" value="' + esc(x.data) + '"></div><div><label>Valor (R$, negativo para supressão)</label><input id="ad-v" inputmode="decimal" value="' + esc(numCampo(x.valor)) + '"></div><div><label>Prazo extra (dias)</label><input id="ad-p" inputmode="numeric" value="' + esc(numCampo(x.dias)) + '"></div></div>' +
+      '<div class="acoes"><button class="btn" id="ad-ok">Salvar</button>' + (i >= 0 ? '<button class="btn perigo" id="ad-x">Excluir</button>' : '') + '<button class="btn sec" id="ad-c">Cancelar</button></div>');
+    async function gravar(lista, msg) { await salvar(function () { return banco.atualizar('obras_financeiro', ob.id, { aditivos: lista, atualizadoEm: agora() }); }, msg); fecharModal(); render(); }
+    $('ad-c').onclick = fecharModal;
+    $('ad-ok').onclick = function () {
+      var y = { id: x.id, data: $('ad-dt').value || hoje(), descricao: $('ad-d').value.trim(), valor: num($('ad-v').value), dias: Math.round(num($('ad-p').value)) };
+      if (!y.descricao) { toast('Descreva o aditivo.'); return; }
+      if (i >= 0) l[i] = y; else l.push(y);
+      gravar(l, 'Aditivo salvo.');
+    };
+    if (i >= 0) $('ad-x').onclick = function () { if (confirm('Excluir este aditivo?')) { l.splice(i, 1); gravar(l, 'Aditivo excluído.'); } };
+  }
+
+  // Avisos no Resumo: materiais atrasados e não conformidades em aberto
+  function avisosObra(ob) {
+    var atr = (ob.materiais || []).filter(materialAtrasado), nc = ncsAbertas(ob), ncv = nc.filter(function (x) { return prazoNc(x) && prazoNc(x) < hoje(); });
+    var p = [];
+    if (atr.length) p.push('<a href="#" data-ir="materiais">' + plural(atr.length, 'material atrasado', 'materiais atrasados') + '</a>');
+    if (nc.length) p.push('<a href="#" data-ir="checklists">' + plural(nc.length, 'não conformidade em aberto', 'não conformidades em aberto') + (ncv.length ? ' (' + ncv.length + ' com prazo vencido)' : '') + '</a>');
+    return p.length ? '<div class="aviso" style="font-size:14px">⚠ Atenção: ' + p.join(' · ') + '</div>' : '';
+  }
+
   function abaMedicoes(a, ob) {
     if (atual.semFin) { a.innerHTML = '<div class="card aviso">Sem permissão para ler as medições. As regras do banco precisam ser atualizadas (veja o LEIA-ME).</div>'; return; }
     var ms = (fin().medicoes || []).slice().sort(function (x, y) { return x.numero - y.numero; });
     var vc = valorContrato(ob), medido = ms.reduce(function (s, m) { return s + num(m.valor); }, 0), acum = ms.length ? num(ms[ms.length - 1].acumulado) : 0, av = avancoGeral(ob);
     var faturado = ms.filter(function (m) { return m.status === 'faturada'; }).reduce(function (s, m) { return s + num(m.valor); }, 0);
-    a.innerHTML = '<div class="kpis"><div class="kpi"><b>' + brl(vc) + '</b><span>valor do contrato <button class="btn sec peq" id="m-vc" style="margin-left:4px">Alterar</button></span></div>' +
+    a.innerHTML = '<div class="kpis"><div class="kpi"><b>' + brl(vc) + '</b><span>valor do contrato' + ((fin().aditivos || []).length ? ' (com aditivos)' : '') + ' <button class="btn sec peq" id="m-vc" style="margin-left:4px">Alterar</button></span></div>' +
       '<div class="kpi"><b>' + brl(medido) + '</b><span>medido (' + pct(vc ? medido / vc * 100 : 0, 1) + ')</span></div>' +
       '<div class="kpi"><b>' + brl(faturado) + '</b><span>faturado no Finanças</span></div>' +
       '<div class="kpi"><b>' + pct(av - acum, 1) + '</b><span>avanço ainda não medido (' + brl(vc * Math.max(0, av - acum) / 100) + ')</span></div></div>' +
@@ -857,9 +1072,10 @@
       '<p class="muted">A medição usa o avanço físico das etapas. Depois de aprovada pelo cliente, fature no Finanças: na OS, <b>Faturar parte</b> mostra as medições para escolher.</p>' +
       (ms.length ? '<div class="tabela"><table><thead><tr><th>Nº</th><th>Período</th><th class="num">No período</th><th class="num">Acumulado</th><th class="num">Valor</th><th>Situação</th><th></th></tr></thead><tbody>' +
         ms.slice().reverse().map(function (m) { var st = m.status === 'faturada' ? ['Faturada' + (m.nf ? ' · NF ' + m.nf : ''), 'ok'] : m.status === 'aprovada' ? ['Aprovada · a faturar', 'warn'] : ['Rascunho', '']; return '<tr><td><b>' + m.numero + '</b></td><td>' + dt(m.inicio) + ' a ' + dt(m.fim) + '</td><td class="num">' + pct(m.percentual, 1) + '</td><td class="num">' + pct(m.acumulado, 1) + '</td><td class="num"><b>' + brl(m.valor) + '</b></td><td><span class="chip ' + st[1] + '">' + esc(st[0]) + '</span></td><td style="white-space:nowrap"><button class="btn sec peq" data-mpdf="' + m.id + '">PDF</button> ' + (m.status !== 'faturada' ? '<button class="btn sec peq" data-med="' + m.id + '">Editar</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="vazio">Nenhuma medição ainda.</div>') + '</div>';
+    a.insertAdjacentHTML('beforeend', cartaoAditivos(ob)); ligarAditivos(ob);
     $('m-nova').onclick = function () { formMedicao(ob); };
     $('m-vc').onclick = async function () {
-      var v = prompt('Valor do contrato (R$):', numCampo(vc)); if (v == null) return;
+      var v = prompt('Valor do contrato sem aditivos (R$):', numCampo(valorBase(ob))); if (v == null) return;
       await salvar(function () { return banco.atualizar('obras_financeiro', ob.id, { valorContrato: num(v), atualizadoEm: agora() }); }, 'Valor salvo.');
     };
     a.querySelectorAll('[data-med]').forEach(function (b) { b.onclick = function () { formMedicao(ob, (fin().medicoes || []).find(function (m) { return m.id === b.dataset.med; })); }; });

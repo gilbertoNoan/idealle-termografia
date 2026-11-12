@@ -16,8 +16,15 @@ No Finanças, o botão **Gestão de Obra** da OS abre direto nela (`/obras/?cron
 - **Cronograma**: Gantt previsto × realizado, editar etapa (datas, dias, peso, avanço, datas reais), encadear datas, imprimir.
 - **Diário de obra (RDO)**: data, horário, clima, condição, equipe por função, atividades, avanço das etapas
   (atualiza o cronograma), equipamentos, ocorrências e fotos (reduzidas no celular antes de enviar). PDF do RDO.
+- **Materiais**: pedidos de material (quantidade, etapa, data em que precisa chegar, fornecedor) com situação
+  Solicitado → Comprado → Entregue; atrasado em vermelho. Fica em `obras/<id>.materiais` (sem valores).
+- **Segurança & Qualidade**: checklists de segurança (NR-18/NR-35) e de qualidade com C/NC/NA; cada NC tem
+  o problema, quem resolve e o prazo, e fica em "Não conformidades a resolver" até alguém clicar em Resolver
+  (pede o que foi feito). PDF do checklist com campos de assinatura. Fica em `obras/<id>.inspecoes`.
+- O **Resumo** avisa no topo quando há material atrasado ou não conformidade em aberto.
 - **Medições** (só sócios): boletins pelo avanço acumulado × valor do contrato, PDF do boletim. Medição
   aprovada aparece no Finanças em **Faturar parte** da OS; ao faturar, fica *Faturada* com o nº da nota.
+  **Aditivos de contrato** (valor e prazo extra) ficam em `obras_financeiro/<id>.aditivos` e somam no valor do contrato.
 - **Custos** (só sócios): orçado (da memória de cálculo da proposta, sem BDI/impostos) × realizado.
   **Lançar custo** cria a despesa no Finanças (`lancamentos` com `osId`, `obraCategoria`, `origem: 'Gestão de Obra'`);
   despesas ligadas à OS lançadas no Finanças também entram na conta.
