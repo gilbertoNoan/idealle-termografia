@@ -416,6 +416,14 @@
     var crit = (pn.urgencia || 0) + (pn.emergencia || 0);
     if (crit) add('bad', 'termografia', crit + ' quadro(s) em urgência/emergência na termografia', 'Pontos com aquecimento que pedem correção imediata.', '0');
     if (pn.programar) add('warn', 'termografia', pn.programar + ' quadro(s) para programar manutenção', 'Aquecimento que deve entrar na próxima manutenção.', '1');
+    // avisos da obra enviados pela IDEALLE (falta de material, atraso...) ainda não resolvidos
+    listaObras().forEach(function (ob) {
+      (ob.avisos || []).forEach(function (x) {
+        if (x.resolvidoEm) return;
+        add(x.dias ? 'bad' : 'warn', 'obra', (x.titulo || 'Aviso da obra') + ' — ' + (ob.titulo || 'Obra'),
+          (x.dias ? 'Atraso previsto de ' + x.dias + ' dia(s)' + (x.novaData ? ', novo término ' + data(x.novaData) : '') + '. ' : '') + String(x.mensagem || '').slice(0, 160), '0');
+      });
+    });
     return lista.sort(function (a, b) { return (a.nivel === b.nivel ? 0 : a.nivel === 'bad' ? -1 : 1) || String(a.ordem).localeCompare(String(b.ordem)); });
   }
   function secNotificacoes() {
@@ -856,6 +864,20 @@
   }
   var STATUS_OBRA = { planejamento: ['Planejamento', 'c-azul'], andamento: ['Em andamento', 'c-warn'], paralisada: ['Paralisada', 'c-bad'], concluida: ['Concluída', 'c-ok'] };
   function pctTxt(v) { return (Math.round((Number(v) || 0) * 10) / 10).toString().replace('.', ',') + '%'; }
+  // Avisos da IDEALLE sobre a obra (falta de material, atraso, clima, pendência do cliente)
+  function secAvisosObra(ob) {
+    var l = (ob.avisos || []).slice().sort(function (a, b) { return String(b.data).localeCompare(String(a.data)); });
+    if (!l.length) return '';
+    var ab = l.filter(function (x) { return !x.resolvidoEm; }), res = l.filter(function (x) { return x.resolvidoEm; });
+    var it = function (x) {
+      return '<div class="notif ' + (x.resolvidoEm ? 'ok' : x.dias ? 'bad' : 'warn') + '" style="cursor:default"><i></i><div><b>' + esc(x.titulo || 'Aviso') + ' · ' + data(String(x.data || '').slice(0, 10)) + '</b>' +
+        '<span style="white-space:pre-line">' + esc(x.mensagem || '') + '</span>' +
+        (x.dias && !x.resolvidoEm ? '<span style="margin-top:4px"><b>Atraso previsto:</b> ' + x.dias + ' dia(s)' + (x.novaData ? ' · <b>novo término:</b> ' + data(x.novaData) : '') + '</span>' : '') +
+        (x.resolvidoEm ? '<span style="margin-top:4px">Resolvido em ' + data(x.resolvidoEm) + (x.solucao ? ': ' + esc(x.solucao) : '') + '</span>' : '') + '</div></div>';
+    };
+    return '<section class="notifs"><div class="tit-sec"><h2>Avisos da obra</h2><span class="sub">' + (ab.length ? ab.length + ' em aberto' : 'nenhum em aberto') + '</span></div>' +
+      '<div class="notif-lista">' + ab.map(it).join('') + res.slice(0, 5).map(it).join('') + '</div></section>';
+  }
   function telaObras(abrirId) {
     var obs = listaObras(), d = estado.dados || {};
     if (!obs.length) { alert('Nenhuma obra publicada ainda. Assim que a IDEALLE liberar o acompanhamento, ela aparece aqui.'); return; }
@@ -888,6 +910,7 @@
       '<div class="kpis" style="margin-top:14px"><div class="kpi"><b>' + pctTxt(ob.avanco) + '</b><span>concluído</span></div><div class="kpi"><b>' + pctTxt(ob.previsto) + '</b><span>previsto para hoje</span></div>' +
       '<div class="kpi"><b>' + data(ini) + '</b><span>início</span></div><div class="kpi"><b>' + data(fim) + '</b><span>término previsto</span></div></div>' +
       '<div class="barra" style="margin-top:12px" role="img" aria-label="' + pctTxt(ob.avanco) + ' concluído"><div style="width:' + Math.min(100, ob.avanco || 0) + '%"></div></div></section>' +
+      secAvisosObra(ob) +
       '<section class="card"><h2>Cronograma</h2><p class="sub" style="margin:0 0 6px">Barra cinza: prazo previsto de cada etapa · laranja: quanto já foi executado.</p>' + etapas + '</section>' +
       '<section><div class="tit-sec"><h2>Diários de obra</h2><span class="sub">' + (ob.rdos || []).length + ' registro(s)</span></div>' + (rdos || '<div class="card vazio">Nenhum diário publicado ainda.</div>') + '</section>' +
       '<p class="rodape">Atualizado em ' + data(ob.atualizadoEm) + '. Informações publicadas pela IDEALLE a partir do diário de obra.</p>';
