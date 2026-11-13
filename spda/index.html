@@ -170,6 +170,9 @@
   .pend { background: var(--warn-2); color: var(--warn); border-radius: 8px; padding: 10px 12px; font-size: 14px; } .pend ul { margin: 6px 0 0; padding-left: 18px; }
   .status-card { border-color: #3a2a17; }
   .ic { flex: none; vertical-align: -3px; } .abas button { display: inline-flex; align-items: center; gap: 6px; }
+  #pdf-viewer { position: fixed; inset: 0; z-index: 80; background: #1b1d22; display: none; flex-direction: column; }
+  #pdf-viewer iframe { flex: 1; width: 100%; border: 0; background: #525659; }
+  .pdf-barra { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: var(--card); border-bottom: 1px solid var(--line); }
   #aviso-rede { display: none; background: var(--azul-2); color: var(--azul); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
   @media (max-width: 640px) { .med-linha { grid-template-columns: 1fr 110px 36px; } .med-linha input[data-m*="local"] { display: none; } .parecer button { min-width: 100%; } }
 </style>
@@ -524,7 +527,7 @@
     var abas = [['checklist', 'Checklist', 'lista'], ['medicoes', 'Medições', 'medidor'], ['fotos', 'Fotos', 'fotos'], ['dados', 'Edificação e inspeção', 'predio'], ['conclusao', 'Conclusão e ART', 'selo']];
     v.innerHTML = '<button class="voltar" id="b-voltar">← Laudos</button>' +
       '<div class="cab-laudo"><div><h1>' + esc(l.edificacaoNome || 'Edificação') + '</h1><div class="muted">' + esc(l.empresaNome || '') + ' · ' + esc(l.osCodigo || '') + (l.numero ? ' · <b>' + esc(l.numero) + '</b>' : '') + ' · NP ' + esc(l.nivelProtecao || '—') + '</div></div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="chip ' + st[1] + '" style="font-size:13px;padding:4px 12px">' + st[0] + '</span><button class="btn sec" id="b-pdf">' + ic('pdf', 16) + ' PDF</button></div></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="chip ' + st[1] + '" style="font-size:13px;padding:4px 12px">' + st[0] + '</span><button class="btn sec" id="b-pdf">' + ic('pdf', 16) + ' Ver PDF</button></div></div>' +
       '<div class="progresso"><div class="barra"><div style="width:' + r.toFixed(0) + '%"></div></div><span>' + pct(r) + ' do checklist · ' + plural(nc.length, 'não conformidade', 'não conformidades') + '</span></div>' +
       (trava ? '<div class="aviso" style="background:var(--ok-2);color:var(--ok)">Laudo concluído: só leitura. ' + (dono ? 'Para alterar, volte para revisão em Conclusão e ART.' : '') + '</div>' : '') +
       '<div class="abas">' + abas.map(function (a) { return '<button data-aba="' + a[0] + '"' + (tela.aba === a[0] ? ' class="ativo"' : '') + '>' + ic(a[2], 16) + a[1] + '</button>'; }).join('') + '</div><div id="aba"' + (trava ? ' class="travado"' : '') + '></div>';
@@ -705,7 +708,7 @@
       (l.status === 'rascunho' ? '<button class="btn" data-st="revisao">Enviar para revisão</button>' : '') +
       (l.status === 'revisao' ? (dono ? '<button class="btn ok" data-st="concluido">' + ic('selo', 16) + ' Concluir laudo</button>' : '<span class="muted">Um sócio revisa e conclui.</span>') + '<button class="btn sec" data-st="rascunho">Voltar para o campo</button>' : '') +
       (l.status === 'concluido' && dono ? '<button class="btn sec" data-st="revisao">Reabrir (voltar para revisão)</button>' : '') +
-      '<button class="btn sec" id="c-pdf">' + ic('pdf', 16) + ' Gerar PDF</button></div></div>';
+      '<button class="btn sec" id="c-pdf">' + ic('pdf', 16) + ' Ver PDF</button></div></div>';
     $('c-pdf').onclick = function () { gerarPdf(l); };
     a.querySelectorAll('[data-st]').forEach(function (b) { b.onclick = function () { mudarStatus(l, b.dataset.st); }; });
     if (trava) return;
@@ -753,9 +756,18 @@
       .then(function (b) { return new Promise(function (ok) { var fr = new FileReader(); fr.onload = function () { ok(fr.result); }; fr.readAsDataURL(b); }); })
       .then(function (d) { logoCache = d; return d; }).catch(function () { logoCache = ''; return ''; });
   }
+  // Visualizador do laudo dentro da página (sem pop-up): ver na tela e imprimir / salvar em PDF
+  function abrirVisualizador(l) {
+    var v = $('pdf-viewer');
+    if (!v) { v = document.createElement('div'); v.id = 'pdf-viewer'; document.body.appendChild(v); }
+    v.innerHTML = '<div class="pdf-barra"><b>Laudo ' + esc(l.numero || '(rascunho)') + ' · ' + esc(l.edificacaoNome || '') + '</b><div style="display:flex;gap:8px"><button class="btn" id="pdf-imp">' + ic('pdf', 16) + ' Imprimir / salvar PDF</button><button class="btn sec" id="pdf-x">Fechar</button></div></div>' +
+      '<iframe id="pdf-frame" title="Laudo SPDA" srcdoc="<p style=&quot;font-family:sans-serif;padding:30px;color:#555&quot;>Montando o laudo…</p>"></iframe>';
+    v.style.display = 'flex'; document.body.style.overflow = 'hidden';
+    $('pdf-x').onclick = function () { v.style.display = 'none'; v.innerHTML = ''; document.body.style.overflow = ''; };
+    $('pdf-imp').onclick = function () { var f = $('pdf-frame'); try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast('Não foi possível imprimir: ' + e.message); } };
+  }
   async function gerarPdf(l) {
-    var w = window.open('', '_blank'); if (!w) { toast('Libere as janelas (pop-up) para gerar o PDF.'); return; }
-    w.document.write('<p style="font-family:sans-serif;padding:30px">Montando o laudo…</p>');
+    abrirVisualizador(l);
     var ed = edDe(l.edificacaoId) || {}, en = ed.endereco || {}, dm = ed.dimensoes || {}, n = SPDA.NIVEIS[l.nivelProtecao], m = l.medicoes || {}, lim = m.limites || SPDA.LIMITES_PADRAO;
     var nc = SPDA.naoConformidades(l), c = l.conclusao || {}, rp = l.responsavel || {}, art = rp.art || {}, par = PARECER[c.parecer];
     var logo = await logoDataUrl();
@@ -799,9 +811,9 @@
       '.parecer{font-weight:700;font-size:12pt;padding:8px 10px;border-radius:4px}.parecer.conforme{background:#dcfce7;color:#15803d}.parecer.conforme_ressalvas{background:#fef3c7;color:#92400e}.parecer.nao_conforme{background:#fee2e2;color:#b91c1c}.pre{white-space:pre-line}' +
       '.ass{margin-top:60px;text-align:center;line-height:1.5}.linha-ass{width:70%;margin:0 auto 6px;border-top:1px solid #000}' +
       (l.status !== 'concluido' ? 'body::before{content:"RASCUNHO";position:fixed;top:40%;left:15%;font-size:110pt;color:rgba(200,0,0,.08);transform:rotate(-30deg);z-index:-1}' : '');
-    w.document.open();
-    w.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Laudo SPDA ' + esc(l.numero || '') + ' - ' + esc(l.edificacaoNome || '') + '</title><style>' + css + '</style></head><body>' + corpo + '<script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script></body></html>');
-    w.document.close();
+    var html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Laudo SPDA ' + esc(l.numero || '') + ' - ' + esc(l.edificacaoNome || '') + '</title><style>' + css +
+      '@media screen{html{background:#525659}body{max-width:210mm;margin:16px auto;background:#fff;padding:16mm 14mm;box-shadow:0 2px 14px rgba(0,0,0,.4)}.capa{height:auto;min-height:250mm}}</style></head><body>' + corpo + '</body></html>';
+    var fr = $('pdf-frame'); if (fr) fr.srcdoc = html;
   }
 
 })();
