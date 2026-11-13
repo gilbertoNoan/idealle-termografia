@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+    <!-- Trava de acesso CRONOS: a pagina so abre para quem tem este sistema liberado no painel
+         (Configuracoes > Administracao). Codigo da trava: painel-central/guard/guard.ts -->
+    <script>(function(){var l=location,h=l.hostname;if(l.protocol!=='https:'||/^(localhost|127\.0\.0\.1)$/.test(h)||/(claudeusercontent\.com|claude\.ai|claude\.site)$/.test(h)||/[?&]demo=1/.test(l.search))return;window.__cronosGuard=new Promise(function(r){window.__cronosGuardPronto=r});var d=document,s=d.createElement('style');s.id='cronos-guard-hide';s.textContent='body{visibility:hidden!important}';d.head.appendChild(s);var g=d.createElement('script');g.src='https://painel-central-rosy.vercel.app/guard.js';g.setAttribute('data-sistema','termografia-descaracterizacao');g.setAttribute('data-recarregar','1');g.onerror=function(){d.title='CRONOS';d.documentElement.innerHTML='<body style="font-family:sans-serif;padding:40px;background:#03060c;color:#e2e8f0">N&atilde;o foi poss&iacute;vel verificar o acesso ao CRONOS. Verifique a internet e recarregue a p&aacute;gina.</body>'};d.head.appendChild(g);})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPDA · Idealle</title>
+<link rel="icon" type="image/png" sizes="48x48" href="/icones/spda-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icones/spda-192.png">
+<link rel="apple-touch-icon" href="/icones/spda-180.png">
+<meta name="theme-color" content="#000000">
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.js"></script>
+<style>
+  /* Tema escuro (fundo preto, padrão CRONOS) */
+  :root {
+    color-scheme: dark;
+    --bg: #000000; --card: #111318; --text: #e9ecf2; --muted: #9aa3b2; --line: #262b35;
+    --pri: #f59e4b; --pri-2: #33210f; --ok: #4cc38a; --ok-2: #13291f; --warn: #e3b04b; --warn-2: #2f2512;
+    --bad: #f07a6f; --bad-2: #351817; --gray-2: #1d212a; --azul: #5aa2ec; --azul-2: #16233a;
+    --prev: #7a5530; --real: #f59e4b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
+  header { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+  .top { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; max-width: 1200px; margin: 0 auto; gap: 12px; }
+  .marca { font-weight: 700; font-size: 18px; letter-spacing: .3px; display: flex; align-items: center; gap: 10px; }
+  .marca img { width: 32px; height: 32px; border-radius: 8px; }
+  .marca small { font-weight: 400; color: var(--muted); font-size: 13px; }
+  .usuario { color: var(--muted); font-size: 13px; display: flex; gap: 8px; align-items: center; }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 22px; margin: 4px 0 2px; } h2 { font-size: 17px; margin: 0 0 10px; } h3 { margin: 0 0 12px; font-size: 17px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .btn { background: var(--pri); color: #1a0e02; border: 1px solid var(--pri); border-radius: 8px; padding: 9px 14px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
+  .btn.sec { background: transparent; color: var(--text); border-color: var(--line); }
+  .btn.ok { background: var(--ok); border-color: var(--ok); }
+  .btn.perigo { background: transparent; color: var(--bad); border-color: var(--bad); }
+  .btn.peq { padding: 5px 10px; font-size: 13px; min-height: 32px; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  input, select, textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font-size: 15px; font-family: inherit; }
+  textarea { min-height: 76px; resize: vertical; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; font-weight: 600; }
+  .linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 12px; }
+  .chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; background: var(--gray-2); color: var(--muted); }
+  .chip.ok { background: var(--ok-2); color: var(--ok); } .chip.warn { background: var(--warn-2); color: var(--warn); } .chip.bad { background: var(--bad-2); color: var(--bad); } .chip.pri { background: var(--pri-2); color: var(--pri); } .chip.azul { background: var(--azul-2); color: var(--azul); }
+  .barra { height: 8px; border-radius: 999px; background: var(--gray-2); overflow: hidden; }
+  .barra > div { height: 100%; background: var(--real); border-radius: 999px; }
+  .grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .obra-card { cursor: pointer; display: flex; flex-direction: column; gap: 8px; margin: 0; }
+  .obra-card:hover { border-color: var(--pri); }
+  .obra-card .tit { font-weight: 700; font-size: 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .kpi b { display: block; font-size: 24px; line-height: 1.2; }
+  .kpi span { font-size: 12px; color: var(--muted); }
+  .abas { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); margin: 10px 0 14px; }
+  .abas button { background: none; border: none; border-bottom: 3px solid transparent; padding: 10px 12px; color: var(--muted); font-size: 15px; cursor: pointer; white-space: nowrap; }
+  .abas button.ativo { color: var(--pri); border-bottom-color: var(--pri); font-weight: 600; }
+  .abas button { display: inline-flex; align-items: center; gap: 6px; } .abas .ic { opacity: .85; }
+  .btn .ic { flex: none; }
+  .hoje { border-color: #3a2a17; background: linear-gradient(180deg, #17120c, var(--card)); }
+  .hoje-tit { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .hoje-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  .hoje-bt { display: flex; align-items: center; gap: 12px; text-align: left; padding: 14px; min-height: 72px; border-radius: 12px; border: 1px solid var(--line); background: var(--gray-2); color: var(--text); cursor: pointer; font: inherit; transition: border-color .15s, transform .1s; }
+  .hoje-bt:hover { border-color: var(--pri); } .hoje-bt:active { transform: scale(.98); }
+  .hoje-ic { width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; background: var(--pri-2); color: var(--pri); flex: none; }
+  .hoje-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .hoje-tx b { font-size: 15px; } .hoje-tx small { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 4px; }
+  .hoje-bt.ok .hoje-ic { background: var(--ok-2); color: var(--ok); } .hoje-bt.ok small { color: var(--ok); }
+  .hoje-bt.pend .hoje-ic { background: var(--pri); color: #1a0e02; }
+  .hoje-bt.bad .hoje-ic { background: var(--bad-2); color: var(--bad); } .hoje-bt.bad small { color: var(--bad); }
+  .bt-foto { box-shadow: 0 6px 18px -8px rgba(245,158,75,.7); }
+  .aviso-it { display: flex; gap: 12px; } .aviso-it.rev { border-color: var(--warn); } .aviso-it.res { opacity: .75; }
+  .aviso-ic { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--bad-2); color: var(--bad); flex: none; }
+  .aviso-it.res .aviso-ic { background: var(--ok-2); color: var(--ok); }
+  .sec-tit { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
+  .tipos-av { display: flex; gap: 6px; flex-wrap: wrap; }
+  @media (max-width: 520px) { .hoje-grade { grid-template-columns: 1fr 1fr; } .hoje-bt { flex-direction: column; align-items: flex-start; gap: 8px; min-height: 110px; } }
+  .filtros { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 14px; }
+  .filtros button { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+  .filtros button.ativo { background: var(--pri); border-color: var(--pri); color: #1a0e02; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; padding: 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 9px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tabela { overflow-x: auto; }
+  .vazio { color: var(--muted); padding: 22px; text-align: center; }
+  .voltar { background: none; border: none; color: var(--pri); cursor: pointer; padding: 4px 0; font-size: 14px; }
+  /* Gantt */
+  .gantt { overflow-x: auto; }
+  .g-wrap { min-width: 720px; }
+  .g-row { display: grid; grid-template-columns: 230px 1fr; align-items: center; border-top: 1px solid var(--line); min-height: 46px; }
+  .g-row.cab { border-top: 0; min-height: 26px; font-size: 11px; color: var(--muted); }
+  .g-nome { padding: 6px 10px 6px 0; font-size: 13px; cursor: pointer; }
+  .g-nome b { display: block; font-size: 14px; }
+  .g-track { position: relative; height: 40px; }
+  .g-bar { position: absolute; height: 12px; border-radius: 4px; }
+  .g-bar.prev { top: 8px; background: var(--prev); opacity: .85; }
+  .g-bar.real { top: 22px; background: var(--real); }
+  .g-hoje { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--bad); opacity: .7; }
+  .g-tick { position: absolute; top: 4px; transform: translateX(-50%); white-space: nowrap; }
+  .g-pct { position: absolute; top: 20px; font-size: 11px; font-weight: 700; color: var(--text); padding-left: 4px; white-space: nowrap; }
+  .legenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legenda i { display: inline-block; width: 14px; height: 8px; border-radius: 3px; margin-right: 5px; vertical-align: middle; }
+  /* RDO */
+  .rdo { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .rdo .fotos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .rdo .fotos img, .thumbs img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+  .thumbs { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  .thumbs .t { display: flex; flex-direction: column; gap: 4px; width: 120px; }
+  .thumbs .t img { width: 120px; height: 90px; }
+  .thumbs .t input { font-size: 12px; padding: 5px 6px; }
+  .eq-linha { display: grid; grid-template-columns: 1fr 80px 40px; gap: 6px; margin-bottom: 6px; }
+  .av-linha { display: grid; grid-template-columns: 1fr 140px 64px; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+  .av-linha input[type=range] { padding: 0; }
+  /* modal */
+  .fundo { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: flex-start; justify-content: center; z-index: 50; overflow-y: auto; padding: 24px 12px; }
+  .fundo.aberto { display: flex; }
+  .modal { background: var(--card); border-radius: 12px; padding: 18px; width: 100%; max-width: 720px; border: 1px solid var(--line); }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #262b35; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 14px; z-index: 60; display: none; max-width: 92vw; }
+  #tela-login { max-width: 400px; margin: 10vh auto; }
+  .aviso { background: var(--warn-2); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
+  .curva svg { width: 100%; height: auto; display: block; }
+  .so-dono { }
+  @media (max-width: 640px) {
+    main { padding: 12px; }
+    .g-row { grid-template-columns: 150px 1fr; }
+    .av-linha { grid-template-columns: 1fr 90px 54px; }
+    .modal { padding: 14px; }
+    .marca small { display: none; }
+    #usuario-nome { display: none; }
+  }
+
+  .chip.azul { background: var(--azul-2); color: var(--azul); } .chip.bad { background: var(--bad-2); color: var(--bad); }
+  .txt-bad { color: var(--bad); font-size: 13px; }
+  .linha-os { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .laudo-card { cursor: pointer; } .laudo-card:hover { border-color: var(--pri); } .laudo-card .tit { font-weight: 700; font-size: 16px; margin-top: 8px; }
+  .item-ed { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; cursor: pointer; background: var(--gray-2); }
+  .item-ed:hover { border-color: var(--pri); }
+  .cab-laudo { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+  .progresso { display: flex; align-items: center; gap: 10px; margin: 10px 0 2px; font-size: 13px; color: var(--muted); } .progresso .barra { flex: 1; margin: 0; }
+  details.bloco { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; padding: 0 12px 12px; }
+  details.bloco summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 14px 0; font-weight: 700; font-size: 16px; }
+  details.bloco summary::-webkit-details-marker { display: none; }
+  .item { border-top: 1px solid var(--line); padding: 12px 0; } .item.nc .item-tx { color: var(--bad); }
+  .item-tx { font-size: 15px; line-height: 1.35; margin-bottom: 8px; } .cod { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); font-weight: 700; }
+  .resp { display: flex; gap: 8px; align-items: center; }
+  .resp button { flex: 1; min-height: 46px; border-radius: 10px; border: 1px solid var(--line); background: var(--gray-2); color: var(--muted); font-weight: 800; font-size: 15px; cursor: pointer; }
+  .resp button.r-C.sel { background: var(--ok); border-color: var(--ok); color: #04170d; } .resp button.r-NC.sel { background: var(--bad); border-color: var(--bad); color: #250604; } .resp button.r-NA.sel { background: #4b5263; border-color: #4b5263; color: #fff; }
+  .resp button:disabled { opacity: .7; cursor: default; }
+  .foto-bt { min-width: 52px; min-height: 46px; border-radius: 10px; border: 1px solid var(--line); background: var(--pri-2); color: var(--pri); display: inline-flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; margin: 0; }
+  .foto-bt b { font-size: 13px; } .foto-bt.off { opacity: .4; pointer-events: none; }
+  .item textarea { margin-top: 8px; } .link-obs { background: none; border: none; color: var(--muted); font-size: 13px; padding: 6px 0 0; cursor: pointer; }
+  .mini-fotos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; } .mini-fotos img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+  .galeria { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+  .galeria figure { margin: 0; } .galeria img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; }
+  .galeria figcaption { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; } .galeria figcaption input { font-size: 13px; padding: 6px; }
+  .med-linha { display: grid; grid-template-columns: 1fr 1fr 130px 36px; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .med-linha.fora input { border-color: var(--bad); color: var(--bad); } .ohm { position: relative; } .ohm span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .np-info { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 12px 0 6px; }
+  .np-info div, .dados-ed div { background: var(--gray-2); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; } .np-info span, .dados-ed span { color: var(--muted); font-size: 12px; }
+  .dados-ed { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 10px; }
+  .parecer { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; } .parecer button { flex: 1; min-width: 150px; min-height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--gray-2); color: var(--text); font-weight: 700; cursor: pointer; }
+  .parecer button.sel.ok { background: var(--ok); color: #04170d; border-color: var(--ok); } .parecer button.sel.warn { background: var(--warn); color: #241a05; border-color: var(--warn); } .parecer button.sel.bad { background: var(--bad); color: #250604; border-color: var(--bad); }
+  .nc-it { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .pend { background: var(--warn-2); color: var(--warn); border-radius: 8px; padding: 10px 12px; font-size: 14px; } .pend ul { margin: 6px 0 0; padding-left: 18px; }
+  .status-card { border-color: #3a2a17; }
+  .ic { flex: none; vertical-align: -3px; } .abas button { display: inline-flex; align-items: center; gap: 6px; }
+  #aviso-rede { display: none; background: var(--azul-2); color: var(--azul); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
+  @media (max-width: 640px) { .med-linha { grid-template-columns: 1fr 110px 36px; } .med-linha input[data-m*="local"] { display: none; } .parecer button { min-width: 100%; } }
+</style>
+</head>
+<body>
+<header id="cabecalho" style="display:none">
+  <div class="top">
+    <div class="marca"><img src="/icones/spda-192.png" alt=""> SPDA <small>Idealle · NBR 5419 · <a href="/" style="color:var(--pri)">Termografia</a></small></div>
+    <div class="usuario"><span id="usuario-nome"></span><button class="btn sec peq" id="btn-sair">Sair</button></div>
+  </div>
+</header>
+
+<div id="tela-login" class="card" style="display:none">
+  <h1>Laudos de SPDA</h1>
+  <p class="muted">Entre com o mesmo login do CRONOS.</p>
+  <label>E-mail</label><input id="login-email" type="email" autocomplete="username">
+  <label>Senha</label><input id="login-senha" type="password" autocomplete="current-password">
+  <div class="acoes"><button class="btn" id="btn-entrar">Entrar</button><button class="btn sec" id="btn-google">Entrar com Google</button></div>
+  <p id="login-erro" style="color:var(--bad);font-size:14px;min-height:20px"></p>
+  <button class="btn sec peq" id="btn-demo">Testar sem banco</button>
+</div>
+
+<main id="app" style="display:none">
+  <div id="aviso-modo" class="aviso" style="display:none"></div>
+  <div id="aviso-rede">Sem internet: o que você preencher fica salvo no aparelho e sobe sozinho quando a conexão voltar.</div>
+  <div id="view"></div>
+</main>
+
+<div class="fundo" id="fundo"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="/spda/spda-dados.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ===================== CONFIGURAÇÃO =====================
+  // Módulo SPDA (NBR 5419) do sistema de Termografia. Mesmo banco Firebase do Finanças e da Termografia.
+  // O laudo nasce de uma OS com o serviço SPDA (ordens.servicos.spda). Modelo de dados e regras: spda/spda-dados.js
+  // e spda/MODELO-DE-DADOS.md. Regras do banco: painel-central/firestore.rules (spda_*).
+  var FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAN72-6pCbPaBowiGA2jciJ_lzB9d6z110",
+    authDomain: "idealle-termografia.firebaseapp.com",
+    projectId: "idealle-termografia",
+    storageBucket: "idealle-termografia.firebasestorage.app",
+    messagingSenderId: "577776042104",
+    appId: "1:577776042104:web:508a131e13a4ef4afbed8d"
+  };
+  // Manter igual a DONOS da trava (painel-central/guard/guard.ts) e ao firestore.rules
+  var DONOS = ['gilberto2902@gmail.com', 'digoeerika@gmail.com'];
+  var NOME_SISTEMA = 'SPDA';
+
+  // ===================== UTILITÁRIOS =====================
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function hoje() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+  function agora() { return new Date().toISOString(); }
+  function dt(iso) { if (!iso) return '—'; var p = String(iso).slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
+  function dtc(iso) { if (!iso) return ''; var p = String(iso).slice(0, 10).split('-'); return p[2] + '/' + p[1]; }
+  function ms(iso) { return new Date(String(iso).slice(0, 10) + 'T12:00:00').getTime(); }
+  function somarDias(iso, n) { var d = new Date(ms(iso) + n * 864e5); return d.toISOString().slice(0, 10); }
+  function difDias(a, b) { return Math.round((ms(b) - ms(a)) / 864e5); }
+  function num(v) { if (typeof v === 'number') return isFinite(v) ? v : 0; var s = String(v == null ? '' : v).trim(); if (!s) return 0; if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.'); var n = parseFloat(s); return isFinite(n) ? n : 0; }
+  function brl(v) { return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+  function pct(v, d) { return (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }) + '%'; }
+  function numCampo(v) { return v == null || v === '' ? '' : String(v).replace('.', ','); }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function toast(m) { var t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { t.style.display = 'none'; }, 3500); }
+  function abrirModal(html) { $('modal').innerHTML = html; $('fundo').classList.add('aberto'); window.scrollTo(0, 0); }
+  function fecharModal() { $('fundo').classList.remove('aberto'); $('modal').innerHTML = ''; }
+  $('fundo').addEventListener('click', function (e) { if (e.target === $('fundo')) fecharModal(); });
+  function plural(n, um, varios) { return n + ' ' + (n === 1 ? um : varios); }
+  function textoDias(n) { return plural(n, 'dia', 'dias'); }
+
+  // ===================== BANCO =====================
+  var banco = null, modoDemo = /[?&]demo=1/.test(location.search), usuario = '', dono = false;
+
+  function bancoFirestore(db) {
+    function lista(snap) { return snap.docs.map(function (d) { var x = d.data() || {}; x.id = d.id; return x; }); }
+    return {
+      ouvir: function (col, filtro, cb, erro) {
+        var q = db.collection(col);
+        if (filtro) q = q.where(filtro[0], filtro[1], filtro[2]);
+        return q.onSnapshot(function (s) { cb(lista(s)); }, function (e) { console.error(col, e); if (erro) erro(e); else toast('Erro ao ler ' + col + ': ' + e.message); });
+      },
+      ouvirDoc: function (col, id, cb, erro) {
+        return db.collection(col).doc(id).onSnapshot(function (d) { cb(d.exists ? Object.assign({ id: d.id }, d.data()) : null); }, function (e) { console.error(col, e); if (erro) erro(e); });
+      },
+      buscar: function (col, filtro) { return db.collection(col).where(filtro[0], filtro[1], filtro[2]).get().then(lista); },
+      todos: function (col) { return db.collection(col).get().then(lista); },
+      ler: function (col, id) { return db.collection(col).doc(id).get().then(function (d) { return d.exists ? Object.assign({ id: d.id }, d.data()) : null; }); },
+      // merge: true não apaga os campos gravados pelo Finanças e pelos outros sistemas
+      atualizar: function (col, id, doc) { return db.collection(col).doc(id).set(doc, { merge: true }); },
+      gravar: function (col, id, doc) { return db.collection(col).doc(id).set(doc); },
+      criar: function (col, doc) { return db.collection(col).add(doc).then(function (r) { return r.id; }); },
+      excluir: function (col, id) { return db.collection(col).doc(id).delete(); },
+      apagarCampo: function (col, id, campo) { var u = {}; u[campo] = firebase.firestore.FieldValue.delete(); return db.collection(col).doc(id).update(u).catch(function () {}); }
+    };
+  }
+
+  // Modo de teste: tudo no navegador, com uma obra de exemplo
+  function bancoLocal() {
+    var CH = 'spda-demo-v1', ouvintes = [], dados;
+    try { dados = JSON.parse(localStorage.getItem(CH) || 'null'); } catch (e) { dados = null; }
+    if (!dados) dados = exemplo();
+    function salvar() { try { localStorage.setItem(CH, JSON.stringify(dados)); } catch (e) { toast('Armazenamento do navegador cheio (fotos).'); } }
+    function col(c) { return (dados[c] = dados[c] || []); }
+    function casa(x, f) { if (!f) return true; var v = f[0].split('.').reduce(function (o, k) { return o == null ? undefined : o[k]; }, x); return f[1] === '==' ? v === f[2] : true; }
+    function copia(x) { return JSON.parse(JSON.stringify(x)); }
+    function avisar() { ouvintes.forEach(function (o) { if (o.doc) { var x = col(o.col).find(function (y) { return y.id === o.doc; }); o.cb(x ? copia(x) : null); } else o.cb(col(o.col).filter(function (x) { return casa(x, o.f); }).map(copia)); }); }
+    function mesclar(a, b) { Object.keys(b).forEach(function (k) { var v = b[k]; if (v && typeof v === 'object' && !Array.isArray(v) && a[k] && typeof a[k] === 'object' && !Array.isArray(a[k])) mesclar(a[k], v); else a[k] = copia(v); }); return a; }
+    return {
+      ouvir: function (c, f, cb) { var o = { col: c, f: f, cb: cb }; ouvintes.push(o); setTimeout(function () { if (ouvintes.indexOf(o) >= 0) cb(col(c).filter(function (x) { return casa(x, f); }).map(copia)); }, 0); return function () { ouvintes = ouvintes.filter(function (y) { return y !== o; }); }; },
+      ouvirDoc: function (c, id, cb) { var o = { col: c, doc: id, cb: cb }; ouvintes.push(o); setTimeout(avisar, 0); return function () { ouvintes = ouvintes.filter(function (y) { return y !== o; }); }; },
+      todos: function (c) { return Promise.resolve(col(c).map(copia)); },
+      buscar: function (c, f) { return Promise.resolve(col(c).filter(function (x) { return casa(x, f); }).map(copia)); },
+      ler: function (c, id) { var x = col(c).find(function (y) { return y.id === id; }); return Promise.resolve(x ? copia(x) : null); },
+      atualizar: function (c, id, doc) { var x = col(c).find(function (y) { return y.id === id; }); if (x) mesclar(x, doc); else col(c).push(mesclar({ id: id }, doc)); salvar(); avisar(); return Promise.resolve(); },
+      gravar: function (c, id, doc) { dados[c] = col(c).filter(function (y) { return y.id !== id; }); dados[c].push(Object.assign({ id: id }, copia(doc))); salvar(); avisar(); return Promise.resolve(); },
+      criar: function (c, doc) { var id = 'L' + uid(); col(c).push(Object.assign({ id: id }, copia(doc))); salvar(); avisar(); return Promise.resolve(id); },
+      excluir: function (c, id) { dados[c] = col(c).filter(function (y) { return y.id !== id; }); salvar(); avisar(); return Promise.resolve(); },
+      apagarCampo: function (c, id, campo) { var x = col(c).find(function (y) { return y.id === id; }); if (x) { var p = campo.split('.'), o = x; for (var i = 0; i < p.length - 1; i++) o = o[p[i]] || {}; delete o[p[p.length - 1]]; } salvar(); avisar(); return Promise.resolve(); }
+    };
+  }
+
+
+  // ===================== ÍCONES =====================
+  var ICONES = {
+    camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.5"/>',
+    fotos: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>',
+    predio: '<path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-5h6v5M9 10h.01M15 10h.01M9 13h.01M15 13h.01"/>',
+    lista: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 6 1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17"/>',
+    medidor: '<path d="M12 14 15.5 9.5"/><path d="M3.3 17A9 9 0 1 1 20.7 17"/><circle cx="12" cy="14" r="1.5"/>',
+    selo: '<circle cx="12" cy="9" r="6"/><path d="m8.5 13.8-1.5 7.2 5-3 5 3-1.5-7.2"/><path d="m9.5 9 1.7 1.7L14.5 7.5"/>',
+    pdf: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6M9 18h4"/>',
+    mais: '<path d="M12 5v14M5 12h14"/>',
+    raio: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>'
+  };
+  function ic(n, t) { return '<svg class="ic" width="' + (t || 18) + '" height="' + (t || 18) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONES[n] || '') + '</svg>'; }
+
+  function exemplo() {
+    var h = hoje(), ck = SPDA.checklistEmBranco();
+    ck.slice(0, 9).forEach(function (i) { i.r = 'C'; }); ck[3].r = 'NC'; ck[3].obs = 'Malha de captação com vão de ~22 m no galpão, acima do permitido para o NP III.';
+    var lau = SPDA.novoLaudo({ id: 'os1', codigo: 'IDE-0045/2026' }, { id: 'ed1', empresaId: 'c1', empresaNome: 'Benassi Indústria (exemplo)', cnpj: '12345678000190', nome: 'Galpão de produção', nivelProtecao: { np: 'III' }, metodoCaptacao: 'malha' }, 'teste');
+    lau.checklist = ck; lau.dataInspecao = somarDias(h, -1); lau.medicoes.aterramento = [{ ponto: 'CX-01', local: 'Fachada norte', valorOhm: 7.8 }, { ponto: 'CX-02', local: 'Fachada leste', valorOhm: 12.4 }];
+    lau.medicoes.continuidade = [{ trecho: 'Descida 1 → captação', valorOhm: 0.08 }];
+    return {
+      ordens: [
+        { id: 'os1', codigo: 'IDE-0045/2026', empresaId: 'c1', empresaNome: 'Benassi Indústria (exemplo)', descricao: 'Inspeção do SPDA — galpões', status: 'execucao', dataAbertura: somarDias(h, -6), servicos: { spda: true } },
+        { id: 'os2', codigo: 'IDE-0051/2026', empresaId: 'c2', empresaNome: 'Hospital Modelo (exemplo)', descricao: 'Laudo de SPDA anual', status: 'aberta', dataAbertura: somarDias(h, -2), servicos: { spda: true } }
+      ],
+      empresas: [{ id: 'c1', nome: 'Benassi Indústria (exemplo)', cnpj: '12.345.678/0001-90', endereco: 'Av. Industrial, 1000', cidade: 'Guarulhos', uf: 'SP' }, { id: 'c2', nome: 'Hospital Modelo (exemplo)', cnpj: '98.765.432/0001-10', cidade: 'Campinas', uf: 'SP' }],
+      spda_edificacoes: [Object.assign(SPDA.novaEdificacao({ id: 'c1', nome: 'Benassi Indústria (exemplo)', cnpj: '12.345.678/0001-90' }, { nome: 'Galpão de produção', atividade: 'Indústria metalúrgica', tipoEstrutura: 'Estrutura metálica', coberturaTipo: 'Telha metálica', dimensoes: { comprimentoM: 80, larguraM: 40, alturaM: 12 }, nivelProtecao: { np: 'III', origem: 'informado' }, metodoCaptacao: 'malha', qtdDescidas: 12, endereco: { logradouro: 'Av. Industrial', numero: '1000', bairro: 'Cumbica', cidade: 'Guarulhos', uf: 'SP', cep: '07000-000' } }), { id: 'ed1' })],
+      spda_laudos: [Object.assign(lau, { id: 'lau1' })],
+      spda_fotos: []
+    };
+  }
+
+  // ===================== ESTADO =====================
+  var cache = { ordens: [], laudos: [], edificacoes: [], empresas: {} };
+  var tela = { laudoId: '', aba: 'checklist', filtro: 'andamento', bloco: '' };
+  var timerSalvar = null;
+
+  function laudoDe(id) { return cache.laudos.find(function (l) { return l.id === id; }); }
+  function osDe(id) { return cache.ordens.find(function (o) { return o.id === id; }); }
+  function edDe(id) { return cache.edificacoes.find(function (e) { return e.id === id; }); }
+  function respondidos(l) { var c = l.checklist || []; return c.length ? c.filter(function (i) { return i.r; }).length / c.length * 100 : 0; }
+  var ST = { rascunho: ['Rascunho', 'warn'], revisao: ['Em revisão', 'azul'], concluido: ['Concluído', 'ok'] };
+  var PARECER = { conforme: ['Conforme', 'ok'], conforme_ressalvas: ['Conforme com ressalvas', 'warn'], nao_conforme: ['Não conforme', 'bad'] };
+
+  // ===================== INICIALIZAÇÃO =====================
+  var firebaseOk = typeof firebase !== 'undefined';
+  function iniciarApp(email) {
+    usuario = email || '';
+    dono = modoDemo || DONOS.indexOf(String(email || '').toLowerCase()) >= 0;
+    $('tela-login').style.display = 'none'; $('cabecalho').style.display = 'block'; $('app').style.display = 'block';
+    $('usuario-nome').textContent = modoDemo ? 'Modo de teste' : email;
+    if (modoDemo) { $('aviso-modo').style.display = 'block'; $('aviso-modo').innerHTML = 'Modo de teste: os dados ficam só neste navegador e não vão para o banco. <a href="' + location.pathname + '">Sair do modo de teste</a>'; }
+    banco.ouvir('ordens', ['servicos.spda', '==', true], function (l) { cache.ordens = l; render(); });
+    banco.ouvir(SPDA.COLECOES.laudos, null, function (l) { cache.laudos = l; render(); });
+    banco.ouvir(SPDA.COLECOES.edificacoes, null, function (l) { cache.edificacoes = l; render(); });
+    var p = new URLSearchParams(location.search);
+    tela.laudoId = p.get('laudo') || '';
+    var osq = p.get('cronos_os') || p.get('os'); if (osq) tela.abrirOs = osq;
+    window.addEventListener('popstate', function () { tela.laudoId = new URLSearchParams(location.search).get('laudo') || ''; render(); });
+    function rede() { $('aviso-rede').style.display = navigator.onLine ? 'none' : 'block'; }
+    window.addEventListener('online', rede); window.addEventListener('offline', rede); rede();
+    render();
+  }
+  function telaLogin(msg) { $('tela-login').style.display = 'block'; $('cabecalho').style.display = 'none'; $('app').style.display = 'none'; $('login-erro').textContent = msg || ''; }
+  $('btn-demo').addEventListener('click', function () { location.search = '?demo=1'; });
+
+  if (modoDemo || !firebaseOk) {
+    modoDemo = true; banco = bancoLocal(); iniciarApp('');
+    $('btn-sair').textContent = 'Usar banco real';
+    $('btn-sair').addEventListener('click', function () { location.href = location.pathname; });
+  } else {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    var fs = firebase.firestore();
+    // Etapa 4 (offline): o Firestore guarda no aparelho (IndexedDB) e envia quando a internet volta
+    fs.enablePersistence({ synchronizeTabs: true }).catch(function (e) { console.warn('Sem modo offline:', e.code); });
+    banco = bancoFirestore(fs);
+    var auth = firebase.auth(), iniciado = false;
+    var erroLogin = { 'auth/invalid-credential': 'E-mail ou senha incorretos.', 'auth/wrong-password': 'E-mail ou senha incorretos.', 'auth/user-not-found': 'Usuário não cadastrado.', 'auth/popup-closed-by-user': 'Login cancelado.' };
+    auth.getRedirectResult().catch(function (e) { $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message); });
+    auth.onAuthStateChanged(function (u) { if (u) { if (!iniciado) { iniciado = true; iniciarApp(u.email); } } else if (iniciado) location.reload(); else telaLogin(); });
+    $('btn-entrar').addEventListener('click', function () {
+      var e = $('login-email').value.trim(), s = $('login-senha').value;
+      if (!e || !s) { $('login-erro').textContent = 'Informe e-mail e senha.'; return; }
+      $('login-erro').textContent = 'Entrando…';
+      auth.signInWithEmailAndPassword(e, s).catch(function (x) { $('login-erro').textContent = erroLogin[x.code] || ('Não foi possível entrar: ' + x.message); });
+    });
+    $('btn-google').addEventListener('click', function () {
+      var prov = new firebase.auth.GoogleAuthProvider(); prov.setCustomParameters({ prompt: 'select_account' });
+      auth.signInWithPopup(prov).catch(function (x) { if (x.code === 'auth/popup-blocked' || x.code === 'auth/operation-not-supported-in-this-environment') return auth.signInWithRedirect(prov); $('login-erro').textContent = erroLogin[x.code] || ('Não foi possível entrar: ' + x.message); });
+    });
+    $('login-senha').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('btn-entrar').click(); });
+    $('btn-sair').addEventListener('click', function () { auth.signOut(); });
+  }
+
+  async function salvar(fn, msg) {
+    try { var r = await fn(); if (msg) toast(msg); return r; }
+    catch (e) { console.error(e); toast(e.code === 'permission-denied' ? 'Sem permissão para gravar. As regras do banco precisam ser atualizadas (spda_*).' : 'Erro: ' + (e.message || e)); throw e; }
+  }
+  function irPara(laudoId, aba) {
+    var u = new URL(location.href); u.searchParams.delete('cronos_os'); u.searchParams.delete('os');
+    if (laudoId) u.searchParams.set('laudo', laudoId); else u.searchParams.delete('laudo');
+    history.pushState({}, '', u.toString());
+    tela.laudoId = laudoId; tela.aba = aba || 'checklist'; render(); window.scrollTo(0, 0);
+  }
+  // grava o laudo (o checklist inteiro vai junto; offline fica na fila do Firestore)
+  function gravarLaudo(l, campos, msg) {
+    campos.atualizadoEm = agora(); Object.assign(l, campos);
+    return salvar(function () { return banco.atualizar(SPDA.COLECOES.laudos, l.id, campos); }, msg);
+  }
+  function gravarDepois(l, campos) { Object.assign(l, campos); clearTimeout(timerSalvar); timerSalvar = setTimeout(function () { gravarLaudo(l, campos); }, 700); }
+
+  function render() {
+    if (!banco) return;
+    var v = $('view');
+    if (tela.abrirOs && cache.ordens.length) { var o = osDe(tela.abrirOs); tela.abrirOs = ''; if (o) { var l0 = cache.laudos.find(function (x) { return x.osId === o.id; }); if (l0) tela.laudoId = l0.id; else setTimeout(function () { iniciarLaudo(o); }, 50); } }
+    if (tela.laudoId) { var l = laudoDe(tela.laudoId); if (l) return renderLaudo(v, l); v.innerHTML = '<div class="card vazio">Carregando o laudo…</div>'; return; }
+    renderLista(v);
+  }
+
+  // ===================== LISTA =====================
+  function renderLista(v) {
+    var ativas = cache.ordens.filter(function (o) { return o.status !== 'cancelada'; });
+    var semLaudo = ativas.filter(function (o) { return !cache.laudos.some(function (l) { return l.osId === o.id; }) && ['aberta', 'execucao', undefined, ''].indexOf(o.status) >= 0; });
+    var ls = cache.laudos.slice().sort(function (a, b) { return String(b.atualizadoEm).localeCompare(String(a.atualizadoEm)); });
+    var cont = { rascunho: 0, revisao: 0, concluido: 0 }; ls.forEach(function (l) { cont[l.status] = (cont[l.status] || 0) + 1; });
+    var f = tela.filtro;
+    var mostrar = ls.filter(function (l) { return f === 'todos' || (f === 'andamento' ? l.status !== 'concluido' : f === 'concluidos' ? l.status === 'concluido' : false); });
+    v.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap"><div><h1>Laudos de SPDA</h1><div class="muted">Inspeção do sistema de proteção contra descargas atmosféricas · ABNT NBR 5419</div></div>' +
+      '<button class="btn sec" id="b-edif">' + ic('predio', 16) + ' Edificações</button></div>' +
+      '<div class="kpis" style="margin-top:12px"><div class="kpi"><b style="color:var(--azul)">' + semLaudo.length + '</b><span>OS de SPDA aguardando laudo</span></div>' +
+      '<div class="kpi"><b>' + cont.rascunho + '</b><span>em campo (rascunho)</span></div><div class="kpi"><b>' + cont.revisao + '</b><span>em revisão</span></div><div class="kpi"><b style="color:var(--ok)">' + cont.concluido + '</b><span>concluídos</span></div></div>' +
+      (semLaudo.length ? '<h3 class="sec-tit">Aguardando início</h3>' + semLaudo.map(function (o) {
+        return '<div class="card linha-os"><div><b>' + esc(o.descricao || 'Laudo de SPDA') + '</b><div class="muted">' + esc(o.codigo || '') + ' · ' + esc(o.empresaNome || '') + ' · aberta em ' + dt(o.dataAbertura) + '</div></div><button class="btn" data-iniciar="' + o.id + '">' + ic('mais', 16) + ' Iniciar laudo</button></div>';
+      }).join('') : '') +
+      '<div class="filtros">' + [['andamento', 'Em andamento'], ['concluidos', 'Concluídos'], ['todos', 'Todos']].map(function (x) { return '<button data-f="' + x[0] + '"' + (f === x[0] ? ' class="ativo"' : '') + '>' + x[1] + '</button>'; }).join('') + '</div>' +
+      (mostrar.length ? '<div class="grade">' + mostrar.map(function (l) {
+        var st = ST[l.status] || ST.rascunho, nc = SPDA.naoConformidades(l).length, r = respondidos(l);
+        return '<div class="card laudo-card" data-laudo="' + l.id + '"><div style="display:flex;justify-content:space-between;gap:8px"><span class="chip ' + st[1] + '">' + st[0] + '</span><span class="muted">' + esc(l.numero || l.osCodigo || '') + '</span></div>' +
+          '<div class="tit">' + esc(l.edificacaoNome || 'Edificação') + '</div><div class="muted">' + esc(l.empresaNome || '') + '</div>' +
+          '<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px"><span>Checklist <b>' + pct(r) + '</b></span><span class="' + (nc ? 'txt-bad' : 'muted') + '">' + plural(nc, 'não conformidade', 'não conformidades') + '</span></div>' +
+          '<div class="barra"><div style="width:' + r.toFixed(0) + '%"></div></div>' +
+          '<div class="muted">NP ' + esc(l.nivelProtecao || '—') + ' · inspeção ' + dt(l.dataInspecao) + (l.proximaInspecao ? ' · próxima ' + dt(l.proximaInspecao) : '') + '</div></div>';
+      }).join('') + '</div>' : '<div class="card vazio">' + (cache.laudos.length ? 'Nenhum laudo neste filtro.' : 'Nenhum laudo ainda. Abra uma OS com o serviço <b>SPDA (NBR 5419)</b> no Finanças e clique em <b>Iniciar laudo</b>.') + '</div>');
+    v.querySelectorAll('[data-f]').forEach(function (b) { b.onclick = function () { tela.filtro = b.dataset.f; render(); }; });
+    v.querySelectorAll('[data-laudo]').forEach(function (c) { c.onclick = function () { irPara(c.dataset.laudo); }; });
+    v.querySelectorAll('[data-iniciar]').forEach(function (b) { b.onclick = function () { iniciarLaudo(osDe(b.dataset.iniciar)); }; });
+    $('b-edif').onclick = function () { listaEdificacoes(); };
+  }
+
+  // ===================== EDIFICAÇÕES =====================
+  async function empresa(id) {
+    if (!id) return {};
+    if (!cache.empresas[id]) cache.empresas[id] = await banco.ler('empresas', id).catch(function () { return null; }) || { id: id };
+    return cache.empresas[id];
+  }
+  function listaEdificacoes() {
+    var porCli = {};
+    cache.edificacoes.forEach(function (e) { (porCli[e.empresaNome || '—'] = porCli[e.empresaNome || '—'] || []).push(e); });
+    abrirModal('<h3>' + ic('predio', 20) + ' Edificações</h3><p class="muted" style="margin-top:0">As edificações ficam no cadastro do cliente e servem para os próximos laudos. Para cadastrar uma nova, inicie um laudo pela OS.</p>' +
+      (Object.keys(porCli).length ? Object.keys(porCli).sort().map(function (c) {
+        return '<h4 style="margin:12px 0 6px">' + esc(c) + '</h4>' + porCli[c].map(function (e) { return '<div class="item-ed" data-ed="' + e.id + '"><div><b>' + esc(e.nome) + '</b><div class="muted">' + esc(e.atividade || '') + (e.nivelProtecao && e.nivelProtecao.np ? ' · NP ' + esc(e.nivelProtecao.np) : '') + ' · ' + esc((e.endereco && e.endereco.cidade) || '') + '</div></div><span class="muted">Editar ›</span></div>'; }).join('');
+      }).join('') : '<div class="vazio">Nenhuma edificação cadastrada.</div>') +
+      '<div class="acoes"><button class="btn sec" id="ed-f">Fechar</button></div>');
+    $('ed-f').onclick = fecharModal;
+    document.querySelectorAll('[data-ed]').forEach(function (d) { d.onclick = function () { formEdificacao(edDe(d.dataset.ed)); }; });
+  }
+  async function iniciarLaudo(os) {
+    if (!os) return;
+    var emp = await empresa(os.empresaId); emp.id = emp.id || os.empresaId; emp.nome = emp.nome || os.empresaNome;
+    var eds = cache.edificacoes.filter(function (e) { return e.empresaId === os.empresaId && e.ativo !== false; });
+    abrirModal('<h3>Iniciar laudo de SPDA</h3><div class="muted" style="margin-top:-6px">' + esc(os.codigo || '') + ' · ' + esc(os.empresaNome || '') + '</div>' +
+      '<label>Qual edificação será inspecionada?</label>' +
+      (eds.length ? eds.map(function (e) { return '<div class="item-ed" data-esc="' + e.id + '"><div><b>' + esc(e.nome) + '</b><div class="muted">' + esc(e.atividade || '') + (e.nivelProtecao && e.nivelProtecao.np ? ' · NP ' + esc(e.nivelProtecao.np) : '') + '</div></div><span class="btn peq">Usar</span></div>'; }).join('') : '<div class="muted">Este cliente ainda não tem edificação cadastrada.</div>') +
+      '<div class="acoes"><button class="btn' + (eds.length ? ' sec' : '') + '" id="il-nova">' + ic('mais', 16) + ' Nova edificação</button><button class="btn sec" id="il-c">Cancelar</button></div>');
+    $('il-c').onclick = fecharModal;
+    $('il-nova').onclick = function () { formEdificacao(null, emp, function (ed) { criarLaudo(os, ed); }); };
+    document.querySelectorAll('[data-esc]').forEach(function (d) { d.onclick = function () { criarLaudo(os, edDe(d.dataset.esc)); }; });
+  }
+  async function criarLaudo(os, ed) {
+    var l = SPDA.novoLaudo(os, ed, usuario);
+    var anterior = cache.laudos.filter(function (x) { return x.edificacaoId === ed.id && x.status === 'concluido'; }).sort(function (a, b) { return String(b.dataInspecao).localeCompare(String(a.dataInspecao)); })[0];
+    if (anterior) { l.medicoes.equipamento = anterior.medicoes.equipamento; l.responsavel = { nome: anterior.responsavel.nome, crea: anterior.responsavel.crea, art: { numero: '', data: '' } }; }
+    var id = await salvar(function () { return banco.criar(SPDA.COLECOES.laudos, l); }, 'Laudo iniciado.');
+    fecharModal(); irPara(id, 'checklist');
+  }
+  function formEdificacao(ed, emp, depois) {
+    var novo = !ed, e = ed ? JSON.parse(JSON.stringify(ed)) : SPDA.novaEdificacao(emp || {}, {});
+    var en = e.endereco || {}, dm = e.dimensoes || {}, np = (e.nivelProtecao || {}).np || '';
+    if (novo && emp) { en.cidade = en.cidade || emp.cidade || ''; en.uf = en.uf || emp.uf || ''; en.logradouro = en.logradouro || emp.endereco || ''; }
+    abrirModal('<h3>' + (novo ? 'Nova edificação' : 'Editar edificação') + '</h3><div class="muted" style="margin-top:-6px">' + esc(e.empresaNome) + '</div>' +
+      '<label>Nome da edificação *</label><input id="e-nome" value="' + esc(e.nome) + '" placeholder="Ex.: Galpão 2, Bloco administrativo">' +
+      '<label>Atividade / uso</label><input id="e-ativ" value="' + esc(e.atividade) + '" placeholder="Ex.: Indústria metalúrgica, hospital, escritório">' +
+      '<div class="linha"><div style="flex:3"><label>Endereço</label><input id="e-log" value="' + esc(en.logradouro) + '"></div><div><label>Nº</label><input id="e-num" value="' + esc(en.numero) + '"></div></div>' +
+      '<div class="linha"><div><label>Bairro</label><input id="e-bai" value="' + esc(en.bairro) + '"></div><div><label>Cidade</label><input id="e-cid" value="' + esc(en.cidade) + '"></div><div style="max-width:80px"><label>UF</label><input id="e-uf" maxlength="2" value="' + esc(en.uf) + '"></div><div><label>CEP</label><input id="e-cep" value="' + esc(en.cep) + '"></div></div>' +
+      '<div class="linha"><div><label>Comprimento (m)</label><input id="e-c" inputmode="decimal" value="' + esc(numCampo(dm.comprimentoM)) + '"></div><div><label>Largura (m)</label><input id="e-l" inputmode="decimal" value="' + esc(numCampo(dm.larguraM)) + '"></div><div><label>Altura (m)</label><input id="e-a" inputmode="decimal" value="' + esc(numCampo(dm.alturaM)) + '"></div></div>' +
+      '<div class="linha"><div><label>Tipo de estrutura</label><input id="e-te" list="l-te" value="' + esc(e.tipoEstrutura) + '"><datalist id="l-te"><option value="Concreto armado"><option value="Estrutura metálica"><option value="Alvenaria"><option value="Mista"></datalist></div>' +
+      '<div><label>Cobertura</label><input id="e-cob" list="l-cob" value="' + esc(e.coberturaTipo) + '"><datalist id="l-cob"><option value="Telha metálica"><option value="Laje"><option value="Fibrocimento"><option value="Cerâmica"></datalist></div></div>' +
+      '<div class="linha"><div><label>Nível de proteção (NP)</label><select id="e-np"><option value="">—</option>' + Object.keys(SPDA.NIVEIS).map(function (k) { return '<option' + (k === np ? ' selected' : '') + '>' + k + '</option>'; }).join('') + '</select></div>' +
+      '<div><label>Método de captação</label><select id="e-met"><option value="">—</option>' + Object.keys(SPDA.METODOS_CAPTACAO).map(function (k) { return '<option value="' + k + '"' + (k === e.metodoCaptacao ? ' selected' : '') + '>' + SPDA.METODOS_CAPTACAO[k] + '</option>'; }).join('') + '</select></div>' +
+      '<div><label>Nº de descidas</label><input id="e-desc" inputmode="numeric" value="' + esc(numCampo(e.qtdDescidas)) + '"></div></div>' +
+      '<div class="muted" id="e-np-info"></div>' +
+      '<div class="acoes"><button class="btn" id="e-ok">Salvar</button><button class="btn sec" id="e-c2">Cancelar</button></div>');
+    function info() { var n = SPDA.NIVEIS[$('e-np').value]; $('e-np-info').innerHTML = n ? 'NP ' + n.classe + ': esfera rolante R = ' + n.raioEsferaM + ' m · malha ' + n.malhaM.join(' × ') + ' m · descidas a cada ' + n.distDescidasM + ' m (referência — conferir na NBR 5419-3).' : ''; }
+    $('e-np').onchange = info; info();
+    $('e-c2').onclick = fecharModal;
+    $('e-ok').onclick = async function () {
+      var g = function (id) { return $(id).value.trim(); };
+      if (!g('e-nome')) { toast('Dê um nome à edificação.'); return; }
+      Object.assign(e, { nome: g('e-nome'), atividade: g('e-ativ'), tipoEstrutura: g('e-te'), coberturaTipo: g('e-cob'), metodoCaptacao: $('e-met').value, qtdDescidas: g('e-desc') ? num(g('e-desc')) : '',
+        endereco: { logradouro: g('e-log'), numero: g('e-num'), bairro: g('e-bai'), cidade: g('e-cid'), uf: g('e-uf').toUpperCase(), cep: g('e-cep') },
+        dimensoes: { comprimentoM: g('e-c') ? num(g('e-c')) : '', larguraM: g('e-l') ? num(g('e-l')) : '', alturaM: g('e-a') ? num(g('e-a')) : '' },
+        nivelProtecao: Object.assign({}, e.nivelProtecao || {}, { np: $('e-np').value }), atualizadoEm: agora() });
+      var id = e.id; delete e.id;
+      if (novo) id = await salvar(function () { return banco.criar(SPDA.COLECOES.edificacoes, e); }, 'Edificação cadastrada.');
+      else await salvar(function () { return banco.atualizar(SPDA.COLECOES.edificacoes, id, e); }, 'Edificação salva.');
+      e.id = id; fecharModal();
+      if (depois) depois(e);
+    };
+  }
+
+  // ===================== LAUDO =====================
+  function renderLaudo(v, l) {
+    var st = ST[l.status] || ST.rascunho, r = respondidos(l), nc = SPDA.naoConformidades(l);
+    var trava = l.status === 'concluido';
+    var abas = [['checklist', 'Checklist', 'lista'], ['medicoes', 'Medições', 'medidor'], ['fotos', 'Fotos', 'fotos'], ['dados', 'Edificação e inspeção', 'predio'], ['conclusao', 'Conclusão e ART', 'selo']];
+    v.innerHTML = '<button class="voltar" id="b-voltar">← Laudos</button>' +
+      '<div class="cab-laudo"><div><h1>' + esc(l.edificacaoNome || 'Edificação') + '</h1><div class="muted">' + esc(l.empresaNome || '') + ' · ' + esc(l.osCodigo || '') + (l.numero ? ' · <b>' + esc(l.numero) + '</b>' : '') + ' · NP ' + esc(l.nivelProtecao || '—') + '</div></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="chip ' + st[1] + '" style="font-size:13px;padding:4px 12px">' + st[0] + '</span><button class="btn sec" id="b-pdf">' + ic('pdf', 16) + ' PDF</button></div></div>' +
+      '<div class="progresso"><div class="barra"><div style="width:' + r.toFixed(0) + '%"></div></div><span>' + pct(r) + ' do checklist · ' + plural(nc.length, 'não conformidade', 'não conformidades') + '</span></div>' +
+      (trava ? '<div class="aviso" style="background:var(--ok-2);color:var(--ok)">Laudo concluído: só leitura. ' + (dono ? 'Para alterar, volte para revisão em Conclusão e ART.' : '') + '</div>' : '') +
+      '<div class="abas">' + abas.map(function (a) { return '<button data-aba="' + a[0] + '"' + (tela.aba === a[0] ? ' class="ativo"' : '') + '>' + ic(a[2], 16) + a[1] + '</button>'; }).join('') + '</div><div id="aba"' + (trava ? ' class="travado"' : '') + '></div>';
+    $('b-voltar').onclick = function () { irPara(''); };
+    $('b-pdf').onclick = function () { gerarPdf(l); };
+    v.querySelectorAll('[data-aba]').forEach(function (b) { b.onclick = function () { tela.aba = b.dataset.aba; render(); }; });
+    ({ checklist: abaChecklist, medicoes: abaMedicoes, fotos: abaFotos, dados: abaDados, conclusao: abaConclusao })[tela.aba]($('aba'), l, trava);
+  }
+
+  // ----- Checklist (campo, celular) -----
+  function abaChecklist(a, l, trava) {
+    var ck = l.checklist || [];
+    a.innerHTML = SPDA.CHECKLIST.map(function (b) {
+      var itens = ck.filter(function (i) { return i.bloco === b.bloco; }), feitos = itens.filter(function (i) { return i.r; }).length, ncs = itens.filter(function (i) { return i.r === 'NC'; }).length;
+      var aberto = tela.bloco ? tela.bloco === b.bloco : feitos < itens.length;
+      return '<details class="bloco"' + (aberto ? ' open' : '') + ' data-bl="' + b.bloco + '"><summary><span>' + esc(b.nome) + '</span><span class="chip ' + (ncs ? 'bad' : feitos === itens.length ? 'ok' : '') + '">' + (ncs ? ncs + ' NC · ' : '') + feitos + '/' + itens.length + '</span></summary>' +
+        itens.map(function (i) {
+          var k = ck.indexOf(i);
+          return '<div class="item ' + (i.r === 'NC' ? 'nc' : '') + '" id="it-' + k + '"><div class="item-tx"><span class="cod">' + esc(i.codigo) + '</span> ' + esc(i.texto) + '</div>' +
+            '<div class="resp">' + ['C', 'NC', 'NA'].map(function (r) { return '<button class="r-' + r + (i.r === r ? ' sel' : '') + '" data-r="' + k + '|' + r + '"' + (trava ? ' disabled' : '') + '>' + r + '</button>'; }).join('') +
+            '<label class="foto-bt' + (trava ? ' off' : '') + '" title="Foto deste item">' + ic('camera', 18) + (i.fotos && i.fotos.length ? '<b>' + i.fotos.length + '</b>' : '') + '<input type="file" accept="image/*" capture="environment" multiple data-foto="' + k + '" style="display:none"' + (trava ? ' disabled' : '') + '></label></div>' +
+            ((i.r === 'NC' || i.obs) ? '<textarea rows="2" data-obs="' + k + '" placeholder="' + (i.r === 'NC' ? 'Descreva a não conformidade (obrigatório)' : 'Observação') + '"' + (trava ? ' disabled' : '') + '>' + esc(i.obs || '') + '</textarea>' : '<button class="link-obs" data-addobs="' + k + '"' + (trava ? ' hidden' : '') + '>+ observação</button>') +
+            (i.fotos && i.fotos.length ? '<div class="mini-fotos">' + i.fotos.map(function (f) { return '<img src="' + esc(f.thumb) + '" alt="" title="' + esc(f.legenda || '') + '">'; }).join('') + '</div>' : '') + '</div>';
+        }).join('') +
+        (trava ? '' : '<button class="btn sec peq" data-todosc="' + b.bloco + '">Marcar os vazios deste bloco como C</button>') + '</details>';
+    }).join('');
+    a.querySelectorAll('details.bloco').forEach(function (d) { d.addEventListener('toggle', function () { if (d.open) tela.bloco = d.dataset.bl; }); });
+    a.querySelectorAll('[data-r]').forEach(function (b) {
+      b.onclick = function () {
+        var p = b.dataset.r.split('|'), it = l.checklist[Number(p[0])];
+        it.r = it.r === p[1] ? '' : p[1]; tela.bloco = it.bloco;
+        gravarLaudo(l, { checklist: l.checklist });
+        render();
+        if (it.r === 'NC') setTimeout(function () { var t = document.querySelector('[data-obs="' + p[0] + '"]'); if (t) t.focus(); }, 50);
+      };
+    });
+    a.querySelectorAll('[data-obs]').forEach(function (t) { t.oninput = function () { l.checklist[Number(t.dataset.obs)].obs = t.value; gravarDepois(l, { checklist: l.checklist }); }; });
+    a.querySelectorAll('[data-addobs]').forEach(function (b) { b.onclick = function () { var k = b.dataset.addobs; b.outerHTML = '<textarea rows="2" data-obs="' + k + '" placeholder="Observação"></textarea>'; var t = a.querySelector('[data-obs="' + k + '"]'); t.focus(); t.oninput = function () { l.checklist[Number(k)].obs = t.value; gravarDepois(l, { checklist: l.checklist }); }; }; });
+    a.querySelectorAll('[data-todosc]').forEach(function (b) { b.onclick = function () { l.checklist.forEach(function (i) { if (i.bloco === b.dataset.todosc && !i.r) i.r = 'C'; }); tela.bloco = b.dataset.todosc; gravarLaudo(l, { checklist: l.checklist }, 'Bloco preenchido.'); render(); }; });
+    a.querySelectorAll('[data-foto]').forEach(function (inp) { inp.onchange = function () { enviarFotos(l, Array.from(this.files || []), l.checklist[Number(inp.dataset.foto)].codigo); this.value = ''; }; });
+  }
+
+  // ----- Fotos -----
+  function reduzir(file, max, q) {
+    return new Promise(function (ok, erro) {
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () { var k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', q)); };
+      img.onerror = function () { URL.revokeObjectURL(url); erro(new Error('imagem')); };
+      img.src = url;
+    });
+  }
+  async function enviarFotos(l, files, codigo) {
+    if (!files.length) return;
+    var leg = codigo ? (l.checklist.find(function (i) { return i.codigo === codigo; }) || {}).texto || '' : '';
+    for (var i = 0; i < files.length; i++) {
+      toast('Enviando foto ' + (i + 1) + '/' + files.length + '…');
+      try {
+        var full = await reduzir(files[i], 1400, .72), th = await reduzir(files[i], 220, .6);
+        var fid = await banco.criar(SPDA.COLECOES.fotos, SPDA.novaFoto(l.id, codigo, full, ''));
+        var ref = { id: fid, thumb: th, legenda: '' };
+        if (codigo) { var it = l.checklist.find(function (x) { return x.codigo === codigo; }); it.fotos = (it.fotos || []).concat([ref]); await gravarLaudo(l, { checklist: l.checklist }); }
+        else await gravarLaudo(l, { fotosGerais: (l.fotosGerais || []).concat([ref]) });
+      } catch (e) { toast('Não foi possível enviar a foto ' + files[i].name); }
+    }
+    toast(plural(files.length, 'foto salva', 'fotos salvas') + (navigator.onLine ? '.' : ' no aparelho (vai subir quando a internet voltar).'));
+    render();
+  }
+  function todasFotos(l) {
+    var t = [];
+    (l.checklist || []).forEach(function (i, k) { (i.fotos || []).forEach(function (f, j) { t.push({ f: f, item: i, k: k, j: j }); }); });
+    (l.fotosGerais || []).forEach(function (f, j) { t.push({ f: f, item: null, j: j }); });
+    return t;
+  }
+  function abaFotos(a, l, trava) {
+    var t = todasFotos(l);
+    a.innerHTML = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">Registro fotográfico <span class="muted" style="font-weight:400">' + plural(t.length, 'foto', 'fotos') + '</span></h2>' +
+      (trava ? '' : '<label class="btn">' + ic('camera', 16) + ' Foto geral<input type="file" accept="image/*" capture="environment" multiple id="f-geral" style="display:none"></label>') + '</div>' +
+      '<p class="muted">As fotos tiradas no checklist já ficam ligadas ao item. Escreva uma legenda curta: ela sai no PDF.</p>' +
+      (t.length ? '<div class="galeria">' + t.map(function (x, n) {
+        return '<figure><img src="' + esc(x.f.thumb) + '" data-ver="' + x.f.id + '" alt=""><figcaption>' + (x.item ? '<span class="cod">' + esc(x.item.codigo) + '</span>' + (x.item.r === 'NC' ? ' <span class="chip bad">NC</span>' : '') : '<span class="cod">Geral</span>') +
+          '<input data-leg="' + n + '" value="' + esc(x.f.legenda || '') + '" placeholder="Legenda"' + (trava ? ' disabled' : '') + '>' + (trava ? '' : '<button class="btn sec peq" data-rmf="' + n + '">Excluir</button>') + '</figcaption></figure>';
+      }).join('') + '</div>' : '<div class="vazio">Nenhuma foto ainda.</div>') + '</div>';
+    var g = $('f-geral'); if (g) g.onchange = function () { enviarFotos(l, Array.from(this.files || []), ''); this.value = ''; };
+    function salvarRefs(msg) { gravarLaudo(l, { checklist: l.checklist, fotosGerais: l.fotosGerais || [] }, msg); }
+    a.querySelectorAll('[data-leg]').forEach(function (inp) { inp.onchange = function () { t[Number(inp.dataset.leg)].f.legenda = inp.value.trim(); salvarRefs(); banco.atualizar(SPDA.COLECOES.fotos, t[Number(inp.dataset.leg)].f.id, { legenda: inp.value.trim() }).catch(function () {}); }; });
+    a.querySelectorAll('[data-rmf]').forEach(function (b) {
+      b.onclick = function () {
+        if (!confirm('Excluir esta foto?')) return;
+        var x = t[Number(b.dataset.rmf)];
+        if (x.item) x.item.fotos.splice(x.j, 1); else l.fotosGerais.splice(x.j, 1);
+        banco.excluir(SPDA.COLECOES.fotos, x.f.id).catch(function () {});
+        salvarRefs('Foto excluída.'); render();
+      };
+    });
+    a.querySelectorAll('[data-ver]').forEach(function (im) {
+      im.onclick = async function () {
+        abrirModal('<div class="muted">Carregando…</div>');
+        var f = await banco.ler(SPDA.COLECOES.fotos, im.dataset.ver).catch(function () { return null; });
+        abrirModal('<img src="' + esc(f ? f.dataUrl : im.src) + '" alt="" style="width:100%;border-radius:8px"><div class="acoes"><button class="btn sec" id="fv-x">Fechar</button></div>');
+        $('fv-x').onclick = fecharModal;
+      };
+    });
+  }
+
+  // ----- Medições -----
+  function abaMedicoes(a, l, trava) {
+    var m = l.medicoes, lim = m.limites || SPDA.LIMITES_PADRAO, eq = m.equipamento || {};
+    var dis = trava ? ' disabled' : '';
+    var linha = function (tipo, x, k) {
+      var v = SPDA.num(x.valorOhm), max = tipo === 'aterramento' ? lim.aterramentoOhm : lim.continuidadeOhm, fora = !isNaN(v) && v > max;
+      return '<div class="med-linha' + (fora ? ' fora' : '') + '"><input data-m="' + tipo + '|' + k + '|' + (tipo === 'aterramento' ? 'ponto' : 'trecho') + '" value="' + esc(tipo === 'aterramento' ? x.ponto : x.trecho) + '" placeholder="' + (tipo === 'aterramento' ? 'Ponto (ex.: CX-01)' : 'Trecho (ex.: Descida 1 → captação)') + '"' + dis + '>' +
+        (tipo === 'aterramento' ? '<input data-m="' + tipo + '|' + k + '|local" value="' + esc(x.local || '') + '" placeholder="Local"' + dis + '>' : '') +
+        '<div class="ohm"><input data-m="' + tipo + '|' + k + '|valorOhm" inputmode="decimal" value="' + esc(numCampo(x.valorOhm)) + '" placeholder="0,00"' + dis + '><span>Ω</span></div>' +
+        (trava ? '' : '<button class="btn sec peq" data-mx="' + tipo + '|' + k + '" title="Excluir">×</button>') + '</div>';
+    };
+    a.innerHTML = '<div class="card"><h2>' + ic('medidor', 18) + ' Resistência de aterramento</h2><p class="muted">Referência: até ' + numCampo(lim.aterramentoOhm) + ' Ω. Valores acima entram como não conformidade.</p>' +
+      (m.aterramento || []).map(function (x, k) { return linha('aterramento', x, k); }).join('') + (trava ? '' : '<button class="btn sec" id="m-add-at">+ Ponto de medição</button>') + '</div>' +
+      '<div class="card"><h2>' + ic('medidor', 18) + ' Continuidade elétrica</h2><p class="muted">Referência: até ' + numCampo(lim.continuidadeOhm) + ' Ω.</p>' +
+      (m.continuidade || []).map(function (x, k) { return linha('continuidade', x, k); }).join('') + (trava ? '' : '<button class="btn sec" id="m-add-co">+ Trecho</button>') + '</div>' +
+      '<div class="card"><h2>Equipamento e condições</h2><div class="linha"><div><label>Equipamento</label><input id="q-tipo" value="' + esc(eq.tipo || '') + '"' + dis + '></div><div><label>Marca</label><input id="q-marca" value="' + esc(eq.marca || '') + '"' + dis + '></div><div><label>Modelo</label><input id="q-mod" value="' + esc(eq.modelo || '') + '"' + dis + '></div></div>' +
+      '<div class="linha"><div><label>Nº de série</label><input id="q-serie" value="' + esc(eq.serie || '') + '"' + dis + '></div><div><label>Certificado de calibração</label><input id="q-cert" value="' + esc(eq.certificado || '') + '"' + dis + '></div><div><label>Validade</label><input type="date" id="q-val" value="' + esc(eq.validade || '') + '"' + dis + '></div></div>' +
+      '<div class="linha"><div><label>Método</label><input id="q-met" list="l-met" value="' + esc(m.metodo || '') + '"' + dis + '><datalist id="l-met"><option value="Queda de potencial"><option value="Alicate terrômetro"><option value="Método dos 62%"></datalist></div><div><label>Clima / solo</label><input id="q-cli" value="' + esc(m.clima || '') + '" placeholder="Ex.: tempo seco, solo seco"' + dis + '></div></div>' +
+      '<div class="linha"><div><label>Referência aterramento (Ω)</label><input id="q-lat" inputmode="decimal" value="' + esc(numCampo(lim.aterramentoOhm)) + '"' + dis + '></div><div><label>Referência continuidade (Ω)</label><input id="q-lco" inputmode="decimal" value="' + esc(numCampo(lim.continuidadeOhm)) + '"' + dis + '></div></div>' +
+      (eq.validade && eq.validade < l.dataInspecao ? '<div class="aviso" style="margin-top:10px">A calibração do equipamento venceu antes da data da inspeção.</div>' : '') + '</div>';
+    if (trava) return;
+    function salvarM(re) { gravarDepois(l, { medicoes: l.medicoes }); if (re) render(); }
+    $('m-add-at').onclick = function () { m.aterramento = (m.aterramento || []).concat([{ ponto: 'CX-' + String((m.aterramento || []).length + 1).padStart(2, '0'), local: '', valorOhm: '' }]); salvarM(true); };
+    $('m-add-co').onclick = function () { m.continuidade = (m.continuidade || []).concat([{ trecho: '', valorOhm: '' }]); salvarM(true); };
+    a.querySelectorAll('[data-m]').forEach(function (inp) {
+      inp.oninput = function () { var p = inp.dataset.m.split('|'), x = m[p[0]][Number(p[1])]; x[p[2]] = p[2] === 'valorOhm' ? (inp.value.trim() === '' ? '' : num(inp.value)) : inp.value; salvarM(false); };
+      if (inp.dataset.m.indexOf('valorOhm') > 0) inp.onchange = function () { render(); };
+    });
+    a.querySelectorAll('[data-mx]').forEach(function (b) { b.onclick = function () { var p = b.dataset.mx.split('|'); m[p[0]].splice(Number(p[1]), 1); salvarM(true); }; });
+    [['q-tipo', 'tipo'], ['q-marca', 'marca'], ['q-mod', 'modelo'], ['q-serie', 'serie'], ['q-cert', 'certificado'], ['q-val', 'validade']].forEach(function (x) { $(x[0]).oninput = function () { m.equipamento = Object.assign({}, m.equipamento, { [x[1]]: this.value }); salvarM(false); }; });
+    $('q-met').oninput = function () { m.metodo = this.value; salvarM(false); };
+    $('q-cli').oninput = function () { m.clima = this.value; salvarM(false); };
+    $('q-lat').onchange = function () { m.limites = Object.assign({}, lim, { aterramentoOhm: num(this.value) || SPDA.LIMITES_PADRAO.aterramentoOhm }); salvarM(true); };
+    $('q-lco').onchange = function () { m.limites = Object.assign({}, lim, { continuidadeOhm: num(this.value) || SPDA.LIMITES_PADRAO.continuidadeOhm }); salvarM(true); };
+  }
+
+  // ----- Edificação e dados da inspeção -----
+  function abaDados(a, l, trava) {
+    var ed = edDe(l.edificacaoId) || {}, en = ed.endereco || {}, dm = ed.dimensoes || {}, n = SPDA.NIVEIS[l.nivelProtecao], dis = trava ? ' disabled' : '';
+    a.innerHTML = '<div class="card"><h2>Inspeção</h2><div class="linha"><div><label>Tipo de inspeção</label><select id="d-tipo"' + dis + '>' + Object.keys(SPDA.TIPOS_INSPECAO).map(function (k) { return '<option value="' + k + '"' + (k === l.tipoInspecao ? ' selected' : '') + '>' + SPDA.TIPOS_INSPECAO[k] + '</option>'; }).join('') + '</select></div>' +
+      '<div><label>Data da inspeção</label><input type="date" id="d-data" value="' + esc(l.dataInspecao) + '"' + dis + '></div><div><label>Inspetor</label><input id="d-insp" value="' + esc(l.inspetor || '') + '"' + dis + '></div></div>' +
+      '<div class="linha"><div><label>Nível de proteção (NP)</label><select id="d-np"' + dis + '><option value="">—</option>' + Object.keys(SPDA.NIVEIS).map(function (k) { return '<option' + (k === l.nivelProtecao ? ' selected' : '') + '>' + k + '</option>'; }).join('') + '</select></div>' +
+      '<div><label>Método de captação</label><select id="d-met"' + dis + '><option value="">—</option>' + Object.keys(SPDA.METODOS_CAPTACAO).map(function (k) { return '<option value="' + k + '"' + (k === l.metodoCaptacao ? ' selected' : '') + '>' + SPDA.METODOS_CAPTACAO[k] + '</option>'; }).join('') + '</select></div></div>' +
+      (n ? '<div class="np-info">' + [['Esfera rolante', 'R = ' + n.raioEsferaM + ' m'], ['Malha de captação', n.malhaM.join(' × ') + ' m'], ['Distância entre descidas', n.distDescidasM + ' m'], ['Corrente de pico', n.correntePicoKA + ' kA']].map(function (x) { return '<div><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('') + '</div><div class="muted" style="font-size:12px">Referências do NP ' + n.classe + ' — conferir com a edição vigente da NBR 5419.</div>' : '') + '</div>' +
+      '<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><h2 style="margin:0">' + ic('predio', 18) + ' ' + esc(ed.nome || l.edificacaoNome || 'Edificação') + '</h2>' + (ed.id && !trava ? '<button class="btn sec peq" id="d-ed">Editar edificação</button>' : '') + '</div>' +
+      '<div class="dados-ed">' + [['Cliente', l.empresaNome], ['CNPJ', l.cnpj], ['Atividade', ed.atividade], ['Endereço', [en.logradouro, en.numero].filter(Boolean).join(', ') + (en.bairro ? ' — ' + en.bairro : '')], ['Cidade', [en.cidade, en.uf].filter(Boolean).join('/')],
+        ['Dimensões', [dm.comprimentoM, dm.larguraM, dm.alturaM].some(function (x) { return x !== '' && x != null; }) ? numCampo(dm.comprimentoM) + ' × ' + numCampo(dm.larguraM) + ' m, altura ' + numCampo(dm.alturaM) + ' m' : ''], ['Estrutura', ed.tipoEstrutura], ['Cobertura', ed.coberturaTipo], ['Descidas (projeto)', ed.qtdDescidas]]
+        .map(function (x) { return '<div><span>' + x[0] + '</span><b>' + esc(x[1] || '—') + '</b></div>'; }).join('') + '</div></div>';
+    if (trava) return;
+    $('d-tipo').onchange = function () { gravarLaudo(l, { tipoInspecao: this.value }); };
+    $('d-data').onchange = function () { gravarLaudo(l, { dataInspecao: this.value }); };
+    $('d-insp').onchange = function () { gravarLaudo(l, { inspetor: this.value.trim() }); };
+    $('d-np').onchange = function () { gravarLaudo(l, { nivelProtecao: this.value }); render(); };
+    $('d-met').onchange = function () { gravarLaudo(l, { metodoCaptacao: this.value }); };
+    if ($('d-ed')) $('d-ed').onclick = function () { formEdificacao(ed, null, function (e2) { gravarLaudo(l, { edificacaoNome: e2.nome }); render(); }); };
+  }
+
+  // ----- Conclusão, ART e status -----
+  function abaConclusao(a, l, trava) {
+    var nc = SPDA.naoConformidades(l), sug = SPDA.parecerSugerido(l), c = l.conclusao || {}, rp = l.responsavel || {}, art = rp.art || {};
+    var pend = SPDA.pendencias(l, l.status !== 'rascunho'), dis = trava ? ' disabled' : '';
+    a.innerHTML = '<div class="card"><h2>Não conformidades <span class="muted" style="font-weight:400">' + nc.length + '</span></h2>' +
+      (nc.length ? nc.map(function (x) { return '<div class="nc-it"><span class="cod">' + esc(x.codigo) + '</span><div><b>' + esc(x.texto) + '</b>' + (x.obs ? '<div class="muted">' + esc(x.obs) + '</div>' : '') + '</div></div>'; }).join('') : '<p class="muted">Nenhuma não conformidade.</p>') + '</div>' +
+      '<div class="card"><h2>Parecer</h2>' + (sug ? '<div class="muted">Sugestão pelo checklist e medições: <span class="chip ' + PARECER[sug][1] + '">' + PARECER[sug][0] + '</span></div>' : '<div class="muted">Responda todo o checklist para ver a sugestão de parecer.</div>') +
+      '<div class="parecer">' + Object.keys(PARECER).map(function (k) { return '<button class="' + (c.parecer === k ? 'sel ' : '') + PARECER[k][1] + '" data-par="' + k + '"' + dis + '>' + PARECER[k][0] + '</button>'; }).join('') + '</div>' +
+      '<label>Conclusão</label><textarea id="c-txt" rows="3"' + dis + ' placeholder="Ex.: O SPDA inspecionado atende / não atende aos requisitos da ABNT NBR 5419...">' + esc(c.texto || '') + '</textarea>' +
+      '<label>Recomendações</label><textarea id="c-rec" rows="3"' + dis + ' placeholder="Correções necessárias e prazos sugeridos">' + esc(c.recomendacoes || '') + '</textarea>' +
+      '<div class="linha"><div><label>Próxima inspeção em (meses)</label><input id="c-per" inputmode="numeric" value="' + esc(l.periodicidadeMeses || '') + '"' + dis + '></div><div><label>Próxima inspeção</label><input disabled value="' + (l.proximaInspecao ? dt(l.proximaInspecao) : 'definida ao concluir') + '"></div></div></div>' +
+      '<div class="card"><h2>' + ic('selo', 18) + ' Responsável técnico e ART</h2><div class="linha"><div style="flex:2"><label>Engenheiro responsável</label><input id="c-nome" value="' + esc(rp.nome || '') + '"' + dis + '></div><div><label>CREA</label><input id="c-crea" value="' + esc(rp.crea || '') + '"' + dis + '></div></div>' +
+      '<div class="linha"><div><label>Nº da ART</label><input id="c-art" value="' + esc(art.numero || '') + '"' + dis + '></div><div><label>Data da ART</label><input type="date" id="c-artd" value="' + esc(art.data || '') + '"' + dis + '></div></div></div>' +
+      '<div class="card status-card"><h2>Situação do laudo: <span class="chip ' + (ST[l.status] || ST.rascunho)[1] + '">' + (ST[l.status] || ST.rascunho)[0] + '</span></h2>' +
+      (pend.length && l.status !== 'concluido' ? '<div class="pend"><b>Falta para ' + (l.status === 'rascunho' ? 'enviar para revisão' : 'concluir') + ':</b><ul>' + pend.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul></div>' : '') +
+      '<div class="acoes">' +
+      (l.status === 'rascunho' ? '<button class="btn" data-st="revisao">Enviar para revisão</button>' : '') +
+      (l.status === 'revisao' ? (dono ? '<button class="btn ok" data-st="concluido">' + ic('selo', 16) + ' Concluir laudo</button>' : '<span class="muted">Um sócio revisa e conclui.</span>') + '<button class="btn sec" data-st="rascunho">Voltar para o campo</button>' : '') +
+      (l.status === 'concluido' && dono ? '<button class="btn sec" data-st="revisao">Reabrir (voltar para revisão)</button>' : '') +
+      '<button class="btn sec" id="c-pdf">' + ic('pdf', 16) + ' Gerar PDF</button></div></div>';
+    $('c-pdf').onclick = function () { gerarPdf(l); };
+    a.querySelectorAll('[data-st]').forEach(function (b) { b.onclick = function () { mudarStatus(l, b.dataset.st); }; });
+    if (trava) return;
+    a.querySelectorAll('[data-par]').forEach(function (b) { b.onclick = function () { var cc = Object.assign({}, l.conclusao, { parecer: b.dataset.par }); if (!cc.texto) cc.texto = textoConclusao(b.dataset.par); gravarLaudo(l, { conclusao: cc }); render(); }; });
+    $('c-txt').oninput = function () { gravarDepois(l, { conclusao: Object.assign({}, l.conclusao, { texto: this.value }) }); };
+    $('c-rec').oninput = function () { gravarDepois(l, { conclusao: Object.assign({}, l.conclusao, { recomendacoes: this.value }) }); };
+    $('c-per').onchange = function () { gravarLaudo(l, { periodicidadeMeses: Math.round(num(this.value)) || SPDA.PERIODICIDADE_PADRAO_MESES }); };
+    function resp() { gravarDepois(l, { responsavel: { nome: $('c-nome').value.trim(), crea: $('c-crea').value.trim(), art: { numero: $('c-art').value.trim(), data: $('c-artd').value } } }); }
+    ['c-nome', 'c-crea', 'c-art', 'c-artd'].forEach(function (id) { $(id).oninput = resp; });
+  }
+  function textoConclusao(p) {
+    return ({ conforme: 'O SPDA inspecionado encontra-se em conformidade com os requisitos da ABNT NBR 5419 verificados nesta inspeção.',
+      conforme_ressalvas: 'O SPDA inspecionado atende aos requisitos essenciais da ABNT NBR 5419, com as ressalvas listadas nas não conformidades, que devem ser corrigidas.',
+      nao_conforme: 'O SPDA inspecionado NÃO atende aos requisitos da ABNT NBR 5419. As não conformidades listadas devem ser corrigidas e o sistema reinspecionado.' })[p] || '';
+  }
+  async function mudarStatus(l, para) {
+    clearTimeout(timerSalvar);
+    var erro = SPDA.podeMudarStatus(l, para);
+    if (erro) { toast(erro.length > 140 ? 'Ainda falta preencher itens (veja a lista).' : erro); render(); return; }
+    var campos = { status: para, historico: (l.historico || []).concat([{ quando: agora(), quem: usuario, o: para }]) };
+    if (para === 'concluido') {
+      var ano = Number(String(l.dataInspecao || hoje()).slice(0, 4));
+      if (!l.numero) campos.numero = SPDA.proximoNumero(cache.laudos.map(function (x) { return x.numero; }), ano);
+      Object.assign(campos, SPDA.aoConcluir(l));
+    }
+    // salva tudo que está na tela junto com o status
+    Object.assign(campos, { checklist: l.checklist, medicoes: l.medicoes, conclusao: l.conclusao, responsavel: l.responsavel });
+    await gravarLaudo(l, campos, para === 'concluido' ? 'Laudo concluído: ' + (campos.numero || l.numero) : para === 'revisao' ? 'Enviado para revisão.' : 'Laudo voltou para o campo.');
+    if (para === 'concluido' || l.status === 'concluido') resumoNaOS(l.osId);
+    render();
+  }
+  // Resumo para o Finanças / CRONOS: laudos concluídos da OS
+  function resumoNaOS(osId) {
+    if (!osId) return;
+    var itens = cache.laudos.filter(function (x) { return x.osId === osId && x.status === 'concluido'; }).map(function (x) { return { laudoId: x.id, numero: x.numero, edificacao: x.edificacaoNome, parecer: (x.conclusao || {}).parecer || '', data: x.dataInspecao, proxima: x.proximaInspecao || '' }; });
+    banco.atualizar('ordens', osId, { resultados: { 'SPDA': { itens: itens, atualizadoEm: agora() } } }).catch(function (e) { console.warn('OS não atualizada', e); });
+  }
+
+  // ===================== PDF (etapa 5) =====================
+  // logo da IDEALLE embutido no PDF
+  var logoCache = null;
+  function logoDataUrl() {
+    if (logoCache !== null) return Promise.resolve(logoCache);
+    return fetch('/portal/logo-idealle.jpg').then(function (r) { if (!r.ok) throw new Error(); return r.blob(); })
+      .then(function (b) { return new Promise(function (ok) { var fr = new FileReader(); fr.onload = function () { ok(fr.result); }; fr.readAsDataURL(b); }); })
+      .then(function (d) { logoCache = d; return d; }).catch(function () { logoCache = ''; return ''; });
+  }
+  async function gerarPdf(l) {
+    var w = window.open('', '_blank'); if (!w) { toast('Libere as janelas (pop-up) para gerar o PDF.'); return; }
+    w.document.write('<p style="font-family:sans-serif;padding:30px">Montando o laudo…</p>');
+    var ed = edDe(l.edificacaoId) || {}, en = ed.endereco || {}, dm = ed.dimensoes || {}, n = SPDA.NIVEIS[l.nivelProtecao], m = l.medicoes || {}, lim = m.limites || SPDA.LIMITES_PADRAO;
+    var nc = SPDA.naoConformidades(l), c = l.conclusao || {}, rp = l.responsavel || {}, art = rp.art || {}, par = PARECER[c.parecer];
+    var logo = await logoDataUrl();
+    var fotos = todasFotos(l), grandes = {};
+    for (var i = 0; i < fotos.length; i++) { var f = await banco.ler(SPDA.COLECOES.fotos, fotos[i].f.id).catch(function () { return null; }); grandes[fotos[i].f.id] = f ? f.dataUrl : fotos[i].f.thumb; }
+    var R = { C: 'Conforme', NC: 'Não conforme', NA: 'N/A' };
+    var sec = 0, titulo = function (t) { sec++; return '<h2>' + sec + '. ' + t + '</h2>'; };
+    var tabela = function (cab, linhas) { return '<table><tr>' + cab.map(function (x) { return '<th>' + x + '</th>'; }).join('') + '</tr>' + linhas.join('') + '</table>'; };
+    var ckHtml = SPDA.CHECKLIST.map(function (b) {
+      return '<h3>' + esc(b.nome) + '</h3>' + tabela(['Item', 'Verificação', 'Resultado', 'Observação'], (l.checklist || []).filter(function (i) { return i.bloco === b.bloco; }).map(function (i) {
+        return '<tr><td class="cod">' + esc(i.codigo) + '</td><td>' + esc(i.texto) + '</td><td class="r ' + (i.r || '') + '">' + (R[i.r] || '—') + '</td><td>' + esc(i.obs || '') + '</td></tr>';
+      }));
+    }).join('');
+    var medAt = (m.aterramento || []).map(function (x) { var v = SPDA.num(x.valorOhm), f = !isNaN(v) && v > lim.aterramentoOhm; return '<tr><td>' + esc(x.ponto) + '</td><td>' + esc(x.local || '') + '</td><td class="num">' + numCampo(x.valorOhm) + ' Ω</td><td class="r ' + (f ? 'NC' : 'C') + '">' + (f ? 'Acima da referência' : 'Dentro da referência') + '</td></tr>'; });
+    var medCo = (m.continuidade || []).map(function (x) { var v = SPDA.num(x.valorOhm), f = !isNaN(v) && v > lim.continuidadeOhm; return '<tr><td>' + esc(x.trecho) + '</td><td class="num">' + numCampo(x.valorOhm) + ' Ω</td><td class="r ' + (f ? 'NC' : 'C') + '">' + (f ? 'Acima da referência' : 'Dentro da referência') + '</td></tr>'; });
+    var fotoFig = function (x) { return '<figure><img src="' + grandes[x.f.id] + '"><figcaption><b>' + (x.item ? esc(x.item.codigo) : 'Geral') + '</b> ' + esc(x.f.legenda || (x.item ? x.item.texto : '')) + '</figcaption></figure>'; };
+    var fotosNc = fotos.filter(function (x) { return x.item && x.item.r === 'NC'; });
+    var corpo =
+      '<section class="capa">' + (logo ? '<img class="logo" src="' + logo + '">' : '<div></div>') + '<div class="capa-t"><div class="sup">LAUDO TÉCNICO DE INSPEÇÃO</div><h1>Sistema de Proteção contra Descargas Atmosféricas (SPDA)</h1><div class="norma">ABNT NBR 5419</div></div>' +
+      '<table class="capa-d"><tr><th>Laudo nº</th><td>' + esc(l.numero || 'RASCUNHO') + '</td></tr><tr><th>Cliente</th><td>' + esc(l.empresaNome) + (l.cnpj ? ' — CNPJ ' + esc(l.cnpj) : '') + '</td></tr><tr><th>Edificação</th><td>' + esc(ed.nome || l.edificacaoNome) + '</td></tr>' +
+      '<tr><th>Endereço</th><td>' + esc([en.logradouro, en.numero].filter(Boolean).join(', ') + (en.cidade ? ' — ' + en.cidade + '/' + (en.uf || '') : '')) + '</td></tr><tr><th>Data da inspeção</th><td>' + dt(l.dataInspecao) + '</td></tr><tr><th>OS</th><td>' + esc(l.osCodigo || '') + '</td></tr></table>' +
+      '<div class="capa-r">IDEALLE Inspeções e Serviços · Guarulhos/SP</div></section>' +
+      '<section class="pg"><h2>Sumário</h2><ol class="sum"><li>Dados da edificação</li><li>Critérios e nível de proteção</li><li>Checklist de inspeção</li><li>Medições elétricas</li><li>Não conformidades</li><li>Registro fotográfico</li><li>Conclusão e recomendações</li><li>Responsável técnico</li></ol>' +
+      titulo('Dados da edificação') + tabela(['Campo', 'Informação'], [['Cliente', l.empresaNome], ['CNPJ', l.cnpj], ['Edificação', ed.nome || l.edificacaoNome], ['Atividade', ed.atividade], ['Endereço', [en.logradouro, en.numero, en.bairro, en.cidade, en.uf, en.cep].filter(Boolean).join(', ')], ['Dimensões (C × L × A)', [dm.comprimentoM, dm.larguraM, dm.alturaM].some(function (x) { return x !== '' && x != null; }) ? [dm.comprimentoM, dm.larguraM, dm.alturaM].map(numCampo).join(' × ') + ' m' : ''], ['Estrutura', ed.tipoEstrutura], ['Cobertura', ed.coberturaTipo], ['Descidas (projeto)', ed.qtdDescidas], ['Tipo de inspeção', SPDA.TIPOS_INSPECAO[l.tipoInspecao]], ['Inspetor', l.inspetor]].map(function (x) { return '<tr><td><b>' + x[0] + '</b></td><td>' + esc(x[1] == null ? '' : x[1]) + '</td></tr>'; })) +
+      titulo('Critérios e nível de proteção') + '<p>Inspeção realizada segundo a ABNT NBR 5419 (partes 1 a 4), com verificação visual dos subsistemas de captação, descidas, aterramento, equipotencialização e proteção contra surtos, e medições elétricas.</p>' +
+      (n ? tabela(['Nível de proteção', 'Método de captação', 'Esfera rolante', 'Malha', 'Distância entre descidas'], ['<tr><td><b>NP ' + n.classe + '</b></td><td>' + esc(SPDA.METODOS_CAPTACAO[l.metodoCaptacao] || '—') + '</td><td>R = ' + n.raioEsferaM + ' m</td><td>' + n.malhaM.join(' × ') + ' m</td><td>' + n.distDescidasM + ' m</td></tr>']) : '<p>Nível de proteção não informado.</p>') +
+      titulo('Checklist de inspeção') + ckHtml +
+      titulo('Medições elétricas') + '<p>Equipamento: ' + esc([m.equipamento.tipo, m.equipamento.marca, m.equipamento.modelo].filter(Boolean).join(' ') || '—') + (m.equipamento.serie ? ', série ' + esc(m.equipamento.serie) : '') + (m.equipamento.certificado ? ', certificado ' + esc(m.equipamento.certificado) + (m.equipamento.validade ? ' (válido até ' + dt(m.equipamento.validade) + ')' : '') : '') + '. Método: ' + esc(m.metodo || '—') + (m.clima ? '. Condições: ' + esc(m.clima) : '') + '.</p>' +
+      '<h3>Resistência de aterramento (referência ≤ ' + numCampo(lim.aterramentoOhm) + ' Ω)</h3>' + (medAt.length ? tabela(['Ponto', 'Local', 'Valor', 'Avaliação'], medAt) : '<p>Sem medições.</p>') +
+      '<h3>Continuidade elétrica (referência ≤ ' + numCampo(lim.continuidadeOhm) + ' Ω)</h3>' + (medCo.length ? tabela(['Trecho', 'Valor', 'Avaliação'], medCo) : '<p>Sem medições.</p>') +
+      titulo('Não conformidades') + (nc.length ? tabela(['Item', 'Descrição', 'Detalhe'], nc.map(function (x) { return '<tr><td class="cod">' + esc(x.codigo) + '</td><td>' + esc(x.texto) + '</td><td>' + esc(x.obs || '') + '</td></tr>'; })) + (fotosNc.length ? '<div class="fotos">' + fotosNc.map(fotoFig).join('') + '</div>' : '') : '<p>Nenhuma não conformidade encontrada.</p>') +
+      titulo('Registro fotográfico') + (fotos.length ? '<div class="fotos">' + fotos.map(fotoFig).join('') + '</div>' : '<p>Sem fotos.</p>') +
+      titulo('Conclusão e recomendações') + (par ? '<p class="parecer ' + c.parecer + '">PARECER: ' + par[0].toUpperCase() + '</p>' : '') + '<p class="pre">' + esc(c.texto || '') + '</p>' + (c.recomendacoes ? '<h3>Recomendações</h3><p class="pre">' + esc(c.recomendacoes) + '</p>' : '') +
+      '<p>Próxima inspeção recomendada: <b>' + (l.proximaInspecao ? dt(l.proximaInspecao) : 'em ' + (l.periodicidadeMeses || 12) + ' meses') + '</b>.</p>' +
+      titulo('Responsável técnico') + '<div class="ass"><div class="linha-ass"></div><b>' + esc(rp.nome || '') + '</b><br>Engenheiro Eletricista · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '') + '<br>IDEALLE Inspeções e Serviços</div></section>';
+    var css = '@page{size:A4;margin:16mm 14mm}body{font:11pt Arial,sans-serif;color:#111;margin:0}h1{font-size:24pt;margin:8px 0}h2{font-size:13pt;color:#9a3412;border-bottom:2px solid #f59e4b;padding-bottom:4px;margin:22px 0 10px}h3{font-size:11pt;margin:14px 0 6px}' +
+      'table{width:100%;border-collapse:collapse;margin:6px 0 10px;page-break-inside:auto}tr{page-break-inside:avoid}th,td{border:1px solid #bbb;padding:5px 6px;text-align:left;vertical-align:top;font-size:9.5pt}th{background:#f3f4f6}.num{text-align:right;white-space:nowrap}.cod{white-space:nowrap;font-weight:700}' +
+      '.r.C{color:#15803d;font-weight:700}.r.NC{color:#b91c1c;font-weight:700}.r.NA{color:#6b7280}.capa{height:250mm;display:flex;flex-direction:column;justify-content:space-between;page-break-after:always}.logo{max-height:70px;max-width:220px}' +
+      '.capa-t{border-left:6px solid #f59e4b;padding-left:16px}.sup{letter-spacing:.2em;color:#6b7280;font-size:10pt}.norma{font-size:14pt;color:#9a3412;font-weight:700}.capa-d th{width:30%}.capa-r{color:#6b7280;font-size:9pt}.sum li{margin:4px 0}' +
+      '.fotos{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fotos figure{margin:0;page-break-inside:avoid}.fotos img{width:100%;height:62mm;object-fit:cover;border:1px solid #ccc}.fotos figcaption{font-size:9pt;margin-top:3px}' +
+      '.parecer{font-weight:700;font-size:12pt;padding:8px 10px;border-radius:4px}.parecer.conforme{background:#dcfce7;color:#15803d}.parecer.conforme_ressalvas{background:#fef3c7;color:#92400e}.parecer.nao_conforme{background:#fee2e2;color:#b91c1c}.pre{white-space:pre-line}' +
+      '.ass{margin-top:60px;text-align:center;line-height:1.5}.linha-ass{width:70%;margin:0 auto 6px;border-top:1px solid #000}' +
+      (l.status !== 'concluido' ? 'body::before{content:"RASCUNHO";position:fixed;top:40%;left:15%;font-size:110pt;color:rgba(200,0,0,.08);transform:rotate(-30deg);z-index:-1}' : '');
+    w.document.open();
+    w.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Laudo SPDA ' + esc(l.numero || '') + ' - ' + esc(l.edificacaoNome || '') + '</title><style>' + css + '</style></head><body>' + corpo + '<script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script></body></html>');
+    w.document.close();
+  }
+
+})();
+</script>
+</body>
+</html>

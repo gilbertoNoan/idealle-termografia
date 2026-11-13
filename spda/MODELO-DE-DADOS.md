@@ -79,10 +79,13 @@ spda/
   MODELO-DE-DADOS.md       este documento
   spda-dados.js            Etapa 1: coleções, NP, checklist NBR 5419, fluxo e validações (sem tela)
   teste-spda-dados.js      teste do modelo (node spda/teste-spda-dados.js)
-  spda-telas.js            Etapa 2/3: edificações, laudo e checklist mobile
-  spda-offline.js          Etapa 4: câmera, fila de fotos e rascunho no IndexedDB
-  spda-pdf.js              Etapa 5: laudo em PDF (capa, sumário, checklist, medições, fotos, NC, ART)
+  index.html               Etapas 2 a 5 (primeira versão): lista de laudos, edificações, checklist mobile com
+                           câmera por item, medições, conclusão/ART, fluxo de status e PDF; offline pelo
+                           cache do Firestore (enablePersistence). Modo de teste: /spda/?demo=1
 portal/                    Portal do Cliente (recebe o PDF concluído)
 cronos/                    Finanças (OS com serviço SPDA; pendência some quando o laudo é concluído)
 ```
 Regras do banco: `firestore.rules` no repositório painel-central (coleções `spda_*` só para a equipe logada).
+
+Acesso: menu da Termografia › SPDA (NBR 5419), ou /spda/. Usa a mesma liberação da Termografia no CRONOS.
+Ao concluir, a OS recebe `resultados.SPDA.itens` (número, edificação, parecer, próxima inspeção).
