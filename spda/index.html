@@ -748,11 +748,11 @@
   }
 
   // ===================== PDF (etapa 5) =====================
-  // logo da IDEALLE embutido no PDF
+  // logo azul da IDEALLE (setor de elétrica) embutido no PDF
   var logoCache = null;
   function logoDataUrl() {
     if (logoCache !== null) return Promise.resolve(logoCache);
-    return fetch('/portal/logo-idealle.jpg').then(function (r) { if (!r.ok) throw new Error(); return r.blob(); })
+    return fetch('/spda/logo-idealle-eletrica.png').then(function (r) { if (!r.ok) throw new Error(); return r.blob(); })
       .then(function (b) { return new Promise(function (ok) { var fr = new FileReader(); fr.onload = function () { ok(fr.result); }; fr.readAsDataURL(b); }); })
       .then(function (d) { logoCache = d; return d; }).catch(function () { logoCache = ''; return ''; });
   }
@@ -803,10 +803,10 @@
       titulo('Conclusão e recomendações') + (par ? '<p class="parecer ' + c.parecer + '">PARECER: ' + par[0].toUpperCase() + '</p>' : '') + '<p class="pre">' + esc(c.texto || '') + '</p>' + (c.recomendacoes ? '<h3>Recomendações</h3><p class="pre">' + esc(c.recomendacoes) + '</p>' : '') +
       '<p>Próxima inspeção recomendada: <b>' + (l.proximaInspecao ? dt(l.proximaInspecao) : 'em ' + (l.periodicidadeMeses || 12) + ' meses') + '</b>.</p>' +
       titulo('Responsável técnico') + '<div class="ass"><div class="linha-ass"></div><b>' + esc(rp.nome || '') + '</b><br>Engenheiro Eletricista · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '') + '<br>IDEALLE Inspeções e Serviços</div></section>';
-    var css = '@page{size:A4;margin:16mm 14mm}body{font:11pt Arial,sans-serif;color:#111;margin:0}h1{font-size:24pt;margin:8px 0}h2{font-size:13pt;color:#9a3412;border-bottom:2px solid #f59e4b;padding-bottom:4px;margin:22px 0 10px}h3{font-size:11pt;margin:14px 0 6px}' +
+    var css = '@page{size:A4;margin:16mm 14mm}body{font:11pt Arial,sans-serif;color:#111;margin:0}h1{font-size:24pt;margin:8px 0}h2{font-size:13pt;color:#0b5c99;border-bottom:2px solid #4db6ef;padding-bottom:4px;margin:22px 0 10px}h3{font-size:11pt;margin:14px 0 6px}' +
       'table{width:100%;border-collapse:collapse;margin:6px 0 10px;page-break-inside:auto}tr{page-break-inside:avoid}th,td{border:1px solid #bbb;padding:5px 6px;text-align:left;vertical-align:top;font-size:9.5pt}th{background:#f3f4f6}.num{text-align:right;white-space:nowrap}.cod{white-space:nowrap;font-weight:700}' +
       '.r.C{color:#15803d;font-weight:700}.r.NC{color:#b91c1c;font-weight:700}.r.NA{color:#6b7280}.capa{height:250mm;display:flex;flex-direction:column;justify-content:space-between;page-break-after:always}.logo{max-height:70px;max-width:220px}' +
-      '.capa-t{border-left:6px solid #f59e4b;padding-left:16px}.sup{letter-spacing:.2em;color:#6b7280;font-size:10pt}.norma{font-size:14pt;color:#9a3412;font-weight:700}.capa-d th{width:30%}.capa-r{color:#6b7280;font-size:9pt}.sum li{margin:4px 0}' +
+      '.capa-t{border-left:6px solid #4db6ef;padding-left:16px}.sup{letter-spacing:.2em;color:#6b7280;font-size:10pt}.norma{font-size:14pt;color:#0b5c99;font-weight:700}.capa-d th{width:30%}.capa-r{color:#6b7280;font-size:9pt}.sum li{margin:4px 0}' +
       '.fotos{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fotos figure{margin:0;page-break-inside:avoid}.fotos img{width:100%;height:62mm;object-fit:cover;border:1px solid #ccc}.fotos figcaption{font-size:9pt;margin-top:3px}' +
       '.parecer{font-weight:700;font-size:12pt;padding:8px 10px;border-radius:4px}.parecer.conforme{background:#dcfce7;color:#15803d}.parecer.conforme_ressalvas{background:#fef3c7;color:#92400e}.parecer.nao_conforme{background:#fee2e2;color:#b91c1c}.pre{white-space:pre-line}' +
       '.ass{margin-top:60px;text-align:center;line-height:1.5}.linha-ass{width:70%;margin:0 auto 6px;border-top:1px solid #000}' +
