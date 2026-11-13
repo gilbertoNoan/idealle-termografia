@@ -811,7 +811,7 @@
     try {
       var rod = 'Laudo SPDA ' + (l.numero || '') + ' · ' + (l.empresaNome || '') + ' · IDEALLE Inspeções e Serviços';
       var pdf = await window.html2pdf().set({ margin: [14, 14, 16, 14], image: { type: 'jpeg', quality: 0.9 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'], after: '.capa', avoid: ['tr', 'figure', '.ass', '.parecer', 'h3'] } }).from(box.querySelector('.lpdf')).toPdf().get('pdf');
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'], after: '.capa', avoid: ['.cab-fotos', 'tr', '.ass', '.parecer', 'h3'] } }).from(box.querySelector('.lpdf')).toPdf().get('pdf');
       var n = pdf.internal.getNumberOfPages();
       for (var i = 2; i <= n; i++) {
         pdf.setPage(i); pdf.setFontSize(7.5); pdf.setTextColor(110);
@@ -898,6 +898,13 @@
     var medAt = (m.aterramento || []).map(function (x) { var v = SPDA.num(x.valorOhm), f = !isNaN(v) && v > lim.aterramentoOhm; return '<tr><td>' + esc(x.ponto) + '</td><td>' + esc(x.local || '') + '</td><td class="num">' + numCampo(x.valorOhm) + ' Ω</td><td class="r ' + (f ? 'NC' : 'C') + '">' + (f ? 'Acima da referência' : 'Dentro da referência') + '</td></tr>'; });
     var medCo = (m.continuidade || []).map(function (x) { var v = SPDA.num(x.valorOhm), f = !isNaN(v) && v > lim.continuidadeOhm; return '<tr><td>' + esc(x.trecho) + '</td><td class="num">' + numCampo(x.valorOhm) + ' Ω</td><td class="r ' + (f ? 'NC' : 'C') + '">' + (f ? 'Acima da referência' : 'Dentro da referência') + '</td></tr>'; });
     var fotoFig = function (x) { return '<figure><img src="' + grandes[x.f.id] + '"><figcaption><b>' + (x.item ? esc(x.item.codigo) : 'Geral') + '</b> ' + esc(x.f.legenda || (x.item ? x.item.texto : '')) + '</figcaption></figure>'; };
+    // Fotos em linhas de duas (tabela): no PDF do portal cada linha vai inteira para a página seguinte, sem cortar a foto
+    var gradeFotos = function (lista, cab) {
+      var linha = function (q) { return '<tr><td>' + fotoFig(lista[q]) + '</td><td>' + (lista[q + 1] ? fotoFig(lista[q + 1]) : '') + '</td></tr>'; }, h = '';
+      for (var q = 2; q < lista.length; q += 2) h += linha(q);
+      // o título fica junto da primeira linha de fotos (não sobra sozinho no fim da página)
+      return '<div class="cab-fotos">' + (cab || '') + '<table class="fotos">' + linha(0) + '</table></div>' + (h ? '<table class="fotos">' + h + '</table>' : '');
+    };
     var fotosNc = fotos.filter(function (x) { return x.item && x.item.r === 'NC'; });
     var corpo =
       '<section class="capa">' + (logo ? '<img class="logo" src="' + logo + '">' : '<div></div>') + '<div class="capa-t"><div class="sup">LAUDO TÉCNICO DE INSPEÇÃO</div><h1>Sistema de Proteção contra Descargas Atmosféricas (SPDA)</h1><div class="norma">ABNT NBR 5419</div></div>' +
@@ -912,8 +919,8 @@
       titulo('Medições elétricas') + '<p>Equipamento: ' + esc([m.equipamento.tipo, m.equipamento.marca, m.equipamento.modelo].filter(Boolean).join(' ') || '—') + (m.equipamento.serie ? ', série ' + esc(m.equipamento.serie) : '') + (m.equipamento.certificado ? ', certificado ' + esc(m.equipamento.certificado) + (m.equipamento.validade ? ' (válido até ' + dt(m.equipamento.validade) + ')' : '') : '') + '. Método: ' + esc(m.metodo || '—') + (m.clima ? '. Condições: ' + esc(m.clima) : '') + '.</p>' +
       '<h3>Resistência de aterramento (referência ≤ ' + numCampo(lim.aterramentoOhm) + ' Ω)</h3>' + (medAt.length ? tabela(['Ponto', 'Local', 'Valor', 'Avaliação'], medAt) : '<p>Sem medições.</p>') +
       '<h3>Continuidade elétrica (referência ≤ ' + numCampo(lim.continuidadeOhm) + ' Ω)</h3>' + (medCo.length ? tabela(['Trecho', 'Valor', 'Avaliação'], medCo) : '<p>Sem medições.</p>') +
-      titulo('Não conformidades') + (nc.length ? tabela(['Item', 'Descrição', 'Detalhe'], nc.map(function (x) { return '<tr><td class="cod">' + esc(x.codigo) + '</td><td>' + esc(x.texto) + '</td><td>' + esc(x.obs || '') + '</td></tr>'; })) + (fotosNc.length ? '<div class="fotos">' + fotosNc.map(fotoFig).join('') + '</div>' : '') : '<p>Nenhuma não conformidade encontrada.</p>') +
-      titulo('Registro fotográfico') + (fotos.length ? '<div class="fotos">' + fotos.map(fotoFig).join('') + '</div>' : '<p>Sem fotos.</p>') +
+      titulo('Não conformidades') + (nc.length ? tabela(['Item', 'Descrição', 'Detalhe'], nc.map(function (x) { return '<tr><td class="cod">' + esc(x.codigo) + '</td><td>' + esc(x.texto) + '</td><td>' + esc(x.obs || '') + '</td></tr>'; })) + (fotosNc.length ? gradeFotos(fotosNc) : '') : '<p>Nenhuma não conformidade encontrada.</p>') +
+      (fotos.length ? gradeFotos(fotos, titulo('Registro fotográfico')) : titulo('Registro fotográfico') + '<p>Sem fotos.</p>') +
       titulo('Conclusão e recomendações') + (par ? '<p class="parecer ' + c.parecer + '">PARECER: ' + par[0].toUpperCase() + '</p>' : '') + '<p class="pre">' + esc(c.texto || '') + '</p>' + (c.recomendacoes ? '<h3>Recomendações</h3><p class="pre">' + esc(c.recomendacoes) + '</p>' : '') +
       '<p>Próxima inspeção recomendada: <b>' + (l.proximaInspecao ? dt(l.proximaInspecao) : 'em ' + (l.periodicidadeMeses || 12) + ' meses') + '</b>.</p>' +
       titulo('Responsável técnico') + '<div class="ass"><div class="linha-ass"></div><b>' + esc(rp.nome || '') + '</b><br>Engenheiro Eletricista · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '') + '<br>IDEALLE Inspeções e Serviços</div></section>';
@@ -922,7 +929,7 @@
       'table{width:100%;border-collapse:collapse;margin:6px 0 10px;page-break-inside:auto}tr{page-break-inside:avoid}th,td{border:1px solid #bbb;padding:5px 6px;text-align:left;vertical-align:top;font-size:9.5pt}th{background:#f3f4f6}.num{text-align:right;white-space:nowrap}.cod{white-space:nowrap;font-weight:700}' +
       '.r.C{color:#15803d;font-weight:700}.r.NC{color:#b91c1c;font-weight:700}.r.NA{color:#6b7280}.capa{height:250mm;display:flex;flex-direction:column;justify-content:space-between;page-break-after:always}.logo{max-height:70px;max-width:220px}' +
       '.capa-t{border-left:6px solid #4db6ef;padding-left:16px}.sup{letter-spacing:.2em;color:#6b7280;font-size:10pt}.norma{font-size:14pt;color:#0b5c99;font-weight:700}.capa-d th{width:30%}.capa-r{color:#6b7280;font-size:9pt}.sum li{margin:4px 0}' +
-      '.fotos{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fotos figure{margin:0;page-break-inside:avoid}.fotos img{width:100%;height:62mm;object-fit:cover;border:1px solid #ccc}.fotos figcaption{font-size:9pt;margin-top:3px}' +
+      'table.fotos{table-layout:fixed;border-collapse:separate;border-spacing:0}table.fotos td{border:0;padding:0 5px 10px;width:50%;vertical-align:top}table.fotos tr,.cab-fotos{page-break-inside:avoid}.fotos figure{margin:0}.fotos img{display:block;width:100%;height:62mm;object-fit:cover;border:1px solid #ccc;box-sizing:border-box}.fotos figcaption{font-size:9pt;margin-top:3px;overflow-wrap:anywhere}' +
       '.parecer{font-weight:700;font-size:12pt;padding:8px 10px;border-radius:4px}.parecer.conforme{background:#dcfce7;color:#15803d}.parecer.conforme_ressalvas{background:#fef3c7;color:#92400e}.parecer.nao_conforme{background:#fee2e2;color:#b91c1c}.pre{white-space:pre-line}' +
       '.ass{margin-top:60px;text-align:center;line-height:1.5}.linha-ass{width:70%;margin:0 auto 6px;border-top:1px solid #000}' +
       (l.status !== 'concluido' ? 'body::before{content:"RASCUNHO";position:fixed;top:40%;left:15%;font-size:110pt;color:rgba(200,0,0,.08);transform:rotate(-30deg);z-index:-1}' : '');
