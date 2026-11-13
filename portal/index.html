@@ -306,7 +306,7 @@
     ['nr10', 'NR-10', 'Laudo das instalações elétricas'],
     ['avcb', 'AVCB / NR-23', 'Prevenção e combate a incêndio'],
     ['linhavida', 'Linha de vida', 'Inspeção e certificação'],
-    ['obra', 'Obra', 'Acompanhamento da obra']
+    ['obra', 'Obra civil', 'Acompanhamento da obra']
   ];
   // Serviços que ainda não têm sistema no portal (feitos sob demanda): aparecem sempre com "Quero contratar".
   // Quando o sistema de um deles ficar pronto, é só tirar daqui.
@@ -1262,7 +1262,7 @@
     };
     var det = ob ? detalhe() : '';
     tela.innerHTML = cabecalhoCliente(d.empresa || {}) +
-      '<div><button class="btn sec peq" id="o-voltar" type="button">← Voltar ao painel</button><h1 style="margin-top:10px">Acompanhamento de obras</h1>' +
+      '<div><button class="btn sec peq" id="o-voltar" type="button">← Voltar ao painel</button><h1 style="margin-top:10px">Obra civil</h1>' +
       '<span class="sub">' + obs.length + (obs.length === 1 ? ' obra' : ' obras') + (andamento ? ' · ' + andamento + ' em andamento' : '') + '. Clique em uma obra para ver fotos, diários, cronograma e avisos.</span></div>' +
       '<div class="ob-lista">' + obs.map(function (x) { var ab = ob && x.id === ob.id; return '<section class="card ob-item' + (ab ? ' aberta' : '') + '" id="obra-' + esc(x.id) + '">' + cab(x, !!ab) + (ab ? det : '') + '</section>'; }).join('') + '</div>';
     $('o-voltar').onclick = function () { painel(); window.scrollTo(0, 0); };
