@@ -157,10 +157,12 @@
 </head>
 <body>
 <header class="topo"><div class="topo-in">
-  <span class="marca"><img src="logo-topo.jpg" alt="IDEALLE Inspeções e Serviços" width="196" height="60" style="display:block;height:60px;width:auto;border-radius:8px"><small>Portal do Cliente</small></span>
+  <span class="marca"><span style="display:block;background:#fff;border-radius:8px;padding:6px 10px"><img id="logo-topo" src="logo-nr13.png" alt="IDEALLE Inspeções e Serviços" width="200" height="48" style="display:block;height:48px;width:auto"></span><small>Portal do Cliente</small></span>
   <span class="dir"><span id="quem"></span><button class="btn sec peq esconder" id="btn-sair">Sair</button></span>
 </div></header>
 
+<script>/* Logo do setor: azul em elétrica e civil (SPDA), amarelo no NR-13 (relatórios e calibração) */
+  if (/[?&]pagina=spda\b/.test(location.search)) document.getElementById('logo-topo').src = 'logo-eletrica.png';</script>
 <main id="tela"><div class="carregando">Carregando…</div></main>
 
 <script>
