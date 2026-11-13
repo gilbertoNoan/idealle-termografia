@@ -10,18 +10,19 @@
 <link rel="icon" type="image/png" sizes="48x48" href="/icones/spda-48.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icones/spda-192.png">
 <link rel="apple-touch-icon" href="/icones/spda-180.png">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#05080d">
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.js"></script>
 <style>
-  /* Tema escuro (fundo preto, padrão CRONOS) */
+  /* Tema escuro do SPDA: azul-noite com destaque ciano (descarga elétrica) e amarelo-raio */
   :root {
     color-scheme: dark;
-    --bg: #000000; --card: #111318; --text: #e9ecf2; --muted: #9aa3b2; --line: #262b35;
-    --pri: #f59e4b; --pri-2: #33210f; --ok: #4cc38a; --ok-2: #13291f; --warn: #e3b04b; --warn-2: #2f2512;
-    --bad: #f07a6f; --bad-2: #351817; --gray-2: #1d212a; --azul: #5aa2ec; --azul-2: #16233a;
-    --prev: #7a5530; --real: #f59e4b;
+    --text: #e9ecf2; --muted: #9aa3b2;
+    --pri: #2fd0e8; --pri-2: #0a2a31; --ok: #4cc38a; --ok-2: #13291f; --warn: #e3b04b; --warn-2: #2f2512;
+    --bad: #f07a6f; --bad-2: #351817; --gray-2: #1a1f29; --azul: #a78bfa; --azul-2: #221a3a;
+    --prev: #1f5560; --real: #2fd0e8; --raio: #f5d33f; --raio-2: #2e2708;
+    --bg: #05080d; --card: #0e131b; --line: #1f2733;
   }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
@@ -35,7 +36,7 @@
   h1 { font-size: 22px; margin: 4px 0 2px; } h2 { font-size: 17px; margin: 0 0 10px; } h3 { margin: 0 0 12px; font-size: 17px; }
   .muted { color: var(--muted); font-size: 13px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
-  .btn { background: var(--pri); color: #1a0e02; border: 1px solid var(--pri); border-radius: 8px; padding: 9px 14px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
+  .btn { background: var(--pri); color: #021418; border: 1px solid var(--pri); border-radius: 8px; padding: 9px 14px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
   .btn.sec { background: transparent; color: var(--text); border-color: var(--line); }
   .btn.ok { background: var(--ok); border-color: var(--ok); }
   .btn.perigo { background: transparent; color: var(--bad); border-color: var(--bad); }
@@ -63,7 +64,7 @@
   .abas button.ativo { color: var(--pri); border-bottom-color: var(--pri); font-weight: 600; }
   .abas button { display: inline-flex; align-items: center; gap: 6px; } .abas .ic { opacity: .85; }
   .btn .ic { flex: none; }
-  .hoje { border-color: #3a2a17; background: linear-gradient(180deg, #17120c, var(--card)); }
+  .hoje { border-color: #164651; background: linear-gradient(180deg, #071a1f, var(--card)); }
   .hoje-tit { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
   .hoje-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
   .hoje-bt { display: flex; align-items: center; gap: 12px; text-align: left; padding: 14px; min-height: 72px; border-radius: 12px; border: 1px solid var(--line); background: var(--gray-2); color: var(--text); cursor: pointer; font: inherit; transition: border-color .15s, transform .1s; }
@@ -71,9 +72,9 @@
   .hoje-ic { width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; background: var(--pri-2); color: var(--pri); flex: none; }
   .hoje-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .hoje-tx b { font-size: 15px; } .hoje-tx small { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 4px; }
   .hoje-bt.ok .hoje-ic { background: var(--ok-2); color: var(--ok); } .hoje-bt.ok small { color: var(--ok); }
-  .hoje-bt.pend .hoje-ic { background: var(--pri); color: #1a0e02; }
+  .hoje-bt.pend .hoje-ic { background: var(--pri); color: #021418; }
   .hoje-bt.bad .hoje-ic { background: var(--bad-2); color: var(--bad); } .hoje-bt.bad small { color: var(--bad); }
-  .bt-foto { box-shadow: 0 6px 18px -8px rgba(245,158,75,.7); }
+  .bt-foto { box-shadow: 0 6px 18px -8px rgba(47,208,232,.6); }
   .aviso-it { display: flex; gap: 12px; } .aviso-it.rev { border-color: var(--warn); } .aviso-it.res { opacity: .75; }
   .aviso-ic { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--bad-2); color: var(--bad); flex: none; }
   .aviso-it.res .aviso-ic { background: var(--ok-2); color: var(--ok); }
@@ -82,7 +83,7 @@
   @media (max-width: 520px) { .hoje-grade { grid-template-columns: 1fr 1fr; } .hoje-bt { flex-direction: column; align-items: flex-start; gap: 8px; min-height: 110px; } }
   .filtros { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 14px; }
   .filtros button { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
-  .filtros button.ativo { background: var(--pri); border-color: var(--pri); color: #1a0e02; }
+  .filtros button.ativo { background: var(--pri); border-color: var(--pri); color: #021418; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th { text-align: left; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; padding: 8px; border-bottom: 1px solid var(--line); }
   td { padding: 9px 8px; border-top: 1px solid var(--line); vertical-align: top; }
@@ -168,7 +169,7 @@
   .parecer button.sel.ok { background: var(--ok); color: #04170d; border-color: var(--ok); } .parecer button.sel.warn { background: var(--warn); color: #241a05; border-color: var(--warn); } .parecer button.sel.bad { background: var(--bad); color: #250604; border-color: var(--bad); }
   .nc-it { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
   .pend { background: var(--warn-2); color: var(--warn); border-radius: 8px; padding: 10px 12px; font-size: 14px; } .pend ul { margin: 6px 0 0; padding-left: 18px; }
-  .status-card { border-color: #3a2a17; }
+  .status-card { border-color: #164651; }
   .ic { flex: none; vertical-align: -3px; } .abas button { display: inline-flex; align-items: center; gap: 6px; }
   #pdf-viewer { position: fixed; inset: 0; z-index: 80; background: #1b1d22; display: none; flex-direction: column; }
   #pdf-viewer iframe { flex: 1; width: 100%; border: 0; background: #525659; }
@@ -177,6 +178,48 @@
   .pdf-barra { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: var(--card); border-bottom: 1px solid var(--line); }
   #aviso-rede { display: none; background: var(--azul-2); color: var(--azul); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
   @media (max-width: 640px) { .med-linha { grid-template-columns: 1fr 110px 36px; } .med-linha input[data-m*="local"] { display: none; } .parecer button { min-width: 100%; } }
+  /* ===== Lista de laudos (identidade SPDA) ===== */
+  .sp-hero { position: relative; overflow: hidden; border: 1px solid #164651; border-radius: 16px; padding: 18px 18px 16px; margin-bottom: 18px;
+    background: radial-gradient(120% 140% at 100% 0%, rgba(47,208,232,.16), transparent 55%), linear-gradient(160deg, #0b1822, #070b11); }
+  .sp-hero::after { content: ""; position: absolute; right: -20px; top: -30px; width: 190px; height: 230px; opacity: .07;
+    background: no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M13 2 4 14h7l-1 8 9-12h-7l1-8z' fill='%23f5d33f'/%3E%3C/svg%3E"); pointer-events: none; }
+  .sp-hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; position: relative; z-index: 1; }
+  .sp-tit { display: flex; gap: 12px; align-items: center; }
+  .sp-selo { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--raio-2); color: var(--raio); border: 1px solid #5a4a0e; flex: none; }
+  .sp-tit h1 { margin: 0; } .sp-norma { display: inline-block; margin-top: 3px; font: 700 11px/1 ui-monospace, Menlo, monospace; letter-spacing: .08em; color: var(--pri); background: var(--pri-2); border: 1px solid #164651; border-radius: 4px; padding: 3px 6px; }
+  .sp-fluxo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 16px; position: relative; z-index: 1; }
+  .sp-etapa { position: relative; padding: 10px 12px 10px 14px; background: rgba(255,255,255,.025); border: 1px solid var(--line); border-left: 0; cursor: pointer; text-align: left; color: var(--text); font: inherit; }
+  .sp-etapa:first-child { border-left: 1px solid var(--line); border-radius: 10px 0 0 10px; } .sp-etapa:last-child { border-radius: 0 10px 10px 0; }
+  .sp-etapa:hover { background: rgba(47,208,232,.06); }
+  .sp-etapa b { display: block; font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; } .sp-etapa span { font-size: 12px; color: var(--muted); }
+  .sp-etapa i { position: absolute; left: 0; top: 0; right: 0; height: 3px; background: var(--c, var(--line)); }
+  .sp-etapa:first-child i { border-radius: 10px 0 0 0; } .sp-etapa:last-child i { border-radius: 0 10px 0 0; }
+  .sp-etapa.sel { background: rgba(47,208,232,.09); box-shadow: inset 0 0 0 1px var(--pri); }
+  .sp-fila { border: 1px dashed #5a4a0e; border-radius: 12px; background: linear-gradient(90deg, rgba(245,211,63,.06), transparent 60%); margin-bottom: 18px; }
+  .sp-fila-cab { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px dashed #3b3210; color: var(--raio); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+  .sp-fila-it { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; }
+  .sp-fila-it + .sp-fila-it { border-top: 1px solid #1d1a0c; }
+  .sp-fila-it .btn { background: var(--raio); border-color: var(--raio); color: #1d1700; }
+  .sp-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--card); gap: 2px; }
+  .sp-seg button { border: 0; background: none; color: var(--muted); padding: 7px 14px; border-radius: 7px; font: 600 13px/1 inherit; font-family: inherit; cursor: pointer; }
+  .sp-seg button.ativo { background: var(--pri-2); color: var(--pri); box-shadow: inset 0 0 0 1px #1b5866; }
+  .sp-barra-lista { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .sp-cli { border: 1px solid var(--line); border-radius: 12px; background: var(--card); margin-bottom: 12px; overflow: hidden; }
+  .sp-cli-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; background: #0a1017; border-bottom: 1px solid var(--line); font-weight: 700; }
+  .sp-ed { display: grid; grid-template-columns: 28px minmax(0, 1.6fr) 110px minmax(120px, 1fr) 130px 22px; gap: 12px; align-items: center; padding: 12px 14px; cursor: pointer; border-left: 3px solid var(--c, var(--line)); }
+  .sp-ed + .sp-ed { border-top: 1px solid var(--line); }
+  .sp-ed:hover { background: rgba(47,208,232,.05); }
+  .sp-ed-ic { color: var(--muted); } .sp-ed-nome b { display: block; font-size: 15px; } .sp-ed-nome small { color: var(--muted); font-size: 12px; }
+  .sp-np { font: 700 12px/1 ui-monospace, Menlo, monospace; color: var(--pri); background: var(--pri-2); border-radius: 4px; padding: 4px 6px; justify-self: start; }
+  .sp-prog { font-size: 12px; color: var(--muted); } .sp-prog .barra { height: 6px; margin-top: 5px; }
+  .sp-nc { font-size: 12px; text-align: right; } .sp-nc b { font-size: 15px; display: block; }
+  .sp-seta { color: var(--muted); }
+  @media (max-width: 760px) {
+    .sp-fluxo { grid-template-columns: 1fr 1fr; gap: 6px; }
+    .sp-etapa, .sp-etapa:first-child, .sp-etapa:last-child { border: 1px solid var(--line); border-radius: 10px; } .sp-etapa i { border-radius: 10px 10px 0 0 !important; }
+    .sp-ed { grid-template-columns: 22px minmax(0, 1fr) auto; row-gap: 8px; }
+    .sp-ed .sp-prog { grid-column: 2 / 4; } .sp-ed .sp-nc { grid-column: 2 / 4; text-align: left; } .sp-ed .sp-nc b { display: inline; margin-right: 4px; } .sp-seta { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -428,23 +471,32 @@
     var ls = cache.laudos.slice().sort(function (a, b) { return String(b.atualizadoEm).localeCompare(String(a.atualizadoEm)); });
     var cont = { rascunho: 0, revisao: 0, concluido: 0 }; ls.forEach(function (l) { cont[l.status] = (cont[l.status] || 0) + 1; });
     var f = tela.filtro;
-    var mostrar = ls.filter(function (l) { return f === 'todos' || (f === 'andamento' ? l.status !== 'concluido' : f === 'concluidos' ? l.status === 'concluido' : false); });
-    v.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap"><div><h1>Laudos de SPDA</h1><div class="muted">Inspeção do sistema de proteção contra descargas atmosféricas · ABNT NBR 5419</div></div>' +
+    var mostrar = ls.filter(function (l) { return f === 'todos' || (f === 'andamento' ? l.status !== 'concluido' : f === 'concluidos' ? l.status === 'concluido' : l.status === f); });
+    var COR = { rascunho: 'var(--warn)', revisao: 'var(--azul)', concluido: 'var(--ok)' };
+    var etapa = function (chave, n, rot, cor) { return '<button class="sp-etapa' + (f === chave ? ' sel' : '') + '" data-f="' + chave + '" style="--c:' + cor + '"><i></i><b>' + n + '</b><span>' + rot + '</span></button>'; };
+    // laudos agrupados por cliente, uma linha por edificação
+    var grupos = [], porCli = {};
+    mostrar.forEach(function (l) { var k = l.empresaId || l.empresaNome || '-'; if (!porCli[k]) { porCli[k] = { nome: l.empresaNome || 'Cliente', itens: [] }; grupos.push(porCli[k]); } porCli[k].itens.push(l); });
+    v.innerHTML = '<section class="sp-hero"><div class="sp-hero-top"><div class="sp-tit"><div class="sp-selo">' + ic('raio', 24) + '</div><div><h1>Laudos de SPDA</h1>' +
+      '<div class="muted">Proteção contra descargas atmosféricas · <span class="sp-norma">ABNT NBR 5419</span></div></div></div>' +
       '<button class="btn sec" id="b-edif">' + ic('predio', 16) + ' Edificações</button></div>' +
-      '<div class="kpis" style="margin-top:12px"><div class="kpi"><b style="color:var(--azul)">' + semLaudo.length + '</b><span>OS de SPDA aguardando laudo</span></div>' +
-      '<div class="kpi"><b>' + cont.rascunho + '</b><span>em campo (rascunho)</span></div><div class="kpi"><b>' + cont.revisao + '</b><span>em revisão</span></div><div class="kpi"><b style="color:var(--ok)">' + cont.concluido + '</b><span>concluídos</span></div></div>' +
-      (semLaudo.length ? '<h3 class="sec-tit">Aguardando início</h3>' + semLaudo.map(function (o) {
-        return '<div class="card linha-os"><div><b>' + esc(o.descricao || 'Laudo de SPDA') + '</b><div class="muted">' + esc(o.codigo || '') + ' · ' + esc(o.empresaNome || '') + ' · aberta em ' + dt(o.dataAbertura) + '</div></div><button class="btn" data-iniciar="' + o.id + '">' + ic('mais', 16) + ' Iniciar laudo</button></div>';
-      }).join('') : '') +
-      '<div class="filtros">' + [['andamento', 'Em andamento'], ['concluidos', 'Concluídos'], ['todos', 'Todos']].map(function (x) { return '<button data-f="' + x[0] + '"' + (f === x[0] ? ' class="ativo"' : '') + '>' + x[1] + '</button>'; }).join('') + '</div>' +
-      (mostrar.length ? '<div class="grade">' + mostrar.map(function (l) {
-        var st = ST[l.status] || ST.rascunho, nc = SPDA.naoConformidades(l).length, r = respondidos(l);
-        return '<div class="card laudo-card" data-laudo="' + l.id + '"><div style="display:flex;justify-content:space-between;gap:8px"><span class="chip ' + st[1] + '">' + st[0] + '</span><span class="muted">' + esc(l.numero || l.osCodigo || '') + '</span></div>' +
-          '<div class="tit">' + esc(l.edificacaoNome || 'Edificação') + '</div><div class="muted">' + esc(l.empresaNome || '') + '</div>' +
-          '<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px"><span>Checklist <b>' + pct(r) + '</b></span><span class="' + (nc ? 'txt-bad' : 'muted') + '">' + plural(nc, 'não conformidade', 'não conformidades') + '</span></div>' +
-          '<div class="barra"><div style="width:' + r.toFixed(0) + '%"></div></div>' +
-          '<div class="muted">NP ' + esc(l.nivelProtecao || '—') + ' · inspeção ' + dt(l.dataInspecao) + (l.proximaInspecao ? ' · próxima ' + dt(l.proximaInspecao) : '') + '</div></div>';
-      }).join('') + '</div>' : '<div class="card vazio">' + (cache.laudos.length ? 'Nenhum laudo neste filtro.' : 'Nenhum laudo ainda. Abra uma OS com o serviço <b>SPDA (NBR 5419)</b> no Finanças e clique em <b>Iniciar laudo</b>.') + '</div>');
+      '<div class="sp-fluxo">' + '<button class="sp-etapa" data-ir-fila style="--c:var(--raio)"><i></i><b style="color:var(--raio)">' + semLaudo.length + '</b><span>OS aguardando laudo</span></button>' +
+      etapa('rascunho', cont.rascunho, 'em campo', COR.rascunho) + etapa('revisao', cont.revisao, 'em revisão', COR.revisao) + etapa('concluidos', cont.concluido, 'concluídos', COR.concluido) + '</div></section>' +
+      (semLaudo.length ? '<section class="sp-fila" id="sp-fila"><div class="sp-fila-cab">' + ic('raio', 14) + ' Fila de inspeção · ' + plural(semLaudo.length, 'OS', 'OS') + ' sem laudo</div>' + semLaudo.map(function (o) {
+        return '<div class="sp-fila-it"><div><b>' + esc(o.descricao || 'Laudo de SPDA') + '</b><div class="muted">' + esc(o.codigo || '') + ' · ' + esc(o.empresaNome || '') + ' · aberta em ' + dt(o.dataAbertura) + '</div></div><button class="btn" data-iniciar="' + o.id + '">' + ic('raio', 16) + ' Iniciar laudo</button></div>';
+      }).join('') + '</section>' : '') +
+      '<div class="sp-barra-lista"><h2 style="margin:0">Edificações inspecionadas</h2><div class="sp-seg">' + [['andamento', 'Em andamento'], ['concluidos', 'Concluídos'], ['todos', 'Todos']].map(function (x) { return '<button data-f="' + x[0] + '"' + (f === x[0] ? ' class="ativo"' : '') + '>' + x[1] + '</button>'; }).join('') + '</div></div>' +
+      (grupos.length ? grupos.map(function (g) {
+        return '<div class="sp-cli"><div class="sp-cli-cab"><span>' + esc(g.nome) + '</span><span class="muted" style="font-weight:400">' + plural(g.itens.length, 'edificação', 'edificações') + '</span></div>' + g.itens.map(function (l) {
+          var st = ST[l.status] || ST.rascunho, nc = SPDA.naoConformidades(l).length, r = respondidos(l);
+          return '<div class="sp-ed" data-laudo="' + l.id + '" style="--c:' + (COR[l.status] || COR.rascunho) + '"><span class="sp-ed-ic">' + ic('predio', 20) + '</span>' +
+            '<div class="sp-ed-nome"><b>' + esc(l.edificacaoNome || 'Edificação') + '</b><small>' + esc(l.numero || l.osCodigo || '') + ' · inspeção ' + dt(l.dataInspecao) + (l.proximaInspecao ? ' · próxima ' + dt(l.proximaInspecao) : '') + '</small></div>' +
+            '<span class="chip ' + st[1] + '" style="justify-self:start">' + st[0] + '</span>' +
+            '<div class="sp-prog"><span>Checklist <b style="color:var(--text)">' + pct(r) + '</b> · <span class="sp-np">NP ' + esc(l.nivelProtecao || '—') + '</span></span><div class="barra"><div style="width:' + r.toFixed(0) + '%"></div></div></div>' +
+            '<div class="sp-nc ' + (nc ? 'txt-bad' : 'muted') + '"><b>' + nc + '</b>' + (nc === 1 ? 'não conformidade' : 'não conformidades') + '</div><span class="sp-seta">›</span></div>';
+        }).join('') + '</div>';
+      }).join('') : '<div class="card vazio">' + (cache.laudos.length ? 'Nenhum laudo neste filtro.' : 'Nenhum laudo ainda. Abra uma OS com o serviço <b>SPDA (NBR 5419)</b> no Finanças e clique em <b>Iniciar laudo</b>.') + '</div>');
+    var bf = v.querySelector('[data-ir-fila]'); if (bf) bf.onclick = function () { var x = $('sp-fila'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'center' }); else toast('Nenhuma OS de SPDA aguardando laudo.'); };
     v.querySelectorAll('[data-f]').forEach(function (b) { b.onclick = function () { tela.filtro = b.dataset.f; render(); }; });
     v.querySelectorAll('[data-laudo]').forEach(function (c) { c.onclick = function () { irPara(c.dataset.laudo); }; });
     v.querySelectorAll('[data-iniciar]').forEach(function (b) { b.onclick = function () { iniciarLaudo(osDe(b.dataset.iniciar)); }; });
