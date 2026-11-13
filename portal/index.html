@@ -113,6 +113,14 @@
   .sp-fotos { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; } .sp-fotos img { width: 110px; height: 82px; object-fit: cover; border-radius: 8px; border: 1px solid var(--borda); cursor: zoom-in; }
   .sp-med { width: 100%; border-collapse: collapse; font-size: 13px; } .sp-med th, .sp-med td { padding: 7px 8px; border-bottom: 1px solid var(--linha); text-align: left; } .sp-med th { color: var(--muted); font-weight: 600; } .sp-med .v { text-align: right; white-space: nowrap; }
   .sp-txt { color: var(--sub); font-size: 14px; line-height: 1.5; white-space: pre-wrap; margin: 0; }
+  .sp-ctl { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .sp-sel { display: flex; align-items: center; gap: 8px; } .sp-sel select { background: var(--bg); color: var(--texto); border: 1px solid var(--borda); border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 14px; font-weight: 600; }
+  .sp-sel select { max-width: 100%; min-width: 0; }
+  @media (max-width: 600px) { .sp-ctl, .sp-sel { width: 100%; } .sp-sel select { flex: 1; width: 100%; } .sp-sel .sub { white-space: nowrap; } }
+  .sp-os { border-top: 1px solid var(--linha); padding-top: 14px; margin-top: 14px; } .sp-os:first-of-type { border-top: 0; margin-top: 4px; padding-top: 0; }
+  .sp-oscab { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; color: var(--amb-t); font-weight: 800; }
+  .sp-ant { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--linha); }
+  .sp-antit { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--sub); }
   .sp-zoom { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: flex; align-items: center; justify-content: center; z-index: 50; cursor: zoom-out; } .sp-zoom img { max-width: 92vw; max-height: 88vh; border-radius: 10px; }
 
   .grade2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
@@ -725,8 +733,8 @@
         kpi(docsPdf.length, 'var(--texto)', soNr13 ? 'Laudos disponíveis' : 'Documentos disponíveis', soNr13 ? 'cópias para consulta em PDF' : laudos.length + ' laudo(s) · ' + certsPub.length + ' certificado(s)' + (termos.length ? ' · ' + termos.length + ' OS de termografia' : '')) +
         kpi(vencidos + vencendo, vencidos ? 'var(--bad)' : vencendo ? 'var(--amb-t)' : 'var(--ok)', 'Prazos a cuidar', vencidos + ' vencido(s) · ' + vencendo + ' vencendo em 90 dias'))) +
       '</div>') +
-      (soSpda ? secaoSpda(docs) : '') +
-      '<section class="card" id="rel-os"><div class="tit-sec"><h2>' + IC_OS + ' ORDENS DE SERVIÇO (' + oss.length + ')</h2></div>' + (cartoesOs || '<p class="vazio">Nenhuma OS ainda.</p>') + '</section>' +
+      (soSpda ? (estado.spdaOss = oss, secaoSpda(docs, oss)) : '') +
+      (soSpda ? '' : '<section class="card" id="rel-os"><div class="tit-sec"><h2>' + IC_OS + ' ORDENS DE SERVIÇO (' + oss.length + ')</h2></div>' + (cartoesOs || '<p class="vazio">Nenhuma OS ainda.</p>') + '</section>') +
       (certsPub.length && !soCal ? '<section class="card" id="rel-calibracao"><div class="tit-sec"><h2>' + IC_VASO + ' CERTIFICADOS DE CALIBRAÇÃO (' + certsPub.length + ')</h2></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Instrumento</th><th>Calibração</th><th>Validade</th><th style="text-align:right">PDF</th></tr></thead><tbody>' + linhasCert + '</tbody></table></div></section>' : '');
 
     $('r-voltar').onclick = function () {
@@ -739,7 +747,7 @@
       c.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternar(); } };
     });
     var zt = $('r-zip-todos'); if (zt) zt.onclick = function () { baixarZip(docsPdf, this); };
-    tela.querySelectorAll('[data-zipos]').forEach(function (b) {
+    tela.querySelectorAll('#rel-os [data-zipos]').forEach(function (b) {
       b.onclick = function () { var cod = b.dataset.zipos; baixarZip(docsPdf.filter(function (x) { return x.os === cod; }), b); };
     });
     var alvo = irPara && $('rel-' + irPara);
@@ -758,11 +766,8 @@
     });
   }
   function ohm(v) { return typeof v === 'number' ? String(v).replace('.', ',') + ' Ω' : esc(v) + ' Ω'; }
-  function secaoSpda(docs) {
-    var so = !!estado.spdaSo, ult = ultimosSpda(docs);
-    var nNc = function (x) { return x.detalhe && x.detalhe.ncs ? x.detalhe.ncs.length : (x.naoConformidades || 0); };
-    var lista = so ? ult.filter(function (x) { return nNc(x) > 0; }) : ult;
-    var corpo = lista.map(function (x) {
+  var nNcSpda = function (x) { return x.detalhe && x.detalhe.ncs ? x.detalhe.ncs.length : (x.naoConformidades || 0); };
+  function cartaoSpda(x, so, anteriores) {
       var d = x.detalhe || {}, p = PARECER[x.parecer], ncs = d.ncs || [], prazo = '';
       if (x.proxima) prazo = x.proxima < hoje() ? '<span class="chip c-bad">Inspeção vencida</span>' : dias(x.proxima) <= 90 ? '<span class="chip c-warn">Vence em ' + dias(x.proxima) + ' dias</span>' : '';
       var h = '<div class="sp-ed ' + (ncs.length || x.parecer === 'nao_conforme' ? 'nc' : 'okk') + '"><div class="sp-cab"><h3>' + esc(x.tag || 'Edificação') + '</h3>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '') + prazo +
@@ -789,15 +794,52 @@
       if (!so && (d.conclusao || d.recomendacoes)) h += (d.conclusao ? '<div class="sp-h4">Conclusão</div><p class="sp-txt">' + esc(d.conclusao) + '</p>' : '') + (d.recomendacoes ? '<div class="sp-h4">Recomendações</div><p class="sp-txt">' + esc(d.recomendacoes) + '</p>' : '');
       if (so && d.recomendacoes) h += '<div class="sp-h4">Recomendações</div><p class="sp-txt">' + esc(d.recomendacoes) + '</p>';
       if (!so && d.responsavel) h += '<div class="sp-meta" style="margin-top:14px"><span>Responsável técnico <b>' + esc(d.responsavel) + '</b></span>' + (d.crea ? '<span>CREA <b>' + esc(d.crea) + '</b></span>' : '') + (d.art ? '<span>ART <b>' + esc(d.art) + '</b></span>' : '') + '</div>';
+      if (anteriores && anteriores.length) h += '<div class="sp-ant"><span class="sub">Laudos anteriores desta edificação:</span>' + anteriores.map(function (a) { return '<span class="sp-antit">' + esc(a.numero || '—') + ' · ' + data(isoDe(a.dataInspecao)) + (a.os ? ' · OS ' + esc(a.os) : '') + ' ' + botoesIcone(a) + '</span>'; }).join('') + '</div>';
       return h + '</div>';
-    }).join('');
-    return '<section class="card" id="sp-sec" style="margin-bottom:16px"><div class="tit-sec"><h2>' + IC_OS + ' SITUAÇÃO DO SPDA POR EDIFICAÇÃO (' + ult.length + ')</h2>' +
-      (ult.length ? '<div class="sp-filtro" role="group" aria-label="Filtro"><button type="button" data-spfiltro="0" class="' + (so ? '' : 'sel') + '">Tudo</button><button type="button" data-spfiltro="1" class="' + (so ? 'sel' : '') + '">Só não conformidades</button></div>' : '') + '</div>' +
-      (corpo || '<p class="vazio">' + (so ? 'Nenhum ponto não conforme nos últimos laudos.' : 'Nenhum laudo de SPDA liberado ainda.') + '</p>') + '</section>';
   }
+  // Organizado por OS: o cliente escolhe a OS (a mais recente vem primeiro) e vê as edificações inspecionadas nela
+  function secaoSpda(docs, oss) {
+    var so = !!estado.spdaSo, spda = docs.filter(function (x) { return x.tipo === 'spda'; });
+    var lista = (oss || []).map(function (o) {
+      var ls = spda.filter(function (x) { return x.os === o.codigo; });
+      var dt = ls.reduce(function (m, x) { var d = isoDe(x.dataInspecao) || ''; return d > m ? d : m; }, o.abertura || '');
+      return { o: o, laudos: ls, data: dt };
+    });
+    spda.filter(function (x) { return !x.os || !lista.some(function (g) { return g.o.codigo === x.os; }); }).forEach(function (x) {
+      var g = lista.filter(function (g) { return g.o.codigo === (x.os || 'Sem OS'); })[0];
+      if (!g) { g = { o: { codigo: x.os || 'Sem OS', status: '', abertura: isoDe(x.dataInspecao) }, laudos: [], data: '' }; lista.push(g); }
+      g.laudos.push(x); if ((isoDe(x.dataInspecao) || '') > g.data) g.data = isoDe(x.dataInspecao) || '';
+    });
+    lista.sort(function (a, b) { return a.data < b.data ? 1 : a.data > b.data ? -1 : 0; });
+    var sel = estado.spdaOs;
+    if (sel !== '*' && !lista.some(function (g) { return g.o.codigo === sel; })) sel = lista.length ? lista[0].o.codigo : '*';
+    var mostrar = sel === '*' ? lista : lista.filter(function (g) { return g.o.codigo === sel; });
+    // laudos de outras inspeções da mesma edificação (histórico no cartão)
+    var anteriores = function (x) { var t = String(x.tag || '').toUpperCase(); return spda.filter(function (y) { return y !== x && String(y.tag || '').toUpperCase() === t && (isoDe(y.dataInspecao) || '') < (isoDe(x.dataInspecao) || ''); }); };
+    var stOs = function (o) { var st = STATUS_OS[o.status] || ''; return st ? '<span class="chip ' + (st === 'Concluída' ? 'c-ok' : 'c-warn') + '">' + (st === 'Concluída' ? 'Concluída' : 'Em andamento') + '</span>' : ''; };
+    var corpo = mostrar.map(function (g) {
+      var ls = so ? g.laudos.filter(function (x) { return nNcSpda(x) > 0; }) : g.laudos;
+      var cards = ls.map(function (x) { return cartaoSpda(x, so, anteriores(x)); }).join('');
+      if (!g.laudos.length) cards = '<p class="sub" style="margin:10px 0 0">Laudo de SPDA desta OS ainda não liberado pela IDEALLE.</p>';
+      else if (!ls.length) cards = '<p class="sub" style="margin:10px 0 0">Nenhum ponto não conforme nos laudos desta OS.</p>';
+      return '<div class="sp-os"><div class="sp-oscab"><span class="mono" style="font-size:16px">OS ' + esc(g.o.codigo) + '</span>' + stOs(g.o) +
+        '<span class="sub">' + (g.data ? 'inspeção ' + data(g.data) + ' · ' : '') + g.laudos.length + (g.laudos.length === 1 ? ' edificação' : ' edificações') + '</span>' +
+        (g.laudos.length ? '<button type="button" class="btn sec peq" style="margin-left:auto" data-zipos="' + esc(g.o.codigo) + '">' + iconeBaixar() + '&nbsp;Baixar PDFs da OS (ZIP)</button>' : '') + '</div>' + cards + '</div>';
+    }).join('');
+    var opcoes = lista.map(function (g, n) { return '<option value="' + esc(g.o.codigo) + '"' + (g.o.codigo === sel ? ' selected' : '') + '>OS ' + esc(g.o.codigo) + (g.data ? ' — ' + data(g.data) : '') + (n === 0 ? ' (mais recente)' : '') + '</option>'; }).join('');
+    return '<section class="card" id="sp-sec" style="margin-bottom:16px"><div class="tit-sec"><h2>' + IC_OS + ' INSPEÇÕES DE SPDA</h2>' +
+      (lista.length ? '<div class="sp-ctl">' + (lista.length > 1 ? '<label class="sp-sel"><span class="sub">Ordem de serviço</span><select id="sp-os">' + opcoes + '<option value="*"' + (sel === '*' ? ' selected' : '') + '>Todas as OS (' + lista.length + ')</option></select></label>' : '') +
+        '<div class="sp-filtro" role="group" aria-label="Filtro"><button type="button" data-spfiltro="0" class="' + (so ? '' : 'sel') + '">Tudo</button><button type="button" data-spfiltro="1" class="' + (so ? 'sel' : '') + '">Só não conformidades</button></div></div>' : '') + '</div>' +
+      (lista.length > 1 ? '<p class="sub" style="margin:-4px 0 4px">' + lista.length + ' ordens de serviço. Escolha acima qual inspeção ver; a mais recente aparece primeiro.</p>' : '') +
+      (corpo || '<p class="vazio">Nenhum laudo de SPDA liberado ainda.</p>') + '</section>';
+  }
+  function redesenharSpda() { var sec = document.getElementById('sp-sec'); if (sec && estado.spdaOss) sec.outerHTML = secaoSpda(todosDocs(), estado.spdaOss); }
+  document.addEventListener('change', function (e) { if (e.target && e.target.id === 'sp-os') { estado.spdaOs = e.target.value; redesenharSpda(); } });
   document.addEventListener('click', function (e) {
     var f = e.target.closest('[data-spfiltro]');
-    if (f) { estado.spdaSo = f.dataset.spfiltro === '1'; var sec = document.getElementById('sp-sec'); if (sec) sec.outerHTML = secaoSpda(todosDocs()); return; }
+    if (f) { estado.spdaSo = f.dataset.spfiltro === '1'; redesenharSpda(); return; }
+    var zb = e.target.closest('#sp-sec [data-zipos]');
+    if (zb) { var cod = zb.dataset.zipos; baixarZip(todosDocs().filter(function (x) { return x.tipo === 'spda' && x.os === cod; }), zb); return; }
     var im = e.target.closest('.sp-fotos img');
     if (im) { var z = document.createElement('div'); z.className = 'sp-zoom'; z.innerHTML = '<img alt="" src="' + im.getAttribute('src') + '">'; z.onclick = function () { z.remove(); }; document.body.appendChild(z); }
   });
