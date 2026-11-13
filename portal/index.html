@@ -196,7 +196,8 @@
     if (s === 'vencido' && iso) t = 'Vencido há ' + (-dias(iso)) + ' dias';
     return '<span class="chip ' + x[1] + '">' + t + '</span>';
   }
-  var PARECER = { APTO: ['Apto', 'c-ok'], APTO_COM_RESTRICOES: ['Apto com restrições', 'c-warn'], INAPTO: ['Inapto', 'c-bad'] };
+  var PARECER = { APTO: ['Apto', 'c-ok'], APTO_COM_RESTRICOES: ['Apto com restrições', 'c-warn'], INAPTO: ['Inapto', 'c-bad'],
+    conforme: ['Conforme', 'c-ok'], conforme_ressalvas: ['Conforme com ressalvas', 'c-warn'], nao_conforme: ['Não conforme', 'c-bad'] }; // os 3 últimos: laudos de SPDA
   var STATUS_OS = { aberta: 'Aberta', execucao: 'Em execução', concluida: 'Concluída', parcial: 'Concluída', faturada: 'Concluída' };
   var SERVICOS = [
     ['nr13', 'NR-13', 'Vasos, caldeiras, tubulações e tanques'],
@@ -210,7 +211,7 @@
   ];
   // Serviços que ainda não têm sistema no portal (feitos sob demanda): aparecem sempre com "Quero contratar".
   // Quando o sistema de um deles ficar pronto, é só tirar daqui.
-  var SEM_SISTEMA = ['spda', 'nr10', 'avcb', 'linhavida'];
+  var SEM_SISTEMA = ['nr10', 'avcb', 'linhavida'];
   function servicoAtivo(sv, k) { return !!sv[k] && SEM_SISTEMA.indexOf(k) < 0; }
 
   // Fala com a IDEALLE: WhatsApp quando cadastrado, senão e-mail, senão telefone
@@ -337,7 +338,7 @@
         try { sessionStorage.setItem('portal-acesso-' + u.uid, '1'); } catch (e) {}
       }
       // Aberto pelo cartão NR-13 (?pagina=nr13): página só dos relatórios NR-13, como um portal do sistema de relatórios
-      if (PAGINA === 'nr13' || PAGINA === 'calibracao') telaRelatorios(); else painel();
+      if (PAGINA === 'nr13' || PAGINA === 'calibracao' || PAGINA === 'spda') telaRelatorios(); else painel();
     } catch (e) {
       console.error(e);
       // Sem permissão no meio do caminho = o contrato venceu agora ou o acesso foi retirado
@@ -366,6 +367,7 @@
       if (ativo && s[0] === 'calibracao') {
         var docsCal = todosDocs().filter(function (x) { return x.tipo === 'calibracao'; }), qc = contarCalibracao((d.certificados || []).concat(docsCal));
         info = 'PSV: ' + qc.psv + '\nPI: ' + qc.pi; }
+      if (ativo && s[0] === 'spda') { info = 'Laudos: ' + todosDocs().filter(function (x) { return x.tipo === 'spda'; }).length; }
       if (ativo && s[0] === 'termografia') {
         info = 'Quadros: ' + ((d.termografia && d.termografia.laudos) || 0);
       }
@@ -416,6 +418,13 @@
     var crit = (pn.urgencia || 0) + (pn.emergencia || 0);
     if (crit) add('bad', 'termografia', crit + ' quadro(s) em urgência/emergência na termografia', 'Pontos com aquecimento que pedem correção imediata.', '0');
     if (pn.programar) add('warn', 'termografia', pn.programar + ' quadro(s) para programar manutenção', 'Aquecimento que deve entrar na próxima manutenção.', '1');
+    // laudos de SPDA: próxima inspeção vencida ou em 90 dias; laudo não conforme
+    todosDocs().filter(function (x) { return x.tipo === 'spda'; }).forEach(function (x) {
+      var nome = 'SPDA — ' + (x.tag || 'Edificação');
+      if (x.proxima && x.proxima < hoje()) add('bad', 'spda', 'Inspeção do SPDA atrasada — ' + (x.tag || ''), 'A próxima inspeção venceu em ' + data(x.proxima) + '.', x.proxima);
+      else if (x.proxima && dias(x.proxima) <= 90) add('warn', 'spda', 'Inspeção do SPDA vencendo — ' + (x.tag || ''), 'Próxima inspeção até ' + data(x.proxima) + ' (' + dias(x.proxima) + ' dias).', x.proxima);
+      if (x.parecer === 'nao_conforme') add('bad', 'spda', 'Não conforme — ' + nome, 'O laudo de SPDA tem não conformidades a corrigir.', '0');
+    });
     // avisos da obra enviados pela IDEALLE (falta de material, atraso...) ainda não resolvidos
     listaObras().forEach(function (ob) {
       (ob.avisos || []).forEach(function (x) {
@@ -481,7 +490,7 @@
   }
 
   // ---------- Meus relatórios: ver, marcar e baixar (como o portal da termografia) ----------
-  var TIPOS_DOC = { nr13: ['NR-13', 'c-azul', 'NR-13'], calibracao: ['Calibração', 'c-ok', 'Calibracao'], termografia: ['Termografia', 'c-warn', 'Termografia'] };
+  var TIPOS_DOC = { nr13: ['NR-13', 'c-azul', 'NR-13'], calibracao: ['Calibração', 'c-ok', 'Calibracao'], termografia: ['Termografia', 'c-warn', 'Termografia'], spda: ['SPDA', 'c-azul', 'SPDA'] };
   function temDocumentos() { return Object.keys(estado.laudos || {}).length > 0; }
   // O cliente só vê o que a IDEALLE enviou pelo botão "Enviar ao portal do cliente" de cada sistema
   // (relatórios NR-13, certificados de calibração e laudos de termografia). O resumo que o Cronos publica
@@ -587,13 +596,14 @@
   var NOME_EXAME = { externo: 'Exame externo', interno: 'Exame interno' };
   function telaRelatorios(irPara) {
     var d = estado.dados, docs = todosDocs();
-    var soNr13 = PAGINA === 'nr13', soCal = PAGINA === 'calibracao';
+    var soNr13 = PAGINA === 'nr13', soCal = PAGINA === 'calibracao', soSpda = PAGINA === 'spda';
+    if (soSpda) docs = docs.filter(function (x) { return x.tipo === 'spda'; });
     if (soNr13) docs = docs.filter(function (x) { return x.tipo === 'nr13'; });
     if (soCal) docs = docs.filter(function (x) { return x.tipo === 'calibracao'; });
     var docsPdf = docs.filter(function (x) { return x.tipo !== 'termografia'; });
     var laudos = docs.filter(function (x) { return x.tipo === 'nr13'; });
     var termos = docs.filter(function (x) { return x.tipo === 'termografia'; });
-    var vasos = soCal ? [] : (d.vasos || []), certs = soNr13 ? [] : (d.certificados || []);
+    var vasos = soCal || soSpda ? [] : (d.vasos || []), certs = soNr13 || soSpda ? [] : (d.certificados || []);
     var docDaTag = function (tag) { tag = String(tag || '').toUpperCase(); return laudos.filter(function (x) { return x.tag === tag; })[0]; };
     // OS: as do Cronos mais as que só aparecem nos documentos liberados
     var oss = (d.os || []).map(function (o) { return { codigo: o.codigo, status: o.status, abertura: o.abertura, servicos: o.servicos || [], descricao: o.descricao }; });
@@ -601,6 +611,7 @@
     if (soNr13) oss = oss.filter(function (o) {
       return docs.some(function (x) { return x.os === o.codigo; }) || vasos.some(function (v) { return v.os === o.codigo; }) || o.servicos.some(function (n) { return /NR-13|prontu|PMTA/i.test(n); });
     });
+    if (soSpda) oss = oss.filter(function (o) { return docs.some(function (x) { return x.os === o.codigo; }) || o.servicos.some(function (n) { return /SPDA|para-?raio|5419/i.test(n); }); });
     if (soCal) oss = oss.filter(function (o) {
       return docs.some(function (x) { return x.os === o.codigo; }) || certs.some(function (c) { return c.os === o.codigo; }) || o.servicos.some(function (n) { return /calibra/i.test(n); });
     });
@@ -631,6 +642,7 @@
       }).join('') : pdfsOs.map(function (x) {
         var v = vasos.filter(function (w) { return w.tag === x.tag; })[0] || {}, p = PARECER[x.parecer || v.parecer];
         var nomeDoc = x.tipo === 'calibracao' ? 'Certificado ' + (x.numero || '') : (x.equipamento || v.nome || 'Laudo NR-13');
+        if (x.tipo === 'spda') return '<tr><td><span class="tagchip"><i class="ok"></i>' + esc(x.numero || '—') + '</span></td><td><b style="text-transform:uppercase">' + esc(x.tag || 'Edificação') + '</b><div class="sub">SPDA · NP ' + esc(x.nivelProtecao || '—') + (x.proxima ? ' · próxima inspeção ' + data(x.proxima) : '') + '</div></td><td>' + data(isoDe(x.dataInspecao)) + '</td><td>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '<span class="sub">—</span>') + '</td><td style="text-align:right">' + botoesIcone(x) + '</td></tr>';
         return '<tr><td><span class="tagchip"><i class="ok"></i>' + esc(x.tag || x.numero || '—') + '</span></td>' +
           '<td><b style="text-transform:uppercase">' + esc(nomeDoc) + '</b>' + (v.area ? '<div class="sub">' + esc(v.area) + '</div>' : '') + '</td>' +
           '<td>' + data(isoDe(x.dataInspecao)) + '</td>' +
@@ -662,7 +674,7 @@
 
     tela.innerHTML = cabecalhoCliente(d.empresa) +
       '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px"><div><button class="btn sec peq" id="r-voltar" type="button">← Voltar ao painel</button>' +
-      '<h1 style="font-size:24px;margin-top:12px">' + (soNr13 ? 'Relatórios NR-13' : soCal ? 'Certificados de calibração' : 'Meus relatórios') + '</h1><span class="sub">Cópias para consulta. Os originais assinados digitalmente ficam arquivados na IDEALLE e são enviados sob solicitação.</span></div>' +
+      '<h1 style="font-size:24px;margin-top:12px">' + (soNr13 ? 'Relatórios NR-13' : soCal ? 'Certificados de calibração' : soSpda ? 'Laudos de SPDA (para-raios)' : 'Meus relatórios') + '</h1><span class="sub">Cópias para consulta. Os originais assinados digitalmente ficam arquivados na IDEALLE e são enviados sob solicitação.</span></div>' +
       (docsPdf.length ? '<button class="btn" id="r-zip-todos" type="button">' + iconeBaixar() + '&nbsp;Baixar todos os PDFs (ZIP)</button>' : '') + '</div>' +
       '<div class="rkpis">' + (soCal ? (function () {
         // Validades: certificados publicados mais os registrados na OS que ainda não têm PDF
@@ -678,7 +690,8 @@
           kpi(cv + cp, cv ? 'var(--bad)' : cp ? 'var(--amb-t)' : 'var(--ok)', 'Validades a cuidar', cv + ' vencido(s) · ' + cp + ' vencendo em 90 dias') + '</div>';
       })() :
         kpi(oss.length, 'var(--texto)', 'Ordens de serviço', andamento + ' em andamento · ' + (oss.length - andamento) + ' concluída(s)') +
-        kpi(vasos.length, 'var(--amb-t)', 'Vasos / TAGs', soNr13 ? vasos.filter(function (v) { return docDaTag(v.tag); }).length + ' com laudo disponível' : certs.length + ' instrumento(s) calibrado(s)') +
+        (soSpda ? kpi(docs.length, 'var(--amb-t)', 'Edificações com laudo', docs.filter(function (x) { return x.parecer === 'nao_conforme'; }).length + ' não conforme(s)') :
+        kpi(vasos.length, 'var(--amb-t)', 'Vasos / TAGs', soNr13 ? vasos.filter(function (v) { return docDaTag(v.tag); }).length + ' com laudo disponível' : certs.length + ' instrumento(s) calibrado(s)')) +
         kpi(docsPdf.length, 'var(--texto)', soNr13 ? 'Laudos disponíveis' : 'Documentos disponíveis', soNr13 ? 'cópias para consulta em PDF' : laudos.length + ' laudo(s) · ' + certsPub.length + ' certificado(s)' + (termos.length ? ' · ' + termos.length + ' OS de termografia' : '')) +
         kpi(vencidos + vencendo, vencidos ? 'var(--bad)' : vencendo ? 'var(--amb-t)' : 'var(--ok)', 'Prazos a cuidar', vencidos + ' vencido(s) · ' + vencendo + ' vencendo em 90 dias') +
       '</div>') +
@@ -848,7 +861,7 @@
           return;
         }
         // NR-13: abre a página dos relatórios NR-13 na mesma aba, como o portal do sistema de relatórios
-        if (el.dataset.ir === 'nr13' || el.dataset.ir === 'calibracao') { location.href = location.pathname + '?pagina=' + el.dataset.ir; return; }
+        if (el.dataset.ir === 'nr13' || el.dataset.ir === 'calibracao' || el.dataset.ir === 'spda') { location.href = location.pathname + '?pagina=' + el.dataset.ir; return; }
         if (el.dataset.ir === 'obra') { telaObras(); return; }
         telaRelatorios(el.dataset.ir);
       };
