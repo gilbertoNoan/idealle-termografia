@@ -93,6 +93,28 @@
   .entrar { max-width: 420px; margin: 8vh auto 0; }
   .erro { color: var(--bad-c); font-size: 14px; min-height: 20px; margin-top: 10px; }
   .vazio { color: var(--muted); padding: 18px; text-align: center; }
+  /* SPDA: situação por edificação */
+  .sp-filtro { display: inline-flex; border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; }
+  .sp-filtro button { background: transparent; color: var(--sub); border: 0; padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .sp-filtro button.sel { background: var(--amb); color: #111; }
+  .sp-ed { border: 1px solid var(--linha); border-radius: 12px; padding: 16px; margin-top: 12px; background: rgba(255,255,255,.015); }
+  .sp-ed.nc { border-left: 4px solid var(--bad); } .sp-ed.okk { border-left: 4px solid #4ade80; }
+  .sp-cab { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  .sp-cab h3 { margin: 0; font-size: 18px; text-transform: uppercase; }
+  .sp-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 6px; color: var(--muted); font-size: 13px; } .sp-meta b { color: var(--texto); font-weight: 600; }
+  .sp-subs { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin-top: 14px; }
+  .sp-sub { border: 1px solid var(--linha); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .sp-sub.bad { border-color: var(--bad-b); background: var(--bad-f); }
+  .sp-sub span { font-size: 13px; font-weight: 700; } .sp-sub small { color: var(--muted); font-size: 12px; }
+  .sp-h4 { margin: 16px 0 8px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--sub); }
+  .sp-nc { display: flex; gap: 12px; padding: 12px; border: 1px solid var(--bad-b); background: var(--bad-f); border-radius: 10px; margin-top: 8px; }
+  .sp-nc .cod { font-family: ui-monospace, monospace; font-weight: 800; color: var(--bad-c); white-space: nowrap; }
+  .sp-nc p { margin: 4px 0 0; color: var(--sub); font-size: 13px; }
+  .sp-fotos { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; } .sp-fotos img { width: 110px; height: 82px; object-fit: cover; border-radius: 8px; border: 1px solid var(--borda); cursor: zoom-in; }
+  .sp-med { width: 100%; border-collapse: collapse; font-size: 13px; } .sp-med th, .sp-med td { padding: 7px 8px; border-bottom: 1px solid var(--linha); text-align: left; } .sp-med th { color: var(--muted); font-weight: 600; } .sp-med .v { text-align: right; white-space: nowrap; }
+  .sp-txt { color: var(--sub); font-size: 14px; line-height: 1.5; white-space: pre-wrap; margin: 0; }
+  .sp-zoom { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: flex; align-items: center; justify-content: center; z-index: 50; cursor: zoom-out; } .sp-zoom img { max-width: 92vw; max-height: 88vh; border-radius: 10px; }
+
   .grade2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
   .niveis { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
   .tit-sec { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -692,11 +714,18 @@
           kpi(cv + cp, cv ? 'var(--bad)' : cp ? 'var(--amb-t)' : 'var(--ok)', 'Validades a cuidar', cv + ' vencido(s) · ' + cp + ' vencendo em 90 dias') + '</div>';
       })() :
         kpi(oss.length, 'var(--texto)', 'Ordens de serviço', andamento + ' em andamento · ' + (oss.length - andamento) + ' concluída(s)') +
-        (soSpda ? kpi(docs.length, 'var(--amb-t)', 'Edificações com laudo', docs.filter(function (x) { return x.parecer === 'nao_conforme'; }).length + ' não conforme(s)') :
-        kpi(vasos.length, 'var(--amb-t)', 'Vasos / TAGs', soNr13 ? vasos.filter(function (v) { return docDaTag(v.tag); }).length + ' com laudo disponível' : certs.length + ' instrumento(s) calibrado(s)')) +
+        (soSpda ? (function () {
+          var ult = ultimosSpda(docs), nNc = ult.reduce(function (t, x) { return t + ((x.detalhe && x.detalhe.ncs) ? x.detalhe.ncs.length : (x.naoConformidades || 0)); }, 0);
+          var venc = ult.filter(function (x) { return x.proxima && x.proxima < hoje(); }).length, prox = ult.filter(function (x) { return x.proxima && x.proxima >= hoje() && dias(x.proxima) <= 90; }).length;
+          return kpi(ult.length, 'var(--amb-t)', 'Edificações com laudo', ult.filter(function (x) { return x.parecer === 'nao_conforme'; }).length + ' não conforme(s)') +
+            kpi(nNc, nNc ? 'var(--bad)' : 'var(--ok)', 'Não conformidades', nNc ? 'pontos a corrigir no último laudo' : 'nenhum ponto a corrigir') +
+            kpi(venc + prox, venc ? 'var(--bad)' : prox ? 'var(--amb-t)' : 'var(--ok)', 'Próximas inspeções', venc + ' vencida(s) · ' + prox + ' vencendo em 90 dias');
+        })() : (
+        kpi(vasos.length, 'var(--amb-t)', 'Vasos / TAGs', soNr13 ? vasos.filter(function (v) { return docDaTag(v.tag); }).length + ' com laudo disponível' : certs.length + ' instrumento(s) calibrado(s)') +
         kpi(docsPdf.length, 'var(--texto)', soNr13 ? 'Laudos disponíveis' : 'Documentos disponíveis', soNr13 ? 'cópias para consulta em PDF' : laudos.length + ' laudo(s) · ' + certsPub.length + ' certificado(s)' + (termos.length ? ' · ' + termos.length + ' OS de termografia' : '')) +
-        kpi(vencidos + vencendo, vencidos ? 'var(--bad)' : vencendo ? 'var(--amb-t)' : 'var(--ok)', 'Prazos a cuidar', vencidos + ' vencido(s) · ' + vencendo + ' vencendo em 90 dias') +
+        kpi(vencidos + vencendo, vencidos ? 'var(--bad)' : vencendo ? 'var(--amb-t)' : 'var(--ok)', 'Prazos a cuidar', vencidos + ' vencido(s) · ' + vencendo + ' vencendo em 90 dias'))) +
       '</div>') +
+      (soSpda ? secaoSpda(docs) : '') +
       '<section class="card" id="rel-os"><div class="tit-sec"><h2>' + IC_OS + ' ORDENS DE SERVIÇO (' + oss.length + ')</h2></div>' + (cartoesOs || '<p class="vazio">Nenhuma OS ainda.</p>') + '</section>' +
       (certsPub.length && !soCal ? '<section class="card" id="rel-calibracao"><div class="tit-sec"><h2>' + IC_VASO + ' CERTIFICADOS DE CALIBRAÇÃO (' + certsPub.length + ')</h2></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Instrumento</th><th>Calibração</th><th>Validade</th><th style="text-align:right">PDF</th></tr></thead><tbody>' + linhasCert + '</tbody></table></div></section>' : '');
 
@@ -716,6 +745,62 @@
     var alvo = irPara && $('rel-' + irPara);
     if (alvo) alvo.scrollIntoView({ block: 'start' }); else window.scrollTo(0, 0);
   }
+  // ---------- SPDA: situação por edificação (último laudo de cada uma) ----------
+  function ultimosSpda(docs) {
+    var por = {};
+    docs.filter(function (x) { return x.tipo === 'spda'; }).forEach(function (x) {
+      var k = String(x.tag || x.chave).toUpperCase(), a = por[k];
+      if (!a || (isoDe(x.dataInspecao) || '') > (isoDe(a.dataInspecao) || '')) por[k] = x;
+    });
+    return Object.keys(por).map(function (k) { return por[k]; }).sort(function (a, b) {
+      var na = a.parecer === 'nao_conforme' ? 0 : 1, nb = b.parecer === 'nao_conforme' ? 0 : 1;
+      return na - nb || String(a.tag || '').localeCompare(String(b.tag || ''));
+    });
+  }
+  function ohm(v) { return typeof v === 'number' ? String(v).replace('.', ',') + ' Ω' : esc(v) + ' Ω'; }
+  function secaoSpda(docs) {
+    var so = !!estado.spdaSo, ult = ultimosSpda(docs);
+    var nNc = function (x) { return x.detalhe && x.detalhe.ncs ? x.detalhe.ncs.length : (x.naoConformidades || 0); };
+    var lista = so ? ult.filter(function (x) { return nNc(x) > 0; }) : ult;
+    var corpo = lista.map(function (x) {
+      var d = x.detalhe || {}, p = PARECER[x.parecer], ncs = d.ncs || [], prazo = '';
+      if (x.proxima) prazo = x.proxima < hoje() ? '<span class="chip c-bad">Inspeção vencida</span>' : dias(x.proxima) <= 90 ? '<span class="chip c-warn">Vence em ' + dias(x.proxima) + ' dias</span>' : '';
+      var h = '<div class="sp-ed ' + (ncs.length || x.parecer === 'nao_conforme' ? 'nc' : 'okk') + '"><div class="sp-cab"><h3>' + esc(x.tag || 'Edificação') + '</h3>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '') + prazo +
+        '<span style="margin-left:auto">' + botoesIcone(x) + '</span></div>' +
+        '<div class="sp-meta"><span>Laudo <b>' + esc(x.numero || '—') + '</b></span><span>Nível de proteção <b>' + esc(x.nivelProtecao || '—') + '</b></span><span>Inspeção <b>' + data(isoDe(x.dataInspecao)) + '</b></span>' +
+        '<span>Próxima inspeção <b>' + (x.proxima ? data(x.proxima) : '—') + '</b></span>' + (x.os ? '<span>OS <b>' + esc(x.os) + '</b></span>' : '') + '</div>';
+      if (!so && d.resumo) h += '<div class="sp-subs">' + d.resumo.map(function (r) {
+        var tot = r.c + r.nc + r.na;
+        return '<div class="sp-sub' + (r.nc ? ' bad' : '') + '"><span>' + esc(r.nome) + '</span>' + (r.nc ? '<span class="chip c-bad" style="align-self:flex-start">' + r.nc + ' não conforme' + (r.nc > 1 ? 's' : '') + '</span>' : '<span class="chip c-ok" style="align-self:flex-start">Conforme</span>') +
+          '<small>' + r.c + ' de ' + tot + ' itens conformes' + (r.na ? ' · ' + r.na + ' não se aplica' : '') + '</small></div>';
+      }).join('') + '</div>';
+      h += '<div class="sp-h4">Pontos não conformes (' + ncs.length + ')</div>' + (ncs.length ? ncs.map(function (n) {
+        return '<div class="sp-nc"><div style="flex:1;min-width:0"><span class="cod">' + esc(n.codigo) + '</span> <b>' + esc(n.texto) + '</b>' + (n.subsistema ? '<div class="sub">' + esc(n.subsistema) + '</div>' : '') + (n.obs ? '<p>' + esc(n.obs) + '</p>' : '') +
+          (n.fotos && n.fotos.length ? '<div class="sp-fotos">' + n.fotos.map(function (f) { return /^data:image\//.test(f) ? '<img src="' + f + '" alt="Foto do ponto ' + esc(n.codigo) + '">' : ''; }).join('') + '</div>' : '') + '</div></div>';
+      }).join('') : '<p class="sub" style="margin:0">' + (x.detalhe ? 'Nenhum ponto não conforme neste laudo.' : (x.naoConformidades ? x.naoConformidades + ' ponto(s) não conforme(s) — veja os detalhes no PDF.' : 'Detalhes no PDF.')) + '</p>');
+      var med = function (tit, rows, col, lim) {
+        rows = so ? (rows || []).filter(function (m) { return m.ok === false; }) : (rows || []);
+        if (!rows.length) return '';
+        return '<div class="sp-h4">' + tit + ' <span style="text-transform:none;letter-spacing:0;color:var(--muted)">(referência ≤ ' + String(lim).replace('.', ',') + ' Ω)</span></div><div class="tabela"><table class="sp-med"><thead><tr><th>' + col + '</th><th>Local</th><th class="v">Valor</th><th>Situação</th></tr></thead><tbody>' +
+          rows.map(function (m) { return '<tr><td>' + esc(m.ref || '—') + '</td><td>' + esc(m.local || '') + '</td><td class="v">' + ohm(m.valor) + '</td><td>' + (m.ok === false ? '<span class="chip c-bad">Acima da referência</span>' : m.ok ? '<span class="chip c-ok">Dentro da referência</span>' : '—') + '</td></tr>'; }).join('') + '</tbody></table></div>';
+      };
+      var lim = d.limites || {};
+      h += med('Resistência de aterramento', d.aterramento, 'Ponto', lim.aterramento == null ? 10 : lim.aterramento) + med('Continuidade elétrica', d.continuidade, 'Trecho', lim.continuidade == null ? 0.2 : lim.continuidade);
+      if (!so && (d.conclusao || d.recomendacoes)) h += (d.conclusao ? '<div class="sp-h4">Conclusão</div><p class="sp-txt">' + esc(d.conclusao) + '</p>' : '') + (d.recomendacoes ? '<div class="sp-h4">Recomendações</div><p class="sp-txt">' + esc(d.recomendacoes) + '</p>' : '');
+      if (so && d.recomendacoes) h += '<div class="sp-h4">Recomendações</div><p class="sp-txt">' + esc(d.recomendacoes) + '</p>';
+      if (!so && d.responsavel) h += '<div class="sp-meta" style="margin-top:14px"><span>Responsável técnico <b>' + esc(d.responsavel) + '</b></span>' + (d.crea ? '<span>CREA <b>' + esc(d.crea) + '</b></span>' : '') + (d.art ? '<span>ART <b>' + esc(d.art) + '</b></span>' : '') + '</div>';
+      return h + '</div>';
+    }).join('');
+    return '<section class="card" id="sp-sec" style="margin-bottom:16px"><div class="tit-sec"><h2>' + IC_OS + ' SITUAÇÃO DO SPDA POR EDIFICAÇÃO (' + ult.length + ')</h2>' +
+      (ult.length ? '<div class="sp-filtro" role="group" aria-label="Filtro"><button type="button" data-spfiltro="0" class="' + (so ? '' : 'sel') + '">Tudo</button><button type="button" data-spfiltro="1" class="' + (so ? 'sel' : '') + '">Só não conformidades</button></div>' : '') + '</div>' +
+      (corpo || '<p class="vazio">' + (so ? 'Nenhum ponto não conforme nos últimos laudos.' : 'Nenhum laudo de SPDA liberado ainda.') + '</p>') + '</section>';
+  }
+  document.addEventListener('click', function (e) {
+    var f = e.target.closest('[data-spfiltro]');
+    if (f) { estado.spdaSo = f.dataset.spfiltro === '1'; var sec = document.getElementById('sp-sec'); if (sec) sec.outerHTML = secaoSpda(todosDocs()); return; }
+    var im = e.target.closest('.sp-fotos img');
+    if (im) { var z = document.createElement('div'); z.className = 'sp-zoom'; z.innerHTML = '<img alt="" src="' + im.getAttribute('src') + '">'; z.onclick = function () { z.remove(); }; document.body.appendChild(z); }
+  });
   var IC_OS = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>';
   var IC_VASO = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>';
 
