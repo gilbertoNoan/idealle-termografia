@@ -90,7 +90,14 @@
   function hojeISO() { return new Date().toISOString().slice(0, 10); }
   function somarMeses(iso, meses) { var d = new Date(iso + 'T12:00:00'); d.setMonth(d.getMonth() + meses); return d.toISOString().slice(0, 10); }
   function soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
-  function num(v) { if (v == null || v === '') return NaN; return Number(String(v).replace(/\./g, '').replace(',', '.')); }
+  // aceita número (6.2) ou texto brasileiro ("6,2", "1.234,5"); texto sem vírgula é lido como está ("6.2")
+  function num(v) {
+    if (typeof v === 'number') return v;
+    if (v == null || String(v).trim() === '') return NaN;
+    var t = String(v).trim();
+    if (t.indexOf(',') >= 0) t = t.replace(/\./g, '').replace(',', '.');
+    return Number(t);
+  }
 
   // ---------- Fábricas (formato dos documentos) ----------
   function novaEdificacao(empresa, dados) {

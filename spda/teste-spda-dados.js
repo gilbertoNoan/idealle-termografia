@@ -24,4 +24,6 @@ assert.strictEqual(S.podeMudarStatus(l, 'concluido'), '');
 l.dataInspecao = '2026-11-13'; assert.strictEqual(S.aoConcluir(l).proximaInspecao, '2027-11-13');
 assert.strictEqual(S.proximoNumero(['SPDA-0007/2026', 'SPDA-0002/2025'], 2026), 'SPDA-0008/2026');
 assert.strictEqual(S.podeMudarStatus({ status: 'rascunho' }, 'concluido'), 'Mudança de status não permitida.');
+assert.strictEqual(S.num(6.2), 6.2); assert.strictEqual(S.num('6,2'), 6.2); assert.strictEqual(S.num('6.2'), 6.2); assert.strictEqual(S.num('1.234,5'), 1234.5);
+assert.strictEqual(S.avaliarMedicoes({ aterramento: [{ ponto: 'X', valorOhm: 6.2 }] }).length, 0);
 console.log('SPDA modelo: todos os testes passaram');
