@@ -87,5 +87,5 @@ cronos/                    Finanças (OS com serviço SPDA; pendência some quan
 ```
 Regras do banco: `firestore.rules` no repositório painel-central (coleções `spda_*` só para a equipe logada).
 
-Acesso: menu da Termografia › SPDA (NBR 5419), ou /spda/. Usa a mesma liberação da Termografia no CRONOS.
+Acesso: menu da Termografia › SPDA (NBR 5419), ou /spda/. Acesso próprio no CRONOS: módulo "Elétrica · SPDA" (id sistema-eletrica) dentro do App Elétrica.
 Ao concluir, a OS recebe `resultados.SPDA.itens` (número, edificação, parecer, próxima inspeção).
