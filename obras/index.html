@@ -61,6 +61,25 @@
   .abas { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); margin: 10px 0 14px; }
   .abas button { background: none; border: none; border-bottom: 3px solid transparent; padding: 10px 12px; color: var(--muted); font-size: 15px; cursor: pointer; white-space: nowrap; }
   .abas button.ativo { color: var(--pri); border-bottom-color: var(--pri); font-weight: 600; }
+  .abas button { display: inline-flex; align-items: center; gap: 6px; } .abas .ic { opacity: .85; }
+  .btn .ic { flex: none; }
+  .hoje { border-color: #3a2a17; background: linear-gradient(180deg, #17120c, var(--card)); }
+  .hoje-tit { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .hoje-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  .hoje-bt { display: flex; align-items: center; gap: 12px; text-align: left; padding: 14px; min-height: 72px; border-radius: 12px; border: 1px solid var(--line); background: var(--gray-2); color: var(--text); cursor: pointer; font: inherit; transition: border-color .15s, transform .1s; }
+  .hoje-bt:hover { border-color: var(--pri); } .hoje-bt:active { transform: scale(.98); }
+  .hoje-ic { width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; background: var(--pri-2); color: var(--pri); flex: none; }
+  .hoje-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .hoje-tx b { font-size: 15px; } .hoje-tx small { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 4px; }
+  .hoje-bt.ok .hoje-ic { background: var(--ok-2); color: var(--ok); } .hoje-bt.ok small { color: var(--ok); }
+  .hoje-bt.pend .hoje-ic { background: var(--pri); color: #1a0e02; }
+  .hoje-bt.bad .hoje-ic { background: var(--bad-2); color: var(--bad); } .hoje-bt.bad small { color: var(--bad); }
+  .bt-foto { box-shadow: 0 6px 18px -8px rgba(245,158,75,.7); }
+  .aviso-it { display: flex; gap: 12px; } .aviso-it.rev { border-color: var(--warn); } .aviso-it.res { opacity: .75; }
+  .aviso-ic { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--bad-2); color: var(--bad); flex: none; }
+  .aviso-it.res .aviso-ic { background: var(--ok-2); color: var(--ok); }
+  .sec-tit { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
+  .tipos-av { display: flex; gap: 6px; flex-wrap: wrap; }
+  @media (max-width: 520px) { .hoje-grade { grid-template-columns: 1fr 1fr; } .hoje-bt { flex-direction: column; align-items: flex-start; gap: 8px; min-height: 110px; } }
   .filtros { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 14px; }
   .filtros button { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
   .filtros button.ativo { background: var(--pri); border-color: var(--pri); color: #1a0e02; }
@@ -480,20 +499,21 @@
     if (dono && atual.fin && !atual.semFin && !atual.fin.orcado && !atual.orcBusca && os) { atual.orcBusca = true; orcadoDaProposta(os).then(function (o) { if (o) banco.atualizar('obras_financeiro', id, { orcado: o, atualizadoEm: agora() }); }).catch(function () {}); }
     var empId = ob.empresaId;
     if (empId && !atual.empresa && atual.empBusca !== empId) { atual.empBusca = empId; banco.ler('empresas', empId).then(function (e) { atual.empresa = e; render(); }).catch(function () {}); }
-    var abas = [['resumo', 'Resumo'], ['cronograma', 'Cronograma'], ['diario', 'Diário de obra'], ['fotos', 'Fotos'], ['materiais', 'Materiais'], ['checklists', 'Segurança & Qualidade']];
-    if (dono) abas.push(['medicoes', 'Medições'], ['custos', 'Custos']);
+    var nRev = (ob.avisos || []).filter(function (x) { return x.status === 'revisao'; }).length;
+    var abas = [['resumo', 'Resumo', 'resumo'], ['diario', 'Diário de obra', 'diario'], ['fotos', 'Fotos', 'fotos'], ['materiais', 'Materiais', 'material'], ['checklists', 'Segurança & Qualidade', 'seguranca'], ['avisos', 'Avisos ao cliente' + (nRev && dono ? ' (' + nRev + ')' : ''), 'aviso'], ['cronograma', 'Cronograma', 'cronograma']];
+    if (dono) abas.push(['medicoes', 'Medições', 'medicoes'], ['custos', 'Custos', 'custos']);
     if (!abas.some(function (a) { return a[0] === tela.aba; })) tela.aba = 'resumo';
     var sit = situacaoObra(ob);
     v.innerHTML = '<button class="voltar" id="b-voltar">← Obras</button>' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap"><div><h1>' + esc(ob.titulo || 'Obra') + '</h1>' +
       '<div class="muted">' + esc(ob.osCodigo || '') + ' · ' + esc(ob.empresaNome || '') + (ob.area ? ' · ' + esc(ob.area) + ' ' + esc(ob.unidade || 'm²') : '') + '</div></div>' +
-      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="chip ' + sit[1] + '" style="font-size:13px;padding:4px 12px">' + esc(sit[0]) + '</span><button class="btn" id="b-fotos-dia">📷 Fotos do dia</button></div></div>' +
-      '<div class="abas">' + abas.map(function (a) { return '<button data-aba="' + a[0] + '"' + (tela.aba === a[0] ? ' class="ativo"' : '') + '>' + a[1] + '</button>'; }).join('') + '</div><div id="aba"></div>';
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="chip ' + sit[1] + '" style="font-size:13px;padding:4px 12px">' + esc(sit[0]) + '</span><button class="btn bt-foto" id="b-fotos-dia">' + ic('camera', 18) + ' Fotos do dia</button></div></div>' +
+      '<div class="abas">' + abas.map(function (a) { return '<button data-aba="' + a[0] + '"' + (tela.aba === a[0] ? ' class="ativo"' : '') + '>' + ic(a[2], 16) + a[1] + '</button>'; }).join('') + '</div><div id="aba"></div>';
     $('b-voltar').onclick = function () { irPara(''); };
     $('b-fotos-dia').onclick = function () { fotosDoDia(ob); };
     v.querySelectorAll('[data-aba]').forEach(function (b) { b.onclick = function () { tela.aba = b.dataset.aba; render(); }; });
     var a = $('aba');
-    ({ resumo: abaResumo, cronograma: abaCronograma, diario: abaDiario, fotos: abaFotos, materiais: abaMateriais, checklists: abaChecklists, medicoes: abaMedicoes, custos: abaCustos })[tela.aba](a, ob, os);
+    ({ resumo: abaResumo, cronograma: abaCronograma, diario: abaDiario, fotos: abaFotos, materiais: abaMateriais, checklists: abaChecklists, avisos: abaAvisos, medicoes: abaMedicoes, custos: abaCustos })[tela.aba](a, ob, os);
   }
 
   function renderIniciar(v, os) {
@@ -558,7 +578,7 @@
     var emAnd = (ob.etapas || []).filter(function (e) { return num(e.avanco) > 0 && num(e.avanco) < 100; });
     var proximas = (ob.etapas || []).filter(function (e) { return num(e.avanco) === 0; }).slice(0, 3);
     var end = atual.empresa ? [atual.empresa.endereco, atual.empresa.cidade, atual.empresa.uf].filter(Boolean).join(', ') : '';
-    a.innerHTML = avisosObra(ob) + '<div class="kpis">' +
+    a.innerHTML = painelHoje(ob) + avisosObra(ob) + '<div class="kpis">' +
       '<div class="kpi"><b>' + pct(av) + '</b><span>avanço físico realizado</span><div class="barra" style="margin-top:6px"><div style="width:' + av.toFixed(1) + '%"></div></div></div>' +
       '<div class="kpi"><b style="color:' + (prev - av > 3 ? 'var(--bad)' : 'var(--text)') + '">' + pct(prev) + '</b><span>previsto para hoje</span></div>' +
       '<div class="kpi"><b>' + decorridos + '/' + total + '</b><span>dias corridos do prazo</span></div>' +
@@ -578,6 +598,7 @@
       '<div class="acoes"><button class="btn sec peq" id="r-pub">Atualizar portal agora</button></div></div></div>';
     var bd = $('r-diario'); if (bd) bd.onclick = function () { tela.aba = 'diario'; render(); };
     a.querySelectorAll('[data-ir]').forEach(function (l) { l.onclick = function (e) { e.preventDefault(); tela.aba = l.dataset.ir; render(); }; });
+    ligarHoje(a, ob);
     var bn = $('r-novo'); if (bn) bn.onclick = function () { formRdo(ob); };
     $('r-status').onchange = async function () {
       var st = this.value, extra = null;
@@ -825,11 +846,11 @@
   function fotosDoDia(ob) {
     var novas = [], etapas = (ob.etapas || []).filter(function (e) { return num(e.avanco) < 100; });
     var rHoje = atual.rdos.find(function (x) { return x.data === hoje(); });
-    abrirModal('<h3>📷 Fotos do dia · ' + dt(hoje()) + '</h3>' +
+    abrirModal('<h3>' + ic('camera', 20) + ' Fotos do dia · ' + dt(hoje()) + '</h3>' +
       '<p class="muted" style="margin-top:0">' + (rHoje ? 'Entram no RDO nº ' + rHoje.numero + ' de hoje' + ((rHoje.fotos || []).length ? ' (já tem ' + plural(rHoje.fotos.length, 'foto', 'fotos') + ')' : '') + '.' : 'Vai criar o diário de obra de hoje com as fotos; o resto do RDO pode ser preenchido depois.') + '</p>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
-      '<label class="btn" style="justify-content:center;text-align:center;padding:16px 10px;margin:0;font-size:15px">📷 Tirar foto<input type="file" id="fd-cam" accept="image/*" capture="environment" multiple style="display:none"></label>' +
-      '<label class="btn sec" style="justify-content:center;text-align:center;padding:16px 10px;margin:0;font-size:15px">🖼️ Da galeria<input type="file" id="fd-gal" accept="image/*" multiple style="display:none"></label></div>' +
+      '<label class="btn" style="justify-content:center;text-align:center;padding:16px 10px;margin:0;font-size:15px">' + ic('camera', 22) + ' Tirar foto<input type="file" id="fd-cam" accept="image/*" capture="environment" multiple style="display:none"></label>' +
+      '<label class="btn sec" style="justify-content:center;text-align:center;padding:16px 10px;margin:0;font-size:15px">' + ic('fotos', 22) + ' Da galeria<input type="file" id="fd-gal" accept="image/*" multiple style="display:none"></label></div>' +
       (etapas.length ? '<label>Etapa (opcional)</label><select id="fd-et"><option value="">—</option>' + etapas.map(function (e) { return '<option value="' + esc(e.nome) + '">' + esc(e.nome) + '</option>'; }).join('') + '</select>' : '') +
       '<div class="thumbs" id="fd-th" style="margin-top:10px"></div>' +
       '<div class="acoes"><button class="btn ok" id="fd-ok" disabled>Enviar fotos</button><button class="btn sec" id="fd-c">Cancelar</button></div>');
@@ -879,13 +900,13 @@
     var dias = {};
     atual.rdos.forEach(function (r) { (r.fotos || []).forEach(function (f) { (dias[r.data] = dias[r.data] || []).push({ f: f, r: r }); }); });
     var datas = Object.keys(dias).sort().reverse(), total = datas.reduce(function (s, d) { return s + dias[d].length; }, 0);
-    a.innerHTML = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">Fotos da obra <span class="muted" style="font-weight:400;font-size:13px">' + plural(total, 'foto', 'fotos') + '</span></h2><button class="btn" id="ft-add">📷 Fotos do dia</button></div>' +
+    a.innerHTML = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">Fotos da obra <span class="muted" style="font-weight:400;font-size:13px">' + plural(total, 'foto', 'fotos') + '</span></h2><button class="btn" id="ft-add">' + ic('camera', 16) + ' Fotos do dia</button></div>' +
       (datas.length ? datas.map(function (d) {
         return '<h3 style="margin:16px 0 6px;font-size:14px">' + dt(d) + ' <span class="muted" style="font-weight:400">· RDO nº ' + dias[d][0].r.numero + ' · ' + plural(dias[d].length, 'foto', 'fotos') + '</span></h3>' +
           '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px">' + dias[d].map(function (x) {
             return '<figure style="margin:0;cursor:pointer" data-ver="' + x.f.id + '"><img src="' + esc(x.f.thumb) + '" alt="" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--line)">' + (x.f.legenda ? '<figcaption class="muted" style="font-size:11px;line-height:1.3;margin-top:2px">' + esc(x.f.legenda) + '</figcaption>' : '') + '</figure>';
           }).join('') + '</div>';
-      }).join('') : '<div class="vazio">Nenhuma foto ainda. O encarregado manda as fotos do dia pelo botão <b>📷 Fotos do dia</b>, direto do celular.</div>') + '</div>';
+      }).join('') : '<div class="vazio">Nenhuma foto ainda. O encarregado manda as fotos do dia pelo botão <b>Fotos do dia</b>, direto do celular.</div>') + '</div>';
     $('ft-add').onclick = function () { fotosDoDia(ob); };
     a.querySelectorAll('[data-ver]').forEach(function (el) {
       el.onclick = async function () {
@@ -896,6 +917,169 @@
         $('ft-x').onclick = fecharModal;
       };
     });
+  }
+
+  // ===== Ícones (traço, no padrão dos sistemas IDEALLE) =====
+  var ICONES = {
+    camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.5"/>',
+    diario: '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 11h8M8 15h5"/>',
+    material: '<path d="M21 8 12 3 3 8v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+    seguranca: '<path d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5l-8-3z"/><path d="m9 12 2 2 4-4"/>',
+    aviso: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
+    resumo: '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>',
+    cronograma: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M7 14h5M7 17h8"/>',
+    fotos: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>',
+    medicoes: '<path d="M21.3 15.3 8.7 2.7a1 1 0 0 0-1.4 0L2.7 7.3a1 1 0 0 0 0 1.4l12.6 12.6a1 1 0 0 0 1.4 0l4.6-4.6a1 1 0 0 0 0-1.4z"/><path d="m7.5 10.5 2-2M10.5 13.5l2-2M13.5 16.5l2-2"/>',
+    custos: '<rect x="2" y="6" width="20" height="13" rx="2"/><circle cx="12" cy="12.5" r="2.5"/><path d="M6 10v.01M18 15v.01"/>',
+    ok: '<path d="M20 6 9 17l-5-5"/>', alerta: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+    whats: '<path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z"/>'
+  };
+  function ic(n, t) { return '<svg class="ic" width="' + (t || 18) + '" height="' + (t || 18) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONES[n] || '') + '</svg>'; }
+
+  // ===== "Hoje na obra": painel do encarregado no topo do Resumo =====
+  function rdoDeHoje() { return atual.rdos.find(function (x) { return x.data === hoje(); }); }
+  function painelHoje(ob) {
+    var r = rdoDeHoje(), nf = r ? (r.fotos || []).length : 0;
+    var ckHoje = (ob.inspecoes || []).some(function (i) { return i.data === hoje() && i.tipo === 'seguranca'; });
+    var matPend = (ob.materiais || []).filter(function (m) { return m.status !== 'entregue'; }).length, matAtr = (ob.materiais || []).filter(materialAtrasado).length;
+    var avAb = avisosAbertos(ob).length, avRev = (ob.avisos || []).filter(function (x) { return x.status === 'revisao'; }).length;
+    var acoes = [
+      ['h-fotos', 'camera', 'Fotos do dia', nf ? plural(nf, 'foto enviada', 'fotos enviadas') + ' hoje' : 'Nenhuma foto hoje', nf ? 'ok' : 'pend'],
+      ['h-rdo', 'diario', 'Diário de hoje', !r ? 'Ainda não feito' : !r.atividades ? 'Falta preencher as atividades' : 'RDO nº ' + r.numero + ' feito', r && r.atividades ? 'ok' : 'pend'],
+      ['h-ck', 'seguranca', 'Checklist de segurança', ckHoje ? 'Feito hoje' : 'Não feito hoje', ckHoje ? 'ok' : 'pend'],
+      ['h-mat', 'material', 'Pedir material', matAtr ? plural(matAtr, 'pedido atrasado', 'pedidos atrasados') : matPend ? plural(matPend, 'pedido em aberto', 'pedidos em aberto') : 'Nada pendente', matAtr ? 'bad' : ''],
+      ['h-aviso', 'aviso', 'Avisar o cliente', avRev && dono ? plural(avRev, 'aviso para revisar', 'avisos para revisar') : avAb ? plural(avAb, 'aviso em aberto', 'avisos em aberto') : 'Falta de material, atraso…', avRev && dono ? 'bad' : '']
+    ];
+    var feitos = acoes.slice(0, 3).filter(function (x) { return x[4] === 'ok'; }).length;
+    return '<div class="card hoje"><div class="hoje-tit"><div><h2 style="margin:0">Hoje na obra</h2><span class="muted">' + diaSemana(hoje()) + ', ' + dt(hoje()) + '</span></div>' +
+      '<span class="chip ' + (feitos === 3 ? 'ok' : 'warn') + '">' + feitos + ' de 3 registros do dia</span></div>' +
+      '<div class="hoje-grade">' + acoes.map(function (x) {
+        return '<button class="hoje-bt ' + x[4] + '" id="' + x[0] + '"><span class="hoje-ic">' + ic(x[1], 24) + '</span><span class="hoje-tx"><b>' + x[2] + '</b><small>' +
+          (x[4] === 'ok' ? ic('ok', 13) + ' ' : '') + esc(x[3]) + '</small></span></button>';
+      }).join('') + '</div></div>';
+  }
+  function diaSemana(iso) { return ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'][new Date(iso + 'T12:00:00').getDay()]; }
+  function ligarHoje(a, ob) {
+    var on = function (id, f) { var b = a.querySelector('#' + id); if (b) b.onclick = f; };
+    on('h-fotos', function () { fotosDoDia(ob); });
+    on('h-rdo', function () { var r = rdoDeHoje(); formRdo(ob, r || undefined); });
+    on('h-ck', function () { formChecklist(ob, 'seguranca'); });
+    on('h-mat', function () { formMaterial(ob); });
+    on('h-aviso', function () { var rev = (ob.avisos || []).filter(function (x) { return x.status === 'revisao'; }); if (dono && rev.length) { tela.aba = 'avisos'; render(); } else formAviso(ob); });
+  }
+
+  // ===== Avisos ao cliente (falta de material, atraso, clima…) =====
+  // Ficam em obras/<id>.avisos. Aviso feito pelo encarregado vai para revisão de um sócio; o sócio envia.
+  // Os enviados aparecem no Portal do Cliente (acompanhamento da obra e notificações da planta).
+  var TIPOS_AVISO = {
+    material: ['Falta de material', 'material'], atraso: ['Previsão de atraso', 'alerta'], clima: ['Chuva / clima', 'alerta'],
+    cliente: ['Pendência do cliente', 'aviso'], outro: ['Outro aviso', 'aviso']
+  };
+  function avisosAbertos(ob) { return (ob.avisos || []).filter(function (x) { return x.status === 'enviado' && !x.resolvidoEm; }); }
+  function textoAviso(ob, t, o) {
+    var mat = o.material ? ' (' + o.material + ')' : '', et = o.etapa ? ' da etapa ' + o.etapa : '';
+    var imp = num(o.dias) ? ' Com isso, a previsão é de ' + plural(num(o.dias), 'dia', 'dias') + ' de atraso' + (o.novaData ? ', com término previsto para ' + dt(o.novaData) : '') + '.' : '';
+    return ({
+      material: 'Informamos que o material' + mat + ' necessário para o andamento' + et + ' acabou ou não foi entregue no prazo. Já estamos providenciando a reposição.' + imp,
+      atraso: 'Informamos que o andamento' + et + ' está abaixo do previsto.' + (imp || ' Estamos reorganizando a equipe para recuperar o prazo.'),
+      clima: 'Devido às condições do tempo, os serviços' + et + ' precisaram ser interrompidos.' + imp,
+      cliente: 'Para continuar' + et + ', precisamos de uma ação de vocês: ___ .' + imp,
+      outro: ''
+    })[t] || '';
+  }
+  function abaAvisos(a, ob) {
+    var l = (ob.avisos || []).slice().sort(function (x, y) { return String(y.criadoEm).localeCompare(String(x.criadoEm)); });
+    var rev = l.filter(function (x) { return x.status === 'revisao'; }), ab = avisosAbertos(ob);
+    var item = function (x) {
+      var t = TIPOS_AVISO[x.tipo] || TIPOS_AVISO.outro;
+      var st = x.status === 'revisao' ? ['Aguardando sócio', 'warn'] : x.resolvidoEm ? ['Resolvido', 'ok'] : ['Enviado ao cliente', 'pri'];
+      return '<div class="card aviso-it ' + (x.status === 'revisao' ? 'rev' : x.resolvidoEm ? 'res' : '') + '"><div class="aviso-ic">' + ic(t[1], 22) + '</div><div style="flex:1;min-width:0">' +
+        '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>' + esc(t[0]) + '</b><span class="chip ' + st[1] + '">' + st[0] + '</span></div>' +
+        '<div class="muted">' + dt(String(x.criadoEm).slice(0, 10)) + (x.autor ? ' · por ' + esc(String(x.autor).split('@')[0]) : '') + (num(x.dias) ? ' · <b style="color:var(--bad)">+' + plural(num(x.dias), 'dia', 'dias') + '</b>' : '') + (x.novaData ? ' · novo término ' + dt(x.novaData) : '') + '</div>' +
+        '<p style="white-space:pre-line;margin:8px 0 0">' + esc(x.mensagem) + '</p>' +
+        (x.resolvidoEm ? '<div class="muted" style="margin-top:6px;color:var(--ok)">Resolvido em ' + dt(x.resolvidoEm) + (x.solucao ? ': ' + esc(x.solucao) : '') + '</div>' : '') +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">' +
+        (x.status === 'revisao' && dono ? '<button class="btn peq" data-av-env="' + x.id + '">' + ic('aviso', 15) + ' Revisar e enviar</button>' : '') +
+        (x.status === 'revisao' && !dono ? '<button class="btn sec peq" data-av-ed="' + x.id + '">Editar</button>' : '') +
+        (x.status === 'enviado' && !x.resolvidoEm ? '<button class="btn ok peq" data-av-res="' + x.id + '">' + ic('ok', 15) + ' Marcar como resolvido</button>' : '') +
+        (x.status === 'enviado' && dono ? '<button class="btn sec peq" data-av-wa="' + x.id + '">' + ic('whats', 15) + ' Mandar no WhatsApp</button>' : '') +
+        (dono ? '<button class="btn sec peq" data-av-x="' + x.id + '">Excluir</button>' : '') + '</div></div></div>';
+    };
+    a.innerHTML = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div><h2 style="margin:0">Avisos ao cliente</h2>' +
+      '<p class="muted" style="margin:4px 0 0">Avise o cliente quando faltar material, a obra for atrasar ou depender dele. ' + (dono ? 'Os avisos aparecem no Portal do Cliente' + (ob.portal ? '' : ' <b style="color:var(--warn)">(o acompanhamento no portal está desligado: ligue em Resumo › Dados da obra)</b>') + ' e podem ir também pelo WhatsApp.' : 'Um sócio da IDEALLE revisa e envia ao cliente.') + '</p></div>' +
+      '<button class="btn" id="av-novo">' + ic('aviso', 16) + ' Novo aviso</button></div></div>' +
+      (rev.length ? '<h3 class="sec-tit">' + (dono ? 'Para revisar e enviar' : 'Aguardando um sócio enviar') + '</h3>' + rev.map(item).join('') : '') +
+      (ab.length ? '<h3 class="sec-tit">Em aberto com o cliente</h3>' + ab.map(item).join('') : '') +
+      (l.length - rev.length - ab.length ? '<h3 class="sec-tit">Resolvidos</h3>' + l.filter(function (x) { return x.status === 'enviado' && x.resolvidoEm; }).map(item).join('') : '') +
+      (!l.length ? '<div class="card vazio">Nenhum aviso ainda.</div>' : '');
+    $('av-novo').onclick = function () { formAviso(ob); };
+    var achar = function (id) { return (ob.avisos || []).find(function (x) { return x.id === id; }); };
+    a.querySelectorAll('[data-av-env]').forEach(function (b) { b.onclick = function () { formAviso(ob, { aviso: achar(b.dataset.avEnv) }); }; });
+    a.querySelectorAll('[data-av-ed]').forEach(function (b) { b.onclick = function () { formAviso(ob, { aviso: achar(b.dataset.avEd) }); }; });
+    a.querySelectorAll('[data-av-wa]').forEach(function (b) { b.onclick = function () { whatsAviso(ob, achar(b.dataset.avWa)); }; });
+    a.querySelectorAll('[data-av-res]').forEach(function (b) {
+      b.onclick = function () {
+        var sol = prompt('Como foi resolvido? (o cliente vê esta frase)', 'Material entregue e serviço retomado.'); if (sol == null) return;
+        gravarAvisos(ob, (ob.avisos || []).map(function (x) { return x.id === b.dataset.avRes ? Object.assign({}, x, { resolvidoEm: hoje(), solucao: sol.trim() }) : x; }), 'Aviso marcado como resolvido.', true);
+      };
+    });
+    a.querySelectorAll('[data-av-x]').forEach(function (b) {
+      b.onclick = function () { if (confirm('Excluir este aviso? Ele também sai do Portal do Cliente.')) gravarAvisos(ob, (ob.avisos || []).filter(function (x) { return x.id !== b.dataset.avX; }), 'Aviso excluído.', true); };
+    });
+  }
+  async function gravarAvisos(ob, lista, msg, portal) {
+    await salvar(function () { return banco.atualizar('obras', ob.id, { avisos: lista, atualizadoEm: agora() }); }, msg);
+    ob.avisos = lista; fecharModal();
+    if (portal && ob.portal) publicarPortal(ob);
+    render();
+  }
+  function whatsAviso(ob, x) {
+    if (!x) return;
+    var e = atual.empresa || {}, tel = String(e.whatsapp || e.celular || e.telefone || '').replace(/\D/g, '');
+    var t = TIPOS_AVISO[x.tipo] || TIPOS_AVISO.outro;
+    var msg = '*IDEALLE · ' + (ob.titulo || 'Obra') + '* (OS ' + (ob.osCodigo || '') + ')\n*' + t[0] + '*\n\n' + x.mensagem + (ob.portal ? '\n\nAcompanhe a obra pelo Portal do Cliente: https://idealle-termografia.vercel.app/portal/' : '');
+    window.open('https://wa.me/' + (tel.length >= 10 ? (tel.length <= 11 ? '55' + tel : tel) : '') + '?text=' + encodeURIComponent(msg), '_blank');
+  }
+  function formAviso(ob, o) {
+    o = o || {};
+    var x = o.aviso ? JSON.parse(JSON.stringify(o.aviso)) : { id: uid(), tipo: o.tipo || 'material', material: o.material || '', etapa: o.etapa || '', dias: '', novaData: '', mensagem: '' };
+    var fim = fimObra(ob), revisando = o.aviso && o.aviso.status === 'revisao' && dono;
+    var mats = (ob.materiais || []).filter(function (m) { return m.status !== 'entregue'; });
+    abrirModal('<h3>' + ic('aviso', 20) + ' ' + (revisando ? 'Revisar e enviar ao cliente' : o.aviso ? 'Editar aviso' : 'Avisar o cliente') + '</h3>' +
+      '<label>O que aconteceu?</label><div class="tipos-av">' + Object.keys(TIPOS_AVISO).map(function (k) { return '<button type="button" class="btn ' + (k === x.tipo ? '' : 'sec ') + 'peq" data-tav="' + k + '">' + ic(TIPOS_AVISO[k][1], 15) + ' ' + TIPOS_AVISO[k][0] + '</button>'; }).join('') + '</div>' +
+      '<div id="av-mat-box"><label>Material</label><input id="av-mat" list="av-mats" value="' + esc(x.material) + '" placeholder="Ex.: Argamassa AC-III"><datalist id="av-mats">' + mats.map(function (m) { return '<option value="' + esc(m.item) + '">'; }).join('') + '</datalist></div>' +
+      '<label>Etapa afetada</label><select id="av-et"><option value="">—</option>' + (ob.etapas || []).map(function (e) { return '<option' + (e.nome === x.etapa ? ' selected' : '') + '>' + esc(e.nome) + '</option>'; }).join('') + '</select>' +
+      '<div class="linha"><div><label>Atraso previsto (dias)</label><input id="av-d" inputmode="numeric" value="' + esc(numCampo(x.dias)) + '" placeholder="0"></div><div><label>Novo término previsto</label><input type="date" id="av-nd" value="' + esc(x.novaData || '') + '"></div></div>' +
+      '<div class="muted" style="font-size:12px">Término atual: ' + dt(fim) + '</div>' +
+      '<label>Mensagem para o cliente</label><textarea id="av-msg" rows="5"></textarea>' +
+      '<div class="muted" style="font-size:12px">O texto é sugerido a partir do que você escolheu; ajuste à vontade.' + (dono ? '' : ' Um sócio revisa antes de ir para o cliente.') + '</div>' +
+      '<div class="acoes"><button class="btn" id="av-ok">' + (dono ? ic('aviso', 16) + ' Enviar ao cliente' : 'Mandar para revisão') + '</button>' +
+      (dono ? '<button class="btn sec" id="av-wa">' + ic('whats', 16) + ' Enviar e abrir WhatsApp</button>' : '') + '<button class="btn sec" id="av-c">Cancelar</button></div>');
+    var editado = !!x.mensagem;
+    $('av-msg').value = x.mensagem || textoAviso(ob, x.tipo, x);
+    $('av-msg').oninput = function () { editado = true; };
+    function ler() { x.material = $('av-mat').value.trim(); x.etapa = $('av-et').value; x.dias = $('av-d').value.trim() ? Math.round(num($('av-d').value)) : ''; x.novaData = $('av-nd').value; }
+    function sugerir() { ler(); $('av-mat-box').style.display = x.tipo === 'material' ? '' : 'none'; if (!editado) $('av-msg').value = textoAviso(ob, x.tipo, x); }
+    document.querySelectorAll('[data-tav]').forEach(function (b) {
+      b.onclick = function () { x.tipo = b.dataset.tav; document.querySelectorAll('[data-tav]').forEach(function (y) { y.classList.toggle('sec', y !== b); }); sugerir(); };
+    });
+    ['av-mat', 'av-et', 'av-nd'].forEach(function (id) { $(id).onchange = sugerir; });
+    $('av-d').oninput = function () { if (num(this.value) && !$('av-nd').value) $('av-nd').value = somarDias(fim, Math.round(num(this.value))); sugerir(); };
+    sugerir();
+    $('av-c').onclick = fecharModal;
+    async function enviar(wa) {
+      ler(); x.mensagem = $('av-msg').value.trim();
+      if (!x.mensagem) { toast('Escreva a mensagem para o cliente.'); return; }
+      if (/___/.test(x.mensagem)) { toast('Complete o trecho ___ da mensagem.'); return; }
+      var l = JSON.parse(JSON.stringify(ob.avisos || [])), i = l.findIndex(function (y) { return y.id === x.id; });
+      if (i < 0) { x.criadoEm = agora(); x.autor = usuario; }
+      if (dono) { x.status = 'enviado'; x.enviadoEm = agora(); x.enviadoPor = usuario; } else x.status = 'revisao';
+      if (i >= 0) l[i] = x; else l.push(x);
+      await gravarAvisos(ob, l, dono ? (ob.portal ? 'Aviso enviado ao Portal do Cliente.' : 'Aviso registrado (o portal desta obra está desligado).') : 'Aviso enviado para um sócio revisar.', dono);
+      if (wa) whatsAviso(ob, x);
+    }
+    $('av-ok').onclick = function () { enviar(false); };
+    if ($('av-wa')) $('av-wa').onclick = function () { enviar(true); };
   }
 
   function equipeSugerida() {
@@ -947,10 +1131,11 @@
             '<td' + (at ? ' style="color:var(--bad);font-weight:700"' : '') + '>' + dt(m.precisaEm) + (at ? ' · atrasado' : '') + '</td>' +
             '<td><span class="chip ' + st[1] + '">' + st[0] + '</span>' + (m.entregueEm ? '<div class="muted">' + dt(m.entregueEm) + '</div>' : '') + '</td>' +
             '<td style="white-space:nowrap">' + (prox ? '<button class="btn sec peq" data-mav="' + m.id + '" data-para="' + prox[0] + '">✓ ' + prox[1] + '</button> ' : '') +
-            '<button class="btn sec peq" data-med="' + m.id + '">Editar</button></td></tr>';
+            (at ? '<button class="btn sec peq" data-mav-cli="' + m.id + '" title="Avisar o cliente">' + ic('aviso', 14) + '</button> ' : '') + '<button class="btn sec peq" data-med="' + m.id + '">Editar</button></td></tr>';
         }).join('') + '</tbody></table></div>' : '<div class="vazio">Nenhum material pedido ainda.</div>') + '</div>';
     $('mt-novo').onclick = function () { formMaterial(ob); };
     a.querySelectorAll('[data-med]').forEach(function (b) { b.onclick = function () { formMaterial(ob, b.dataset.med); }; });
+    a.querySelectorAll('[data-mav-cli]').forEach(function (b) { b.onclick = function () { var m = (ob.materiais || []).find(function (x) { return x.id === b.dataset.mavCli; }); if (m) formAviso(ob, { tipo: 'material', material: m.item, etapa: nomeEtapa(ob, m.etapaId) }); }; });
     a.querySelectorAll('[data-mav]').forEach(function (b) {
       b.onclick = function () {
         var l = JSON.parse(JSON.stringify(ob.materiais || [])), m = l.find(function (x) { return x.id === b.dataset.mav; }); if (!m) return;
@@ -1281,6 +1466,7 @@
         avanco: Math.round(avancoGeral(ob) * 10) / 10, previsto: Math.round(previstoEm(ob, hoje()) * 10) / 10, inicio: inicioObra(ob), previsaoFim: fimObra(ob),
         etapas: (ob.etapas || []).map(function (e) { return { nome: e.nome, inicio: e.inicio, fim: fimEtapa(e), avanco: num(e.avanco), inicioReal: e.inicioReal || '', fimReal: e.fimReal || '' }; }),
         historico: (ob.historico || []).slice(-120),
+        avisos: (ob.avisos || []).filter(function (x) { return x.status === 'enviado'; }).map(function (x) { return { id: x.id, tipo: x.tipo, titulo: (TIPOS_AVISO[x.tipo] || TIPOS_AVISO.outro)[0], mensagem: x.mensagem, data: x.enviadoEm || x.criadoEm, dias: num(x.dias) || 0, novaData: x.novaData || '', resolvidoEm: x.resolvidoEm || '', solucao: x.solucao || '' }; }),
         rdos: rdos.slice(0, 120).map(function (r) { return { numero: r.numero, data: r.data, climaManha: r.climaManha || '', climaTarde: r.climaTarde || '', praticavel: r.praticavel !== false, equipe: totalEquipe(r), atividades: r.atividades || '', ocorrencias: r.ocorrencias || '', fotos: (r.fotos || []).map(function (f) { return { id: f.id, thumb: f.thumb, legenda: f.legenda || '' }; }) }; }),
         atualizadoEm: agora()
       };

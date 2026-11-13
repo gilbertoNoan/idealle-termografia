@@ -49,3 +49,16 @@ e abre o acompanhamento: avanço, cronograma e diários com fotos.
 
 ## Testar sem banco
 `/obras/?demo=1` (ou o botão na tela de entrada): dados de exemplo só no navegador.
+
+## Encarregado: "Hoje na obra" e avisos ao cliente
+
+- No topo do **Resumo**, o quadro **Hoje na obra** mostra os registros do dia (fotos, diário de hoje, checklist de
+  segurança) e atalhos grandes para o celular: Fotos do dia, Diário de hoje, Checklist de segurança, Pedir material e
+  Avisar o cliente. Os ícones são SVG (função `ic`), sem emoji.
+- Aba **Avisos ao cliente** (`obras/<id>.avisos`): falta de material, previsão de atraso (dias e novo término), chuva,
+  pendência do cliente ou outro, com mensagem sugerida. Aviso do encarregado fica *Aguardando sócio* (`status: 'revisao'`);
+  o sócio revisa e envia (`status: 'enviado'`), e pode mandar também pelo WhatsApp do cliente. Material atrasado tem
+  o botão de avisar o cliente. Enviados vão para `portal_obras` (campo `avisos`): no Portal do Cliente aparecem em
+  "Avisos da obra" e, enquanto não resolvidos, nas Notificações da planta. "Marcar como resolvido" pede a solução,
+  que o cliente também vê.
+
