@@ -172,7 +172,9 @@
   .ic { flex: none; vertical-align: -3px; } .abas button { display: inline-flex; align-items: center; gap: 6px; }
   #pdf-viewer { position: fixed; inset: 0; z-index: 80; background: #1b1d22; display: none; flex-direction: column; }
   #pdf-viewer iframe { flex: 1; width: 100%; border: 0; background: #525659; }
-  .pdf-barra { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: var(--card); border-bottom: 1px solid var(--line); }
+  @media (max-width: 640px) { .pdf-dica { display: none; } }
+  .pdf-tit { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pdf-barra { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: var(--card); border-bottom: 1px solid var(--line); }
   #aviso-rede { display: none; background: var(--azul-2); color: var(--azul); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
   @media (max-width: 640px) { .med-linha { grid-template-columns: 1fr 110px 36px; } .med-linha input[data-m*="local"] { display: none; } .parecer button { min-width: 100%; } }
 </style>
@@ -760,10 +762,14 @@
   function abrirVisualizador(l) {
     var v = $('pdf-viewer');
     if (!v) { v = document.createElement('div'); v.id = 'pdf-viewer'; document.body.appendChild(v); }
-    v.innerHTML = '<div class="pdf-barra"><b>Laudo ' + esc(l.numero || '(rascunho)') + ' · ' + esc(l.edificacaoNome || '') + '</b><div style="display:flex;gap:8px"><button class="btn" id="pdf-imp">' + ic('pdf', 16) + ' Imprimir / salvar PDF</button><button class="btn sec" id="pdf-x">Fechar</button></div></div>' +
+    v.innerHTML = '<div class="pdf-barra"><div style="display:flex;align-items:center;gap:12px;min-width:0"><button class="btn sec" id="pdf-x">← Voltar</button><b class="pdf-tit">Laudo ' + esc(l.numero || '(rascunho)') + ' · ' + esc(l.edificacaoNome || '') + '</b></div><div style="display:flex;gap:8px;align-items:center"><span class="muted pdf-dica">Páginas numeradas no PDF</span><button class="btn" id="pdf-imp">' + ic('pdf', 16) + ' Imprimir / salvar PDF</button></div></div>' +
       '<iframe id="pdf-frame" title="Laudo SPDA" srcdoc="<p style=&quot;font-family:sans-serif;padding:30px;color:#555&quot;>Montando o laudo…</p>"></iframe>';
     v.style.display = 'flex'; document.body.style.overflow = 'hidden';
-    $('pdf-x').onclick = function () { v.style.display = 'none'; v.innerHTML = ''; document.body.style.overflow = ''; };
+    function fechar() { v.style.display = 'none'; v.innerHTML = ''; document.body.style.overflow = ''; window.removeEventListener('keydown', esc1); window.removeEventListener('popstate', fechar); }
+    function esc1(e) { if (e.key === 'Escape') history.back(); }
+    history.pushState({ pdf: 1 }, ''); // o "voltar" do celular / navegador fecha o laudo
+    window.addEventListener('popstate', fechar); window.addEventListener('keydown', esc1);
+    $('pdf-x').onclick = function () { history.back(); };
     $('pdf-imp').onclick = function () { var f = $('pdf-frame'); try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast('Não foi possível imprimir: ' + e.message); } };
   }
   async function gerarPdf(l) {
@@ -803,7 +809,8 @@
       titulo('Conclusão e recomendações') + (par ? '<p class="parecer ' + c.parecer + '">PARECER: ' + par[0].toUpperCase() + '</p>' : '') + '<p class="pre">' + esc(c.texto || '') + '</p>' + (c.recomendacoes ? '<h3>Recomendações</h3><p class="pre">' + esc(c.recomendacoes) + '</p>' : '') +
       '<p>Próxima inspeção recomendada: <b>' + (l.proximaInspecao ? dt(l.proximaInspecao) : 'em ' + (l.periodicidadeMeses || 12) + ' meses') + '</b>.</p>' +
       titulo('Responsável técnico') + '<div class="ass"><div class="linha-ass"></div><b>' + esc(rp.nome || '') + '</b><br>Engenheiro Eletricista · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '') + '<br>IDEALLE Inspeções e Serviços</div></section>';
-    var css = '@page{size:A4;margin:16mm 14mm}body{font:11pt Arial,sans-serif;color:#111;margin:0}h1{font-size:24pt;margin:8px 0}h2{font-size:13pt;color:#0b5c99;border-bottom:2px solid #4db6ef;padding-bottom:4px;margin:22px 0 10px}h3{font-size:11pt;margin:14px 0 6px}' +
+    var rodape = 'Laudo SPDA ' + (l.numero || '(rascunho)') + ' · ' + (l.empresaNome || '') + ' · IDEALLE Inspeções e Serviços';
+    var css = '@page{size:A4;margin:16mm 14mm 18mm;@bottom-right{content:"Página " counter(page) " de " counter(pages);font:8pt Arial,sans-serif;color:#555}@bottom-left{content:"' + rodape.replace(/["\\]/g, '') + '";font:8pt Arial,sans-serif;color:#555}}@page:first{@bottom-right{content:none}@bottom-left{content:none}}body{font:11pt Arial,sans-serif;color:#111;margin:0}h1{font-size:24pt;margin:8px 0}h2{font-size:13pt;color:#0b5c99;border-bottom:2px solid #4db6ef;padding-bottom:4px;margin:22px 0 10px}h3{font-size:11pt;margin:14px 0 6px}' +
       'table{width:100%;border-collapse:collapse;margin:6px 0 10px;page-break-inside:auto}tr{page-break-inside:avoid}th,td{border:1px solid #bbb;padding:5px 6px;text-align:left;vertical-align:top;font-size:9.5pt}th{background:#f3f4f6}.num{text-align:right;white-space:nowrap}.cod{white-space:nowrap;font-weight:700}' +
       '.r.C{color:#15803d;font-weight:700}.r.NC{color:#b91c1c;font-weight:700}.r.NA{color:#6b7280}.capa{height:250mm;display:flex;flex-direction:column;justify-content:space-between;page-break-after:always}.logo{max-height:70px;max-width:220px}' +
       '.capa-t{border-left:6px solid #4db6ef;padding-left:16px}.sup{letter-spacing:.2em;color:#6b7280;font-size:10pt}.norma{font-size:14pt;color:#0b5c99;font-weight:700}.capa-d th{width:30%}.capa-r{color:#6b7280;font-size:9pt}.sum li{margin:4px 0}' +
@@ -813,7 +820,10 @@
       (l.status !== 'concluido' ? 'body::before{content:"RASCUNHO";position:fixed;top:40%;left:15%;font-size:110pt;color:rgba(200,0,0,.08);transform:rotate(-30deg);z-index:-1}' : '');
     var html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Laudo SPDA ' + esc(l.numero || '') + ' - ' + esc(l.edificacaoNome || '') + '</title><style>' + css +
       '@media screen{html{background:#525659}body{max-width:210mm;margin:16px auto;background:#fff;padding:16mm 14mm;box-shadow:0 2px 14px rgba(0,0,0,.4)}.capa{height:auto;min-height:250mm}}</style></head><body>' + corpo + '</body></html>';
-    var fr = $('pdf-frame'); if (fr) fr.srcdoc = html;
+    var fr = $('pdf-frame');
+    if (fr) {
+      fr.srcdoc = html;
+    }
   }
 
 })();
