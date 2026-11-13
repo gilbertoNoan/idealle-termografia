@@ -109,6 +109,47 @@
   .entrar { max-width: 420px; margin: 8vh auto 0; }
   .erro { color: var(--bad-c); font-size: 14px; min-height: 20px; margin-top: 10px; }
   .vazio { color: var(--muted); padding: 18px; text-align: center; }
+
+  /* Obra: acompanhamento interativo */
+  .ob-sel{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .ob-hero{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+  .anel{width:132px;height:132px;flex-shrink:0}
+  .ob-hero-t{flex:1 1 360px;display:flex;flex-direction:column;gap:6px;min-width:0}
+  .ob-nums{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.ob-nums div{border:1px solid var(--linha);border-radius:10px;padding:8px 12px;display:flex;flex-direction:column;min-width:96px}.ob-nums b{font-size:17px}.ob-nums span{font-size:12px;color:var(--muted)}
+  .ob-barra{position:relative;margin-top:10px;overflow:visible}.ob-barra div{border-radius:999px}.ob-barra i{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--texto);opacity:.6}
+  .ob-abas{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--linha);margin:4px 0 14px;position:sticky;top:0;background:var(--bg);z-index:5;scrollbar-width:none}
+  .ob-abas button{background:none;border:0;border-bottom:3px solid transparent;color:var(--sub);font:inherit;font-weight:700;font-size:14px;padding:12px 14px;cursor:pointer;white-space:nowrap}
+  .ob-abas button.sel{color:var(--amb-t);border-bottom-color:var(--amb)}
+  .ob-n{display:inline-block;min-width:20px;padding:1px 6px;border-radius:999px;background:var(--linha);color:var(--sub);font-size:11px;margin-left:4px}.ob-n.bad{background:var(--bad-f);color:var(--bad-c)}
+  .ob-pilha{display:flex;flex-direction:column;gap:16px}.ob-pilha>section,.ob-pilha>.card{margin:0}
+  .ob-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}.ob-2col .card{margin:0}
+  @media (max-width:800px){.ob-2col{grid-template-columns:1fr}}
+  .ob-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+  .ob-grade button{position:relative;padding:0;border:1px solid var(--linha);border-radius:10px;overflow:hidden;cursor:zoom-in;background:#000;aspect-ratio:1}
+  .ob-grade img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .25s}.ob-grade button:hover img{transform:scale(1.06)}
+  .ob-grade span{position:absolute;left:0;right:0;bottom:0;padding:14px 6px 4px;font-size:11px;font-weight:700;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.7));text-align:left}
+  .graf{width:100%;height:auto;display:block}.leg{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:4px}.leg i{display:inline-block;width:16px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  details.rdo{background:var(--card);border:1px solid var(--linha);border-radius:12px;margin-bottom:8px}
+  details.rdo summary{list-style:none;display:flex;gap:12px;align-items:center;padding:12px 14px;cursor:pointer}details.rdo summary::-webkit-details-marker{display:none}
+  .rdo-d{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:56px;height:52px;border-radius:10px;background:var(--amb-f);color:var(--amb-t)}.rdo-d b{font-size:16px}.rdo-d span{font-size:11px}
+  .rdo-r{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.rdo-r b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rdo-s{color:var(--muted);transition:transform .2s}details[open] .rdo-s{transform:rotate(180deg)}
+  .rdo-c{padding:0 14px 14px 82px}.rdo-c .pre{white-space:pre-line;margin:0;color:var(--sub);line-height:1.5}
+  @media (max-width:600px){.ob-abas button{padding:10px 8px;font-size:13px}.ob-nums div{min-width:0;flex:1 1 40%}.rdo-c{padding:0 14px 14px}.anel{width:104px;height:104px}}
+  details.ob-et{border-top:1px solid var(--linha)}details.ob-et summary{list-style:none;display:grid;grid-template-columns:minmax(120px,30%) 1fr 54px;gap:10px;align-items:center;padding:8px 0;cursor:pointer}details.ob-et summary::-webkit-details-marker{display:none}
+  .ob-et-n{display:flex;flex-direction:column;font-size:14px}.ob-et-t{position:relative;height:24px}.ob-et-p{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+  .ob-et-b{position:absolute;top:7px;height:10px;border-radius:4px;background:var(--borda)}.ob-et-b.feito{background:var(--amb)}.ob-hoje{position:absolute;top:0;bottom:0;width:2px;background:var(--bad-c);opacity:.7;z-index:1}
+  .ob-et-c{display:flex;flex-direction:column;gap:6px;align-items:flex-start;padding:0 0 12px}.ob-et-c a{color:var(--amb-t)}
+  .gal{position:fixed;inset:0;background:rgba(3,6,12,.96);z-index:60;display:flex;flex-direction:column;color:#fff}
+  .gal-top{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;font-size:14px;color:#cbd5e1}.gal-x{background:none;border:0;color:#fff;font-size:22px;cursor:pointer;padding:6px 10px}
+  .gal-img{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative;padding:0 56px}
+  .gal-img img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;transition:filter .3s}.gal-img img.borrada{filter:blur(6px)}
+  .gal-carr{position:absolute;color:#cbd5e1;font-size:13px;background:rgba(0,0,0,.5);padding:6px 12px;border-radius:999px}
+  .gal-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:64px;border:0;border-radius:10px;background:rgba(255,255,255,.1);color:#fff;font-size:34px;cursor:pointer}.gal-nav:hover{background:rgba(255,255,255,.2)}.gal-nav.ant{left:8px}.gal-nav.prox{right:8px}
+  .gal-info{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px}.gal-info div:first-child{display:flex;flex-direction:column}.gal-info span{font-size:13px;color:#94a3b8}
+  .gal-acoes{display:flex;gap:8px;flex-wrap:wrap}
+  .gal-tira{display:flex;gap:6px;overflow-x:auto;padding:0 16px 14px}.gal-tira button{flex-shrink:0;padding:0;border:2px solid transparent;border-radius:8px;overflow:hidden;cursor:pointer;opacity:.55;background:none}.gal-tira button.sel{border-color:var(--amb);opacity:1}.gal-tira img{width:64px;height:48px;object-fit:cover;display:block}
+  @media (max-width:600px){.gal-img{padding:0 4px}.gal-nav{width:36px;height:52px;font-size:28px;background:rgba(0,0,0,.35)}}
   /* SPDA: situação por edificação */
   .sp-filtro { display: inline-flex; border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; }
   .sp-filtro button { background: transparent; color: var(--sub); border: 0; padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
@@ -1030,56 +1071,175 @@
     var it = function (x) {
       return '<div class="notif ' + (x.resolvidoEm ? 'ok' : x.dias ? 'bad' : 'warn') + '" style="cursor:default"><i></i><div><b>' + esc(x.titulo || 'Aviso') + ' · ' + data(String(x.data || '').slice(0, 10)) + '</b>' +
         '<span style="white-space:pre-line">' + esc(x.mensagem || '') + '</span>' +
-        (x.dias && !x.resolvidoEm ? '<span style="margin-top:4px"><b>Atraso previsto:</b> ' + x.dias + ' dia(s)' + (x.novaData ? ' · <b>novo término:</b> ' + data(x.novaData) : '') + '</span>' : '') +
+        (x.dias && !x.resolvidoEm ? '<span style="margin-top:4px;color:var(--bad-c)"><strong>Atraso previsto:</strong> ' + x.dias + ' dia(s)' + (x.novaData ? ' · <strong>novo término:</strong> ' + data(x.novaData) : '') + '</span>' : '') +
         (x.resolvidoEm ? '<span style="margin-top:4px">Resolvido em ' + data(x.resolvidoEm) + (x.solucao ? ': ' + esc(x.solucao) : '') + '</span>' : '') + '</div></div>';
     };
     return '<section class="notifs"><div class="tit-sec"><h2>Avisos da obra</h2><span class="sub">' + (ab.length ? ab.length + ' em aberto' : 'nenhum em aberto') + '</span></div>' +
       '<div class="notif-lista">' + ab.map(it).join('') + res.slice(0, 5).map(it).join('') + '</div></section>';
   }
-  function telaObras(abrirId) {
+  // Acompanhamento da obra: abas (resumo, fotos, diários, cronograma, avisos), galeria de fotos e "perguntar à IDEALLE"
+  var ICO = {
+    foto: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 5l1.5-2h5L16 5"/></svg>',
+    zap: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.6 7.3L3 21l2.2-5.2A8.4 8.4 0 1 1 21 11.5z"/></svg>',
+    seta: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
+    baixar: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg>'
+  };
+  var SV = function (d) { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="vertical-align:-2px">' + d + '</svg>'; };
+  var CLIMA_IC = { sol: SV('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+    nuvem: SV('<path d="M17.5 19H8a5 5 0 1 1 1.2-9.9A6 6 0 0 1 20 12.5 3.5 3.5 0 0 1 17.5 19z"/>'),
+    chuva: SV('<path d="M16 13.5A4 4 0 0 0 15 6a6 6 0 0 0-11 3 4 4 0 0 0 1 7.9"/><path d="M8 19v2M12 17v2M16 19v2"/>') };
+  function iconeClima(c) { var k = String(c || '').toLowerCase(); if (!k) return ''; return k.indexOf('chuv') >= 0 || k.indexOf('garoa') >= 0 || k.indexOf('impratic') >= 0 ? CLIMA_IC.chuva : k.indexOf('nubl') >= 0 ? CLIMA_IC.nuvem : CLIMA_IC.sol; }
+  var cacheFotoObra = {};
+  function fotoObraGrande(id) {
+    if (!cacheFotoObra[id]) cacheFotoObra[id] = db.collection('portal_obras_fotos').doc(id).get().then(function (f) { return f.exists ? f.data().dataUrl : ''; }).catch(function () { delete cacheFotoObra[id]; return ''; });
+    return cacheFotoObra[id];
+  }
+  function fotosDaObra(ob) {
+    var l = [];
+    (ob.rdos || []).slice().sort(function (a, b) { return String(b.data).localeCompare(String(a.data)) || b.numero - a.numero; }).forEach(function (r) {
+      (r.fotos || []).forEach(function (f) { l.push({ id: f.id, thumb: f.thumb, legenda: f.legenda || '', rdo: r.numero, data: r.data }); });
+    });
+    return l;
+  }
+  function abrirGaleria(ob, lista, idx) {
+    var g = document.createElement('div'); g.className = 'gal'; g.setAttribute('role', 'dialog'); g.setAttribute('aria-label', 'Fotos da obra');
+    document.body.appendChild(g); document.body.style.overflow = 'hidden';
+    var fechar = function () { g.remove(); document.body.style.overflow = ''; document.removeEventListener('keydown', tecla); };
+    var tecla = function (e) { if (e.key === 'Escape') fechar(); else if (e.key === 'ArrowRight') ir(1); else if (e.key === 'ArrowLeft') ir(-1); };
+    document.addEventListener('keydown', tecla);
+    function ir(d) { idx = (idx + d + lista.length) % lista.length; mostrar(); }
+    function mostrar() {
+      var f = lista[idx];
+      g.innerHTML = '<div class="gal-top"><span>' + (idx + 1) + ' de ' + lista.length + '</span><button type="button" class="gal-x" aria-label="Fechar">✕</button></div>' +
+        '<div class="gal-img"><img src="' + esc(f.thumb) + '" alt="' + esc(f.legenda || 'Foto da obra') + '" class="borrada"><div class="gal-carr">Carregando…</div>' +
+        (lista.length > 1 ? '<button type="button" class="gal-nav ant" aria-label="Foto anterior">‹</button><button type="button" class="gal-nav prox" aria-label="Próxima foto">›</button>' : '') + '</div>' +
+        '<div class="gal-info"><div><b>' + esc(f.legenda || 'Foto da obra') + '</b><span>Diário de obra nº ' + f.rdo + ' · ' + data(f.data) + '</span></div>' +
+        '<div class="gal-acoes"><a class="btn sec peq" id="gal-baixar" download="obra-' + esc(String(f.data || '')) + '-' + (idx + 1) + '.jpg" href="' + esc(f.thumb) + '">' + ICO.baixar + '&nbsp;Baixar</a>' +
+        '<a class="btn peq" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + '. Tenho uma dúvida sobre a foto "' + (f.legenda || 'sem legenda') + '" do diário de obra nº ' + f.rdo + ' (' + data(f.data) + ') da obra ' + (ob.titulo || '') + ' (OS ' + (ob.os || '') + ').')) + '">' + ICO.zap + '&nbsp;Perguntar sobre esta foto</a></div></div>' +
+        (lista.length > 1 ? '<div class="gal-tira">' + lista.map(function (x, n) { return '<button type="button" data-n="' + n + '" class="' + (n === idx ? 'sel' : '') + '"><img src="' + esc(x.thumb) + '" alt=""></button>'; }).join('') + '</div>' : '');
+      g.querySelector('.gal-x').onclick = fechar;
+      g.querySelectorAll('.gal-nav').forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); ir(b.classList.contains('prox') ? 1 : -1); }; });
+      g.querySelectorAll('.gal-tira button').forEach(function (b) { b.onclick = function () { idx = Number(b.dataset.n); mostrar(); }; });
+      var sel = g.querySelector('.gal-tira .sel'); if (sel) sel.scrollIntoView({ inline: 'center', block: 'nearest' });
+      var atual = idx;
+      fotoObraGrande(f.id).then(function (url) {
+        if (atual !== idx || !g.isConnected) return;
+        var im = g.querySelector('.gal-img img'), c = g.querySelector('.gal-carr');
+        if (c) c.remove();
+        if (url && /^data:image\//.test(url)) { im.src = url; im.classList.remove('borrada'); var a = g.querySelector('#gal-baixar'); if (a) a.href = url; }
+      });
+      if (lista.length > 1) fotoObraGrande(lista[(idx + 1) % lista.length].id); // já busca a próxima
+    }
+    // arrastar para o lado no celular
+    var x0 = null;
+    g.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+    g.addEventListener('touchend', function (e) { if (x0 == null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) > 50) ir(dx < 0 ? 1 : -1); });
+    g.addEventListener('click', function (e) { if (e.target === g || e.target.classList.contains('gal-img')) fechar(); });
+    mostrar();
+  }
+  function anelObra(p, cor) {
+    var r = 46, c = 2 * Math.PI * r, v = Math.max(0, Math.min(100, Number(p) || 0));
+    return '<svg class="anel" viewBox="0 0 110 110" role="img" aria-label="' + pctTxt(v) + ' concluído"><circle cx="55" cy="55" r="' + r + '" fill="none" stroke="var(--linha)" stroke-width="10"/>' +
+      '<circle cx="55" cy="55" r="' + r + '" fill="none" stroke="' + cor + '" stroke-width="10" stroke-linecap="round" stroke-dasharray="' + (c * v / 100).toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 55 55)"/>' +
+      '<text x="55" y="53" text-anchor="middle" font-size="20" font-weight="800" fill="var(--texto)">' + pctTxt(v) + '</text><text x="55" y="71" text-anchor="middle" font-size="10" fill="var(--muted)">concluído</text></svg>';
+  }
+  // Curva do avanço real (histórico) contra o previsto em linha reta do início ao término
+  function graficoObra(ob) {
+    var h = (ob.historico || []).filter(function (x) { return x.data; }).sort(function (a, b) { return String(a.data).localeCompare(String(b.data)); });
+    var ini = ob.inicio, fim = ob.previsaoFim; if (!ini || !fim) return '';
+    var t0 = new Date(ini).getTime(), t1 = Math.max(new Date(fim).getTime(), t0 + 864e5), W = 600, H = 180, L = 34, B = 22;
+    var X = function (iso) { return L + (Math.max(t0, Math.min(t1, new Date(iso).getTime())) - t0) / (t1 - t0) * (W - L - 8); }, Y = function (v) { return 8 + (100 - Math.max(0, Math.min(100, v))) / 100 * (H - B - 8); };
+    var pts = [{ data: ini, avanco: 0 }].concat(h); if (ob.avanco != null && hoje() >= ini) pts.push({ data: hoje() < fim ? hoje() : fim, avanco: ob.avanco });
+    var linha = pts.map(function (x, n) { return (n ? 'L' : 'M') + X(x.data).toFixed(1) + ' ' + Y(Number(x.avanco) || 0).toFixed(1); }).join(' ');
+    var grade = [0, 25, 50, 75, 100].map(function (v) { return '<line x1="' + L + '" x2="' + (W - 8) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="var(--linha)"/><text x="' + (L - 6) + '" y="' + (Y(v) + 4) + '" text-anchor="end" font-size="10" fill="var(--muted)">' + v + '%</text>'; }).join('');
+    var hj = hoje() >= ini && hoje() <= fim ? '<line x1="' + X(hoje()) + '" x2="' + X(hoje()) + '" y1="8" y2="' + (H - B) + '" stroke="var(--bad-c)" stroke-dasharray="3 3"/><text x="' + X(hoje()) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="var(--bad-c)">hoje</text>' : '';
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="graf" role="img" aria-label="Evolução da obra">' + grade +
+      '<line x1="' + X(ini) + '" y1="' + Y(0) + '" x2="' + X(fim) + '" y2="' + Y(100) + '" stroke="var(--muted)" stroke-dasharray="5 4"/>' + hj +
+      '<path d="' + linha + '" fill="none" stroke="var(--amb)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>' +
+      pts.map(function (x) { return '<circle cx="' + X(x.data) + '" cy="' + Y(Number(x.avanco) || 0) + '" r="3.5" fill="var(--amb)"><title>' + data(x.data) + ': ' + pctTxt(x.avanco) + '</title></circle>'; }).join('') +
+      '<text x="' + L + '" y="' + (H - 6) + '" font-size="10" fill="var(--muted)">' + data(ini) + '</text><text x="' + (W - 8) + '" y="' + (H - 6) + '" text-anchor="end" font-size="10" fill="var(--muted)">' + data(fim) + '</text></svg>' +
+      '<div class="leg"><span><i style="background:var(--amb)"></i>Executado</span><span><i style="background:none;border-top:2px dashed var(--muted);height:0"></i>Previsto</span></div>';
+  }
+  function telaObras(abrirId, aba) {
     var obs = listaObras(), d = estado.dados || {};
     if (!obs.length) { alert('Nenhuma obra publicada ainda. Assim que a IDEALLE liberar o acompanhamento, ela aparece aqui.'); return; }
     var ob = obs.find(function (x) { return x.id === abrirId; }) || obs[0];
+    aba = aba || 'resumo';
     var st = STATUS_OBRA[ob.status] || STATUS_OBRA.andamento;
     var ini = ob.inicio, fim = ob.previsaoFim;
     var nDias = Math.max(1, Math.round((new Date(fim) - new Date(ini)) / 864e5) + 1);
     var P = function (iso) { return Math.max(0, Math.min(100, Math.round((new Date(iso) - new Date(ini)) / 864e5) / nDias * 100)); };
-    var hojeP = hoje() >= ini && hoje() <= fim ? '<div style="position:absolute;top:0;bottom:0;left:' + P(hoje()) + '%;width:2px;background:var(--bad-c);opacity:.7" title="hoje"></div>' : '';
-    var etapas = (ob.etapas || []).map(function (e) {
-      var l = P(e.inicio), w = Math.max(1, P(e.fim) - l + 100 / nDias);
-      return '<div class="ob-et"><div class="ob-et-n"><b>' + esc(e.nome) + '</b><span class="sub">' + data(e.inicio) + ' a ' + data(e.fim) + '</span></div>' +
-        '<div class="ob-et-t">' + hojeP + '<div style="position:absolute;left:' + l + '%;width:' + w + '%;top:7px;height:10px;border-radius:4px;background:var(--borda)"></div>' +
-        '<div style="position:absolute;left:' + l + '%;width:' + (w * Math.min(100, e.avanco || 0) / 100) + '%;top:7px;height:10px;border-radius:4px;background:var(--amb)"></div></div>' +
-        '<div class="ob-et-p">' + pctTxt(e.avanco) + '</div></div>';
+    var fotos = fotosDaObra(ob), rdosOrd = (ob.rdos || []).slice().sort(function (a, b) { return String(b.data).localeCompare(String(a.data)) || b.numero - a.numero; });
+    var avisosAb = (ob.avisos || []).filter(function (x) { return !x.resolvidoEm; });
+    var dif = (Number(ob.avanco) || 0) - (Number(ob.previsto) || 0), concl = ob.status === 'concluida' || (Number(ob.avanco) || 0) >= 100;
+    var ritmo = concl ? ['Obra concluída', 'c-ok'] : Math.abs(dif) < 3 ? ['No prazo', 'c-ok'] : dif > 0 ? ['Adiantada ' + pctTxt(dif), 'c-ok'] : ['Atrasada ' + pctTxt(-dif), 'c-bad'];
+    var decorridos = Math.max(0, Math.min(nDias, Math.round((new Date(hoje()) - new Date(ini)) / 864e5) + 1)), restantes = Math.max(0, Math.round((new Date(fim) - new Date(hoje())) / 864e5));
+    var perguntaObra = falar('Olá! Sou da ' + nomeEmpresa() + ' e quero falar sobre a obra ' + (ob.titulo || '') + ' (OS ' + (ob.os || '') + ').');
+
+    var thumbs = function (lista, max) { return '<div class="ob-grade">' + lista.slice(0, max || lista.length).map(function (f) { var n = fotos.indexOf(f); return '<button type="button" data-gal="' + n + '" title="' + esc(f.legenda || 'Ver foto') + '"><img loading="lazy" src="' + esc(f.thumb) + '" alt="' + esc(f.legenda || 'Foto da obra') + '"><span>' + data(f.data) + '</span></button>'; }).join('') + '</div>'; };
+    var cartaoRdo = function (r, aberto) {
+      var fr = fotos.filter(function (f) { return f.rdo === r.numero && f.data === r.data; });
+      return '<details class="rdo"' + (aberto ? ' open' : '') + '><summary><div class="rdo-d"><b>' + data(r.data).slice(0, 5) + '</b><span>nº ' + r.numero + '</span></div>' +
+        '<div class="rdo-r"><b>' + esc(String(r.atividades || 'Diário de obra').split('\n')[0].slice(0, 90)) + '</b><span class="sub">' + iconeClima(r.climaManha) + ' ' + esc(r.climaManha || '—') + ' / ' + iconeClima(r.climaTarde) + ' ' + esc(r.climaTarde || '—') + ' · ' + r.equipe + ' pessoa(s)' + (fr.length ? ' · ' + fr.length + ' foto(s)' : '') + '</span></div>' +
+        (r.praticavel ? '' : '<span class="chip c-warn">Impraticável</span>') + (r.ocorrencias && !/^nenhuma?\.?$/i.test(String(r.ocorrencias).trim()) ? '<span class="chip c-warn">Ocorrência</span>' : '') + '<span class="rdo-s">' + ICO.seta + '</span></summary>' +
+        '<div class="rdo-c"><div class="sp-h4" style="margin-top:0">Atividades do dia</div><p class="pre">' + esc(r.atividades || '—') + '</p>' +
+        (r.ocorrencias ? '<div class="sp-h4">Ocorrências</div><p class="pre">' + esc(r.ocorrencias) + '</p>' : '') +
+        (fr.length ? '<div class="sp-h4">Fotos do dia</div>' + thumbs(fr) : '') +
+        '<a class="btn sec peq" style="margin-top:12px" target="_blank" rel="noopener" href="' + esc(falar('Olá! Sou da ' + nomeEmpresa() + '. Tenho uma dúvida sobre o diário de obra nº ' + r.numero + ' (' + data(r.data) + ') da obra ' + (ob.titulo || '') + ' (OS ' + (ob.os || '') + ').')) + '">' + ICO.zap + '&nbsp;Perguntar sobre este dia</a></div></details>';
+    };
+    var etapas = (ob.etapas || []).map(function (e, n) {
+      var l = P(e.inicio), w = Math.max(1, P(e.fim) - l + 100 / nDias), av = Math.min(100, Number(e.avanco) || 0);
+      var se = av >= 100 ? ['Concluída', 'c-ok'] : e.fim < hoje() ? ['Atrasada', 'c-bad'] : av > 0 || e.inicio <= hoje() ? ['Em andamento', 'c-warn'] : ['Não iniciada', 'c-cinza'];
+      var dias = rdosOrd.filter(function (r) { return r.data >= e.inicio && r.data <= e.fim; });
+      var hojeP = hoje() >= ini && hoje() <= fim ? '<div class="ob-hoje" style="left:' + P(hoje()) + '%"></div>' : '';
+      return '<details class="ob-et"><summary><div class="ob-et-n"><b>' + esc(e.nome) + '</b><span class="sub">' + data(e.inicio) + ' a ' + data(e.fim) + '</span></div>' +
+        '<div class="ob-et-t">' + hojeP + '<div class="ob-et-b" style="left:' + l + '%;width:' + w + '%"></div><div class="ob-et-b feito" style="left:' + l + '%;width:' + (w * av / 100) + '%"></div></div>' +
+        '<div class="ob-et-p">' + pctTxt(av) + '</div></summary><div class="ob-et-c"><span class="chip ' + se[1] + '">' + se[0] + '</span>' +
+        '<span class="sub">Previsto: ' + data(e.inicio) + ' a ' + data(e.fim) + (e.inicioReal ? ' · Início real: ' + data(e.inicioReal) : '') + (e.fimReal ? ' · Término real: ' + data(e.fimReal) : '') + '</span>' +
+        (dias.length ? '<span class="sub">' + dias.length + ' diário(s) neste período: ' + dias.map(function (r) { return '<a href="#" data-irrdo="' + r.numero + '">nº ' + r.numero + '</a>'; }).join(', ') + '</span>' : '') + '</div></details>';
     }).join('');
-    var rdos = (ob.rdos || []).map(function (r) {
-      return '<div class="card" style="padding:14px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>Diário de obra nº ' + r.numero + ' · ' + data(r.data) + '</b><span class="sub">' + esc(r.climaManha) + ' / ' + esc(r.climaTarde) + ' · ' + r.equipe + ' pessoa(s)' + (r.praticavel ? '' : ' · <span class="chip c-warn">Impraticável</span>') + '</span></div>' +
-        '<p style="white-space:pre-line;margin:8px 0 0">' + esc(r.atividades) + '</p>' +
-        (r.ocorrencias ? '<p style="margin:8px 0 0"><span class="chip c-warn">Ocorrências</span> ' + esc(r.ocorrencias) + '</p>' : '') +
-        ((r.fotos || []).length ? '<div class="ob-fotos">' + r.fotos.map(function (f) { return '<button type="button" data-foto="' + esc(f.id) + '" title="' + esc(f.legenda || 'Ver foto') + '"><img src="' + esc(f.thumb) + '" alt="' + esc(f.legenda || 'Foto da obra') + '"></button>'; }).join('') + '</div>' : '') + '</div>';
-    }).join('');
+
+    var abas = [['resumo', 'Resumo'], ['fotos', 'Fotos', fotos.length], ['diarios', 'Diários', rdosOrd.length], ['cronograma', 'Cronograma'], ['avisos', 'Avisos', avisosAb.length]];
+    var conteudo = {
+      resumo: function () {
+        return (avisosAb.length ? secAvisosObra({ avisos: avisosAb }) : '') +
+          '<div class="ob-2col"><section class="card"><div class="tit-sec"><h2>' + ICO.foto + ' Últimas fotos</h2>' + (fotos.length ? '<button type="button" class="btn sec peq" data-aba="fotos">Ver todas (' + fotos.length + ')</button>' : '') + '</div>' +
+          (fotos.length ? thumbs(fotos, 6) : '<p class="sub" style="margin:0">As fotos aparecem aqui assim que a equipe publicar o diário de obra.</p>') + '</section>' +
+          '<section class="card"><div class="tit-sec"><h2>Evolução da obra</h2></div>' + graficoObra(ob) + '</section></div>' +
+          (rdosOrd.length ? '<section><div class="tit-sec"><h2>Último diário de obra</h2><button type="button" class="btn sec peq" data-aba="diarios">Ver todos (' + rdosOrd.length + ')</button></div>' + cartaoRdo(rdosOrd[0], true) + '</section>' : '');
+      },
+      fotos: function () {
+        if (!fotos.length) return '<div class="card vazio">Nenhuma foto publicada ainda.</div>';
+        var dias = []; fotos.forEach(function (f) { if (dias.indexOf(f.data) < 0) dias.push(f.data); });
+        return dias.map(function (dd) { var fd = fotos.filter(function (f) { return f.data === dd; }); return '<section class="card"><div class="tit-sec"><h2>' + data(dd) + '</h2><span class="sub">Diário nº ' + fd[0].rdo + ' · ' + fd.length + ' foto(s)</span></div>' + thumbs(fd) + '</section>'; }).join('');
+      },
+      diarios: function () { return rdosOrd.length ? '<p class="sub" style="margin:0 0 8px">Toque em um dia para ver as atividades e as fotos.</p>' + rdosOrd.map(function (r, n) { return cartaoRdo(r, n === 0); }).join('') : '<div class="card vazio">Nenhum diário publicado ainda.</div>'; },
+      cronograma: function () { return '<section class="card"><h2>Cronograma</h2><p class="sub" style="margin:0 0 6px">Barra cinza: prazo previsto · laranja: executado · linha vermelha: hoje. Toque em uma etapa para ver os detalhes.</p>' + (etapas || '<p class="sub">Cronograma ainda não publicado.</p>') + '</section>'; },
+      avisos: function () { return secAvisosObra(ob) || '<div class="card vazio">Nenhum aviso sobre esta obra. Quando faltar material, houver atraso ou algo que dependa de vocês, a IDEALLE avisa aqui.</div>'; }
+    };
+
     tela.innerHTML = cabecalhoCliente(d.empresa || {}) +
-      '<style>.ob-et{display:grid;grid-template-columns:minmax(120px,30%) 1fr 54px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--linha)}.ob-et-n{display:flex;flex-direction:column;font-size:14px}.ob-et-t{position:relative;height:24px}.ob-et-p{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}' +
-      '.ob-fotos{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.ob-fotos button{padding:0;border:1px solid var(--linha);border-radius:8px;overflow:hidden;cursor:pointer;background:none}.ob-fotos img{width:84px;height:84px;object-fit:cover;display:block}' +
-      '.ob-sel{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.ob-foto-g{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:50;padding:16px;gap:10px}.ob-foto-g img{max-width:100%;max-height:82vh;border-radius:8px}</style>' +
-      '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px"><div><button class="btn sec peq" id="o-voltar" type="button">← Voltar ao painel</button><h1 style="margin-top:10px">Acompanhamento da obra</h1></div></div>' +
+      '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px"><div><button class="btn sec peq" id="o-voltar" type="button">← Voltar ao painel</button><h1 style="margin-top:10px">Acompanhamento da obra</h1></div>' +
+      '<a class="btn" target="_blank" rel="noopener" href="' + esc(perguntaObra) + '">' + ICO.zap + '&nbsp;Falar com a IDEALLE</a></div>' +
       (obs.length > 1 ? '<div class="ob-sel">' + obs.map(function (x) { return '<button class="btn ' + (x.id === ob.id ? '' : 'sec ') + 'peq" data-ob="' + esc(x.id) + '">' + esc(x.titulo || x.os) + '</button>'; }).join('') + '</div>' : '') +
-      '<section class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><h2 style="margin:0">' + esc(ob.titulo) + '</h2><span class="sub">OS ' + esc(ob.os) + (ob.area ? ' · ' + esc(ob.area) + ' ' + esc(ob.unidade || 'm²') : '') + '</span></div><span class="chip ' + st[1] + '" style="align-self:flex-start">' + st[0] + '</span></div>' +
-      '<div class="kpis" style="margin-top:14px"><div class="kpi"><b>' + pctTxt(ob.avanco) + '</b><span>concluído</span></div><div class="kpi"><b>' + pctTxt(ob.previsto) + '</b><span>previsto para hoje</span></div>' +
-      '<div class="kpi"><b>' + data(ini) + '</b><span>início</span></div><div class="kpi"><b>' + data(fim) + '</b><span>término previsto</span></div></div>' +
-      '<div class="barra" style="margin-top:12px" role="img" aria-label="' + pctTxt(ob.avanco) + ' concluído"><div style="width:' + Math.min(100, ob.avanco || 0) + '%"></div></div></section>' +
-      secAvisosObra(ob) +
-      '<section class="card"><h2>Cronograma</h2><p class="sub" style="margin:0 0 6px">Barra cinza: prazo previsto de cada etapa · laranja: quanto já foi executado.</p>' + etapas + '</section>' +
-      '<section><div class="tit-sec"><h2>Diários de obra</h2><span class="sub">' + (ob.rdos || []).length + ' registro(s)</span></div>' + (rdos || '<div class="card vazio">Nenhum diário publicado ainda.</div>') + '</section>' +
+      '<section class="card ob-hero">' + anelObra(ob.avanco, concl ? '#4ade80' : dif < -3 ? 'var(--bad)' : 'var(--amb)') +
+      '<div class="ob-hero-t"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><h2 style="margin:0">' + esc(ob.titulo) + '</h2><span class="chip ' + st[1] + '">' + st[0] + '</span><span class="chip ' + ritmo[1] + '">' + ritmo[0] + '</span></div>' +
+      '<span class="sub">OS ' + esc(ob.os) + (ob.area ? ' · ' + esc(ob.area) + ' ' + esc(ob.unidade || 'm²') : '') + '</span>' +
+      '<div class="ob-nums"><div><b>' + pctTxt(ob.previsto) + '</b><span>previsto para hoje</span></div><div><b>' + data(ini) + '</b><span>início</span></div><div><b>' + data(fim) + '</b><span>término previsto</span></div>' +
+      '<div><b>' + (concl ? '—' : restantes) + '</b><span>' + (concl ? 'concluída' : restantes === 1 ? 'dia restante' : 'dias restantes') + '</span></div><div><b>' + decorridos + '/' + nDias + '</b><span>dias de obra</span></div></div>' +
+      '<div class="barra ob-barra" role="img" aria-label="' + pctTxt(ob.avanco) + ' concluído de ' + pctTxt(ob.previsto) + ' previsto"><div style="width:' + Math.min(100, ob.avanco || 0) + '%"></div><i style="left:' + Math.min(100, ob.previsto || 0) + '%" title="previsto para hoje"></i></div></div></section>' +
+      '<nav class="ob-abas" role="tablist">' + abas.map(function (a) { return '<button type="button" role="tab" data-aba="' + a[0] + '" class="' + (a[0] === aba ? 'sel' : '') + '" aria-selected="' + (a[0] === aba) + '">' + a[1] + (a[2] ? ' <span class="ob-n' + (a[0] === 'avisos' ? ' bad' : '') + '">' + a[2] + '</span>' : '') + '</button>'; }).join('') + '</nav>' +
+      '<div id="ob-conteudo" class="ob-pilha">' + conteudo[aba]() + '</div>' +
       '<p class="rodape">Atualizado em ' + data(ob.atualizadoEm) + '. Informações publicadas pela IDEALLE a partir do diário de obra.</p>';
     $('o-voltar').onclick = function () { painel(); window.scrollTo(0, 0); };
     tela.querySelectorAll('[data-ob]').forEach(function (b) { b.onclick = function () { telaObras(b.dataset.ob); }; });
-    tela.querySelectorAll('[data-foto]').forEach(function (b) { b.onclick = async function () {
-      var g = document.createElement('div'); g.className = 'ob-foto-g'; g.innerHTML = '<div class="carregando">Abrindo a foto…</div>'; g.onclick = function () { g.remove(); }; document.body.appendChild(g);
-      try { var f = await db.collection('portal_obras_fotos').doc(b.dataset.foto).get(); g.innerHTML = f.exists ? '<img src="' + esc(f.data().dataUrl) + '" alt=""><div style="color:#fff">' + esc(f.data().legenda || '') + '</div><button class="btn sec peq">Fechar</button>' : '<div style="color:#fff">Foto indisponível.</div>'; }
-      catch (e) { g.innerHTML = '<div style="color:#fff">Não foi possível abrir a foto.</div>'; }
-    }; });
-    window.scrollTo(0, 0);
+    tela.onclick = function (e) {
+      if (!tela.querySelector('.ob-abas')) { tela.onclick = null; return; } // saiu da tela da obra
+      var a = e.target.closest('[data-aba]'); if (a && tela.contains(a)) { telaObras(ob.id, a.dataset.aba); return; }
+      var gb = e.target.closest('[data-gal]'); if (gb) { abrirGaleria(ob, fotos, Number(gb.dataset.gal)); return; }
+      var ir = e.target.closest('[data-irrdo]'); if (ir) { e.preventDefault(); telaObras(ob.id, 'diarios'); var alvo = Array.prototype.filter.call(tela.querySelectorAll('details.rdo'), function (x) { return x.querySelector('.rdo-d span').textContent === 'nº ' + ir.dataset.irrdo; })[0]; if (alvo) { alvo.open = true; alvo.scrollIntoView({ block: 'start', behavior: 'smooth' }); } }
+    };
+    if (aba === 'resumo') window.scrollTo(0, 0); else { var nv = tela.querySelector('.ob-abas'); if (nv && nv.getBoundingClientRect().top < 0) nv.scrollIntoView({ block: 'start' }); }
   }
 
   function telaEncerrado() {
