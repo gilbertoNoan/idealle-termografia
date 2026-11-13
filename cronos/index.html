@@ -409,7 +409,8 @@
     ['desenquadramento', 'Desenquadramento (laudo não obrigatório)', 'Calculadora NR-13'],
     ['termografia', 'Termografia', 'Termografia'],
     ['spda', 'SPDA (NBR 5419)', ''],
-    ['civil', 'Engenharia civil (obras e serviços civis)', 'Gestão de Obra']
+    ['civil', 'Engenharia civil (obras e serviços civis)', 'Gestão de Obra'],
+    ['manutencao', 'Manutenção de equipamentos (compressores, máquinas)', '']
   ];
   // Sistemas que têm trabalho a fazer nesta OS (pelos serviços marcados)
   function sistemasDosServicos(sv) {
@@ -426,6 +427,7 @@
       if (/termogr/.test(t)) r.termografia = true;
       if (/spda|descargas? atmosf|para-?raio|5419/.test(t)) r.spda = true;
       if (/engenharia civil|obras? civil|servicos? (tecnicos )?civis|revestimento (ceramico|de fachada)|fachada|alvenaria|assentamento|reboco|emboco|contrapiso|porcelanato/.test(t)) r.civil = true;
+      if (/manutenc|troca de (oleo|filtro|correia|retentor|gaxeta|rolamento)/.test(t)) r.manutencao = true;
       if (/pmta/.test(t)) r.pmta = true;
       if (/prontuario|reconstitui/.test(t)) r.prontuario = true;
       if (/desenquadr/.test(t)) { r.desenquadramento = true; return; }
@@ -495,6 +497,8 @@
     if (sv.termografia && !(res.Termografia && res.Termografia.qtdLaudos)) gerais.push('Termografia: nenhum laudo ainda');
     // SPDA não tem sistema próprio: fica pendente até a OS ser concluída (laudo entregue)
     if (sv.spda && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0) gerais.push('SPDA: laudo feito fora dos sistemas, conclua a OS quando entregar');
+    // Manutenção também não tem sistema próprio: pendente até a OS ser concluída
+    if (sv.manutencao && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0) gerais.push('Manutenção: serviço feito fora dos sistemas, conclua a OS quando entregar');
     if (sv.civil && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0 && !res['Gestão de Obra']) gerais.push('Engenharia civil: inicie a gestão da obra (Gestão de Obra)');
     var qtd = gerais.length + linhas.reduce(function (n, l) { return n + l.itens.filter(function (i) { return !i.ok; }).length; }, 0);
     return { linhas: linhas, gerais: gerais, qtd: qtd };
