@@ -211,12 +211,90 @@
     return 'SPDA-' + String(max + 1).padStart(4, '0') + '/' + ano;
   }
 
+  // ---------- Gerenciamento de risco por zonas (ABNT NBR 5419-2:2015, risco R1 - perda de vida humana) ----------
+  // Zona (ZS): parte da edificação com características próprias (piso, risco de incêndio, ocupação).
+  // Aqui calculamos as componentes devidas à descarga NA ESTRUTURA (fonte S1): RA (choque por toque/passo) e
+  // RB (danos físicos/incêndio). As componentes RC/RM (sistemas internos) e RU/RV/RW/RZ (linhas) ficam por conta
+  // do engenheiro (DPS e linhas), e o laudo diz isso.
+  var RISCO = {
+    RT: 1e-5, // risco tolerável para perda de vida humana (Tabela 4)
+    LT: 1e-2, // perda típica por choque (Tabela C.2)
+    PISO: { // rt - Tabela C.3
+      concreto: ['Agricultura, concreto', 1e-2], ceramica: ['Mármore, cerâmica', 1e-3],
+      carpete: ['Cascalho, tapete, carpete', 1e-4], madeira: ['Asfalto, linóleo, madeira', 1e-5]
+    },
+    INCENDIO: { // rf - Tabela C.5
+      explosao_0_20: ['Explosão: zonas 0, 20 e explosivos sólidos', 1], explosao_1_21: ['Explosão: zonas 1, 21', 1e-1], explosao_2_22: ['Explosão: zonas 2, 22', 1e-3],
+      alto: ['Incêndio alto', 1e-1], normal: ['Incêndio normal', 1e-2], baixo: ['Incêndio baixo', 1e-3], nenhum: ['Sem risco de incêndio ou explosão', 0]
+    },
+    PROVIDENCIAS: { // rp - Tabela C.4
+      nenhuma: ['Nenhuma providência', 1], manuais: ['Extintores, hidrantes, alarme manual, rotas de fuga', 0.5], automaticas: ['Instalações automáticas (sprinklers, alarme automático)', 0.2]
+    },
+    PERIGO: { // hz - Tabela C.6
+      nenhum: ['Sem perigo especial', 1], panico_baixo: ['Baixo nível de pânico (até 2 pavimentos e até 100 pessoas)', 2],
+      panico_medio: ['Nível médio de pânico (100 a 1.000 pessoas)', 5], evacuacao: ['Dificuldade de evacuação (ex.: hospitais)', 5], panico_alto: ['Alto nível de pânico (mais de 1.000 pessoas)', 10]
+    },
+    OCUPACAO: { // LF - Tabela C.2 (tipo da zona)
+      explosao: ['Risco de explosão', 1e-1], hospital: ['Hospital, hotel, escola, edifício cívico', 1e-1], publico: ['Entretenimento público, igreja, museu', 5e-2],
+      industrial: ['Industrial, comercial', 2e-2], outros: ['Outros', 1e-2]
+    },
+    TOQUE: { // PTA - Tabela B.1
+      nenhuma: ['Nenhuma medida de proteção', 1], avisos: ['Avisos de alerta', 1e-1], isolacao: ['Isolação elétrica da descida (3 mm de polietileno reticulado)', 1e-2],
+      equipot: ['Equipotencialização efetiva do solo', 1e-2], barreira: ['Barreiras físicas ou estrutura usada como descida', 0]
+    },
+    LOCALIZACAO: { // CD - Tabela A.1
+      cercada_altos: ['Cercada por objetos mais altos', 0.25], cercada_iguais: ['Cercada por objetos da mesma altura ou mais baixos', 0.5],
+      isolada: ['Isolada: nenhum outro objeto nas vizinhanças', 1], colina: ['Isolada no topo de uma colina ou monte', 2]
+    },
+    PB: { nenhum: 1, IV: 0.2, III: 0.1, II: 0.05, I: 0.02 }, // Tabela B.2
+    ORDEM_NP: ['nenhum', 'IV', 'III', 'II', 'I'] // do menos para o mais rigoroso
+  };
+  function novaZona(dados) {
+    dados = dados || {};
+    return { id: dados.id || ('z' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)), nome: dados.nome || '', descricao: dados.descricao || '',
+      piso: dados.piso || 'concreto', incendio: dados.incendio || 'normal', providencias: dados.providencias || 'manuais', perigo: dados.perigo || 'nenhum',
+      ocupacao: dados.ocupacao || 'industrial', toque: dados.toque || 'nenhuma', pessoas: dados.pessoas == null ? '' : dados.pessoas, horasAno: dados.horasAno == null ? 8760 : dados.horasAno,
+      materiaisPerigosos: !!dados.materiaisPerigosos, npAdotado: dados.npAdotado || '', justificativa: dados.justificativa || '' };
+  }
+  function coef(tab, chave, padrao) { var x = RISCO[tab][chave] || RISCO[tab][padrao]; return x[1]; }
+  function areaColeta(L, W, H) { return L * W + 2 * (3 * H) * (L + W) + Math.PI * Math.pow(3 * H, 2); } // AD - Equação A.2
+  // Calcula RA e RB por zona e o total da estrutura para cada NP; sugere o NP mínimo (RA + RB <= RT).
+  function calcularRisco(ed) {
+    var dm = (ed && ed.dimensoes) || {}, r = (ed && ed.risco) || {}, zonas = r.zonas || [];
+    var L = num(dm.comprimentoM), W = num(dm.larguraM), H = num(dm.alturaM), NG = num(r.ng), CD = coef('LOCALIZACAO', r.localizacao, 'cercada_iguais');
+    var faltam = [];
+    if (!(L > 0 && W > 0 && H > 0)) faltam.push('dimensões da edificação (comprimento, largura e altura)');
+    if (!(NG > 0)) faltam.push('densidade de descargas NG (descargas/km²/ano)');
+    if (!zonas.length) faltam.push('pelo menos uma zona');
+    var nt = num(r.pessoasTotal) || zonas.reduce(function (t, z) { return t + num(z.pessoas); }, 0);
+    if (zonas.length && !(nt > 0)) faltam.push('número de pessoas nas zonas');
+    var AD = L > 0 && W > 0 && H > 0 ? areaColeta(L, W, H) : 0, ND = NG * AD * CD * 1e-6; // Equação A.4
+    var porZona = zonas.map(function (z) {
+      var f = nt > 0 ? (num(z.pessoas) / nt) * (Math.min(8760, num(z.horasAno)) / 8760) : 0;
+      var rt = coef('PISO', z.piso, 'concreto'), rf = coef('INCENDIO', z.incendio, 'normal'), rp = coef('PROVIDENCIAS', z.providencias, 'nenhuma'), hz = coef('PERIGO', z.perigo, 'nenhum');
+      var LF = coef('OCUPACAO', z.ocupacao, 'outros'), PTA = coef('TOQUE', z.toque, 'nenhuma');
+      var LA = rt * RISCO.LT * f, LB = rp * rf * hz * LF * f; // Equações C.1 e C.3
+      var porNp = {};
+      RISCO.ORDEM_NP.forEach(function (np) { var PB = RISCO.PB[np]; porNp[np] = { RA: ND * PTA * PB * LA, RB: ND * PB * LB }; porNp[np].R = porNp[np].RA + porNp[np].RB; });
+      var npMin = RISCO.ORDEM_NP.filter(function (np) { return porNp[np].R <= RISCO.RT; })[0] || 'insuficiente';
+      return { id: z.id, nome: z.nome, f: f, rt: rt, rf: rf, rp: rp, hz: hz, LF: LF, PTA: PTA, LA: LA, LB: LB, porNp: porNp, npMinimo: npMin };
+    });
+    var total = {}; RISCO.ORDEM_NP.forEach(function (np) { total[np] = porZona.reduce(function (t, z) { return t + z.porNp[np].R; }, 0); });
+    var npMinimo = faltam.length ? '' : (RISCO.ORDEM_NP.filter(function (np) { return total[np] <= RISCO.RT; })[0] || 'insuficiente');
+    // NP adotado: o mais rigoroso entre o mínimo calculado e o escolhido em cada zona
+    var npAdotado = npMinimo === 'insuficiente' ? 'I' : npMinimo;
+    zonas.forEach(function (z) { if (z.npAdotado && RISCO.ORDEM_NP.indexOf(z.npAdotado) > RISCO.ORDEM_NP.indexOf(npAdotado)) npAdotado = z.npAdotado; });
+    return { faltam: faltam, L: L, W: W, H: H, NG: NG, CD: CD, AD: AD, ND: ND, nt: nt, zonas: porZona, total: total, npMinimo: npMinimo, npAdotado: faltam.length ? '' : npAdotado,
+      R: faltam.length || !npAdotado ? null : total[npAdotado] };
+  }
+
   var SPDA = {
     COLECOES: COLECOES, NIVEIS: NIVEIS, METODOS_CAPTACAO: METODOS_CAPTACAO, TIPOS_INSPECAO: TIPOS_INSPECAO, STATUS_LAUDO: STATUS_LAUDO,
     RESPOSTAS: RESPOSTAS, LIMITES_PADRAO: LIMITES_PADRAO, PERIODICIDADE_PADRAO_MESES: PERIODICIDADE_PADRAO_MESES, CHECKLIST: CHECKLIST,
     novaEdificacao: novaEdificacao, novoLaudo: novoLaudo, novaFoto: novaFoto, checklistEmBranco: checklistEmBranco,
     avaliarMedicoes: avaliarMedicoes, naoConformidades: naoConformidades, parecerSugerido: parecerSugerido,
-    pendencias: pendencias, podeMudarStatus: podeMudarStatus, aoConcluir: aoConcluir, proximoNumero: proximoNumero, num: num
+    pendencias: pendencias, podeMudarStatus: podeMudarStatus, aoConcluir: aoConcluir, proximoNumero: proximoNumero, num: num,
+    RISCO: RISCO, novaZona: novaZona, calcularRisco: calcularRisco, areaColeta: areaColeta
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = SPDA; else raiz.SPDA = SPDA;
 })(typeof window !== 'undefined' ? window : this);
