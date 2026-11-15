@@ -4,7 +4,7 @@
 <meta charset="utf-8">
     <!-- Trava de acesso CRONOS: a pagina so abre para quem tem este sistema liberado no painel
          (Configuracoes > Administracao). Codigo da trava: painel-central/guard/guard.ts -->
-    <script>(function(){var l=location,h=l.hostname;if(l.protocol!=='https:'||/^(localhost|127\.0\.0\.1)$/.test(h)||/(claudeusercontent\.com|claude\.ai|claude\.site)$/.test(h)||/[?&]demo=1/.test(l.search))return;window.__cronosGuard=new Promise(function(r){window.__cronosGuardPronto=r});var d=document,s=d.createElement('style');s.id='cronos-guard-hide';s.textContent='body{visibility:hidden!important}';d.head.appendChild(s);var g=d.createElement('script');g.src='https://painel-central-rosy.vercel.app/guard.js';g.setAttribute('data-sistema','sistema-eletrica');g.setAttribute('data-recarregar','1');g.onerror=function(){d.title='CRONOS';d.documentElement.innerHTML='<body style="font-family:sans-serif;padding:40px;background:#03060c;color:#e2e8f0">N&atilde;o foi poss&iacute;vel verificar o acesso ao CRONOS. Verifique a internet e recarregue a p&aacute;gina.</body>'};d.head.appendChild(g);})();</script>
+    <script>(function(){var l=location,h=l.hostname;if(l.protocol!=='https:'||/^(localhost|127\.0\.0\.1)$/.test(h)||/(claudeusercontent\.com|claude\.ai|claude\.site)$/.test(h)||/[?&]demo=1/.test(l.search))return;window.__cronosGuard=new Promise(function(r){window.__cronosGuardPronto=r});var d=document,s=d.createElement('style');s.id='cronos-guard-hide';s.textContent='body{visibility:hidden!important}';d.head.appendChild(s);var ab=d.createElement('div');ab.id='spda-abrindo';ab.style.cssText='position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#05080f;color:#94a3b8;font:15px system-ui,sans-serif;z-index:2147483646';ab.innerHTML='<div style="width:34px;height:34px;border-radius:50%;border:3px solid rgba(56,189,248,.2);border-top-color:#38bdf8;animation:spg .8s linear infinite"></div><div>Abrindo o SPDA\u2026</div><style>@keyframes spg{to{transform:rotate(360deg)}}</style>';d.documentElement.appendChild(ab);window.__spdaT0=Date.now();window.__cronosGuard.then(function(){window.__spdaTrava=Date.now();var x=d.getElementById('spda-abrindo');if(x)x.remove();});var g=d.createElement('script');g.src='https://painel-central-rosy.vercel.app/guard.js';g.setAttribute('data-sistema','sistema-eletrica');g.setAttribute('data-recarregar','1');g.onerror=function(){d.title='CRONOS';d.documentElement.innerHTML='<body style="font-family:sans-serif;padding:40px;background:#03060c;color:#e2e8f0">N&atilde;o foi poss&iacute;vel verificar o acesso ao CRONOS. Verifique a internet e recarregue a p&aacute;gina.</body>'};d.head.appendChild(g);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SPDA · Idealle</title>
 <link rel="icon" type="image/png" sizes="48x48" href="/icones/spda-48.png">
@@ -444,7 +444,8 @@
     $('usuario-nome').textContent = modoDemo ? 'Modo de teste' : email;
     if (modoDemo) { $('aviso-modo').style.display = 'block'; $('aviso-modo').innerHTML = 'Modo de teste: os dados ficam só neste navegador e não vão para o banco. <a href="' + location.pathname + '">Sair do modo de teste</a>'; }
     banco.ouvir('ordens', ['servicos.spda', '==', true], function (l) { cache.ordens = l; render(); });
-    banco.ouvir(SPDA.COLECOES.laudos, null, function (l) { cache.laudos = l; cache.pronto = true; render(); });
+    window.__spdaApp = Date.now();
+    banco.ouvir(SPDA.COLECOES.laudos, null, function (l) { cache.laudos = l; if (!cache.pronto) registrarAbertura(); cache.pronto = true; render(); });
     banco.ouvir(SPDA.COLECOES.edificacoes, null, function (l) { cache.edificacoes = l; render(); });
     banco.ouvir(SPDA.COLECOES.equipamentos, null, function (l) { cache.equipamentos = l; if (tela.pagina || tela.laudoId) render(); }, function () {});
     banco.ouvirDoc(SPDA.COLECOES.config, 'geral', function (c) { cache.config = c || {}; if (tela.pagina) render(); }, function () {});
@@ -641,6 +642,13 @@
       fecharModal();
     };
   }
+  // Tempo de abertura (para achar o que deixa lento no celular): trava do CRONOS, tela e laudos
+  function registrarAbertura() {
+    var t0 = window.__spdaT0 || (performance.timeOrigin || Date.now()), s2 = function (t) { return t ? Math.round((t - t0) / 100) / 10 : null; };
+    var dentro = false; try { dentro = window.top !== window.self; } catch (e) { dentro = true; }
+    var r = { em: new Date().toISOString(), trava: s2(window.__spdaTrava), tela: s2(window.__spdaApp), laudos: s2(Date.now()), dentroDoCronos: dentro, celular: /iPhone|iPad|Android/i.test(navigator.userAgent) };
+    try { var h = JSON.parse(localStorage.getItem('spda-aberturas') || '[]'); h.unshift(r); localStorage.setItem('spda-aberturas', JSON.stringify(h.slice(0, 5))); } catch (e) {}
+  }
   function renderConfig(v) {
     var c = cfg(), eqs = (cache.equipamentos || []).filter(function (e) { return e.ativo !== false; }), dis = dono ? '' : ' disabled';
     var selEq = function (id, val, uso) { return '<select id="' + id + '"' + dis + '><option value="">— nenhum —</option>' + eqs.filter(function (e) { return e.uso === uso || e.uso === 'ambos'; }).map(function (e) { return '<option value="' + e.id + '"' + (e.id === val ? ' selected' : '') + '>' + esc(e.descricao || eqResumo(e)) + '</option>'; }).join('') + '</select>'; };
@@ -653,7 +661,14 @@
       '<label class="z-check"><input type="checkbox" id="cf-esc"' + (c.escopoNoLaudo ? ' checked' : '') + dis + '> Incluir a seção "Escopo, método e limitações" no laudo</label>' +
       '<label>Texto do escopo, método e limitações</label><textarea id="cf-escopo" rows="7"' + dis + '>' + esc(c.escopo) + '</textarea>' +
       (dono ? '<div class="acoes"><button class="btn sec peq" id="cf-escpad">Voltar ao texto padrão</button></div>' : '') + '</div>' +
-      (dono ? '<div class="acoes"><button class="btn" id="cf-ok">Salvar configurações</button></div>' : '');
+      (dono ? '<div class="acoes"><button class="btn" id="cf-ok">Salvar configurações</button></div>' : '') +
+      (function () {
+        var h = []; try { h = JSON.parse(localStorage.getItem('spda-aberturas') || '[]'); } catch (e) {}
+        if (!h.length) return '';
+        var f = function (x) { return x == null ? '—' : String(x).replace('.', ',') + ' s'; };
+        return '<div class="card"><h2>Tempo de abertura neste aparelho</h2><p class="muted" style="font-size:13px">Se o SPDA demorar para abrir, mande um print desta tabela.</p><div class="tabela-z"><table><tr><th>Quando</th><th>Acesso liberado</th><th>Tela pronta</th><th>Laudos carregados</th><th>Onde</th></tr>' +
+          h.map(function (x) { return '<tr><td>' + new Date(x.em).toLocaleString('pt-BR') + '</td><td>' + f(x.trava) + '</td><td>' + f(x.tela) + '</td><td>' + f(x.laudos) + '</td><td>' + (x.dentroDoCronos ? 'dentro do CRONOS' : 'direto') + (x.celular ? ' · celular' : '') + '</td></tr>'; }).join('') + '</table></div></div>';
+      })();
     if (!dono) return;
     $('cf-escpad').onclick = function () { $('cf-escopo').value = ESCOPO_PADRAO; };
     $('cf-ok').onclick = function () {
