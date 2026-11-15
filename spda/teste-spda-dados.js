@@ -26,4 +26,22 @@ assert.strictEqual(S.proximoNumero(['SPDA-0007/2026', 'SPDA-0002/2025'], 2026), 
 assert.strictEqual(S.podeMudarStatus({ status: 'rascunho' }, 'concluido'), 'Mudança de status não permitida.');
 assert.strictEqual(S.num(6.2), 6.2); assert.strictEqual(S.num('6,2'), 6.2); assert.strictEqual(S.num('6.2'), 6.2); assert.strictEqual(S.num('1.234,5'), 1234.5);
 assert.strictEqual(S.avaliarMedicoes({ aterramento: [{ ponto: 'X', valorOhm: 6.2 }] }).length, 0);
+// Gerenciamento de risco (NBR 5419-2): galpão 100 x 40 x 10 m, NG 10, cercado por objetos da mesma altura
+var near = function (a, b, tol) { assert.ok(Math.abs(a - b) <= (tol || 1e-9) * Math.max(1, Math.abs(b)), a + ' != ' + b); };
+near(S.areaColeta(100, 40, 10), 4000 + 2 * 30 * 140 + Math.PI * 900, 1e-12);
+var g = S.novaEdificacao(emp, { nome: 'Galpão', dimensoes: { comprimentoM: '100', larguraM: '40', alturaM: '10' } });
+g.risco = { ng: '10', localizacao: 'cercada_iguais', zonas: [S.novaZona({ nome: 'Produção', pessoas: 50, horasAno: 2920, piso: 'concreto', incendio: 'normal', providencias: 'manuais', ocupacao: 'industrial' })] };
+var c1 = S.calcularRisco(g);
+near(c1.ND, 10 * S.areaColeta(100, 40, 10) * 0.5 * 1e-6, 1e-12);
+// f = 50/50 * 2920/8760 = 1/3; LB = 0,5 * 1e-2 * 1 * 2e-2 * 1/3; RB(sem SPDA) = ND * LB
+near(c1.zonas[0].porNp.nenhum.RB, c1.ND * 0.5 * 1e-2 * 2e-2 / 3, 1e-9);
+near(c1.zonas[0].porNp.nenhum.RA, c1.ND * 1e-2 * 1e-2 / 3, 1e-9);
+assert.strictEqual(c1.npMinimo, 'nenhum'); // ~5e-6 < 1e-5: risco tolerável sem SPDA para S1
+// Zona com atmosfera explosiva (zona 1/21): exige NP mais rigoroso
+g.risco.zonas.push(S.novaZona({ nome: 'Tancagem', pessoas: 5, horasAno: 2920, incendio: 'explosao_1_21', ocupacao: 'explosao', providencias: 'manuais', materiaisPerigosos: true }));
+var c2 = S.calcularRisco(g);
+assert.ok(c2.total.nenhum > 1e-5);
+assert.ok(c2.total[c2.npMinimo] <= 1e-5 && c2.total[S.RISCO.ORDEM_NP[S.RISCO.ORDEM_NP.indexOf(c2.npMinimo) - 1]] > 1e-5);
+g.risco.zonas[0].npAdotado = 'I'; assert.strictEqual(S.calcularRisco(g).npAdotado, 'I'); // zona com NP mais rigoroso prevalece
+assert.ok(S.calcularRisco({ dimensoes: {}, risco: {} }).faltam.length === 3);
 console.log('SPDA modelo: todos os testes passaram');
