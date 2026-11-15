@@ -221,6 +221,7 @@
     .sp-ed .sp-prog { grid-column: 2 / 4; } .sp-ed .sp-nc { grid-column: 2 / 4; text-align: left; } .sp-ed .sp-nc b { display: inline; margin-right: 4px; } .sp-seta { display: none; }
   }
   .sp-os-cab{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 4px 4px;font-size:13px;color:var(--muted, #94a3b8)}.sp-os-cab b{color:#7dd3fc}
+  .end-acoes{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 0}.end-acoes .muted{font-size:12.5px;flex:1;min-width:200px}
   .gerar-tx{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 4px}.gerar-tx .muted{font-size:13px}
   .probs{margin:8px 0 6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}.probs-t{width:100%;font-size:12.5px;font-weight:700;color:var(--muted)}
   .prob{display:inline-flex;align-items:center;gap:6px;text-align:left;border:1px solid rgba(255,255,255,.16);background:transparent;color:inherit;border-radius:10px;padding:7px 10px;font:inherit;font-size:13px;cursor:pointer}
@@ -584,13 +585,37 @@
     var id = await salvar(function () { return banco.criar(SPDA.COLECOES.laudos, l); }, 'Laudo iniciado.');
     fecharModal(); irPara(id, 'checklist');
   }
+  // Endereço do cliente (cadastro do Finanças/CRONOS): "Rua X, 123 - Complemento - Bairro" + cidade, UF e CEP
+  function enderecoDoCliente(emp) {
+    emp = emp || {};
+    var cid = String(emp.cidade || '').trim(), uf = String(emp.uf || '').trim().toUpperCase(), sem = function (x) { return String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim(); };
+    var partes = String(emp.endereco || '').split(/\s+-\s+/).map(function (x) { return x.trim(); }).filter(function (x) { return x && sem(x) !== sem(cid) && sem(x) !== sem(uf) && sem(x) !== sem(cid + '/' + uf); });
+    var rua = partes[0] || '', num = '', m = /^(.*?),\s*(.+)$/.exec(rua);
+    if (m) { rua = m[1]; num = m[2]; }
+    var bairro = partes.length > 1 ? partes[partes.length - 1] : '', compl = partes.slice(1, -1).join(' - ');
+    return { logradouro: rua, numero: [num, compl].filter(Boolean).join(' - '), bairro: bairro, cidade: cid, uf: uf, cep: String(emp.cep || '').trim() };
+  }
+  async function enderecoCompleto(emp) {
+    var x = enderecoDoCliente(emp);
+    if (!x.logradouro && x.cep) { var c = await buscarCep(x.cep); if (c) x = Object.assign(x, { logradouro: c.logradouro, bairro: x.bairro || c.bairro, cidade: x.cidade || c.cidade, uf: x.uf || c.uf, cep: c.cep }); }
+    return x;
+  }
+  // CEP -> rua, bairro, cidade e UF (BrasilAPI, base dos Correios)
+  async function buscarCep(cep) {
+    var d = String(cep || '').replace(/\D/g, ''); if (d.length !== 8) return null;
+    var r = await fetch('https://brasilapi.com.br/api/cep/v1/' + d).catch(function () { return null; });
+    if (!r || !r.ok) return null;
+    var j = await r.json();
+    return { logradouro: j.street || '', bairro: j.neighborhood || '', cidade: j.city || '', uf: j.state || '', cep: d.slice(0, 5) + '-' + d.slice(5) };
+  }
   function formEdificacao(ed, emp, depois) {
     var novo = !ed, e = ed ? JSON.parse(JSON.stringify(ed)) : SPDA.novaEdificacao(emp || {}, {});
     var en = e.endereco || {}, dm = e.dimensoes || {}, np = (e.nivelProtecao || {}).np || '';
-    if (novo && emp) { en.cidade = en.cidade || emp.cidade || ''; en.uf = en.uf || emp.uf || ''; en.logradouro = en.logradouro || emp.endereco || ''; }
+    if (novo && emp) en = Object.assign({}, enderecoDoCliente(emp), en.logradouro || en.cidade ? en : {});
     abrirModal('<h3>' + (novo ? 'Nova edificação' : 'Editar edificação') + '</h3><div class="muted" style="margin-top:-6px">' + esc(e.empresaNome) + '</div>' +
       '<label>Nome da edificação *</label><input id="e-nome" value="' + esc(e.nome) + '" placeholder="Ex.: Galpão 2, Bloco administrativo">' +
       '<label>Atividade / uso</label><input id="e-ativ" value="' + esc(e.atividade) + '" placeholder="Ex.: Indústria metalúrgica, hospital, escritório">' +
+      '<div class="end-acoes"><button type="button" class="btn sec peq" id="e-endcli">' + ic('predio', 14) + ' Usar o endereço do cliente</button><span class="muted">Preenchido pelo cadastro do cliente. Se a edificação fica em outro endereço, é só mudar (digite o CEP para completar).</span></div>' +
       '<div class="linha"><div style="flex:3"><label>Endereço</label><input id="e-log" value="' + esc(en.logradouro) + '"></div><div><label>Nº</label><input id="e-num" value="' + esc(en.numero) + '"></div></div>' +
       '<div class="linha"><div><label>Bairro</label><input id="e-bai" value="' + esc(en.bairro) + '"></div><div><label>Cidade</label><input id="e-cid" value="' + esc(en.cidade) + '"></div><div style="max-width:80px"><label>UF</label><input id="e-uf" maxlength="2" value="' + esc(en.uf) + '"></div><div><label>CEP</label><input id="e-cep" value="' + esc(en.cep) + '"></div></div>' +
       '<div class="linha"><div><label>Comprimento (m)</label><input id="e-c" inputmode="decimal" value="' + esc(numCampo(dm.comprimentoM)) + '"></div><div><label>Largura (m)</label><input id="e-l" inputmode="decimal" value="' + esc(numCampo(dm.larguraM)) + '"></div><div><label>Altura (m)</label><input id="e-a" inputmode="decimal" value="' + esc(numCampo(dm.alturaM)) + '"></div></div>' +
@@ -604,6 +629,20 @@
     if ($('e-zonas')) $('e-zonas').onclick = function () { modalZonas(edDe(ed.id) || ed); };
     function info() { var n = SPDA.NIVEIS[$('e-np').value]; $('e-np-info').innerHTML = n ? 'NP ' + n.classe + ': esfera rolante R = ' + n.raioEsferaM + ' m · malha ' + n.malhaM.join(' × ') + ' m · descidas a cada ' + n.distDescidasM + ' m (referência — conferir na NBR 5419-3).' : ''; }
     $('e-np').onchange = info; info();
+    var porEnd = function (x) { [['e-log', 'logradouro'], ['e-num', 'numero'], ['e-bai', 'bairro'], ['e-cid', 'cidade'], ['e-uf', 'uf'], ['e-cep', 'cep']].forEach(function (c) { if (x[c[1]] != null) $(c[0]).value = x[c[1]]; }); };
+    $('e-endcli').onclick = async function () {
+      var c = emp && emp.nome ? emp : await empresa(e.empresaId);
+      var x = await enderecoCompleto(c || {});
+      if (!x.logradouro && !x.cidade) { toast('O cadastro do cliente não tem endereço. Preencha aqui ou atualize o cliente no Finanças.'); return; }
+      porEnd(x); toast('Endereço do cliente preenchido.');
+    };
+    // edificação nova sem rua no cadastro do cliente, mas com CEP: completa pelo CEP
+    if (novo && !$('e-log').value && $('e-cep').value) enderecoCompleto({ cep: $('e-cep').value, cidade: $('e-cid').value, uf: $('e-uf').value }).then(function (x) { if (x.logradouro && !$('e-log').value) porEnd({ logradouro: x.logradouro, bairro: x.bairro || $('e-bai').value }); });
+    $('e-cep').onchange = async function () {
+      var x = await buscarCep(this.value); if (!x) return;
+      porEnd({ logradouro: x.logradouro || $('e-log').value, bairro: x.bairro || $('e-bai').value, cidade: x.cidade, uf: x.uf, cep: x.cep });
+      toast('Endereço do CEP preenchido. Confira o número.'); $('e-num').focus();
+    };
     $('e-c2').onclick = fecharModal;
     $('e-ok').onclick = async function () {
       var g = function (id) { return $(id).value.trim(); };
