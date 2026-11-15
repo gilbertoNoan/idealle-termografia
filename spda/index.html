@@ -221,6 +221,8 @@
     .sp-ed .sp-prog { grid-column: 2 / 4; } .sp-ed .sp-nc { grid-column: 2 / 4; text-align: left; } .sp-ed .sp-nc b { display: inline; margin-right: 4px; } .sp-seta { display: none; }
   }
   .sp-os-cab{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 4px 4px;font-size:13px;color:var(--muted, #94a3b8)}.sp-os-cab b{color:#7dd3fc}
+  .desc-box{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;padding:12px;border:1px solid rgba(255,255,255,.1);border-radius:10px}
+  .stepper{display:flex;align-items:center;gap:0}.stepper button{width:44px;height:44px;border:1px solid rgba(255,255,255,.18);background:transparent;color:inherit;font-size:22px;cursor:pointer}.stepper button:first-child{border-radius:10px 0 0 10px}.stepper button:last-child{border-radius:0 10px 10px 0}.stepper input{width:64px;height:44px;text-align:center;border-radius:0;font-size:18px;font-weight:700}
   .end-acoes{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 0}.end-acoes .muted{font-size:12.5px;flex:1;min-width:200px}
   .gerar-tx{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 4px}.gerar-tx .muted{font-size:13px}
   .probs{margin:8px 0 6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}.probs-t{width:100%;font-size:12.5px;font-weight:700;color:var(--muted)}
@@ -623,7 +625,7 @@
       '<div><label>Cobertura</label><input id="e-cob" list="l-cob" value="' + esc(e.coberturaTipo) + '"><datalist id="l-cob"><option value="Telha metálica"><option value="Laje"><option value="Fibrocimento"><option value="Cerâmica"></datalist></div></div>' +
       '<div class="linha"><div><label>Nível de proteção (NP)</label><select id="e-np"><option value="">—</option>' + Object.keys(SPDA.NIVEIS).map(function (k) { return '<option' + (k === np ? ' selected' : '') + '>' + k + '</option>'; }).join('') + '</select></div>' +
       '<div><label>Método de captação</label><select id="e-met"><option value="">—</option>' + Object.keys(SPDA.METODOS_CAPTACAO).map(function (k) { return '<option value="' + k + '"' + (k === e.metodoCaptacao ? ' selected' : '') + '>' + SPDA.METODOS_CAPTACAO[k] + '</option>'; }).join('') + '</select></div>' +
-      '<div><label>Nº de descidas</label><input id="e-desc" inputmode="numeric" value="' + esc(numCampo(e.qtdDescidas)) + '"></div></div>' +
+      '<div><label>Nº de descidas (informado)</label><input id="e-desc" inputmode="numeric" value="' + esc(numCampo(e.qtdDescidas)) + '"></div></div>' +
       '<div class="muted" id="e-np-info"></div>' +
       '<div class="acoes"><button class="btn" id="e-ok">Salvar</button>' + (novo ? '' : '<button class="btn sec" id="e-zonas">' + ic('raio', 14) + ' Zonas de risco (' + ((e.risco && e.risco.zonas) || []).length + ')</button>') + '<button class="btn sec" id="e-c2">Cancelar</button></div>');
     if ($('e-zonas')) $('e-zonas').onclick = function () { modalZonas(edDe(ed.id) || ed); };
@@ -806,6 +808,8 @@
 
   // ----- Medições -----
   function abaMedicoes(a, l, trava) {
+    var nDesc = descidasDoLaudo(l, edDe(l.edificacaoId));
+    if (!trava && nDesc && !(l.medicoes.aterramento || []).length) { l.medicoes.aterramento = []; for (var q = 1; q <= nDesc; q++) l.medicoes.aterramento.push({ ponto: 'CX-' + String(q).padStart(2, '0'), local: '', valorOhm: '' }); gravarLaudo(l, { medicoes: l.medicoes }); }
     var m = l.medicoes, lim = m.limites || SPDA.LIMITES_PADRAO, eq = m.equipamento || {};
     var dis = trava ? ' disabled' : '';
     var linha = function (tipo, x, k) {
@@ -815,7 +819,7 @@
         '<div class="ohm"><input data-m="' + tipo + '|' + k + '|valorOhm" inputmode="decimal" value="' + esc(numCampo(x.valorOhm)) + '" placeholder="0,00"' + dis + '><span>Ω</span></div>' +
         (trava ? '' : '<button class="btn sec peq" data-mx="' + tipo + '|' + k + '" title="Excluir">×</button>') + '</div>';
     };
-    a.innerHTML = '<div class="card"><h2>' + ic('medidor', 18) + ' Resistência de aterramento</h2><p class="muted">Referência: até ' + numCampo(lim.aterramentoOhm) + ' Ω. Valores acima entram como não conformidade.</p>' +
+    a.innerHTML = '<div class="card"><h2>' + ic('medidor', 18) + ' Resistência de aterramento</h2><p class="muted">Referência: até ' + numCampo(lim.aterramentoOhm) + ' Ω. Valores acima entram como não conformidade.' + (nDesc ? ' Descidas encontradas: ' + nDesc + ' (altere na aba Edificação e inspeção).' : '') + '</p>' +
       (m.aterramento || []).map(function (x, k) { return linha('aterramento', x, k); }).join('') + (trava ? '' : '<button class="btn sec" id="m-add-at">+ Ponto de medição</button>') + '</div>' +
       '<div class="card"><h2>' + ic('medidor', 18) + ' Continuidade elétrica</h2><p class="muted">Referência: até ' + numCampo(lim.continuidadeOhm) + ' Ω.</p>' +
       (m.continuidade || []).map(function (x, k) { return linha('continuidade', x, k); }).join('') + (trava ? '' : '<button class="btn sec" id="m-add-co">+ Trecho</button>') + '</div>' +
@@ -841,19 +845,37 @@
   }
 
   // ----- Edificação e dados da inspeção -----
+  // Descidas encontradas na inspeção: começa pelo número do cadastro e o inspetor ajusta
+  function descidasDoLaudo(l, ed) { return l.descidasEncontradas != null && l.descidasEncontradas !== '' ? Number(l.descidasEncontradas) : (Number((ed || {}).qtdDescidas) || 0); }
   function abaDados(a, l, trava) {
     var ed = edDe(l.edificacaoId) || {}, en = ed.endereco || {}, dm = ed.dimensoes || {}, n = SPDA.NIVEIS[l.nivelProtecao], dis = trava ? ' disabled' : '';
     a.innerHTML = '<div class="card"><h2>Inspeção</h2><div class="linha"><div><label>Tipo de inspeção</label><select id="d-tipo"' + dis + '>' + Object.keys(SPDA.TIPOS_INSPECAO).map(function (k) { return '<option value="' + k + '"' + (k === l.tipoInspecao ? ' selected' : '') + '>' + SPDA.TIPOS_INSPECAO[k] + '</option>'; }).join('') + '</select></div>' +
       '<div><label>Data da inspeção</label><input type="date" id="d-data" value="' + esc(l.dataInspecao) + '"' + dis + '></div><div><label>Inspetor</label><input id="d-insp" value="' + esc(l.inspetor || '') + '"' + dis + '></div></div>' +
       '<div class="linha"><div><label>Nível de proteção (NP)</label><select id="d-np"' + dis + '><option value="">—</option>' + Object.keys(SPDA.NIVEIS).map(function (k) { return '<option' + (k === l.nivelProtecao ? ' selected' : '') + '>' + k + '</option>'; }).join('') + '</select></div>' +
       '<div><label>Método de captação</label><select id="d-met"' + dis + '><option value="">—</option>' + Object.keys(SPDA.METODOS_CAPTACAO).map(function (k) { return '<option value="' + k + '"' + (k === l.metodoCaptacao ? ' selected' : '') + '>' + SPDA.METODOS_CAPTACAO[k] + '</option>'; }).join('') + '</select></div></div>' +
+      (function () {
+        var prev = Number(ed.qtdDescidas) || 0, enc = descidasDoLaudo(l, ed);
+        return '<div class="desc-box"><div><label style="margin:0">Descidas / pontos de medição encontrados</label><div class="muted" style="font-size:12.5px">' + (prev ? 'Informado no cadastro: ' + prev + '. ' : '') + 'Ajuste se encontrar mais ou menos em campo; os pontos de medição acompanham.</div></div>' +
+          '<div class="stepper"><button type="button" data-desc="-1"' + dis + ' aria-label="Menos uma descida">−</button><input id="d-desc" inputmode="numeric" value="' + (enc || '') + '"' + dis + '><button type="button" data-desc="1"' + dis + ' aria-label="Mais uma descida">+</button></div></div>';
+      })() +
       (n ? '<div class="np-info">' + [['Esfera rolante', 'R = ' + n.raioEsferaM + ' m'], ['Malha de captação', n.malhaM.join(' × ') + ' m'], ['Distância entre descidas', n.distDescidasM + ' m'], ['Corrente de pico', n.correntePicoKA + ' kA']].map(function (x) { return '<div><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('') + '</div><div class="muted" style="font-size:12px">Referências do NP ' + n.classe + ' — conferir com a edição vigente da NBR 5419.</div>' : '') + '</div>' +
       '<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><h2 style="margin:0">' + ic('predio', 18) + ' ' + esc(ed.nome || l.edificacaoNome || 'Edificação') + '</h2>' + (ed.id && !trava ? '<button class="btn sec peq" id="d-ed">Editar edificação</button>' : '') + '</div>' +
       '<div class="dados-ed">' + [['Cliente', l.empresaNome], ['CNPJ', l.cnpj], ['Atividade', ed.atividade], ['Endereço', [en.logradouro, en.numero].filter(Boolean).join(', ') + (en.bairro ? ' — ' + en.bairro : '')], ['Cidade', [en.cidade, en.uf].filter(Boolean).join('/')],
-        ['Dimensões', [dm.comprimentoM, dm.larguraM, dm.alturaM].some(function (x) { return x !== '' && x != null; }) ? numCampo(dm.comprimentoM) + ' × ' + numCampo(dm.larguraM) + ' m, altura ' + numCampo(dm.alturaM) + ' m' : ''], ['Estrutura', ed.tipoEstrutura], ['Cobertura', ed.coberturaTipo], ['Descidas (projeto)', ed.qtdDescidas]]
+        ['Dimensões', [dm.comprimentoM, dm.larguraM, dm.alturaM].some(function (x) { return x !== '' && x != null; }) ? numCampo(dm.comprimentoM) + ' × ' + numCampo(dm.larguraM) + ' m, altura ' + numCampo(dm.alturaM) + ' m' : ''], ['Estrutura', ed.tipoEstrutura], ['Cobertura', ed.coberturaTipo], ['Descidas (informado)', ed.qtdDescidas], ['Descidas encontradas', descidasDoLaudo(l, ed) || '']]
         .map(function (x) { return '<div><span>' + x[0] + '</span><b>' + esc(x[1] || '—') + '</b></div>'; }).join('') + '</div></div>' +
       '<div class="card" id="zonas-card"></div>';
     painelZonas($('zonas-card'), ed, l, trava);
+    var mudarDescidas = function (n) {
+      n = Math.max(0, Math.min(200, n | 0)); l.descidasEncontradas = n;
+      var at = (l.medicoes.aterramento || []).slice();
+      while (at.length < n) at.push({ ponto: 'CX-' + String(at.length + 1).padStart(2, '0'), local: '', valorOhm: '' });
+      while (at.length > n && String(at[at.length - 1].valorOhm == null ? '' : at[at.length - 1].valorOhm).trim() === '' && !String(at[at.length - 1].local || '').trim()) at.pop(); // só tira ponto sem medição
+      l.medicoes.aterramento = at;
+      gravarLaudo(l, { descidasEncontradas: n, medicoes: l.medicoes }); render();
+      if (at.length > n) toast('Ficaram ' + at.length + ' pontos de medição porque os últimos já têm valor. Exclua na aba Medições se precisar.');
+    };
+    a.querySelectorAll('[data-desc]').forEach(function (b) { b.onclick = function () { mudarDescidas(descidasDoLaudo(l, ed) + Number(b.dataset.desc)); }; });
+    if ($('d-desc')) $('d-desc').onchange = function () { mudarDescidas(Number(this.value.replace(/\D/g, '')) || 0); };
     if (trava) return;
     $('d-tipo').onchange = function () { gravarLaudo(l, { tipoInspecao: this.value }); };
     $('d-data').onchange = function () { gravarLaudo(l, { dataInspecao: this.value }); };
@@ -1245,7 +1267,7 @@
       '<div class="capa-r">IDEALLE Inspeções e Serviços · Guarulhos/SP</div></section>';
     var sumarioHtml = '<h2>Sumário</h2><ol class="sum"><li>Dados da edificação</li><li>Critérios e nível de proteção</li>' + (temRisco(l, ed) ? '<li>Gerenciamento de risco por zonas</li>' : '') + '<li>Checklist de inspeção</li><li>Medições elétricas</li><li>Não conformidades e plano de ação</li><li>Registro fotográfico</li><li>Conclusão e recomendações</li><li>Responsável técnico</li></ol>';
     var secoesHtml =
-      titulo('Dados da edificação') + tabela(['Campo', 'Informação'], [['Cliente', l.empresaNome], ['CNPJ', l.cnpj], ['Edificação', ed.nome || l.edificacaoNome], ['Atividade', ed.atividade], ['Endereço', [en.logradouro, en.numero, en.bairro, en.cidade, en.uf, en.cep].filter(Boolean).join(', ')], ['Dimensões (C × L × A)', [dm.comprimentoM, dm.larguraM, dm.alturaM].some(function (x) { return x !== '' && x != null; }) ? [dm.comprimentoM, dm.larguraM, dm.alturaM].map(numCampo).join(' × ') + ' m' : ''], ['Estrutura', ed.tipoEstrutura], ['Cobertura', ed.coberturaTipo], ['Descidas (projeto)', ed.qtdDescidas], ['Tipo de inspeção', SPDA.TIPOS_INSPECAO[l.tipoInspecao]], ['Inspetor', l.inspetor]].map(function (x) { return '<tr><td><b>' + x[0] + '</b></td><td>' + esc(x[1] == null ? '' : x[1]) + '</td></tr>'; })) +
+      titulo('Dados da edificação') + tabela(['Campo', 'Informação'], [['Cliente', l.empresaNome], ['CNPJ', l.cnpj], ['Edificação', ed.nome || l.edificacaoNome], ['Atividade', ed.atividade], ['Endereço', [en.logradouro, en.numero, en.bairro, en.cidade, en.uf, en.cep].filter(Boolean).join(', ')], ['Dimensões (C × L × A)', [dm.comprimentoM, dm.larguraM, dm.alturaM].some(function (x) { return x !== '' && x != null; }) ? [dm.comprimentoM, dm.larguraM, dm.alturaM].map(numCampo).join(' × ') + ' m' : ''], ['Estrutura', ed.tipoEstrutura], ['Cobertura', ed.coberturaTipo], ['Descidas encontradas na inspeção', descidasDoLaudo(l, ed) ? descidasDoLaudo(l, ed) + (ed.qtdDescidas && Number(ed.qtdDescidas) !== descidasDoLaudo(l, ed) ? ' (informado no cadastro: ' + ed.qtdDescidas + ')' : '') : ''], ['Tipo de inspeção', SPDA.TIPOS_INSPECAO[l.tipoInspecao]], ['Inspetor', l.inspetor]].map(function (x) { return '<tr><td><b>' + x[0] + '</b></td><td>' + esc(x[1] == null ? '' : x[1]) + '</td></tr>'; })) +
       titulo('Critérios e nível de proteção') + '<p>Inspeção realizada segundo a ABNT NBR 5419 (partes 1 a 4), com verificação visual dos subsistemas de captação, descidas, aterramento, equipotencialização e proteção contra surtos, e medições elétricas.</p>' +
       (n ? tabela(['Nível de proteção', 'Método de captação', 'Esfera rolante', 'Malha', 'Distância entre descidas'], ['<tr><td><b>NP ' + n.classe + '</b></td><td>' + esc(SPDA.METODOS_CAPTACAO[l.metodoCaptacao] || '—') + '</td><td>R = ' + n.raioEsferaM + ' m</td><td>' + n.malhaM.join(' × ') + ' m</td><td>' + n.distDescidasM + ' m</td></tr>']) : '<p>Nível de proteção não informado.</p>') +
       secaoRisco(l, ed, titulo) +
