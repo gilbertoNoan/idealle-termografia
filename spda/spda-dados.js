@@ -87,6 +87,73 @@
   ];
   // bloco de medições fica separado (laudo.medicoes)
 
+  // Respostas prontas: problemas mais comuns de cada item, com a correção recomendada e a prioridade.
+  // I = imediata (risco à vida ou SPDA sem função) · A = até 30 dias · B = até 90 dias
+  var PRIORIDADES = { I: ['Imediata', 0], A: ['Até 30 dias', 30], B: ['Até 90 dias', 90] };
+  var PROBLEMAS = {
+    'CAP-01': [['Edificação sem subsistema de captação', 'Elaborar projeto e instalar o subsistema de captação conforme o nível de proteção definido no gerenciamento de risco (ABNT NBR 5419-3).', 'I'],
+      ['Captação não cobre toda a cobertura (áreas desprotegidas)', 'Complementar a captação nas áreas desprotegidas, conforme projeto.', 'A'],
+      ['Captação incompatível com o nível de proteção exigido', 'Readequar o subsistema de captação ao nível de proteção exigido.', 'A']],
+    'CAP-02': [['Captor solto ou fora de prumo', 'Refixar e aprumar o captor, reapertando as conexões.', 'A'],
+      ['Captor danificado ou corroído', 'Substituir o captor danificado.', 'A'],
+      ['Captor ausente (retirado ou caído)', 'Reinstalar o captor na posição de projeto.', 'I']],
+    'CAP-03': [['Condutor de captação rompido', 'Recompor a continuidade do condutor com conector adequado ou solda exotérmica.', 'I'],
+      ['Condutor de captação solto (suportes faltando ou quebrados)', 'Refixar o condutor, repondo os suportes nos espaçamentos da ABNT NBR 5419-3.', 'A'],
+      ['Condutor amassado ou com seção inferior à mínima', 'Substituir o trecho por condutor com a seção mínima da ABNT NBR 5419-3.', 'A']],
+    'CAP-04': [['Malha de captação com vãos maiores que o permitido para o nível de proteção', 'Complementar a malha de captação para atender ao espaçamento do nível de proteção.', 'A'],
+      ['Áreas fora do volume de proteção (esfera rolante / ângulo de proteção)', 'Instalar captores adicionais para cobrir as áreas desprotegidas.', 'A']],
+    'CAP-05': [['Telha metálica com espessura insuficiente para captação natural', 'Instalar captação não natural sobre a cobertura ou comprovar a espessura conforme ABNT NBR 5419-3.', 'A'],
+      ['Elementos naturais sem continuidade elétrica entre si', 'Interligar os elementos com conexões adequadas e medir a continuidade.', 'A']],
+    'CAP-06': [['Equipamento na cobertura fora do volume de proteção', 'Instalar captor para proteger o equipamento ou interligá-lo ao SPDA, respeitando a distância de segurança.', 'A'],
+      ['Equipamento metálico na cobertura não interligado ao SPDA', 'Interligar a carcaça metálica do equipamento ao subsistema de captação.', 'A'],
+      ['Cabos de antena / sinal entrando na edificação sem proteção contra surtos', 'Instalar DPS na entrada dos cabos de antena e sinal.', 'B']],
+    'CAP-07': [['Corrosão em conexões ou condutores', 'Limpar ou substituir as peças corroídas e aplicar proteção anticorrosiva.', 'B'],
+      ['Emendas soltas ou conectores frouxos', 'Reapertar e substituir os conectores defeituosos.', 'A'],
+      ['Peças faltando (suportes, conectores, terminais)', 'Repor as peças faltantes.', 'A']],
+    'DES-01': [['Quantidade de descidas inferior à exigida para o nível de proteção', 'Instalar descidas adicionais para atender ao espaçamento do nível de proteção.', 'A'],
+      ['Descidas mal distribuídas no perímetro', 'Redistribuir ou complementar as descidas ao longo do perímetro.', 'A']],
+    'DES-02': [['Condutor de descida rompido', 'Recompor imediatamente a continuidade da descida.', 'I'],
+      ['Descida com emendas indevidas (torção, amarração)', 'Substituir as emendas por conectores apropriados ou solda exotérmica.', 'A']],
+    'DES-03': [['Descida solta (suportes faltando)', 'Refixar a descida e repor os suportes.', 'A'],
+      ['Descida encostada em material combustível', 'Afastar a descida do material combustível ou protegê-la conforme ABNT NBR 5419-3.', 'A']],
+    'DES-04': [['Descida sem proteção mecânica até 2,5 m do piso', 'Instalar proteção mecânica (eletroduto rígido) até 2,5 m do piso.', 'A'],
+      ['Proteção mecânica danificada', 'Substituir a proteção mecânica danificada.', 'B'],
+      ['Descida em área de circulação sem medida contra tensão de toque', 'Isolar a descida (ex.: 3 mm de polietileno reticulado) ou restringir o acesso com barreiras e avisos.', 'I']],
+    'DES-05': [['Conector / caixa de medição ausente', 'Instalar conector de medição em cada descida.', 'B'],
+      ['Caixa de medição sem identificação ou inacessível', 'Identificar e desobstruir as caixas de medição.', 'B']],
+    'DES-06': [['Continuidade das armaduras / pilares não comprovada', 'Realizar o ensaio de continuidade das armaduras conforme ABNT NBR 5419-3 ou instalar descidas não naturais.', 'A']],
+    'DES-07': [['Curvas acentuadas ou laços no condutor de descida', 'Refazer o trajeto do condutor eliminando laços e curvas fechadas.', 'B']],
+    'ATE-01': [['Aterramento inexistente ou não localizado', 'Executar ou levantar o subsistema de aterramento conforme projeto (anel ou fundação).', 'I'],
+      ['Aterramento diferente do projeto', 'Readequar o aterramento ao projeto ou atualizar o projeto (as built).', 'A']],
+    'ATE-02': [['Conexões do aterramento corroídas', 'Refazer as conexões, preferencialmente com solda exotérmica.', 'A'],
+      ['Haste ou cabo de aterramento rompido ou exposto', 'Recompor o eletrodo e a ligação ao condutor de descida.', 'A']],
+    'ATE-03': [['Caixa de inspeção danificada, alagada ou soterrada', 'Recuperar a caixa de inspeção e manter o acesso livre.', 'B'],
+      ['Caixa de inspeção sem tampa', 'Instalar tampa adequada na caixa de inspeção.', 'B']],
+    'ATE-04': [['Aterramento do SPDA isolado dos demais aterramentos', 'Interligar os aterramentos (SPDA, elétrico e telecomunicações) ao BEP.', 'A']],
+    'ATE-05': [['Obras ou escavações próximas ao aterramento', 'Verificar a integridade do aterramento após a obra e repetir as medições.', 'A']],
+    'EQP-01': [['BEP inexistente', 'Instalar o barramento de equipotencialização principal (BEP) junto à entrada de energia.', 'A'],
+      ['BEP sem identificação ou com conexões soltas', 'Identificar o BEP e reapertar as conexões.', 'B']],
+    'EQP-02': [['Tubulações metálicas (água, gás, incêndio) não interligadas ao BEP', 'Interligar as tubulações metálicas ao BEP.', 'A'],
+      ['Estruturas metálicas (escadas, guarda-corpos, trilhos) sem ligação equipotencial', 'Executar a ligação equipotencial das estruturas metálicas.', 'A']],
+    'EQP-03': [['Ausência de BEL em pavimentos ou áreas técnicas', 'Instalar BEL nos locais necessários e interligá-los ao BEP.', 'B']],
+    'EQP-04': [['Distância de segurança não respeitada (risco de centelhamento perigoso)', 'Aumentar o afastamento ou executar ligação equipotencial no ponto.', 'A']],
+    'DPS-01': [['Ausência de DPS no quadro de entrada', 'Instalar DPS classe I (ou I+II) no quadro de entrada, coordenado com o SPDA.', 'A'],
+      ['DPS do quadro de entrada com classe inadequada', 'Substituir por DPS com classe compatível com a instalação.', 'A']],
+    'DPS-02': [['Ausência de DPS nos quadros de distribuição', 'Instalar DPS classe II nos quadros que alimentam equipamentos sensíveis.', 'B']],
+    'DPS-03': [['DPS com indicação de falha ou danificado', 'Substituir o DPS danificado.', 'A']],
+    'DPS-04': [['Condutores de ligação do DPS longos ou com laço', 'Encurtar os condutores de ligação do DPS (recomendado até 0,5 m no total).', 'B'],
+      ['Seção do condutor de ligação do DPS inferior à mínima', 'Substituir pelo condutor com a seção mínima da ABNT NBR 5410.', 'B']],
+    'DPS-05': [['Características do DPS não identificadas ou incompatíveis', 'Especificar DPS com Uc, Up e In/Iimp compatíveis com a instalação e substituir.', 'B']],
+    'DOC-01': [['Projeto / as built do SPDA não disponível', 'Elaborar o projeto as built do SPDA.', 'B']],
+    'DOC-02': [['Gerenciamento de risco não disponível', 'Elaborar o gerenciamento de risco conforme ABNT NBR 5419-2.', 'B']],
+    'DOC-03': [['Relatórios de inspeções anteriores não disponíveis', 'Organizar e manter os registros das inspeções periódicas.', 'B']],
+    'DOC-04': [['ART do projeto ou da instalação não disponível', 'Providenciar a ART do projeto ou da instalação junto ao CREA.', 'B']],
+    'MED-ATE': [['Resistência de aterramento acima da referência', 'Melhorar o aterramento (hastes adicionais, anel ou tratamento do solo) e repetir a medição até atingir a referência.', 'A']],
+    'MED-CON': [['Continuidade elétrica acima da referência', 'Localizar e corrigir o ponto de alta resistência (conexões e emendas) e repetir a medição de continuidade.', 'A']]
+  };
+  function problemasDe(codigo) { return (PROBLEMAS[codigo] || []).map(function (p) { return { t: p[0], rec: p[1], pr: p[2] }; }); }
+  function maisUrgente(lista) { var o = ['I', 'A', 'B']; return (lista || []).map(function (p) { return p.pr; }).sort(function (a, b) { return o.indexOf(a) - o.indexOf(b); })[0] || ''; }
+
   function hojeISO() { return new Date().toISOString().slice(0, 10); }
   function somarMeses(iso, meses) { var d = new Date(iso + 'T12:00:00'); d.setMonth(d.getMonth() + meses); return d.toISOString().slice(0, 10); }
   function soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
@@ -162,17 +229,26 @@
   }
 
   function naoConformidades(laudo) {
-    var nc = (laudo.checklist || []).filter(function (i) { return i.r === 'NC'; }).map(function (i) { return { codigo: i.codigo, texto: i.texto, obs: i.obs, fotos: i.fotos }; });
+    var nc = (laudo.checklist || []).filter(function (i) { return i.r === 'NC'; }).map(function (i) {
+      var ps = i.problemas || [];
+      return { codigo: i.codigo, texto: i.texto, obs: i.obs, fotos: i.fotos, problemas: ps,
+        recomendacao: i.recomendacao || ps.map(function (p) { return p.rec; }).filter(function (x, k, a) { return x && a.indexOf(x) === k; }).join(' '),
+        prioridade: i.prioridade || maisUrgente(ps) || 'A' };
+    });
     avaliarMedicoes(laudo.medicoes).forEach(function (f) {
-      nc.push({ codigo: 'MED-' + (f.tipo === 'aterramento' ? 'ATE' : 'CON'), texto: (f.tipo === 'aterramento' ? 'Resistência de aterramento' : 'Continuidade') + ' acima da referência em ' + (f.ref || '—') + ': ' + f.valor + ' Ω (ref. ' + f.limite + ' Ω)', obs: '', fotos: [] });
+      var cod = 'MED-' + (f.tipo === 'aterramento' ? 'ATE' : 'CON'), pr = PROBLEMAS[cod][0];
+      nc.push({ codigo: cod, texto: (f.tipo === 'aterramento' ? 'Resistência de aterramento' : 'Continuidade') + ' acima da referência em ' + (f.ref || '—') + ': ' + String(f.valor).replace('.', ',') + ' Ω (ref. ' + String(f.limite).replace('.', ',') + ' Ω)', obs: '', fotos: [],
+        problemas: [], recomendacao: pr[1], prioridade: pr[2] });
     });
     return nc;
   }
 
   function parecerSugerido(laudo) {
-    var nc = naoConformidades(laudo).length, vazios = (laudo.checklist || []).filter(function (i) { return !i.r; }).length;
+    var ncs = naoConformidades(laudo), vazios = (laudo.checklist || []).filter(function (i) { return !i.r; }).length;
     if (vazios) return '';
-    return nc ? 'nao_conforme' : 'conforme';
+    if (!ncs.length) return 'conforme';
+    // só pendências de até 90 dias (ex.: documentação, identificação): conforme com ressalvas
+    return ncs.every(function (x) { return x.prioridade === 'B'; }) ? 'conforme_ressalvas' : 'nao_conforme';
   }
 
   // O que falta para o laudo poder sair do rascunho (revisão) e para ser concluído
@@ -182,7 +258,7 @@
     if (!laudo.nivelProtecao) p.push('Informar o nível de proteção');
     var vazios = (laudo.checklist || []).filter(function (i) { return !i.r; }).length;
     if (vazios) p.push(vazios + ' item(ns) do checklist sem resposta');
-    (laudo.checklist || []).forEach(function (i) { if (i.r === 'NC' && !String(i.obs || '').trim()) p.push(i.codigo + ': descrever a não conformidade'); });
+    (laudo.checklist || []).forEach(function (i) { if (i.r === 'NC' && !String(i.obs || '').trim() && !(i.problemas || []).length) p.push(i.codigo + ': escolher o problema encontrado ou descrever'); });
     if (!(laudo.medicoes && laudo.medicoes.aterramento && laudo.medicoes.aterramento.length)) p.push('Lançar as medições de aterramento');
     if (paraConcluir) {
       if (!laudo.conclusao || !laudo.conclusao.parecer) p.push('Escolher o parecer final');
@@ -200,6 +276,35 @@
     var p = pendencias(laudo, para === 'concluido');
     if (para !== 'rascunho' && p.length) return 'Falta: ' + p.join('; ');
     return '';
+  }
+  // Textos do laudo gerados pelo checklist e pelas medições (o engenheiro revisa e completa)
+  function dataBr(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; }
+  function br(n) { return String(Math.round(n * 100) / 100).replace('.', ','); }
+  function textosAutomaticos(laudo) {
+    var ck = laudo.checklist || [], m = laudo.medicoes || {}, lim = m.limites || LIMITES_PADRAO, ncs = naoConformidades(laudo), par = parecerSugerido(laudo);
+    var verificados = ck.filter(function (i) { return i.r === 'C' || i.r === 'NC'; }).length, na = ck.filter(function (i) { return i.r === 'NA'; }).length;
+    var at = (m.aterramento || []).map(function (x) { return num(x.valorOhm); }).filter(function (v) { return !isNaN(v); });
+    var co = (m.continuidade || []).map(function (x) { return num(x.valorOhm); }).filter(function (v) { return !isNaN(v); });
+    var nomeBloco = {}; CHECKLIST.forEach(function (b) { nomeBloco[b.bloco] = b.nome.replace(/^Subsistema de /, '').toLowerCase(); });
+    var blocosNc = []; ck.forEach(function (i) { if (i.r === 'NC' && blocosNc.indexOf(nomeBloco[i.bloco]) < 0) blocosNc.push(nomeBloco[i.bloco]); });
+    if (ncs.some(function (x) { return /^MED-/.test(x.codigo); })) blocosNc.push('medições elétricas');
+    var t = 'O SPDA da edificação ' + (laudo.edificacaoNome || '') + ' foi inspecionado em ' + (dataBr(laudo.dataInspecao) || '—') + ', conforme a ABNT NBR 5419-3, com nível de proteção ' + (laudo.nivelProtecao ? 'NP ' + laudo.nivelProtecao : 'não informado') + '. ' +
+      'Foram verificados ' + verificados + ' itens dos subsistemas de captação, descidas, aterramento, equipotencialização, proteção contra surtos e documentação' + (na ? ' (' + na + ' não aplicáveis)' : '') + '.';
+    if (at.length) t += ' A resistência de aterramento foi medida em ' + at.length + ' ponto(s), com valores entre ' + br(Math.min.apply(null, at)) + ' e ' + br(Math.max.apply(null, at)) + ' Ω (referência ≤ ' + br(lim.aterramentoOhm) + ' Ω).';
+    if (co.length) t += ' A continuidade elétrica foi medida em ' + co.length + ' trecho(s), com valor máximo de ' + br(Math.max.apply(null, co)) + ' Ω (referência ≤ ' + br(lim.continuidadeOhm) + ' Ω).';
+    var cont = { I: 0, A: 0, B: 0 }; ncs.forEach(function (x) { cont[x.prioridade] = (cont[x.prioridade] || 0) + 1; });
+    if (!ncs.length) t += '\n\nNão foram encontradas não conformidades. O SPDA encontra-se em conformidade com os requisitos verificados da ABNT NBR 5419.';
+    else {
+      t += '\n\nForam identificadas ' + ncs.length + ' não conformidade(s)' + (blocosNc.length ? ', em ' + blocosNc.join(', ') : '') + ': ' +
+        [cont.I ? cont.I + ' de correção imediata' : '', cont.A ? cont.A + ' para até 30 dias' : '', cont.B ? cont.B + ' para até 90 dias' : ''].filter(Boolean).join(', ') + '. ';
+      t += par === 'conforme_ressalvas' ? 'As pendências não comprometem a função de proteção do SPDA, que se encontra em conformidade com ressalvas até a execução do plano de ação.'
+        : 'O SPDA não atende plenamente à ABNT NBR 5419 e deve ser corrigido conforme o plano de ação' + (cont.I ? ', com prioridade para os itens de correção imediata' : '') + '.';
+    }
+    var ordem = ['I', 'A', 'B'], recs = ncs.slice().sort(function (a, b) { return ordem.indexOf(a.prioridade) - ordem.indexOf(b.prioridade); });
+    var r = recs.map(function (x, k) { return (k + 1) + '. [' + x.codigo + '] ' + (x.recomendacao || 'Corrigir: ' + (x.obs || x.texto)) + ' Prazo: ' + (PRIORIDADES[x.prioridade] || PRIORIDADES.A)[0].toLowerCase() + '.'; });
+    r.push((recs.length + 1) + '. Realizar nova inspeção em ' + (Number(laudo.periodicidadeMeses) || PERIODICIDADE_PADRAO_MESES) + ' meses, ou antes, após descarga atmosférica na edificação, reformas ou ampliações.');
+    if (recs.length) r.push((recs.length + 2) + '. Após as correções, repetir as medições e registrar a verificação em relatório.');
+    return { parecer: par, texto: t, recomendacoes: r.join('\n') };
   }
   function aoConcluir(laudo) {
     var base = laudo.dataInspecao || hojeISO();
@@ -315,6 +420,7 @@
     novaEdificacao: novaEdificacao, novoLaudo: novoLaudo, novaFoto: novaFoto, checklistEmBranco: checklistEmBranco,
     avaliarMedicoes: avaliarMedicoes, naoConformidades: naoConformidades, parecerSugerido: parecerSugerido,
     pendencias: pendencias, podeMudarStatus: podeMudarStatus, aoConcluir: aoConcluir, proximoNumero: proximoNumero, num: num,
+    PROBLEMAS: PROBLEMAS, PRIORIDADES: PRIORIDADES, problemasDe: problemasDe, textosAutomaticos: textosAutomaticos,
     RISCO: RISCO, novaZona: novaZona, calcularRisco: calcularRisco, areaColeta: areaColeta, sugerirNivelProtecao: sugerirNivelProtecao
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = SPDA; else raiz.SPDA = SPDA;

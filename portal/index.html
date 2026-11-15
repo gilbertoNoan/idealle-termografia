@@ -847,7 +847,7 @@
           '<small>' + r.c + ' de ' + tot + ' itens conformes' + (r.na ? ' · ' + r.na + ' não se aplica' : '') + '</small></div>';
       }).join('') + '</div>';
       h += '<div class="sp-h4">Pontos não conformes (' + ncs.length + ')</div>' + (ncs.length ? ncs.map(function (n) {
-        return '<div class="sp-nc"><div style="flex:1;min-width:0"><span class="cod">' + esc(n.codigo) + '</span> <b>' + esc(n.texto) + '</b>' + (n.subsistema ? '<div class="sub">' + esc(n.subsistema) + '</div>' : '') + (n.obs ? '<p>' + esc(n.obs) + '</p>' : '') +
+        return '<div class="sp-nc"><div style="flex:1;min-width:0"><span class="cod">' + esc(n.codigo) + '</span> <b>' + esc(n.texto) + '</b>' + (n.subsistema ? '<div class="sub">' + esc(n.subsistema) + '</div>' : '') + (n.obs ? '<p>' + esc(n.obs) + '</p>' : '') + (n.recomendacao ? '<p><b style="color:var(--texto)">O que fazer:</b> ' + esc(n.recomendacao) + (n.prazo ? ' <span class="chip ' + (n.prioridade === 'I' ? 'c-bad' : n.prioridade === 'B' ? 'c-azul' : 'c-warn') + '">' + esc(n.prazo) + '</span>' : '') + '</p>' : '') +
           (n.fotos && n.fotos.length ? '<div class="sp-fotos">' + n.fotos.map(function (f) { return /^data:image\//.test(f) ? '<img src="' + f + '" alt="Foto do ponto ' + esc(n.codigo) + '">' : ''; }).join('') + '</div>' : '') + '</div></div>';
       }).join('') : '<p class="sub" style="margin:0">' + (x.detalhe ? 'Nenhum ponto não conforme neste laudo.' : (x.naoConformidades ? x.naoConformidades + ' ponto(s) não conforme(s) — veja os detalhes no PDF.' : 'Detalhes no PDF.')) + '</p>');
       var med = function (tit, rows, col, lim) {

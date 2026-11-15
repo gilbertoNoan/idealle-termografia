@@ -52,4 +52,15 @@ assert.ok(c3.alerta.length > 0 && c3.tentativas.length === 5 && c3.tentativas.ev
 var sg = S.sugerirNivelProtecao(function (np) { return { nenhum: 5e-5, IV: 1.2e-5, III: 6e-6, II: 3e-6, I: 1e-6 }[np]; });
 assert.strictEqual(sg.nivelSugerido, 'III'); assert.strictEqual(sg.tentativas.length, 3); assert.strictEqual(sg.riscoSemProtecao, 5e-5);
 assert.strictEqual(S.sugerirNivelProtecao(function () { return 1e-6; }).nivelSugerido, 'Não requerido');
+// Respostas prontas e textos automáticos
+var l2 = S.novoLaudo({ id: 'os2', codigo: 'IDE-0002/2026' }, ed, 'g'); l2.dataInspecao = '2026-11-15'; l2.nivelProtecao = 'III'; l2.edificacaoNome = 'Galpão 1';
+l2.checklist.forEach(function (i) { i.r = 'C'; });
+var t0 = S.textosAutomaticos(l2); assert.strictEqual(t0.parecer, 'conforme'); assert.ok(/em conformidade/.test(t0.texto)); assert.ok(/nova inspeção em 12 meses/.test(t0.recomendacoes));
+var doc = l2.checklist.filter(function (i) { return i.codigo === 'DOC-01'; })[0]; doc.r = 'NC'; doc.problemas = S.problemasDe('DOC-01');
+assert.ok(!S.pendencias(l2).some(function (p) { return /DOC-01/.test(p); })); // problema escolhido dispensa texto
+assert.strictEqual(S.parecerSugerido(l2), 'conforme_ressalvas');
+var cap = l2.checklist.filter(function (i) { return i.codigo === 'CAP-02'; })[0]; cap.r = 'NC'; cap.problemas = [S.problemasDe('CAP-02')[2]];
+var t1 = S.textosAutomaticos(l2); assert.strictEqual(t1.parecer, 'nao_conforme');
+assert.ok(/^1\. \[CAP-02\] Reinstalar/.test(t1.recomendacoes)); assert.ok(/imediata/.test(t1.recomendacoes)); assert.ok(/2\. \[DOC-01\]/.test(t1.recomendacoes));
+assert.ok(/1 de correção imediata/.test(t1.texto));
 console.log('SPDA modelo: todos os testes passaram');
