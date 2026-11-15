@@ -284,8 +284,12 @@
     // NP adotado: o mais rigoroso entre o mínimo calculado e o escolhido em cada zona
     var npAdotado = npMinimo === 'insuficiente' ? 'I' : npMinimo;
     zonas.forEach(function (z) { if (z.npAdotado && RISCO.ORDEM_NP.indexOf(z.npAdotado) > RISCO.ORDEM_NP.indexOf(npAdotado)) npAdotado = z.npAdotado; });
-    return { faltam: faltam, L: L, W: W, H: H, NG: NG, CD: CD, AD: AD, ND: ND, nt: nt, zonas: porZona, total: total, npMinimo: npMinimo, npAdotado: faltam.length ? '' : npAdotado,
-      R: faltam.length || !npAdotado ? null : total[npAdotado] };
+    var R = faltam.length || !npAdotado ? null : total[npAdotado];
+    return { faltam: faltam, L: L, W: W, H: H, NG: NG, CD: CD, AD: AD, ND: ND, nt: nt, zonas: porZona, total: total, npMinimo: npMinimo, npAdotado: faltam.length ? '' : npAdotado, R: R,
+      // mesmo formato de calcularNivelSPDA: obrigatório se o risco sem proteção passa de RT; nível = o primeiro (IV, III, II, I) que atende
+      spdaObrigatorio: faltam.length ? null : total.nenhum > RISCO.RT,
+      nivelSugerido: faltam.length ? '' : npMinimo === 'nenhum' ? 'Não requerido' : npMinimo === 'insuficiente' ? 'Especial (Nível I insuficiente - exige medidas extras)' : npMinimo,
+      riscoCalculado: faltam.length ? null : npMinimo === 'insuficiente' ? total.I : total[npMinimo] };
   }
 
   var SPDA = {

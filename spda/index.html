@@ -801,7 +801,7 @@
   // ===================== ZONAS DE RISCO (ABNT NBR 5419-2) =====================
   var RK = SPDA.RISCO;
   function sci(v) { if (v == null || !isFinite(v)) return '—'; if (v === 0) return '0'; var e = Math.floor(Math.log10(Math.abs(v))), m = v / Math.pow(10, e); return m.toFixed(2).replace('.', ',') + '×10<sup>' + e + '</sup>'; }
-  function nomeNp(np) { return np === 'nenhum' ? 'Sem SPDA' : np === 'insuficiente' ? 'NP I + medidas adicionais' : np ? 'NP ' + np : '—'; }
+  function nomeNp(np) { return np === 'nenhum' ? 'Não requerido' : np === 'insuficiente' ? 'Especial (NP I insuficiente - exige medidas extras)' : np ? 'NP ' + np : '—'; }
   function opcoes(tab, sel) { return Object.keys(RK[tab]).map(function (k) { return '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + esc(RK[tab][k][0]) + ' (' + String(RK[tab][k][1]).replace('.', ',') + ')</option>'; }).join(''); }
   function riscoDe(ed) { var r = JSON.parse(JSON.stringify(ed.risco || {})); r.zonas = r.zonas || []; r.localizacao = r.localizacao || 'cercada_iguais'; return r; }
   async function gravarRisco(ed, r, msg, depois) {
@@ -836,7 +836,7 @@
       }).join('') + '</div>' : '<div class="vazio" style="padding:14px">Nenhuma zona cadastrada. Ex.: Zona 1 - Escritórios; Zona 2 - Produção com inflamáveis.</div>') +
       (c.faltam.length ? '<div class="pend" style="margin-top:12px"><b>Para calcular falta:</b><ul>' + c.faltam.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul></div>' :
         '<div class="z-res"><div class="np-info">' + [['Área de exposição A<sub>D</sub>', Math.round(c.AD).toLocaleString('pt-BR') + ' m²'], ['Descargas na estrutura N<sub>D</sub>', sci(c.ND) + ' /ano'], ['Risco tolerável R<sub>T</sub>', sci(RK.RT)], ['NP mínimo calculado', nomeNp(c.npMinimo)]].map(function (x) { return '<div><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('') + '</div>' +
-        '<div class="tabela-z"><table><tr><th>Nível de proteção</th>' + RK.ORDEM_NP.map(function (np) { return '<th>' + nomeNp(np) + '</th>'; }).join('') + '</tr><tr><td>R1 (R<sub>A</sub> + R<sub>B</sub>)</td>' +
+        '<div class="tabela-z"><table><tr><th>Nível de proteção</th>' + RK.ORDEM_NP.map(function (np) { return '<th>' + (np === 'nenhum' ? 'Sem SPDA' : nomeNp(np)) + '</th>'; }).join('') + '</tr><tr><td>R1 (R<sub>A</sub> + R<sub>B</sub>)</td>' +
         RK.ORDEM_NP.map(function (np) { var ok = c.total[np] <= RK.RT; return '<td class="' + (ok ? 'txt-ok' : 'txt-bad') + '">' + sci(c.total[np]) + (np === c.npAdotado ? ' ◀' : '') + '</td>'; }).join('') + '</tr></table></div>' +
         '<div class="z-np-final"><div><span class="muted">Nível de proteção da edificação (pelas zonas)</span><b>' + nomeNp(c.npAdotado) + '</b></div>' +
         (pode && c.npAdotado && !l.semLaudo && npLaudo !== c.npAdotado && (menosRigoroso || !npLaudo) ? '<button class="btn" id="z-usar">Usar ' + nomeNp(c.npAdotado) + ' neste laudo</button>' : '') + '</div>' +
@@ -1110,7 +1110,7 @@
     h += '<h3>Resultado por zona (com ' + nomeNp(c.npAdotado) + ')</h3>' + t(['Zona', 'R<sub>A</sub>', 'R<sub>B</sub>', 'R<sub>A</sub> + R<sub>B</sub>', 'NP mínimo da zona', 'NP adotado na zona'], c.zonas.map(function (cz, i) {
         var x = cz.porNp[c.npAdotado]; return '<tr><td>Z' + (i + 1) + ' ' + esc(cz.nome) + '</td><td class="num">' + sci(x.RA) + '</td><td class="num">' + sci(x.RB) + '</td><td class="num">' + sci(x.R) + '</td><td>' + nomeNp(cz.npMinimo) + '</td><td>' + (zs[i].npAdotado ? nomeNp(zs[i].npAdotado) : 'pelo cálculo') + '</td></tr>';
       })) +
-      '<h3>Risco R1 (S1) da estrutura por nível de proteção</h3>' + t(['Nível de proteção'].concat(RK.ORDEM_NP.map(nomeNp)), ['<tr><td>R<sub>A</sub> + R<sub>B</sub></td>' + RK.ORDEM_NP.map(function (np) { var ok = c.total[np] <= RK.RT; return '<td class="r ' + (ok ? 'C' : 'NC') + '">' + sci(c.total[np]) + '<br>' + (ok ? 'tolerável' : 'acima de R<sub>T</sub>') + '</td>'; }).join('') + '</tr>']);
+      '<h3>Risco R1 (S1) da estrutura por nível de proteção</h3>' + t(['Nível de proteção'].concat(RK.ORDEM_NP.map(function (np) { return np === 'nenhum' ? 'Sem SPDA' : nomeNp(np); })), ['<tr><td>R<sub>A</sub> + R<sub>B</sub></td>' + RK.ORDEM_NP.map(function (np) { var ok = c.total[np] <= RK.RT; return '<td class="r ' + (ok ? 'C' : 'NC') + '">' + sci(c.total[np]) + '<br>' + (ok ? 'tolerável' : 'acima de R<sub>T</sub>') + '</td>'; }).join('') + '</tr>']);
     var just = zs.filter(function (z) { return z.justificativa; }).map(function (z) { return '<li><b>' + esc(z.nome) + ':</b> ' + esc(z.justificativa) + '</li>'; }).join('');
     var npL = l.nivelProtecao || '';
     h += '<p><b>Nível de proteção resultante:</b> o menor nível que atende R1 ≤ R<sub>T</sub> é <b>' + nomeNp(c.npMinimo) + '</b>' + (c.npAdotado !== c.npMinimo ? '; por decisão técnica nas zonas foi adotado <b>' + nomeNp(c.npAdotado) + '</b>' : '') + '. ' +
