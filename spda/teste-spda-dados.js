@@ -44,4 +44,8 @@ assert.ok(c2.total.nenhum > 1e-5);
 assert.ok(c2.total[c2.npMinimo] <= 1e-5 && c2.total[S.RISCO.ORDEM_NP[S.RISCO.ORDEM_NP.indexOf(c2.npMinimo) - 1]] > 1e-5);
 g.risco.zonas[0].npAdotado = 'I'; assert.strictEqual(S.calcularRisco(g).npAdotado, 'I'); // zona com NP mais rigoroso prevalece
 assert.ok(S.calcularRisco({ dimensoes: {}, risco: {} }).faltam.length === 3);
+assert.strictEqual(c1.spdaObrigatorio, false); assert.strictEqual(c1.nivelSugerido, 'Não requerido');
+assert.strictEqual(c2.spdaObrigatorio, true); assert.strictEqual(c2.nivelSugerido, c2.npMinimo); assert.ok(c2.riscoCalculado <= 1e-5);
+var g3 = JSON.parse(JSON.stringify(g)); g3.risco.ng = '100000'; var c3 = S.calcularRisco(g3);
+assert.strictEqual(c3.npMinimo, 'insuficiente'); assert.ok(/Especial/.test(c3.nivelSugerido)); assert.strictEqual(c3.riscoCalculado, c3.total.I);
 console.log('SPDA modelo: todos os testes passaram');
