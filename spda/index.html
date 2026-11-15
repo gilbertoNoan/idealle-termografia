@@ -220,6 +220,7 @@
     .sp-ed { grid-template-columns: 22px minmax(0, 1fr) auto; row-gap: 8px; }
     .sp-ed .sp-prog { grid-column: 2 / 4; } .sp-ed .sp-nc { grid-column: 2 / 4; text-align: left; } .sp-ed .sp-nc b { display: inline; margin-right: 4px; } .sp-seta { display: none; }
   }
+  .sp-gira{width:34px;height:34px;margin:0 auto;border-radius:50%;border:3px solid rgba(56,189,248,.2);border-top-color:#38bdf8;animation:spgira .8s linear infinite}@keyframes spgira{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -230,6 +231,7 @@
   </div>
 </header>
 
+<div id="tela-carregando" class="card vazio" style="margin:40px auto;max-width:420px;text-align:center"><div class="sp-gira" aria-hidden="true"></div><p style="margin:12px 0 0">Abrindo o SPDA…</p><p id="carregando-lento" class="muted" style="display:none;font-size:14px">Está demorando mais que o normal. Confira a internet ou <a href="javascript:location.reload()">recarregue a página</a>.</p></div>
 <div id="tela-login" class="card" style="display:none">
   <h1>Laudos de SPDA</h1>
   <p class="muted">Entre com o mesmo login do CRONOS.</p>
@@ -394,11 +396,11 @@
   function iniciarApp(email) {
     usuario = email || '';
     dono = modoDemo || DONOS.indexOf(String(email || '').toLowerCase()) >= 0;
-    $('tela-login').style.display = 'none'; $('cabecalho').style.display = 'block'; $('app').style.display = 'block';
+    $('tela-carregando').style.display = 'none'; $('tela-login').style.display = 'none'; $('cabecalho').style.display = 'block'; $('app').style.display = 'block';
     $('usuario-nome').textContent = modoDemo ? 'Modo de teste' : email;
     if (modoDemo) { $('aviso-modo').style.display = 'block'; $('aviso-modo').innerHTML = 'Modo de teste: os dados ficam só neste navegador e não vão para o banco. <a href="' + location.pathname + '">Sair do modo de teste</a>'; }
     banco.ouvir('ordens', ['servicos.spda', '==', true], function (l) { cache.ordens = l; render(); });
-    banco.ouvir(SPDA.COLECOES.laudos, null, function (l) { cache.laudos = l; render(); });
+    banco.ouvir(SPDA.COLECOES.laudos, null, function (l) { cache.laudos = l; cache.pronto = true; render(); });
     banco.ouvir(SPDA.COLECOES.edificacoes, null, function (l) { cache.edificacoes = l; render(); });
     var p = new URLSearchParams(location.search);
     tela.laudoId = p.get('laudo') || '';
@@ -408,7 +410,7 @@
     window.addEventListener('online', rede); window.addEventListener('offline', rede); rede();
     render();
   }
-  function telaLogin(msg) { $('tela-login').style.display = 'block'; $('cabecalho').style.display = 'none'; $('app').style.display = 'none'; $('login-erro').textContent = msg || ''; }
+  function telaLogin(msg) { $('tela-carregando').style.display = 'none'; $('tela-login').style.display = 'block'; $('cabecalho').style.display = 'none'; $('app').style.display = 'none'; $('login-erro').textContent = msg || ''; }
   $('btn-demo').addEventListener('click', function () { location.search = '?demo=1'; });
 
   if (modoDemo || !firebaseOk) {
@@ -419,12 +421,22 @@
     firebase.initializeApp(FIREBASE_CONFIG);
     var fs = firebase.firestore();
     // Etapa 4 (offline): o Firestore guarda no aparelho (IndexedDB) e envia quando a internet volta
-    fs.enablePersistence({ synchronizeTabs: true }).catch(function (e) { console.warn('Sem modo offline:', e.code); });
+    // Dentro do CRONOS (iframe) o cache no aparelho deixa a abertura muito lenta no iPhone: só liga aberto direto
+    var dentroDoCronos = false; try { dentroDoCronos = window.top !== window.self; } catch (e) { dentroDoCronos = true; }
+    if (!dentroDoCronos) fs.enablePersistence({ synchronizeTabs: true }).catch(function (e) { console.warn('Sem modo offline:', e.code); });
     banco = bancoFirestore(fs);
     var auth = firebase.auth(), iniciado = false;
     var erroLogin = { 'auth/invalid-credential': 'E-mail ou senha incorretos.', 'auth/wrong-password': 'E-mail ou senha incorretos.', 'auth/user-not-found': 'Usuário não cadastrado.', 'auth/popup-closed-by-user': 'Login cancelado.' };
     auth.getRedirectResult().catch(function (e) { $('login-erro').textContent = erroLogin[e.code] || ('Não foi possível entrar: ' + e.message); });
-    auth.onAuthStateChanged(function (u) { if (u) { if (!iniciado) { iniciado = true; iniciarApp(u.email); } } else if (iniciado) location.reload(); else telaLogin(); });
+    // A trava do CRONOS já confirmou o login: abre a tela na hora, sem esperar o login do banco carregar
+    var pelaTrava = false;
+    if (window.__cronosGuard) window.__cronosGuard.then(function (api) { var em = api && api.email && api.email(); if (em && !iniciado) { iniciado = true; pelaTrava = true; iniciarApp(em); } });
+    setTimeout(function () { var c = $('carregando-lento'); if (c && !iniciado) c.style.display = 'block'; }, 10000);
+    auth.onAuthStateChanged(function (u) {
+      if (u) { if (!iniciado) { iniciado = true; iniciarApp(u.email); } }
+      else if (pelaTrava) toast('O login do banco não foi encontrado. Clique em Sair (embaixo) e entre de novo.');
+      else if (iniciado) location.reload(); else if (!window.__cronosGuard) telaLogin();
+    });
     $('btn-entrar').addEventListener('click', function () {
       var e = $('login-email').value.trim(), s = $('login-senha').value;
       if (!e || !s) { $('login-erro').textContent = 'Informe e-mail e senha.'; return; }
@@ -468,6 +480,7 @@
     if (!banco) return;
     var v = $('view');
     if (tela.abrirOs && cache.ordens.length) { var o = osDe(tela.abrirOs); tela.abrirOs = ''; if (o) { var l0 = cache.laudos.find(function (x) { return x.osId === o.id; }); if (l0) tela.laudoId = l0.id; else setTimeout(function () { iniciarLaudo(o); }, 50); } }
+    if (!cache.pronto && !modoDemo) { v.innerHTML = '<div class="card vazio"><div class="sp-gira" aria-hidden="true"></div><p style="margin:12px 0 0">Carregando os laudos…</p></div>'; return; }
     if (tela.laudoId) { var l = laudoDe(tela.laudoId); if (l) return renderLaudo(v, l); v.innerHTML = '<div class="card vazio">Carregando o laudo…</div>'; return; }
     renderLista(v);
   }
