@@ -220,6 +220,12 @@
     .sp-ed { grid-template-columns: 22px minmax(0, 1fr) auto; row-gap: 8px; }
     .sp-ed .sp-prog { grid-column: 2 / 4; } .sp-ed .sp-nc { grid-column: 2 / 4; text-align: left; } .sp-ed .sp-nc b { display: inline; margin-right: 4px; } .sp-seta { display: none; }
   }
+  .sp-os-cab{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 4px 4px;font-size:13px;color:var(--muted, #94a3b8)}.sp-os-cab b{color:#7dd3fc}
+  .os-eds{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:4px 0 12px;padding:10px 12px;border:1px solid var(--line, rgba(255,255,255,.08));border-radius:12px;background:rgba(56,189,248,.05)}
+  .os-eds-t{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#7dd3fc;margin-right:4px}
+  .os-ed{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.14);background:transparent;color:inherit;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .os-ed.sel{background:#0b5c99;border-color:#38bdf8;color:#fff}.os-ed.mais{border-style:dashed;color:#7dd3fc}
+  .os-ed i{width:8px;height:8px;border-radius:50%;background:var(--warn)}.os-ed i.ok{background:var(--ok)}.os-ed i.azul{background:var(--azul)}
   .sp-gira{width:34px;height:34px;margin:0 auto;border-radius:50%;border:3px solid rgba(56,189,248,.2);border-top-color:#38bdf8;animation:spgira .8s linear infinite}@keyframes spgira{to{transform:rotate(360deg)}}
 </style>
 </head>
@@ -486,6 +492,7 @@
   }
 
   // ===================== LISTA =====================
+  function porOs(itens) { var gs = [], m = {}; itens.forEach(function (l) { var k = l.osId || l.osCodigo || l.id; if (!m[k]) { m[k] = { cod: l.osCodigo, itens: [] }; gs.push(m[k]); } m[k].itens.push(l); }); return gs; }
   function renderLista(v) {
     var ativas = cache.ordens.filter(function (o) { return o.status !== 'cancelada'; });
     var semLaudo = ativas.filter(function (o) { return !cache.laudos.some(function (l) { return l.osId === o.id; }) && ['aberta', 'execucao', undefined, ''].indexOf(o.status) >= 0; });
@@ -508,18 +515,20 @@
       }).join('') + '</section>' : '') +
       '<div class="sp-barra-lista"><h2 style="margin:0">Edificações inspecionadas</h2><div class="sp-seg">' + [['andamento', 'Em andamento'], ['concluidos', 'Concluídos'], ['todos', 'Todos']].map(function (x) { return '<button data-f="' + x[0] + '"' + (f === x[0] ? ' class="ativo"' : '') + '>' + x[1] + '</button>'; }).join('') + '</div></div>' +
       (grupos.length ? grupos.map(function (g) {
-        return '<div class="sp-cli"><div class="sp-cli-cab"><span>' + esc(g.nome) + '</span><span class="muted" style="font-weight:400">' + plural(g.itens.length, 'edificação', 'edificações') + '</span></div>' + g.itens.map(function (l) {
+        return '<div class="sp-cli"><div class="sp-cli-cab"><span>' + esc(g.nome) + '</span><span class="muted" style="font-weight:400">' + plural(g.itens.length, 'edificação', 'edificações') + '</span></div>' + porOs(g.itens).map(function (go) { return '<div class="sp-os-cab"><span>OS <b>' + esc(go.cod || '—') + '</b> · ' + plural(go.itens.length, 'edificação', 'edificações') + '</span><span style="display:flex;gap:6px">' + (go.itens.length > 1 ? '<button class="btn sec peq" data-pdfos="' + go.itens[0].id + '">' + ic('pdf', 14) + ' PDF de todas</button>' : '') + '<button class="btn sec peq" data-maised="' + go.itens[0].id + '">' + ic('mais', 14) + ' Edificação</button></span></div>' + go.itens.map(function (l) {
           var st = ST[l.status] || ST.rascunho, nc = SPDA.naoConformidades(l).length, r = respondidos(l);
           return '<div class="sp-ed" data-laudo="' + l.id + '" style="--c:' + (COR[l.status] || COR.rascunho) + '"><span class="sp-ed-ic">' + ic('predio', 20) + '</span>' +
             '<div class="sp-ed-nome"><b>' + esc(l.edificacaoNome || 'Edificação') + '</b><small>' + esc(l.numero || l.osCodigo || '') + ' · inspeção ' + dt(l.dataInspecao) + (l.proximaInspecao ? ' · próxima ' + dt(l.proximaInspecao) : '') + '</small></div>' +
             '<span class="chip ' + st[1] + '" style="justify-self:start">' + st[0] + '</span>' +
             '<div class="sp-prog"><span>Checklist <b style="color:var(--text)">' + pct(r) + '</b> · <span class="sp-np">NP ' + esc(l.nivelProtecao || '—') + '</span></span><div class="barra"><div style="width:' + r.toFixed(0) + '%"></div></div></div>' +
             '<div class="sp-nc ' + (nc ? 'txt-bad' : 'muted') + '"><b>' + nc + '</b>' + (nc === 1 ? 'não conformidade' : 'não conformidades') + '</div><span class="sp-seta">›</span></div>';
-        }).join('') + '</div>';
+        }).join(''); }).join('') + '</div>';
       }).join('') : '<div class="card vazio">' + (cache.laudos.length ? 'Nenhum laudo neste filtro.' : 'Nenhum laudo ainda. Abra uma OS com o serviço <b>SPDA (NBR 5419)</b> no Finanças e clique em <b>Iniciar laudo</b>.') + '</div>');
     var bf = v.querySelector('[data-ir-fila]'); if (bf) bf.onclick = function () { var x = $('sp-fila'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'center' }); else toast('Nenhuma OS de SPDA aguardando laudo.'); };
     v.querySelectorAll('[data-f]').forEach(function (b) { b.onclick = function () { tela.filtro = b.dataset.f; render(); }; });
     v.querySelectorAll('[data-laudo]').forEach(function (c) { c.onclick = function () { irPara(c.dataset.laudo); }; });
+    v.querySelectorAll('[data-pdfos]').forEach(function (b) { b.onclick = function () { gerarPdfOs(laudoDe(b.dataset.pdfos)); }; });
+    v.querySelectorAll('[data-maised]').forEach(function (b) { b.onclick = function () { var l = laudoDe(b.dataset.maised); iniciarLaudo(osDe(l.osId) || { id: l.osId, codigo: l.osCodigo, empresaId: l.empresaId, empresaNome: l.empresaNome }); }; });
     v.querySelectorAll('[data-iniciar]').forEach(function (b) { b.onclick = function () { iniciarLaudo(osDe(b.dataset.iniciar)); }; });
     $('b-edif').onclick = function () { listaEdificacoes(); };
   }
@@ -545,13 +554,17 @@
     if (!os) return;
     var emp = await empresa(os.empresaId); emp.id = emp.id || os.empresaId; emp.nome = emp.nome || os.empresaNome;
     var eds = cache.edificacoes.filter(function (e) { return e.empresaId === os.empresaId && e.ativo !== false; });
-    abrirModal('<h3>Iniciar laudo de SPDA</h3><div class="muted" style="margin-top:-6px">' + esc(os.codigo || '') + ' · ' + esc(os.empresaNome || '') + '</div>' +
+    var naOs = cache.laudos.filter(function (x) { return x.osId === os.id; });
+    var jaTem = function (e) { return naOs.filter(function (x) { return x.edificacaoId === e.id; })[0]; };
+    abrirModal('<h3>' + (naOs.length ? 'Outra edificação nesta OS' : 'Iniciar laudo de SPDA') + '</h3><div class="muted" style="margin-top:-6px">' + esc(os.codigo || '') + ' · ' + esc(os.empresaNome || '') + '</div>' +
+      (naOs.length ? '<p class="muted" style="font-size:14px">Cada edificação da planta tem o seu checklist, medições e fotos. No fim, o botão <b>PDF de todas</b> junta todas num laudo só.</p>' : '') +
       '<label>Qual edificação será inspecionada?</label>' +
-      (eds.length ? eds.map(function (e) { return '<div class="item-ed" data-esc="' + e.id + '"><div><b>' + esc(e.nome) + '</b><div class="muted">' + esc(e.atividade || '') + (e.nivelProtecao && e.nivelProtecao.np ? ' · NP ' + esc(e.nivelProtecao.np) : '') + '</div></div><span class="btn peq">Usar</span></div>'; }).join('') : '<div class="muted">Este cliente ainda não tem edificação cadastrada.</div>') +
+      (eds.length ? eds.map(function (e) { var j = jaTem(e); return '<div class="item-ed" ' + (j ? 'data-abrir="' + j.id + '"' : 'data-esc="' + e.id + '"') + '><div><b>' + esc(e.nome) + '</b><div class="muted">' + esc(e.atividade || '') + (e.nivelProtecao && e.nivelProtecao.np ? ' · NP ' + esc(e.nivelProtecao.np) : '') + (j ? ' · já tem laudo nesta OS' : '') + '</div></div><span class="btn peq' + (j ? ' sec' : '') + '">' + (j ? 'Abrir' : 'Usar') + '</span></div>'; }).join('') : '<div class="muted">Este cliente ainda não tem edificação cadastrada.</div>') +
       '<div class="acoes"><button class="btn' + (eds.length ? ' sec' : '') + '" id="il-nova">' + ic('mais', 16) + ' Nova edificação</button><button class="btn sec" id="il-c">Cancelar</button></div>');
     $('il-c').onclick = fecharModal;
     $('il-nova').onclick = function () { formEdificacao(null, emp, function (ed) { criarLaudo(os, ed); }); };
     document.querySelectorAll('[data-esc]').forEach(function (d) { d.onclick = function () { criarLaudo(os, edDe(d.dataset.esc)); }; });
+    document.querySelectorAll('[data-abrir]').forEach(function (d) { d.onclick = function () { fecharModal(); irPara(d.dataset.abrir); }; });
   }
   async function criarLaudo(os, ed) {
     var l = SPDA.novoLaudo(os, ed, usuario);
@@ -603,11 +616,22 @@
     v.innerHTML = '<button class="voltar" id="b-voltar">← Laudos</button>' +
       '<div class="cab-laudo"><div><h1>' + esc(l.edificacaoNome || 'Edificação') + '</h1><div class="muted">' + esc(l.empresaNome || '') + ' · ' + esc(l.osCodigo || '') + (l.numero ? ' · <b>' + esc(l.numero) + '</b>' : '') + ' · NP ' + esc(l.nivelProtecao || '—') + '</div></div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="chip ' + st[1] + '" style="font-size:13px;padding:4px 12px">' + st[0] + '</span><button class="btn sec" id="b-pdf">' + ic('pdf', 16) + ' Ver PDF</button></div></div>' +
+      (function () {
+        var irmaos = laudosDaOs(l);
+        return '<div class="os-eds"><span class="os-eds-t">' + ic('predio', 15) + ' Edificações da OS ' + esc(l.osCodigo || '') + '</span>' + irmaos.map(function (x) {
+          var s2 = ST[x.status] || ST.rascunho;
+          return '<button class="os-ed' + (x.id === l.id ? ' sel' : '') + '" data-irlaudo="' + x.id + '"><i class="' + s2[1] + '"></i>' + esc(x.edificacaoNome || 'Edificação') + '</button>';
+        }).join('') + (l.status !== 'concluido' || dono ? '<button class="os-ed mais" id="b-outra-ed">' + ic('mais', 14) + ' Outra edificação</button>' : '') +
+          (irmaos.length > 1 ? '<button class="btn sec peq" id="b-pdf-os" style="margin-left:auto">' + ic('pdf', 14) + ' PDF de todas (' + irmaos.length + ')</button>' : '') + '</div>';
+      })() +
       '<div class="progresso"><div class="barra"><div style="width:' + r.toFixed(0) + '%"></div></div><span>' + pct(r) + ' do checklist · ' + plural(nc.length, 'não conformidade', 'não conformidades') + '</span></div>' +
       (trava ? '<div class="aviso" style="background:var(--ok-2);color:var(--ok)">Laudo concluído: só leitura. ' + (dono ? 'Para alterar, volte para revisão em Conclusão e ART.' : '') + '</div>' : '') +
       '<div class="abas">' + abas.map(function (a) { return '<button data-aba="' + a[0] + '"' + (tela.aba === a[0] ? ' class="ativo"' : '') + '>' + ic(a[2], 16) + a[1] + '</button>'; }).join('') + '</div><div id="aba"' + (trava ? ' class="travado"' : '') + '></div>';
     $('b-voltar').onclick = function () { irPara(''); };
     $('b-pdf').onclick = function () { gerarPdf(l); };
+    v.querySelectorAll('[data-irlaudo]').forEach(function (b) { b.onclick = function () { if (b.dataset.irlaudo !== l.id) irPara(b.dataset.irlaudo, tela.aba); }; });
+    if ($('b-outra-ed')) $('b-outra-ed').onclick = function () { iniciarLaudo(osDe(l.osId) || { id: l.osId, codigo: l.osCodigo, empresaId: l.empresaId, empresaNome: l.empresaNome }); };
+    if ($('b-pdf-os')) $('b-pdf-os').onclick = function () { gerarPdfOs(l); };
     v.querySelectorAll('[data-aba]').forEach(function (b) { b.onclick = function () { tela.aba = b.dataset.aba; render(); }; });
     ({ checklist: abaChecklist, medicoes: abaMedicoes, fotos: abaFotos, dados: abaDados, conclusao: abaConclusao })[tela.aba]($('aba'), l, trava);
   }
@@ -921,19 +945,66 @@
     $('pdf-x').onclick = function () { history.back(); };
     $('pdf-imp').onclick = function () { var f = $('pdf-frame'); try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast('Não foi possível imprimir: ' + e.message); } };
   }
+  // Laudo de todas as edificações da OS num documento só: capa da planta, resumo, uma parte por edificação e assinatura
+  function laudosDaOs(l) { return cache.laudos.filter(function (x) { return x.osId && x.osId === l.osId; }).sort(function (a, b) { return String(a.edificacaoNome || '').localeCompare(String(b.edificacaoNome || ''), 'pt-BR'); }); }
+  async function gerarPdfOs(l) {
+    var ls = laudosDaOs(l);
+    abrirVisualizador({ numero: 'OS ' + (l.osCodigo || ''), edificacaoNome: ls.length + ' edificações' });
+    var html = await montarHtmlOs(ls);
+    var fr = $('pdf-frame'); if (fr) fr.srcdoc = html;
+  }
+  async function montarHtmlOs(ls) {
+    var l0 = ls[0], partes = [];
+    for (var i = 0; i < ls.length; i++) partes.push(await montarHtmlLaudo(ls[i], false, { partes: true, prefixo: (i + 1) + '.' }));
+    var ORD = { nao_conforme: 3, conforme_ressalvas: 2, conforme: 1 }, pior = '';
+    ls.forEach(function (x) { var p = (x.conclusao || {}).parecer; if (p && (ORD[p] || 0) > (ORD[pior] || 0)) pior = p; });
+    var PAR = { conforme: ['Conforme', '#15803d', '#dcfce7'], conforme_ressalvas: ['Conforme com ressalvas', '#a16207', '#fef9c3'], nao_conforme: ['Não conforme', '#b91c1c', '#fee2e2'] };
+    var todosConcl = ls.every(function (x) { return x.status === 'concluido'; });
+    var cnpj = String(l0.cnpj || '').replace(/\D/g, ''); cnpj = cnpj.length === 14 ? cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : (l0.cnpj || '');
+    var ed0 = edDe(l0.edificacaoId) || {}, en = ed0.endereco || {};
+    var datas = ls.map(function (x) { return x.dataInspecao; }).filter(Boolean).sort(), periodo = datas.length ? (datas[0] === datas[datas.length - 1] ? dt(datas[0]) : dt(datas[0]) + ' a ' + dt(datas[datas.length - 1])) : '—';
+    var campo = function (rot, val, sub) { return '<div class="cf"><div class="cf-r">' + rot + '</div><div class="cf-v">' + (val || '—') + '</div>' + (sub ? '<div class="cf-s">' + sub + '</div>' : '') + '</div>'; };
+    var rp = (ls.filter(function (x) { return x.responsavel && x.responsavel.nome; })[0] || l0).responsavel || {}, art = rp.art || {};
+    var resumo = '<table><tr><th>Item</th><th>Edificação</th><th>Laudo nº</th><th>NP</th><th>Parecer</th><th>Não conformidades</th><th>Próxima inspeção</th></tr>' + ls.map(function (x, i) {
+      var p = PAR[(x.conclusao || {}).parecer];
+      return '<tr><td class="cod">' + (i + 1) + '</td><td><b>' + esc(x.edificacaoNome || '') + '</b></td><td>' + esc(x.numero || 'rascunho') + '</td><td>' + esc(x.nivelProtecao || '—') + '</td><td' + (p ? ' style="color:' + p[1] + ';font-weight:700"' : '') + '>' + (p ? p[0] : '—') + '</td><td class="num">' + SPDA.naoConformidades(x).length + '</td><td>' + (x.proximaInspecao ? dt(x.proximaInspecao) : '—') + '</td></tr>';
+    }).join('') + '</table>';
+    var capa = '<section class="capa">' + (partes[0].logo ? '<img class="logo" src="' + partes[0].logo + '">' : '<div></div>') +
+      '<div class="capa-t"><div class="sup">LAUDO TÉCNICO DE INSPEÇÃO</div><h1>Sistema de Proteção contra Descargas Atmosféricas (SPDA)</h1><div class="norma">ABNT NBR 5419 · ' + ls.length + ' edificações</div></div>' +
+      '<div class="capa-d"><div class="cd-top"><div><div class="cf-r" style="color:#cfe9fb">ORDEM DE SERVIÇO</div><div class="cd-num">' + esc(l0.osCodigo || '—') + '</div></div>' + (PAR[pior] ? '<div class="cd-par" style="color:' + PAR[pior][1] + ';background:' + PAR[pior][2] + '">Geral: ' + PAR[pior][0] + '</div>' : '') + '</div>' +
+      '<div class="cd-grade">' + campo('Cliente', esc(l0.empresaNome || ''), cnpj ? 'CNPJ ' + esc(cnpj) : '') + campo('Endereço', esc([en.logradouro, en.numero].filter(Boolean).join(', ')), esc([en.bairro, en.cidade ? en.cidade + (en.uf ? '/' + en.uf : '') : ''].filter(Boolean).join(' · '))) +
+      campo('Edificações inspecionadas', String(ls.length), esc(ls.map(function (x) { return x.edificacaoNome; }).join(', '))) + campo('Período da inspeção', periodo, '') + '</div></div>' +
+      '<div class="capa-r">IDEALLE Inspeções e Serviços · Guarulhos/SP</div></section>';
+    var sumario = '<h2>Sumário</h2><ol class="sum"><li>Resumo das edificações</li>' + ls.map(function (x, i) { return '<li value="' + (i + 2) + '">Edificação: ' + esc(x.edificacaoNome || '') + '</li>'; }).join('') + '<li value="' + (ls.length + 2) + '">Conclusão geral e responsável técnico</li></ol>';
+    var corpo = capa + '<section class="pg">' + sumario + '<h2>1. Resumo das edificações</h2>' + resumo +
+      '<p>Cada edificação foi inspecionada separadamente; os itens, as medições e as fotos de cada uma estão nas partes a seguir.</p></section>' +
+      ls.map(function (x, i) {
+        return '<section class="pg ed-parte"><div class="ed-cab"><span>EDIFICAÇÃO ' + (i + 1) + ' DE ' + ls.length + '</span><b>' + esc(x.edificacaoNome || '') + '</b><small>Laudo ' + esc(x.numero || 'rascunho') + ' · NP ' + esc(x.nivelProtecao || '—') + ' · inspeção ' + dt(x.dataInspecao) + '</small></div>' +
+          partes[i].secoes.replace(/<h2>(\d+\.)(\d+)\. /g, function (m0, a, b) { return '<h2>' + (i + 2) + '.' + b + '. '; }) + '</section>';
+      }).join('') +
+      '<section class="pg"><h2>' + (ls.length + 2) + '. Conclusão geral e responsável técnico</h2>' + resumo +
+      '<p>' + (PAR[pior] ? 'Situação geral da planta: <b style="color:' + PAR[pior][1] + '">' + PAR[pior][0] + '</b> (a pior situação entre as edificações). ' : '') + 'As recomendações de cada edificação estão na parte correspondente.</p>' +
+      partes[0].ass.replace(/<b>[^<]*<\/b><br>Engenheiro Eletricista · CREA [^<]*<br>ART nº [^<]*/, '<b>' + esc(rp.nome || '') + '</b><br>Engenheiro Eletricista · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '')) + '</section>';
+    var rod = 'Laudo SPDA OS ' + (l0.osCodigo || '') + ' · ' + (l0.empresaNome || '') + ' · IDEALLE Inspeções e Serviços';
+    var css = partes[0].css.replace(/@bottom-left\{content:"[^"]*"/, '@bottom-left{content:"' + rod.replace(/["\\]/g, '') + '"').replace(/body::before\{content:"RASCUNHO"[^}]*\}/, '') + (todosConcl ? '' : 'body::before{content:"RASCUNHO";position:fixed;top:40%;left:15%;font-size:110pt;color:rgba(200,0,0,.08);transform:rotate(-30deg);z-index:-1}') +
+      '.ed-parte{page-break-before:always}.ed-cab{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#0b5c99;color:#fff;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;flex-direction:column}.ed-cab span{font-size:8pt;letter-spacing:.14em;color:#cfe9fb}.ed-cab b{font-size:16pt}.ed-cab small{font-size:9pt;color:#e0f2fe}';
+    return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Laudo SPDA OS ' + esc(l0.osCodigo || '') + '</title><style>' + css +
+      '@media screen{html{background:#525659}body{max-width:210mm;margin:16px auto;background:#fff;padding:16mm 14mm;box-shadow:0 2px 14px rgba(0,0,0,.4)}.capa{height:auto;min-height:250mm}}</style></head><body>' + corpo + '</body></html>';
+  }
   async function gerarPdf(l) {
     abrirVisualizador(l);
     var html = await montarHtmlLaudo(l);
     var fr = $('pdf-frame'); if (fr) fr.srcdoc = html;
   }
-  async function montarHtmlLaudo(l, paraPortal) {
+  async function montarHtmlLaudo(l, paraPortal, opt) {
+    opt = opt || {};
     var ed = edDe(l.edificacaoId) || {}, en = ed.endereco || {}, dm = ed.dimensoes || {}, n = SPDA.NIVEIS[l.nivelProtecao], m = l.medicoes || {}, lim = m.limites || SPDA.LIMITES_PADRAO;
     var nc = SPDA.naoConformidades(l), c = l.conclusao || {}, rp = l.responsavel || {}, art = rp.art || {}, par = PARECER[c.parecer];
     var logo = await logoDataUrl();
     var fotos = todasFotos(l), grandes = {};
     for (var i = 0; i < fotos.length; i++) { var f = await banco.ler(SPDA.COLECOES.fotos, fotos[i].f.id).catch(function () { return null; }); grandes[fotos[i].f.id] = f ? f.dataUrl : fotos[i].f.thumb; }
     var R = { C: 'Conforme', NC: 'Não conforme', NA: 'N/A' };
-    var sec = 0, titulo = function (t) { sec++; return '<h2>' + sec + '. ' + t + '</h2>'; };
+    var sec = 0, titulo = function (t) { sec++; return '<h2>' + (opt.prefixo || '') + sec + '. ' + t + '</h2>'; };
     var tabela = function (cab, linhas) { return '<table><tr>' + cab.map(function (x) { return '<th>' + x + '</th>'; }).join('') + '</tr>' + linhas.join('') + '</table>'; };
     var ckHtml = SPDA.CHECKLIST.map(function (b) {
       return '<h3>' + esc(b.nome) + '</h3>' + tabela(['Item', 'Verificação', 'Resultado', 'Observação'], (l.checklist || []).filter(function (i) { return i.bloco === b.bloco; }).map(function (i) {
@@ -951,7 +1022,7 @@
       return '<div class="cab-fotos">' + (cab || '') + '<table class="fotos">' + linha(0) + '</table></div>' + (h ? '<table class="fotos">' + h + '</table>' : '');
     };
     var fotosNc = fotos.filter(function (x) { return x.item && x.item.r === 'NC'; });
-    var corpo =
+    var capaHtml =
       '<section class="capa">' + (logo ? '<img class="logo" src="' + logo + '">' : '<div></div>') + '<div class="capa-t"><div class="sup">LAUDO TÉCNICO DE INSPEÇÃO</div><h1>Sistema de Proteção contra Descargas Atmosféricas (SPDA)</h1><div class="norma">ABNT NBR 5419</div></div>' +
       (function () {
         var cnpj = String(l.cnpj || '').replace(/\D/g, ''); cnpj = cnpj.length === 14 ? cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : (l.cnpj || '');
@@ -970,8 +1041,9 @@
           campo('Ordem de serviço', esc(l.osCodigo || ''), l.inspetor ? 'Inspetor: ' + esc(l.inspetor) : '') +
           '</div></div>';
       })() +
-      '<div class="capa-r">IDEALLE Inspeções e Serviços · Guarulhos/SP</div></section>' +
-      '<section class="pg"><h2>Sumário</h2><ol class="sum"><li>Dados da edificação</li><li>Critérios e nível de proteção</li><li>Checklist de inspeção</li><li>Medições elétricas</li><li>Não conformidades</li><li>Registro fotográfico</li><li>Conclusão e recomendações</li><li>Responsável técnico</li></ol>' +
+      '<div class="capa-r">IDEALLE Inspeções e Serviços · Guarulhos/SP</div></section>';
+    var sumarioHtml = '<h2>Sumário</h2><ol class="sum"><li>Dados da edificação</li><li>Critérios e nível de proteção</li><li>Checklist de inspeção</li><li>Medições elétricas</li><li>Não conformidades</li><li>Registro fotográfico</li><li>Conclusão e recomendações</li><li>Responsável técnico</li></ol>';
+    var secoesHtml =
       titulo('Dados da edificação') + tabela(['Campo', 'Informação'], [['Cliente', l.empresaNome], ['CNPJ', l.cnpj], ['Edificação', ed.nome || l.edificacaoNome], ['Atividade', ed.atividade], ['Endereço', [en.logradouro, en.numero, en.bairro, en.cidade, en.uf, en.cep].filter(Boolean).join(', ')], ['Dimensões (C × L × A)', [dm.comprimentoM, dm.larguraM, dm.alturaM].some(function (x) { return x !== '' && x != null; }) ? [dm.comprimentoM, dm.larguraM, dm.alturaM].map(numCampo).join(' × ') + ' m' : ''], ['Estrutura', ed.tipoEstrutura], ['Cobertura', ed.coberturaTipo], ['Descidas (projeto)', ed.qtdDescidas], ['Tipo de inspeção', SPDA.TIPOS_INSPECAO[l.tipoInspecao]], ['Inspetor', l.inspetor]].map(function (x) { return '<tr><td><b>' + x[0] + '</b></td><td>' + esc(x[1] == null ? '' : x[1]) + '</td></tr>'; })) +
       titulo('Critérios e nível de proteção') + '<p>Inspeção realizada segundo a ABNT NBR 5419 (partes 1 a 4), com verificação visual dos subsistemas de captação, descidas, aterramento, equipotencialização e proteção contra surtos, e medições elétricas.</p>' +
       (n ? tabela(['Nível de proteção', 'Método de captação', 'Esfera rolante', 'Malha', 'Distância entre descidas'], ['<tr><td><b>NP ' + n.classe + '</b></td><td>' + esc(SPDA.METODOS_CAPTACAO[l.metodoCaptacao] || '—') + '</td><td>R = ' + n.raioEsferaM + ' m</td><td>' + n.malhaM.join(' × ') + ' m</td><td>' + n.distDescidasM + ' m</td></tr>']) : '<p>Nível de proteção não informado.</p>') +
@@ -982,8 +1054,9 @@
       titulo('Não conformidades') + (nc.length ? tabela(['Item', 'Descrição', 'Detalhe'], nc.map(function (x) { return '<tr><td class="cod">' + esc(x.codigo) + '</td><td>' + esc(x.texto) + '</td><td>' + esc(x.obs || '') + '</td></tr>'; })) + (fotosNc.length ? gradeFotos(fotosNc) : '') : '<p>Nenhuma não conformidade encontrada.</p>') +
       (fotos.length ? gradeFotos(fotos, titulo('Registro fotográfico')) : titulo('Registro fotográfico') + '<p>Sem fotos.</p>') +
       titulo('Conclusão e recomendações') + (par ? '<p class="parecer ' + c.parecer + '">PARECER: ' + par[0].toUpperCase() + '</p>' : '') + '<p class="pre">' + esc(c.texto || '') + '</p>' + (c.recomendacoes ? '<h3>Recomendações</h3><p class="pre">' + esc(c.recomendacoes) + '</p>' : '') +
-      '<p>Próxima inspeção recomendada: <b>' + (l.proximaInspecao ? dt(l.proximaInspecao) : 'em ' + (l.periodicidadeMeses || 12) + ' meses') + '</b>.</p>' +
-      titulo('Responsável técnico') + '<div class="ass"><div class="linha-ass"></div><b>' + esc(rp.nome || '') + '</b><br>Engenheiro Eletricista · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '') + '<br>IDEALLE Inspeções e Serviços</div></section>';
+      '<p>Próxima inspeção recomendada: <b>' + (l.proximaInspecao ? dt(l.proximaInspecao) : 'em ' + (l.periodicidadeMeses || 12) + ' meses') + '</b>.</p>';
+    var assHtml = '<div class="ass"><div class="linha-ass"></div><b>' + esc(rp.nome || '') + '</b><br>Engenheiro Eletricista · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '') + '<br>IDEALLE Inspeções e Serviços</div>';
+    var corpo = capaHtml + '<section class="pg">' + sumarioHtml + secoesHtml + titulo('Responsável técnico') + assHtml + '</section>';
     var rodape = 'Laudo SPDA ' + (l.numero || '(rascunho)') + ' · ' + (l.empresaNome || '') + ' · IDEALLE Inspeções e Serviços';
     var css = '@page{size:A4;margin:16mm 14mm 18mm;@bottom-right{content:"Página " counter(page) " de " counter(pages);font:8pt Arial,sans-serif;color:#555}@bottom-left{content:"' + rodape.replace(/["\\]/g, '') + '";font:8pt Arial,sans-serif;color:#555}}@page:first{@bottom-right{content:none}@bottom-left{content:none}}body{font:11pt Arial,sans-serif;color:#111;margin:0}h1{font-size:24pt;margin:8px 0}h2{font-size:13pt;color:#0b5c99;border-bottom:2px solid #4db6ef;padding-bottom:4px;margin:22px 0 10px}h3{font-size:11pt;margin:14px 0 6px}' +
       'table{width:100%;border-collapse:collapse;margin:6px 0 10px;page-break-inside:auto}tr{page-break-inside:avoid}th,td{border:1px solid #bbb;padding:5px 6px;text-align:left;vertical-align:top;font-size:9.5pt}th{background:#f3f4f6}.num{text-align:right;white-space:nowrap}.cod{white-space:nowrap;font-weight:700}' +
@@ -993,6 +1066,7 @@
       '.parecer{font-weight:700;font-size:12pt;padding:8px 10px;border-radius:4px}.parecer.conforme{background:#dcfce7;color:#15803d}.parecer.conforme_ressalvas{background:#fef3c7;color:#92400e}.parecer.nao_conforme{background:#fee2e2;color:#b91c1c}.pre{white-space:pre-line}' +
       '.ass{margin-top:60px;text-align:center;line-height:1.5}.linha-ass{width:70%;margin:0 auto 6px;border-top:1px solid #000}' +
       (l.status !== 'concluido' ? 'body::before{content:"RASCUNHO";position:fixed;top:40%;left:15%;font-size:110pt;color:rgba(200,0,0,.08);transform:rotate(-30deg);z-index:-1}' : '');
+    if (opt.partes) return { secoes: secoesHtml, ass: assHtml, css: css, logo: logo };
     if (paraPortal) return { corpo: corpo, css: css };
     var html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Laudo SPDA ' + esc(l.numero || '') + ' - ' + esc(l.edificacaoNome || '') + '</title><style>' + css +
       '@media screen{html{background:#525659}body{max-width:210mm;margin:16px auto;background:#fff;padding:16mm 14mm;box-shadow:0 2px 14px rgba(0,0,0,.4)}.capa{height:auto;min-height:250mm}}</style></head><body>' + corpo + '</body></html>';
