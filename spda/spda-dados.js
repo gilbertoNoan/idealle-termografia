@@ -12,6 +12,9 @@
     empresas: 'empresas',            // clientes (cadastro único no Finanças, pelo CNPJ) — só leitura aqui
     ordens: 'ordens',                // OS do Finanças (serviço "spda") — o laudo nasce de uma OS
     edificacoes: 'spda_edificacoes', // prédios/estruturas de cada cliente
+    config: 'spda_config',           // configurações do sistema (documento 'geral')
+    equipamentos: 'spda_equipamentos', // aparelhos de medição e calibração
+    certificados: 'spda_certificados', // PDF do certificado de calibração de cada aparelho
     laudos: 'spda_laudos',           // laudo da inspeção: checklist, medições, conclusão, ART
     fotos: 'spda_fotos',             // fotos (base64 reduzido) ligadas ao laudo e ao item do checklist
     portal: 'portal_laudos'          // PDF publicado para o cliente (mesmo esquema dos outros laudos)

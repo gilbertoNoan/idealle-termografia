@@ -221,6 +221,19 @@
     .sp-ed .sp-prog { grid-column: 2 / 4; } .sp-ed .sp-nc { grid-column: 2 / 4; text-align: left; } .sp-ed .sp-nc b { display: inline; margin-right: 4px; } .sp-seta { display: none; }
   }
   .sp-os-cab{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 4px 4px;font-size:13px;color:var(--muted, #94a3b8)}.sp-os-cab b{color:#7dd3fc}
+  #lateral{position:fixed;top:58px;left:0;bottom:0;width:230px;padding:14px 10px;border-right:1px solid var(--line);background:var(--bg);display:flex;flex-direction:column;gap:4px;z-index:30;overflow-y:auto}
+  .lat-it{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;border-radius:10px;color:var(--muted);font:inherit;font-size:14.5px;font-weight:600;padding:11px 12px;cursor:pointer}
+  .lat-it:hover{background:rgba(255,255,255,.04);color:var(--text)}.lat-it.sel{background:var(--pri-2);color:var(--pri)}
+  .lat-abrir{display:none;background:none;border:0;color:inherit;padding:4px 6px 4px 0;cursor:pointer}
+  #lat-fundo{display:none}
+  body.com-lateral main{margin-left:230px}
+  @media (max-width: 1000px){body.com-lateral main{margin-left:0}.lat-abrir{display:inline-flex}#lateral{transform:translateX(-100%);transition:transform .2s;top:0;padding-top:20px;box-shadow:4px 0 24px rgba(0,0,0,.5)}
+    body.lat-aberta #lateral{transform:none}body.lat-aberta #lat-fundo{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:29}}
+  .pg-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}.pg-cab h1{margin:0 0 4px}
+  .eq-lista{display:flex;flex-direction:column;gap:10px}.eq-it{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:0}.eq-it.inativo{opacity:.55}
+  .eq-ic{width:44px;height:44px;border-radius:12px;background:var(--pri-2);color:var(--pri);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .eq-acoes{display:flex;gap:8px;align-items:center}.eq-arq{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .ed-it{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
   .med-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.med-foto{width:44px;height:44px;flex-shrink:0}
   .med-mini{display:flex;gap:4px}.med-mini img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.15)}
   .desc-box{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;padding:12px;border:1px solid rgba(255,255,255,.1);border-radius:10px}
@@ -248,7 +261,7 @@
 <body>
 <header id="cabecalho" style="display:none">
   <div class="top">
-    <div class="marca"><img src="/icones/spda-192.png" alt=""> SPDA <small>Idealle · NBR 5419 · <a href="/" style="color:var(--pri)">Termografia</a></small></div>
+    <div class="marca"><button class="lat-abrir" id="lat-abrir" aria-label="Abrir menu">__IC_menu__</button><img src="/icones/spda-192.png" alt=""> SPDA <small>Idealle · NBR 5419 · <a href="/" style="color:var(--pri)">Termografia</a></small></div>
     <div class="usuario"><span id="usuario-nome"></span><button class="btn sec peq" id="btn-sair">Sair</button></div>
   </div>
 </header>
@@ -264,6 +277,13 @@
   <button class="btn sec peq" id="btn-demo">Testar sem banco</button>
 </div>
 
+<nav id="lateral" style="display:none" aria-label="Menu do SPDA">
+  <button class="lat-it" data-pg="">__IC_lista__ Laudos</button>
+  <button class="lat-it" data-pg="edificacoes">__IC_predio__ Edificações</button>
+  <button class="lat-it" data-pg="equipamentos">__IC_medidor__ Equipamentos de medição</button>
+  <button class="lat-it" data-pg="config">__IC_engrenagem__ Configurações</button>
+</nav>
+<div id="lat-fundo"></div>
 <main id="app" style="display:none">
   <div id="aviso-modo" class="aviso" style="display:none"></div>
   <div id="aviso-rede">Sem internet: o que você preencher fica salvo no aparelho e sobe sozinho quando a conexão voltar.</div>
@@ -379,7 +399,9 @@
     selo: '<circle cx="12" cy="9" r="6"/><path d="m8.5 13.8-1.5 7.2 5-3 5 3-1.5-7.2"/><path d="m9.5 9 1.7 1.7L14.5 7.5"/>',
     pdf: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6M9 18h4"/>',
     mais: '<path d="M12 5v14M5 12h14"/>',
-    raio: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>'
+    raio: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
+    engrenagem: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+    menu: '<path d="M4 6h16M4 12h16M4 18h16"/>'
   };
   function ic(n, t) { return '<svg class="ic" width="' + (t || 18) + '" height="' + (t || 18) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONES[n] || '') + '</svg>'; }
 
@@ -402,7 +424,7 @@
   }
 
   // ===================== ESTADO =====================
-  var cache = { ordens: [], laudos: [], edificacoes: [], empresas: {} };
+  var cache = { ordens: [], laudos: [], edificacoes: [], empresas: {}, equipamentos: [], config: {} };
   var tela = { laudoId: '', aba: 'checklist', filtro: 'andamento', bloco: '' };
   var timerSalvar = null;
 
@@ -424,10 +446,13 @@
     banco.ouvir('ordens', ['servicos.spda', '==', true], function (l) { cache.ordens = l; render(); });
     banco.ouvir(SPDA.COLECOES.laudos, null, function (l) { cache.laudos = l; cache.pronto = true; render(); });
     banco.ouvir(SPDA.COLECOES.edificacoes, null, function (l) { cache.edificacoes = l; render(); });
+    banco.ouvir(SPDA.COLECOES.equipamentos, null, function (l) { cache.equipamentos = l; if (tela.pagina || tela.laudoId) render(); }, function () {});
+    banco.ouvirDoc(SPDA.COLECOES.config, 'geral', function (c) { cache.config = c || {}; if (tela.pagina) render(); }, function () {});
+    montarLateral();
     var p = new URLSearchParams(location.search);
-    tela.laudoId = p.get('laudo') || '';
+    tela.laudoId = p.get('laudo') || ''; tela.pagina = tela.laudoId ? '' : (p.get('pg') || '');
     var osq = p.get('cronos_os') || p.get('os'); if (osq) tela.abrirOs = osq;
-    window.addEventListener('popstate', function () { tela.laudoId = new URLSearchParams(location.search).get('laudo') || ''; render(); });
+    window.addEventListener('popstate', function () { var q = new URLSearchParams(location.search); tela.laudoId = q.get('laudo') || ''; tela.pagina = tela.laudoId ? '' : (q.get('pg') || ''); render(); });
     function rede() { $('aviso-rede').style.display = navigator.onLine ? 'none' : 'block'; }
     window.addEventListener('online', rede); window.addEventListener('offline', rede); rede();
     render();
@@ -480,6 +505,7 @@
   function irPara(laudoId, aba) {
     var u = new URL(location.href); u.searchParams.delete('cronos_os'); u.searchParams.delete('os');
     if (laudoId) u.searchParams.set('laudo', laudoId); else u.searchParams.delete('laudo');
+    u.searchParams.delete('pg'); tela.pagina = '';
     history.pushState({}, '', u.toString());
     tela.laudoId = laudoId; tela.aba = aba || 'checklist'; render(); window.scrollTo(0, 0);
   }
@@ -503,8 +529,155 @@
     var v = $('view');
     if (tela.abrirOs && cache.ordens.length) { var o = osDe(tela.abrirOs); tela.abrirOs = ''; if (o) { var l0 = cache.laudos.find(function (x) { return x.osId === o.id; }); if (l0) tela.laudoId = l0.id; else setTimeout(function () { iniciarLaudo(o); }, 50); } }
     if (!cache.pronto && !modoDemo) { v.innerHTML = '<div class="card vazio"><div class="sp-gira" aria-hidden="true"></div><p style="margin:12px 0 0">Carregando os laudos…</p></div>'; return; }
+    marcarLateral();
+    if (!tela.laudoId && tela.pagina === 'equipamentos') return renderEquipamentos(v);
+    if (!tela.laudoId && tela.pagina === 'config') return renderConfig(v);
+    if (!tela.laudoId && tela.pagina === 'edificacoes') return renderEdificacoes(v);
     if (tela.laudoId) { var l = laudoDe(tela.laudoId); if (l) return renderLaudo(v, l); v.innerHTML = '<div class="card vazio">Carregando o laudo…</div>'; return; }
     renderLista(v);
+  }
+
+
+  // ===================== MENU LATERAL, EQUIPAMENTOS E CONFIGURAÇÕES =====================
+  var ESCOPO_PADRAO = 'Inspeção periódica do Sistema de Proteção contra Descargas Atmosféricas (SPDA) conforme a ABNT NBR 5419-3, compreendendo inspeção visual dos subsistemas de captação, descidas, aterramento e equipotencialização, verificação das medidas de proteção contra surtos (DPS) e da documentação, e medições de resistência de aterramento e de continuidade elétrica nos pontos acessíveis.\n' +
+    'As medições foram realizadas com o método e os equipamentos indicados no item de medições, com os equipamentos dentro da validade de calibração na data da inspeção.\n' +
+    'Limitações: a inspeção foi visual e não destrutiva; não foram abertas caixas lacradas, escavados eletrodos enterrados ou acessados pontos sem condição segura de acesso. Componentes ocultos foram avaliados pela continuidade medida. As condições descritas referem-se à data da inspeção.';
+  function cfg() {
+    var c = cache.config || {};
+    return {
+      responsavel: Object.assign({ nome: '', crea: '', titulo: 'Engenheiro Eletricista' }, c.responsavel || {}),
+      limites: { aterramentoOhm: Number(c.limites && c.limites.aterramentoOhm) || SPDA.LIMITES_PADRAO.aterramentoOhm, continuidadeOhm: Number(c.limites && c.limites.continuidadeOhm) || SPDA.LIMITES_PADRAO.continuidadeOhm },
+      periodicidadeMeses: Number(c.periodicidadeMeses) || SPDA.PERIODICIDADE_PADRAO_MESES,
+      ngPadrao: c.ngPadrao || '', metodoPadrao: c.metodoPadrao || '',
+      equipAt: c.equipAt || '', equipCo: c.equipCo || '', avisoDias: Number(c.avisoDias) || 30,
+      escopo: c.escopo == null ? ESCOPO_PADRAO : c.escopo, escopoNoLaudo: c.escopoNoLaudo !== false
+    };
+  }
+  function montarLateral() {
+    ['lateral', 'cabecalho'].forEach(function (id) { var el = $(id); el.innerHTML = el.innerHTML.replace(/__IC_(\w+)__/g, function (m0, n) { return ic(n, 18); }); });
+    $('lateral').style.display = ''; document.body.classList.add('com-lateral');
+    var fechar = function () { document.body.classList.remove('lat-aberta'); };
+    $('lat-abrir').onclick = function () { document.body.classList.toggle('lat-aberta'); };
+    $('lat-fundo').onclick = fechar;
+    document.querySelectorAll('[data-pg]').forEach(function (b) { b.onclick = function () { fechar(); irPagina(b.dataset.pg); }; });
+  }
+  function marcarLateral() { document.querySelectorAll('[data-pg]').forEach(function (b) { b.classList.toggle('sel', !tela.laudoId && (tela.pagina || '') === b.dataset.pg); }); }
+  function irPagina(pg) {
+    var u = new URL(location.href); ['laudo', 'cronos_os', 'os'].forEach(function (k) { u.searchParams.delete(k); });
+    if (pg) u.searchParams.set('pg', pg); else u.searchParams.delete('pg');
+    history.pushState({}, '', u.toString()); tela.laudoId = ''; tela.pagina = pg; render(); window.scrollTo(0, 0);
+  }
+  // situação da calibração na data (padrão: hoje)
+  function situacaoCal(validade, naData) {
+    if (!validade) return ['Sem validade', 'warn'];
+    var ref = naData || hoje(); if (validade < ref) return ['Vencida', 'bad'];
+    var dias = Math.round((new Date(validade) - new Date(ref)) / 864e5);
+    return dias <= cfg().avisoDias ? ['Vence em ' + dias + ' dia(s)', 'warn'] : ['Válida', 'ok'];
+  }
+  var TIPOS_EQ = { terrometro: 'Terrômetro', alicate: 'Alicate terrômetro', microohmimetro: 'Microohmímetro', multimetro: 'Multímetro', outro: 'Outro' };
+  function eqResumo(e) { return [TIPOS_EQ[e.tipo] || e.tipo, e.marca, e.modelo].filter(Boolean).join(' ') + (e.serie ? ' · série ' + e.serie : ''); }
+  function eqParaLaudo(e) { var c = e.certificado || {}; return { equipamentoId: e.id, tipo: TIPOS_EQ[e.tipo] || e.tipo || '', marca: e.marca || '', modelo: e.modelo || '', serie: e.serie || '', certificado: c.numero || '', laboratorio: c.laboratorio || '', dataCalibracao: c.data || '', validade: c.validade || '' }; }
+  function renderEquipamentos(v) {
+    var eqs = (cache.equipamentos || []).slice().sort(function (a, b) { return (a.ativo === false) - (b.ativo === false) || eqResumo(a).localeCompare(eqResumo(b)); });
+    var usos = { aterramento: 'Aterramento', continuidade: 'Continuidade', ambos: 'Aterramento e continuidade' };
+    v.innerHTML = '<div class="pg-cab"><div><h1>Equipamentos de medição</h1><p class="muted">Aparelhos usados nas medições, com o certificado de calibração. No laudo é só escolher o aparelho: marca, série e certificado vão sozinhos.</p></div><button class="btn" id="eq-novo">' + ic('mais', 16) + ' Novo equipamento</button></div>' +
+      (eqs.length ? '<div class="eq-lista">' + eqs.map(function (e) {
+        var c = e.certificado || {}, st = situacaoCal(c.validade);
+        return '<div class="card eq-it' + (e.ativo === false ? ' inativo' : '') + '"><div class="eq-ic">' + ic('medidor', 22) + '</div><div style="flex:1;min-width:0"><b>' + esc(e.descricao || eqResumo(e)) + '</b> ' + (e.ativo === false ? '<span class="chip">Fora de uso</span>' : '<span class="chip ' + st[1] + '">' + st[0] + '</span>') +
+          '<div class="muted" style="font-size:13px">' + esc(eqResumo(e)) + (e.uso ? ' · ' + (usos[e.uso] || '') : '') + '</div>' +
+          '<div class="muted" style="font-size:13px">Certificado ' + esc(c.numero || '—') + (c.laboratorio ? ' · ' + esc(c.laboratorio) : '') + (c.data ? ' · calibrado em ' + dt(c.data) : '') + (c.validade ? ' · válido até <b>' + dt(c.validade) + '</b>' : '') + '</div></div>' +
+          '<div class="eq-acoes">' + (e.certificadoPdfId ? '<button class="btn sec peq" data-eqcert="' + e.id + '">' + ic('pdf', 14) + ' Certificado</button>' : '<span class="muted" style="font-size:12px">sem PDF</span>') + '<button class="btn sec peq" data-eqed="' + e.id + '">Editar</button></div></div>';
+      }).join('') + '</div>' : '<div class="card vazio">Nenhum equipamento cadastrado. Cadastre o terrômetro e o microohmímetro com os certificados de calibração.</div>');
+    $('eq-novo').onclick = function () { formEquipamento(null); };
+    v.querySelectorAll('[data-eqed]').forEach(function (b) { b.onclick = function () { formEquipamento(cache.equipamentos.find(function (x) { return x.id === b.dataset.eqed; })); }; });
+    v.querySelectorAll('[data-eqcert]').forEach(function (b) { b.onclick = function () { verCertificado(cache.equipamentos.find(function (x) { return x.id === b.dataset.eqcert; })); }; });
+  }
+  async function verCertificado(e) {
+    if (!e || !e.certificadoPdfId) return;
+    var w = window.open('', '_blank'); toast('Abrindo o certificado…');
+    var d = await banco.ler(SPDA.COLECOES.certificados, e.certificadoPdfId).catch(function () { return null; });
+    if (!d || !d.dataUrl) { if (w) w.close(); toast('Certificado não encontrado.'); return; }
+    var b = await (await fetch(d.dataUrl)).blob(), url = URL.createObjectURL(b);
+    if (w) w.location.href = url; else location.href = url;
+  }
+  function formEquipamento(e) {
+    var novo = !e; e = e || { tipo: 'terrometro', uso: 'aterramento', ativo: true, certificado: {} }; var c = e.certificado || {}, arq = null;
+    abrirModal('<h3>' + (novo ? 'Novo equipamento' : 'Editar equipamento') + '</h3>' +
+      '<label>Nome / descrição</label><input id="eq-desc" value="' + esc(e.descricao || '') + '" placeholder="Ex.: Terrômetro digital da equipe 1">' +
+      '<div class="linha"><div><label>Tipo</label><select id="eq-tipo">' + Object.keys(TIPOS_EQ).map(function (k) { return '<option value="' + k + '"' + (k === e.tipo ? ' selected' : '') + '>' + TIPOS_EQ[k] + '</option>'; }).join('') + '</select></div>' +
+      '<div><label>Usado em</label><select id="eq-uso"><option value="aterramento"' + (e.uso === 'aterramento' ? ' selected' : '') + '>Resistência de aterramento</option><option value="continuidade"' + (e.uso === 'continuidade' ? ' selected' : '') + '>Continuidade</option><option value="ambos"' + (e.uso === 'ambos' ? ' selected' : '') + '>Os dois</option></select></div></div>' +
+      '<div class="linha"><div><label>Marca</label><input id="eq-marca" value="' + esc(e.marca || '') + '"></div><div><label>Modelo</label><input id="eq-mod" value="' + esc(e.modelo || '') + '"></div><div><label>Nº de série</label><input id="eq-serie" value="' + esc(e.serie || '') + '"></div></div>' +
+      '<h4 style="margin:16px 0 0">Certificado de calibração</h4>' +
+      '<div class="linha"><div><label>Nº do certificado</label><input id="eq-cn" value="' + esc(c.numero || '') + '"></div><div><label>Laboratório</label><input id="eq-lab" value="' + esc(c.laboratorio || '') + '" placeholder="Ex.: laboratório da RBC"></div></div>' +
+      '<div class="linha"><div><label>Data da calibração</label><input type="date" id="eq-cd" value="' + esc(c.data || '') + '"></div><div><label>Válido até</label><input type="date" id="eq-cv" value="' + esc(c.validade || '') + '"></div></div>' +
+      '<label>PDF do certificado</label><div class="eq-arq"><label class="btn sec peq">' + ic('pdf', 14) + ' ' + (e.certificadoPdfId ? 'Trocar arquivo' : 'Escolher arquivo') + '<input type="file" id="eq-pdf" accept="application/pdf,image/*" style="display:none"></label><span class="muted" id="eq-pdfnome">' + esc(e.certificadoNome || 'Nenhum arquivo') + '</span></div>' +
+      '<label class="z-check"><input type="checkbox" id="eq-at"' + (e.ativo === false ? '' : ' checked') + '> Em uso (desmarque para tirar da lista do laudo)</label>' +
+      '<div class="acoes"><button class="btn" id="eq-ok">Salvar</button><button class="btn sec" id="eq-c">Cancelar</button>' + (novo ? '' : '<button class="btn sec" id="eq-del" style="margin-left:auto;color:var(--bad)">Excluir</button>') + '</div>');
+    $('eq-c').onclick = fecharModal;
+    $('eq-pdf').onchange = function () {
+      var f = this.files && this.files[0]; if (!f) return;
+      if (f.size > 700 * 1024) { toast('Arquivo grande demais (máx. 700 KB). Salve o PDF em tamanho menor.'); this.value = ''; return; }
+      var r = new FileReader(); r.onload = function () { arq = { dataUrl: r.result, nome: f.name }; $('eq-pdfnome').textContent = f.name; }; r.readAsDataURL(f);
+    };
+    if ($('eq-del')) $('eq-del').onclick = async function () {
+      if (!confirm('Excluir este equipamento? Os laudos já feitos continuam com os dados dele.')) return;
+      await salvar(function () { return banco.excluir(SPDA.COLECOES.equipamentos, e.id); }, 'Equipamento excluído.');
+      if (e.certificadoPdfId) banco.excluir(SPDA.COLECOES.certificados, e.certificadoPdfId).catch(function () {});
+      fecharModal();
+    };
+    $('eq-ok').onclick = async function () {
+      var g = function (id) { return $(id).value.trim(); };
+      var d = { descricao: g('eq-desc'), tipo: $('eq-tipo').value, uso: $('eq-uso').value, marca: g('eq-marca'), modelo: g('eq-mod'), serie: g('eq-serie'), ativo: $('eq-at').checked,
+        certificado: { numero: g('eq-cn'), laboratorio: g('eq-lab'), data: $('eq-cd').value, validade: $('eq-cv').value }, atualizadoEm: agora() };
+      if (!d.marca && !d.descricao) { toast('Informe pelo menos o nome ou a marca.'); return; }
+      var id = e.id;
+      if (novo) id = await salvar(function () { return banco.criar(SPDA.COLECOES.equipamentos, Object.assign({ criadoEm: agora() }, d)); });
+      if (!id) return;
+      if (arq) {
+        var cid = await salvar(function () { return banco.criar(SPDA.COLECOES.certificados, { equipamentoId: id, nome: arq.nome, dataUrl: arq.dataUrl, criadoEm: agora() }); });
+        if (cid) { if (e.certificadoPdfId) banco.excluir(SPDA.COLECOES.certificados, e.certificadoPdfId).catch(function () {}); d.certificadoPdfId = cid; d.certificadoNome = arq.nome; }
+      }
+      await salvar(function () { return banco.atualizar(SPDA.COLECOES.equipamentos, id, d); }, novo ? 'Equipamento cadastrado.' : 'Equipamento atualizado.');
+      fecharModal();
+    };
+  }
+  function renderConfig(v) {
+    var c = cfg(), eqs = (cache.equipamentos || []).filter(function (e) { return e.ativo !== false; }), dis = dono ? '' : ' disabled';
+    var selEq = function (id, val, uso) { return '<select id="' + id + '"' + dis + '><option value="">— nenhum —</option>' + eqs.filter(function (e) { return e.uso === uso || e.uso === 'ambos'; }).map(function (e) { return '<option value="' + e.id + '"' + (e.id === val ? ' selected' : '') + '>' + esc(e.descricao || eqResumo(e)) + '</option>'; }).join('') + '</select>'; };
+    v.innerHTML = '<div class="pg-cab"><div><h1>Configurações</h1><p class="muted">Valores usados ao abrir cada laudo novo. ' + (dono ? 'As mudanças valem para os próximos laudos; os já abertos não mudam.' : 'Só os sócios alteram.') + '</p></div></div>' +
+      '<div class="card"><h2>Responsável técnico padrão</h2><div class="linha"><div style="flex:2"><label>Nome</label><input id="cf-nome" value="' + esc(c.responsavel.nome) + '"' + dis + '></div><div><label>CREA</label><input id="cf-crea" value="' + esc(c.responsavel.crea) + '"' + dis + '></div><div><label>Título profissional</label><input id="cf-tit" value="' + esc(c.responsavel.titulo) + '"' + dis + '></div></div></div>' +
+      '<div class="card"><h2>Medições</h2><div class="linha"><div><label>Referência de aterramento (Ω)</label><input id="cf-at" inputmode="decimal" value="' + esc(numCampo(c.limites.aterramentoOhm)) + '"' + dis + '></div><div><label>Referência de continuidade (Ω)</label><input id="cf-co" inputmode="decimal" value="' + esc(numCampo(c.limites.continuidadeOhm)) + '"' + dis + '></div></div>' +
+      '<div class="linha"><div><label>Aparelho padrão — aterramento</label>' + selEq('cf-eqat', c.equipAt, 'aterramento') + '</div><div><label>Aparelho padrão — continuidade</label>' + selEq('cf-eqco', c.equipCo, 'continuidade') + '</div></div>' +
+      '<div class="linha"><div><label>Método de medição padrão</label><input id="cf-met" list="l-met2" value="' + esc(c.metodoPadrao) + '"' + dis + '><datalist id="l-met2"><option value="Queda de potencial"><option value="Alicate terrômetro"><option value="Método dos 62%"></datalist></div><div><label>Avisar o vencimento da calibração com (dias)</label><input id="cf-av" inputmode="numeric" value="' + c.avisoDias + '"' + dis + '></div></div></div>' +
+      '<div class="card"><h2>Laudo</h2><div class="linha"><div><label>Próxima inspeção padrão (meses)</label><input id="cf-per" inputmode="numeric" value="' + c.periodicidadeMeses + '"' + dis + '></div><div><label>N<sub>G</sub> padrão da região (descargas/km²/ano)</label><input id="cf-ng" inputmode="decimal" value="' + esc(c.ngPadrao) + '" placeholder="Usado nas zonas de risco"' + dis + '></div></div>' +
+      '<label class="z-check"><input type="checkbox" id="cf-esc"' + (c.escopoNoLaudo ? ' checked' : '') + dis + '> Incluir a seção "Escopo, método e limitações" no laudo</label>' +
+      '<label>Texto do escopo, método e limitações</label><textarea id="cf-escopo" rows="7"' + dis + '>' + esc(c.escopo) + '</textarea>' +
+      (dono ? '<div class="acoes"><button class="btn sec peq" id="cf-escpad">Voltar ao texto padrão</button></div>' : '') + '</div>' +
+      (dono ? '<div class="acoes"><button class="btn" id="cf-ok">Salvar configurações</button></div>' : '');
+    if (!dono) return;
+    $('cf-escpad').onclick = function () { $('cf-escopo').value = ESCOPO_PADRAO; };
+    $('cf-ok').onclick = function () {
+      var g = function (id) { return $(id).value.trim(); };
+      var d = { responsavel: { nome: g('cf-nome'), crea: g('cf-crea'), titulo: g('cf-tit') || 'Engenheiro Eletricista' },
+        limites: { aterramentoOhm: num(g('cf-at')) || SPDA.LIMITES_PADRAO.aterramentoOhm, continuidadeOhm: num(g('cf-co')) || SPDA.LIMITES_PADRAO.continuidadeOhm },
+        periodicidadeMeses: Number(g('cf-per')) || SPDA.PERIODICIDADE_PADRAO_MESES, ngPadrao: g('cf-ng'), metodoPadrao: g('cf-met'), avisoDias: Number(g('cf-av')) || 30,
+        equipAt: $('cf-eqat').value, equipCo: $('cf-eqco').value, escopo: $('cf-escopo').value, escopoNoLaudo: $('cf-esc').checked, atualizadoEm: agora(), atualizadoPor: usuario };
+      salvar(function () { return banco.atualizar(SPDA.COLECOES.config, 'geral', d); }, 'Configurações salvas.');
+    };
+  }
+  function renderEdificacoes(v) {
+    var eds = (cache.edificacoes || []).slice().sort(function (a, b) { return String(a.empresaNome || '').localeCompare(String(b.empresaNome || '')) || String(a.nome || '').localeCompare(String(b.nome || '')); });
+    var grupos = {}; eds.forEach(function (e) { var k = e.empresaNome || 'Sem cliente'; (grupos[k] = grupos[k] || []).push(e); });
+    v.innerHTML = '<div class="pg-cab"><div><h1>Edificações</h1><p class="muted">Prédios e estruturas de cada cliente, com as zonas de risco. Para cadastrar uma nova, abra o laudo pela OS.</p></div></div>' +
+      (eds.length ? Object.keys(grupos).map(function (g) {
+        return '<div class="card"><h2 style="font-size:16px">' + esc(g) + '</h2>' + grupos[g].map(function (e) {
+          var nl = cache.laudos.filter(function (l) { return l.edificacaoId === e.id; }).length, nz = ((e.risco || {}).zonas || []).length;
+          return '<div class="ed-it"><div style="flex:1;min-width:0"><b>' + esc(e.nome) + '</b><div class="muted" style="font-size:13px">' + esc(e.atividade || '') + (e.nivelProtecao && e.nivelProtecao.np ? ' · NP ' + esc(e.nivelProtecao.np) : '') + (e.qtdDescidas ? ' · ' + e.qtdDescidas + ' descidas' : '') + ' · ' + plural(nl, 'laudo', 'laudos') + ' · ' + plural(nz, 'zona', 'zonas') + '</div></div>' +
+            '<button class="btn sec peq" data-edz="' + e.id + '">' + ic('raio', 14) + ' Zonas</button><button class="btn sec peq" data-ede="' + e.id + '">Editar</button></div>';
+        }).join('') + '</div>';
+      }).join('') : '<div class="card vazio">Nenhuma edificação cadastrada ainda.</div>');
+    v.querySelectorAll('[data-ede]').forEach(function (b) { b.onclick = function () { formEdificacao(edDe(b.dataset.ede), null, function () { render(); }); }; });
+    v.querySelectorAll('[data-edz]').forEach(function (b) { b.onclick = function () { modalZonas(edDe(b.dataset.edz)); }; });
   }
 
   // ===================== LISTA =====================
@@ -585,7 +758,13 @@
   async function criarLaudo(os, ed) {
     var l = SPDA.novoLaudo(os, ed, usuario);
     var anterior = cache.laudos.filter(function (x) { return x.edificacaoId === ed.id && x.status === 'concluido'; }).sort(function (a, b) { return String(b.dataInspecao).localeCompare(String(a.dataInspecao)); })[0];
-    if (anterior) { l.medicoes.equipamento = anterior.medicoes.equipamento; l.responsavel = { nome: anterior.responsavel.nome, crea: anterior.responsavel.crea, art: { numero: '', data: '' } }; }
+    var c = cfg(), eqDe = function (id) { return (cache.equipamentos || []).find(function (e) { return e.id === id && e.ativo !== false; }); };
+    l.medicoes.limites = { aterramentoOhm: c.limites.aterramentoOhm, continuidadeOhm: c.limites.continuidadeOhm }; l.periodicidadeMeses = c.periodicidadeMeses;
+    if (c.metodoPadrao) l.medicoes.metodo = c.metodoPadrao;
+    if (eqDe(c.equipAt)) l.medicoes.equipamento = eqParaLaudo(eqDe(c.equipAt));
+    if (eqDe(c.equipCo)) l.medicoes.equipamento2 = eqParaLaudo(eqDe(c.equipCo));
+    if (c.responsavel.nome) l.responsavel = { nome: c.responsavel.nome, crea: c.responsavel.crea, art: { numero: '', data: '' } };
+    if (anterior) { if (!eqDe(c.equipAt)) l.medicoes.equipamento = anterior.medicoes.equipamento; if (!c.responsavel.nome) l.responsavel = { nome: anterior.responsavel.nome, crea: anterior.responsavel.crea, art: { numero: '', data: '' } }; }
     var id = await salvar(function () { return banco.criar(SPDA.COLECOES.laudos, l); }, 'Laudo iniciado.');
     fecharModal(); irPara(id, 'checklist');
   }
@@ -853,11 +1032,19 @@
       (m.aterramento || []).map(function (x, k) { return linha('aterramento', x, k); }).join('') + (trava ? '' : '<div class="med-acoes"><label class="btn">' + ic('camera', 16) + ' Fotografar ' + proxSemFoto('aterramento') + '<input type="file" accept="image/*" capture="environment" data-mprox="aterramento" style="display:none"></label><button class="btn sec" id="m-add-at">+ Ponto de medição</button></div>') + '</div>' +
       '<div class="card"><h2>' + ic('medidor', 18) + ' Continuidade elétrica</h2><p class="muted">Referência: até ' + numCampo(lim.continuidadeOhm) + ' Ω.</p>' +
       (m.continuidade || []).map(function (x, k) { return linha('continuidade', x, k); }).join('') + (trava ? '' : '<div class="med-acoes"><label class="btn">' + ic('camera', 16) + ' Fotografar ' + proxSemFoto('continuidade') + '<input type="file" accept="image/*" capture="environment" data-mprox="continuidade" style="display:none"></label><button class="btn sec" id="m-add-co">+ Trecho</button></div>') + '</div>' +
-      '<div class="card"><h2>Equipamento e condições</h2><div class="linha"><div><label>Equipamento</label><input id="q-tipo" value="' + esc(eq.tipo || '') + '"' + dis + '></div><div><label>Marca</label><input id="q-marca" value="' + esc(eq.marca || '') + '"' + dis + '></div><div><label>Modelo</label><input id="q-mod" value="' + esc(eq.modelo || '') + '"' + dis + '></div></div>' +
+      '<div class="card"><h2>Equipamento e condições</h2>' +
+      (function () {
+        var eqs = (cache.equipamentos || []).filter(function (e) { return e.ativo !== false; }), e2 = m.equipamento2 || {};
+        var sel = function (id, atual, uso) { return '<select id="' + id + '"' + dis + '><option value="">' + (eqs.length ? 'Escolher aparelho cadastrado…' : 'Nenhum cadastrado (menu Equipamentos de medição)') + '</option>' + eqs.filter(function (e) { return e.uso === uso || e.uso === 'ambos'; }).map(function (e) { var st = situacaoCal((e.certificado || {}).validade, l.dataInspecao); return '<option value="' + e.id + '"' + (e.id === atual ? ' selected' : '') + '>' + esc(e.descricao || eqResumo(e)) + ' — ' + st[0].toLowerCase() + '</option>'; }).join('') + '</select>'; };
+        var stCo = e2.validade ? situacaoCal(e2.validade, l.dataInspecao) : null;
+        return '<div class="linha"><div><label>Aparelho do aterramento</label>' + sel('q-eqat', eq.equipamentoId, 'aterramento') + '</div><div><label>Aparelho da continuidade</label>' + sel('q-eqco', e2.equipamentoId, 'continuidade') +
+          (e2.tipo ? '<div class="muted" style="font-size:12.5px;margin-top:4px">' + esc([e2.tipo, e2.marca, e2.modelo].filter(Boolean).join(' ')) + (e2.serie ? ', série ' + esc(e2.serie) : '') + (e2.certificado ? ', cert. ' + esc(e2.certificado) : '') + (stCo ? ' · <span class="txt-' + (stCo[1] === 'ok' ? 'ok' : 'bad') + '">' + stCo[0] + '</span>' : '') + '</div>' : '') + '</div></div>';
+      })() +
+      '<div class="linha"><div><label>Equipamento</label><input id="q-tipo" value="' + esc(eq.tipo || '') + '"' + dis + '></div><div><label>Marca</label><input id="q-marca" value="' + esc(eq.marca || '') + '"' + dis + '></div><div><label>Modelo</label><input id="q-mod" value="' + esc(eq.modelo || '') + '"' + dis + '></div></div>' +
       '<div class="linha"><div><label>Nº de série</label><input id="q-serie" value="' + esc(eq.serie || '') + '"' + dis + '></div><div><label>Certificado de calibração</label><input id="q-cert" value="' + esc(eq.certificado || '') + '"' + dis + '></div><div><label>Validade</label><input type="date" id="q-val" value="' + esc(eq.validade || '') + '"' + dis + '></div></div>' +
       '<div class="linha"><div><label>Método</label><input id="q-met" list="l-met" value="' + esc(m.metodo || '') + '"' + dis + '><datalist id="l-met"><option value="Queda de potencial"><option value="Alicate terrômetro"><option value="Método dos 62%"></datalist></div><div><label>Clima / solo</label><input id="q-cli" value="' + esc(m.clima || '') + '" placeholder="Ex.: tempo seco, solo seco"' + dis + '></div></div>' +
       '<div class="linha"><div><label>Referência aterramento (Ω)</label><input id="q-lat" inputmode="decimal" value="' + esc(numCampo(lim.aterramentoOhm)) + '"' + dis + '></div><div><label>Referência continuidade (Ω)</label><input id="q-lco" inputmode="decimal" value="' + esc(numCampo(lim.continuidadeOhm)) + '"' + dis + '></div></div>' +
-      (eq.validade && eq.validade < l.dataInspecao ? '<div class="aviso" style="margin-top:10px">A calibração do equipamento venceu antes da data da inspeção.</div>' : '') + '</div>';
+      (eq.validade && eq.validade < l.dataInspecao ? '<div class="aviso" style="margin-top:10px">A calibração do aparelho do aterramento venceu antes da data da inspeção.</div>' : '') + ((m.equipamento2 || {}).validade && m.equipamento2.validade < l.dataInspecao ? '<div class="aviso" style="margin-top:10px">A calibração do aparelho da continuidade venceu antes da data da inspeção.</div>' : '') + '</div>';
     if (trava) return;
     function salvarM(re) { gravarDepois(l, { medicoes: l.medicoes }); if (re) render(); }
     $('m-add-at').onclick = function () { m.aterramento = (m.aterramento || []).concat([{ ponto: 'CX-' + String((m.aterramento || []).length + 1).padStart(2, '0'), local: '', valorOhm: '' }]); salvarM(true); };
@@ -871,6 +1058,9 @@
     a.querySelectorAll('[data-mx]').forEach(function (b) { b.onclick = function () { var p = b.dataset.mx.split('|'); m[p[0]].splice(Number(p[1]), 1); salvarM(true); }; });
     [['q-tipo', 'tipo'], ['q-marca', 'marca'], ['q-mod', 'modelo'], ['q-serie', 'serie'], ['q-cert', 'certificado'], ['q-val', 'validade']].forEach(function (x) { $(x[0]).oninput = function () { m.equipamento = Object.assign({}, m.equipamento, { [x[1]]: this.value }); salvarM(false); }; });
     $('q-met').oninput = function () { m.metodo = this.value; salvarM(false); };
+    var pegaEq = function (id) { return (cache.equipamentos || []).find(function (e) { return e.id === id; }); };
+    $('q-eqat').onchange = function () { var e = pegaEq(this.value); m.equipamento = e ? eqParaLaudo(e) : Object.assign({}, m.equipamento, { equipamentoId: '' }); salvarM(true); };
+    $('q-eqco').onchange = function () { var e = pegaEq(this.value); m.equipamento2 = e ? eqParaLaudo(e) : {}; salvarM(true); };
     $('q-cli').oninput = function () { m.clima = this.value; salvarM(false); };
     $('q-lat').onchange = function () { m.limites = Object.assign({}, lim, { aterramentoOhm: num(this.value) || SPDA.LIMITES_PADRAO.aterramentoOhm }); salvarM(true); };
     $('q-lco').onchange = function () { m.limites = Object.assign({}, lim, { continuidadeOhm: num(this.value) || SPDA.LIMITES_PADRAO.continuidadeOhm }); salvarM(true); };
@@ -939,6 +1129,7 @@
     if (!box) return;
     // laudo concluído mostra o que foi usado na conclusão (cópia gravada no laudo)
     var base = trava && l.gerenciamentoRisco ? Object.assign({}, ed, { dimensoes: l.gerenciamentoRisco.dimensoes, risco: l.gerenciamentoRisco.risco }) : ed;
+    if (!trava && !(base.risco && base.risco.ng) && cfg().ngPadrao) base = Object.assign({}, base, { risco: Object.assign({}, base.risco || {}, { ng: cfg().ngPadrao }) }); // NG da região (Configurações)
     var r = riscoDe(base), c = SPDA.calcularRisco(base), pode = !trava && !!ed.id;
     var npLaudo = l.nivelProtecao || '', menosRigoroso = c.npAdotado && c.npAdotado !== 'nenhum' && (!npLaudo || RK.ORDEM_NP.indexOf(npLaudo) < RK.ORDEM_NP.indexOf(c.npAdotado));
     box.innerHTML = '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><h2 style="margin:0">' + ic('raio', 18) + ' Zonas de risco <span class="muted" style="font-weight:400;font-size:14px">ABNT NBR 5419-2</span></h2>' +
@@ -1211,7 +1402,7 @@
       }).join('') +
       '<section class="pg"><h2>' + (ls.length + 2) + '. Conclusão geral e responsável técnico</h2>' + resumo +
       '<p>' + (PAR[pior] ? 'Situação geral da planta: <b style="color:' + PAR[pior][1] + '">' + PAR[pior][0] + '</b> (a pior situação entre as edificações). ' : '') + 'As recomendações de cada edificação estão na parte correspondente.</p>' +
-      partes[0].ass.replace(/<b>[^<]*<\/b><br>Engenheiro Eletricista · CREA [^<]*<br>ART nº [^<]*/, '<b>' + esc(rp.nome || '') + '</b><br>Engenheiro Eletricista · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '')) + '</section>';
+      partes[0].ass.replace(/<b>[^<]*<\/b><br>[^<]* · CREA [^<]*<br>ART nº [^<]*/, '<b>' + esc(rp.nome || '') + '</b><br>' + esc(cfg().responsavel.titulo) + ' · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '')) + '</section>';
     var rod = 'Laudo SPDA OS ' + (l0.osCodigo || '') + ' · ' + (l0.empresaNome || '') + ' · IDEALLE Inspeções e Serviços';
     var css = partes[0].css.replace(/@bottom-left\{content:"[^"]*"/, '@bottom-left{content:"' + rod.replace(/["\\]/g, '') + '"').replace(/body::before\{content:"RASCUNHO"[^}]*\}/, '') + (todosConcl ? '' : 'body::before{content:"RASCUNHO";position:fixed;top:40%;left:15%;font-size:110pt;color:rgba(200,0,0,.08);transform:rotate(-30deg);z-index:-1}') +
       '.ed-parte{page-break-before:always}.ed-cab{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#0b5c99;color:#fff;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;flex-direction:column}.ed-cab span{font-size:8pt;letter-spacing:.14em;color:#cfe9fb}.ed-cab b{font-size:16pt}.ed-cab small{font-size:9pt;color:#e0f2fe}';
@@ -1297,21 +1488,22 @@
           '</div></div>';
       })() +
       '<div class="capa-r">IDEALLE Inspeções e Serviços · Guarulhos/SP</div></section>';
-    var sumarioHtml = '<h2>Sumário</h2><ol class="sum"><li>Dados da edificação</li><li>Critérios e nível de proteção</li>' + (temRisco(l, ed) ? '<li>Gerenciamento de risco por zonas</li>' : '') + '<li>Checklist de inspeção</li><li>Medições elétricas</li><li>Não conformidades e plano de ação</li><li>Registro fotográfico</li><li>Conclusão e recomendações</li><li>Responsável técnico</li></ol>';
+    var sumarioHtml = '<h2>Sumário</h2><ol class="sum"><li>Dados da edificação</li>' + (cfg().escopoNoLaudo && cfg().escopo.trim() ? '<li>Escopo, método e limitações</li>' : '') + '<li>Critérios e nível de proteção</li>' + (temRisco(l, ed) ? '<li>Gerenciamento de risco por zonas</li>' : '') + '<li>Checklist de inspeção</li><li>Medições elétricas</li><li>Não conformidades e plano de ação</li><li>Registro fotográfico</li><li>Conclusão e recomendações</li><li>Responsável técnico</li></ol>';
     var secoesHtml =
       titulo('Dados da edificação') + tabela(['Campo', 'Informação'], [['Cliente', l.empresaNome], ['CNPJ', l.cnpj], ['Edificação', ed.nome || l.edificacaoNome], ['Atividade', ed.atividade], ['Endereço', [en.logradouro, en.numero, en.bairro, en.cidade, en.uf, en.cep].filter(Boolean).join(', ')], ['Dimensões (C × L × A)', [dm.comprimentoM, dm.larguraM, dm.alturaM].some(function (x) { return x !== '' && x != null; }) ? [dm.comprimentoM, dm.larguraM, dm.alturaM].map(numCampo).join(' × ') + ' m' : ''], ['Estrutura', ed.tipoEstrutura], ['Cobertura', ed.coberturaTipo], ['Descidas encontradas na inspeção', descidasDoLaudo(l, ed) ? descidasDoLaudo(l, ed) + (ed.qtdDescidas && Number(ed.qtdDescidas) !== descidasDoLaudo(l, ed) ? ' (informado no cadastro: ' + ed.qtdDescidas + ')' : '') : ''], ['Tipo de inspeção', SPDA.TIPOS_INSPECAO[l.tipoInspecao]], ['Inspetor', l.inspetor]].map(function (x) { return '<tr><td><b>' + x[0] + '</b></td><td>' + esc(x[1] == null ? '' : x[1]) + '</td></tr>'; })) +
+      (cfg().escopoNoLaudo && cfg().escopo.trim() ? titulo('Escopo, método e limitações') + cfg().escopo.trim().split(/\n+/).map(function (pp) { return '<p>' + esc(pp) + '</p>'; }).join('') : '') +
       titulo('Critérios e nível de proteção') + '<p>Inspeção realizada segundo a ABNT NBR 5419 (partes 1 a 4), com verificação visual dos subsistemas de captação, descidas, aterramento, equipotencialização e proteção contra surtos, e medições elétricas.</p>' +
       (n ? tabela(['Nível de proteção', 'Método de captação', 'Esfera rolante', 'Malha', 'Distância entre descidas'], ['<tr><td><b>NP ' + n.classe + '</b></td><td>' + esc(SPDA.METODOS_CAPTACAO[l.metodoCaptacao] || '—') + '</td><td>R = ' + n.raioEsferaM + ' m</td><td>' + n.malhaM.join(' × ') + ' m</td><td>' + n.distDescidasM + ' m</td></tr>']) : '<p>Nível de proteção não informado.</p>') +
       secaoRisco(l, ed, titulo) +
       titulo('Checklist de inspeção') + ckHtml +
-      titulo('Medições elétricas') + '<p>Equipamento: ' + esc([m.equipamento.tipo, m.equipamento.marca, m.equipamento.modelo].filter(Boolean).join(' ') || '—') + (m.equipamento.serie ? ', série ' + esc(m.equipamento.serie) : '') + (m.equipamento.certificado ? ', certificado ' + esc(m.equipamento.certificado) + (m.equipamento.validade ? ' (válido até ' + dt(m.equipamento.validade) + ')' : '') : '') + '. Método: ' + esc(m.metodo || '—') + (m.clima ? '. Condições: ' + esc(m.clima) : '') + '.</p>' +
+      titulo('Medições elétricas') + '<p>Equipamento: ' + esc([m.equipamento.tipo, m.equipamento.marca, m.equipamento.modelo].filter(Boolean).join(' ') || '—') + (m.equipamento.serie ? ', série ' + esc(m.equipamento.serie) : '') + (m.equipamento.certificado ? ', certificado ' + esc(m.equipamento.certificado) + (m.equipamento.laboratorio ? ' — ' + esc(m.equipamento.laboratorio) : '') + (m.equipamento.validade ? ' (válido até ' + dt(m.equipamento.validade) + ')' : '') : '') + ((m.equipamento2 || {}).tipo ? '. Continuidade: ' + esc([m.equipamento2.tipo, m.equipamento2.marca, m.equipamento2.modelo].filter(Boolean).join(' ')) + (m.equipamento2.serie ? ', série ' + esc(m.equipamento2.serie) : '') + (m.equipamento2.certificado ? ', certificado ' + esc(m.equipamento2.certificado) + (m.equipamento2.validade ? ' (válido até ' + dt(m.equipamento2.validade) + ')' : '') : '') : '') + '. Método: ' + esc(m.metodo || '—') + (m.clima ? '. Condições: ' + esc(m.clima) : '') + '.</p>' +
       '<h3>Resistência de aterramento (referência ≤ ' + numCampo(lim.aterramentoOhm) + ' Ω)</h3>' + (medAt.length ? tabela(['Ponto', 'Local', 'Valor', 'Avaliação'], medAt) : '<p>Sem medições.</p>') +
       '<h3>Continuidade elétrica (referência ≤ ' + numCampo(lim.continuidadeOhm) + ' Ω)</h3>' + (medCo.length ? tabela(['Trecho', 'Valor', 'Avaliação'], medCo) : '<p>Sem medições.</p>') +
       titulo('Não conformidades e plano de ação') + (nc.length ? tabela(['Item', 'Problema encontrado', 'Recomendação', 'Prazo'], nc.slice().sort(function (a, b) { return 'IAB'.indexOf(a.prioridade) - 'IAB'.indexOf(b.prioridade); }).map(function (x) { var pr = SPDA.PRIORIDADES[x.prioridade] || SPDA.PRIORIDADES.A; return '<tr><td class="cod">' + esc(x.codigo) + '</td><td>' + esc((x.problemas || []).map(function (q) { return q.t; }).join('; ') || x.texto) + (x.obs ? '<br><i>' + esc(x.obs) + '</i>' : '') + '</td><td>' + esc(x.recomendacao || (x.obs ? 'Corrigir: ' + x.obs : 'Corrigir o item conforme a ABNT NBR 5419-3.')) + '</td><td class="pr-' + (x.prioridade || 'A') + '">' + pr[0] + '</td></tr>'; })) + (fotosNc.length ? gradeFotos(fotosNc) : '') : '<p>Nenhuma não conformidade encontrada.</p>') +
       (fotos.length ? gradeFotos(fotos, titulo('Registro fotográfico')) : titulo('Registro fotográfico') + '<p>Sem fotos.</p>') +
       titulo('Conclusão e recomendações') + (par ? '<p class="parecer ' + c.parecer + '">PARECER: ' + par[0].toUpperCase() + '</p>' : '') + '<p class="pre">' + esc(c.texto || '') + '</p>' + (c.recomendacoes ? '<h3>Recomendações</h3><p class="pre">' + esc(c.recomendacoes) + '</p>' : '') +
       '<p>Próxima inspeção recomendada: <b>' + (l.proximaInspecao ? dt(l.proximaInspecao) : 'em ' + (l.periodicidadeMeses || 12) + ' meses') + '</b>.</p>';
-    var assHtml = '<div class="ass"><div class="linha-ass"></div><b>' + esc(rp.nome || '') + '</b><br>Engenheiro Eletricista · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '') + '<br>IDEALLE Inspeções e Serviços</div>';
+    var assHtml = '<div class="ass"><div class="linha-ass"></div><b>' + esc(rp.nome || '') + '</b><br>' + esc(cfg().responsavel.titulo) + ' · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '') + '<br>IDEALLE Inspeções e Serviços</div>';
     var corpo = capaHtml + '<section class="pg">' + sumarioHtml + secoesHtml + titulo('Responsável técnico') + assHtml + '</section>';
     var rodape = 'Laudo SPDA ' + (l.numero || '(rascunho)') + ' · ' + (l.empresaNome || '') + ' · IDEALLE Inspeções e Serviços';
     var css = '@page{size:A4;margin:16mm 14mm 18mm;@bottom-right{content:"Página " counter(page) " de " counter(pages);font:8pt Arial,sans-serif;color:#555}@bottom-left{content:"' + rodape.replace(/["\\]/g, '') + '";font:8pt Arial,sans-serif;color:#555}}@page:first{@bottom-right{content:none}@bottom-left{content:none}}body{font:11pt Arial,sans-serif;color:#111;margin:0}h1{font-size:24pt;margin:8px 0}h2{font-size:13pt;color:#0b5c99;border-bottom:2px solid #4db6ef;padding-bottom:4px;margin:22px 0 10px}h3{font-size:11pt;margin:14px 0 6px}' +
