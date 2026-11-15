@@ -258,6 +258,24 @@
   }
   function coef(tab, chave, padrao) { var x = RISCO[tab][chave] || RISCO[tab][padrao]; return x[1]; }
   function areaColeta(L, W, H) { return L * W + 2 * (3 * H) * (L + W) + Math.PI * Math.pow(3 * H, 2); } // AD - Equação A.2
+  var ALERTA_NP_I = 'O Nível I não basta para baixar o risco ao tolerável: são necessárias medidas adicionais ' +
+    '(ex.: blindagem/isolação das descidas, equipotencialização do solo, barreiras e avisos contra tensão de toque e passo, ' +
+    'proteção automática contra incêndio, restrição de permanência de pessoas nas zonas críticas).';
+  // Sugestão automática do NP (NBR 5419-2): risco sem proteção; se passar de RT, testa NP IV, III, II e I (Tabela B.2, PB)
+  // e devolve o primeiro que atende. riscoCom(np) recebe 'nenhum' ou o nível e devolve R1 da estrutura.
+  function sugerirNivelProtecao(riscoCom, rt) {
+    rt = rt || RISCO.RT;
+    var semProtecao = riscoCom('nenhum'), tentativas = [{ nivel: 'nenhum', risco: semProtecao, atende: semProtecao <= rt }];
+    if (semProtecao <= rt) return { riscoSemProtecao: semProtecao, spdaObrigatorio: false, nivel: 'nenhum', nivelSugerido: 'Não requerido', riscoCalculado: semProtecao, alerta: '', tentativas: tentativas };
+    var niveis = ['IV', 'III', 'II', 'I'];
+    for (var i = 0; i < niveis.length; i++) {
+      var r = riscoCom(niveis[i]);
+      tentativas.push({ nivel: niveis[i], risco: r, atende: r <= rt });
+      if (r <= rt) return { riscoSemProtecao: semProtecao, spdaObrigatorio: true, nivel: niveis[i], nivelSugerido: niveis[i], riscoCalculado: r, alerta: '', tentativas: tentativas };
+    }
+    return { riscoSemProtecao: semProtecao, spdaObrigatorio: true, nivel: 'insuficiente', nivelSugerido: 'Especial (Nível I insuficiente - exige medidas extras)',
+      riscoCalculado: tentativas[tentativas.length - 1].risco, alerta: ALERTA_NP_I, tentativas: tentativas };
+  }
   // Calcula RA e RB por zona e o total da estrutura para cada NP; sugere o NP mínimo (RA + RB <= RT).
   function calcularRisco(ed) {
     var dm = (ed && ed.dimensoes) || {}, r = (ed && ed.risco) || {}, zonas = r.zonas || [];
@@ -280,16 +298,15 @@
       return { id: z.id, nome: z.nome, f: f, rt: rt, rf: rf, rp: rp, hz: hz, LF: LF, PTA: PTA, LA: LA, LB: LB, porNp: porNp, npMinimo: npMin };
     });
     var total = {}; RISCO.ORDEM_NP.forEach(function (np) { total[np] = porZona.reduce(function (t, z) { return t + z.porNp[np].R; }, 0); });
-    var npMinimo = faltam.length ? '' : (RISCO.ORDEM_NP.filter(function (np) { return total[np] <= RISCO.RT; })[0] || 'insuficiente');
+    var sug = faltam.length ? null : sugerirNivelProtecao(function (np) { return total[np]; });
+    var npMinimo = sug ? sug.nivel : '';
     // NP adotado: o mais rigoroso entre o mínimo calculado e o escolhido em cada zona
     var npAdotado = npMinimo === 'insuficiente' ? 'I' : npMinimo;
     zonas.forEach(function (z) { if (z.npAdotado && RISCO.ORDEM_NP.indexOf(z.npAdotado) > RISCO.ORDEM_NP.indexOf(npAdotado)) npAdotado = z.npAdotado; });
     var R = faltam.length || !npAdotado ? null : total[npAdotado];
     return { faltam: faltam, L: L, W: W, H: H, NG: NG, CD: CD, AD: AD, ND: ND, nt: nt, zonas: porZona, total: total, npMinimo: npMinimo, npAdotado: faltam.length ? '' : npAdotado, R: R,
-      // mesmo formato de calcularNivelSPDA: obrigatório se o risco sem proteção passa de RT; nível = o primeiro (IV, III, II, I) que atende
-      spdaObrigatorio: faltam.length ? null : total.nenhum > RISCO.RT,
-      nivelSugerido: faltam.length ? '' : npMinimo === 'nenhum' ? 'Não requerido' : npMinimo === 'insuficiente' ? 'Especial (Nível I insuficiente - exige medidas extras)' : npMinimo,
-      riscoCalculado: faltam.length ? null : npMinimo === 'insuficiente' ? total.I : total[npMinimo] };
+      spdaObrigatorio: sug ? sug.spdaObrigatorio : null, nivelSugerido: sug ? sug.nivelSugerido : '', riscoSemProtecao: sug ? sug.riscoSemProtecao : null,
+      riscoCalculado: sug ? sug.riscoCalculado : null, alerta: sug ? sug.alerta : '', tentativas: sug ? sug.tentativas : [] };
   }
 
   var SPDA = {
@@ -298,7 +315,7 @@
     novaEdificacao: novaEdificacao, novoLaudo: novoLaudo, novaFoto: novaFoto, checklistEmBranco: checklistEmBranco,
     avaliarMedicoes: avaliarMedicoes, naoConformidades: naoConformidades, parecerSugerido: parecerSugerido,
     pendencias: pendencias, podeMudarStatus: podeMudarStatus, aoConcluir: aoConcluir, proximoNumero: proximoNumero, num: num,
-    RISCO: RISCO, novaZona: novaZona, calcularRisco: calcularRisco, areaColeta: areaColeta
+    RISCO: RISCO, novaZona: novaZona, calcularRisco: calcularRisco, areaColeta: areaColeta, sugerirNivelProtecao: sugerirNivelProtecao
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = SPDA; else raiz.SPDA = SPDA;
 })(typeof window !== 'undefined' ? window : this);

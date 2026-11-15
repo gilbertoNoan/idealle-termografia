@@ -48,4 +48,8 @@ assert.strictEqual(c1.spdaObrigatorio, false); assert.strictEqual(c1.nivelSugeri
 assert.strictEqual(c2.spdaObrigatorio, true); assert.strictEqual(c2.nivelSugerido, c2.npMinimo); assert.ok(c2.riscoCalculado <= 1e-5);
 var g3 = JSON.parse(JSON.stringify(g)); g3.risco.ng = '100000'; var c3 = S.calcularRisco(g3);
 assert.strictEqual(c3.npMinimo, 'insuficiente'); assert.ok(/Especial/.test(c3.nivelSugerido)); assert.strictEqual(c3.riscoCalculado, c3.total.I);
+assert.ok(c3.alerta.length > 0 && c3.tentativas.length === 5 && c3.tentativas.every(function (x) { return !x.atende; }));
+var sg = S.sugerirNivelProtecao(function (np) { return { nenhum: 5e-5, IV: 1.2e-5, III: 6e-6, II: 3e-6, I: 1e-6 }[np]; });
+assert.strictEqual(sg.nivelSugerido, 'III'); assert.strictEqual(sg.tentativas.length, 3); assert.strictEqual(sg.riscoSemProtecao, 5e-5);
+assert.strictEqual(S.sugerirNivelProtecao(function () { return 1e-6; }).nivelSugerido, 'Não requerido');
 console.log('SPDA modelo: todos os testes passaram');

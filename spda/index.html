@@ -841,6 +841,7 @@
         '<div class="z-np-final"><div><span class="muted">Nível de proteção da edificação (pelas zonas)</span><b>' + nomeNp(c.npAdotado) + '</b></div>' +
         (pode && c.npAdotado && !l.semLaudo && npLaudo !== c.npAdotado && (menosRigoroso || !npLaudo) ? '<button class="btn" id="z-usar">Usar ' + nomeNp(c.npAdotado) + ' neste laudo</button>' : '') + '</div>' +
         (!l.semLaudo && npLaudo && !menosRigoroso && npLaudo !== c.npAdotado ? '<div class="muted" style="margin-top:8px;font-size:13px">O laudo usa NP ' + esc(npLaudo) + ', mais rigoroso que o resultado das zonas (' + nomeNp(c.npAdotado) + '): atende.</div>' : '') +
+        (c.alerta ? '<div class="aviso" style="margin-top:8px;background:var(--bad-2, rgba(239,68,68,.12));color:var(--bad)"><b>Atenção:</b> ' + esc(c.alerta) + '</div>' : '') +
         (menosRigoroso && !l.semLaudo ? '<div class="aviso" style="margin-top:8px">O laudo está com ' + (npLaudo ? 'NP ' + esc(npLaudo) : 'NP em branco') + ', menos rigoroso que o resultado das zonas (' + nomeNp(c.npAdotado) + ').</div>' : '') +
         '<p class="muted" style="font-size:12.5px;margin:8px 0 0">Cálculo das componentes devidas a descargas na estrutura (S1): R<sub>A</sub> (choque) e R<sub>B</sub> (danos físicos). As componentes dos sistemas internos e das linhas (R<sub>C</sub>, R<sub>M</sub>, R<sub>U</sub>, R<sub>V</sub>, R<sub>W</sub>, R<sub>Z</sub>) são avaliadas com o projeto de DPS.</p></div>');
     if (!pode) return;
@@ -1115,6 +1116,7 @@
     var npL = l.nivelProtecao || '';
     h += '<p><b>Nível de proteção resultante:</b> o menor nível que atende R1 ≤ R<sub>T</sub> é <b>' + nomeNp(c.npMinimo) + '</b>' + (c.npAdotado !== c.npMinimo ? '; por decisão técnica nas zonas foi adotado <b>' + nomeNp(c.npAdotado) + '</b>' : '') + '. ' +
       (npL ? 'Nível de proteção considerado neste laudo: <b>NP ' + esc(npL) + '</b>' + (c.npAdotado && c.npAdotado !== 'nenhum' && RK.ORDEM_NP.indexOf(npL) < RK.ORDEM_NP.indexOf(c.npAdotado) ? ' <span style="color:#b91c1c">(menos rigoroso que o resultado das zonas — ver recomendações)</span>' : '') + '.' : '') + '</p>' +
+      (c.alerta ? '<p style="color:#b91c1c"><b>Atenção:</b> ' + esc(c.alerta) + '</p>' : '') +
       (just ? '<p><b>Justificativas técnicas por zona:</b></p><ul>' + just + '</ul>' : '') +
       '<p style="font-size:8.5pt;color:#555">As componentes R<sub>C</sub> e R<sub>M</sub> (sistemas internos) e R<sub>U</sub>, R<sub>V</sub>, R<sub>W</sub> e R<sub>Z</sub> (linhas conectadas) dependem do projeto de proteção contra surtos (DPS) e das linhas de energia e sinal, e não estão incluídas neste cálculo.</p>';
     return h;
