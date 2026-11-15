@@ -160,7 +160,7 @@
   .galeria { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
   .galeria figure { margin: 0; } .galeria img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; }
   .galeria figcaption { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; } .galeria figcaption input { font-size: 13px; padding: 6px; }
-  .med-linha { display: grid; grid-template-columns: 1fr 1fr 130px 36px; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .med-linha { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; } .med-linha > input { flex: 1 1 0; min-width: 0; } .med-linha .ohm { flex: 0 0 130px; } .med-linha > .btn { flex: 0 0 36px; }
   .med-linha.fora input { border-color: var(--bad); color: var(--bad); } .ohm { position: relative; } .ohm span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); }
   .np-info { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 12px 0 6px; }
   .np-info div, .dados-ed div { background: var(--gray-2); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; } .np-info span, .dados-ed span { color: var(--muted); font-size: 12px; }
@@ -177,7 +177,7 @@
   .pdf-tit { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pdf-barra { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: var(--card); border-bottom: 1px solid var(--line); }
   #aviso-rede { display: none; background: var(--azul-2); color: var(--azul); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
-  @media (max-width: 640px) { .med-linha { grid-template-columns: 1fr 110px 36px; } .med-linha input[data-m*="local"] { display: none; } .parecer button { min-width: 100%; } }
+  @media (max-width: 640px) { .med-linha .ohm { flex-basis: 104px; } .med-mini { display: none; } .med-linha input[data-m*="local"] { display: none; } .parecer button { min-width: 100%; } }
   /* ===== Lista de laudos (identidade SPDA) ===== */
   .sp-hero { position: relative; overflow: hidden; border: 1px solid #164651; border-radius: 16px; padding: 18px 18px 16px; margin-bottom: 18px;
     background: radial-gradient(120% 140% at 100% 0%, rgba(47,208,232,.16), transparent 55%), linear-gradient(160deg, #0b1822, #070b11); }
@@ -221,6 +221,8 @@
     .sp-ed .sp-prog { grid-column: 2 / 4; } .sp-ed .sp-nc { grid-column: 2 / 4; text-align: left; } .sp-ed .sp-nc b { display: inline; margin-right: 4px; } .sp-seta { display: none; }
   }
   .sp-os-cab{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 4px 4px;font-size:13px;color:var(--muted, #94a3b8)}.sp-os-cab b{color:#7dd3fc}
+  .med-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.med-foto{width:44px;height:44px;flex-shrink:0}
+  .med-mini{display:flex;gap:4px}.med-mini img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.15)}
   .desc-box{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;padding:12px;border:1px solid rgba(255,255,255,.1);border-radius:10px}
   .stepper{display:flex;align-items:center;gap:0}.stepper button{width:44px;height:44px;border:1px solid rgba(255,255,255,.18);background:transparent;color:inherit;font-size:22px;cursor:pointer}.stepper button:first-child{border-radius:10px 0 0 10px}.stepper button:last-child{border-radius:0 10px 10px 0}.stepper input{width:64px;height:44px;text-align:center;border-radius:0;font-size:18px;font-weight:700}
   .end-acoes{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 0}.end-acoes .muted{font-size:12.5px;flex:1;min-width:200px}
@@ -769,9 +771,32 @@
     toast(plural(files.length, 'foto salva', 'fotos salvas') + (navigator.onLine ? '.' : ' no aparelho (vai subir quando a internet voltar).'));
     render();
   }
+  // Foto do aparelho na medição (aterramento ou continuidade): fica ligada à linha da medição
+  async function enviarFotosMedicao(l, tipo, k, files) {
+    if (!files.length) return;
+    var lista = l.medicoes[tipo] || [], x = lista[k];
+    if (!x) { x = tipo === 'aterramento' ? { ponto: 'CX-' + String(lista.length + 1).padStart(2, '0'), local: '', valorOhm: '' } : { trecho: 'T-' + String(lista.length + 1).padStart(2, '0'), valorOhm: '' }; lista.push(x); l.medicoes[tipo] = lista; }
+    for (var i = 0; i < files.length; i++) {
+      toast('Enviando foto ' + (i + 1) + '/' + files.length + '…');
+      try {
+        var full = await reduzir(files[i], 1400, .72), th = await reduzir(files[i], 220, .6);
+        var fid = await banco.criar(SPDA.COLECOES.fotos, SPDA.novaFoto(l.id, 'MED', full, ''));
+        x.fotos = (x.fotos || []).concat([{ id: fid, thumb: th, legenda: '' }]);
+        await gravarLaudo(l, { medicoes: l.medicoes });
+      } catch (e) { toast('Não foi possível enviar a foto ' + files[i].name); }
+    }
+    toast('Foto da medição ' + (x.ponto || x.trecho || '') + ' salva. Digite o valor lido.');
+    render();
+    setTimeout(function () { var inp = document.querySelector('[data-m="' + tipo + '|' + lista.indexOf(x) + '|valorOhm"]'); if (inp && !inp.value) inp.focus(); }, 80);
+  }
+  function rotuloMed(tipo, x) {
+    var v = x.valorOhm === '' || x.valorOhm == null ? '' : ': ' + String(x.valorOhm).replace('.', ',') + ' Ω';
+    return (tipo === 'aterramento' ? 'Resistência de aterramento ' + (x.ponto || '') + (x.local ? ' (' + x.local + ')' : '') : 'Continuidade ' + (x.trecho || '')) + v;
+  }
   function todasFotos(l) {
     var t = [];
     (l.checklist || []).forEach(function (i, k) { (i.fotos || []).forEach(function (f, j) { t.push({ f: f, item: i, k: k, j: j }); }); });
+    ['aterramento', 'continuidade'].forEach(function (tipo) { ((l.medicoes || {})[tipo] || []).forEach(function (x, k) { (x.fotos || []).forEach(function (f, j) { t.push({ f: f, item: null, med: { tipo: tipo, k: k, x: x }, j: j }); }); }); });
     (l.fotosGerais || []).forEach(function (f, j) { t.push({ f: f, item: null, j: j }); });
     return t;
   }
@@ -781,17 +806,17 @@
       (trava ? '' : '<label class="btn">' + ic('camera', 16) + ' Foto geral<input type="file" accept="image/*" capture="environment" multiple id="f-geral" style="display:none"></label>') + '</div>' +
       '<p class="muted">As fotos tiradas no checklist já ficam ligadas ao item. Escreva uma legenda curta: ela sai no PDF.</p>' +
       (t.length ? '<div class="galeria">' + t.map(function (x, n) {
-        return '<figure><img src="' + esc(x.f.thumb) + '" data-ver="' + x.f.id + '" alt=""><figcaption>' + (x.item ? '<span class="cod">' + esc(x.item.codigo) + '</span>' + (x.item.r === 'NC' ? ' <span class="chip bad">NC</span>' : '') : '<span class="cod">Geral</span>') +
+        return '<figure><img src="' + esc(x.f.thumb) + '" data-ver="' + x.f.id + '" alt=""><figcaption>' + (x.item ? '<span class="cod">' + esc(x.item.codigo) + '</span>' + (x.item.r === 'NC' ? ' <span class="chip bad">NC</span>' : '') : x.med ? '<span class="cod">Medição ' + esc(x.med.x.ponto || x.med.x.trecho || '') + '</span>' : '<span class="cod">Geral</span>') +
           '<input data-leg="' + n + '" value="' + esc(x.f.legenda || '') + '" placeholder="Legenda"' + (trava ? ' disabled' : '') + '>' + (trava ? '' : '<button class="btn sec peq" data-rmf="' + n + '">Excluir</button>') + '</figcaption></figure>';
       }).join('') + '</div>' : '<div class="vazio">Nenhuma foto ainda.</div>') + '</div>';
     var g = $('f-geral'); if (g) g.onchange = function () { enviarFotos(l, Array.from(this.files || []), ''); this.value = ''; };
-    function salvarRefs(msg) { gravarLaudo(l, { checklist: l.checklist, fotosGerais: l.fotosGerais || [] }, msg); }
+    function salvarRefs(msg) { gravarLaudo(l, { checklist: l.checklist, fotosGerais: l.fotosGerais || [], medicoes: l.medicoes }, msg); }
     a.querySelectorAll('[data-leg]').forEach(function (inp) { inp.onchange = function () { t[Number(inp.dataset.leg)].f.legenda = inp.value.trim(); salvarRefs(); banco.atualizar(SPDA.COLECOES.fotos, t[Number(inp.dataset.leg)].f.id, { legenda: inp.value.trim() }).catch(function () {}); }; });
     a.querySelectorAll('[data-rmf]').forEach(function (b) {
       b.onclick = function () {
         if (!confirm('Excluir esta foto?')) return;
         var x = t[Number(b.dataset.rmf)];
-        if (x.item) x.item.fotos.splice(x.j, 1); else l.fotosGerais.splice(x.j, 1);
+        if (x.item) x.item.fotos.splice(x.j, 1); else if (x.med) x.med.x.fotos.splice(x.j, 1); else l.fotosGerais.splice(x.j, 1);
         banco.excluir(SPDA.COLECOES.fotos, x.f.id).catch(function () {});
         salvarRefs('Foto excluída.'); render();
       };
@@ -812,17 +837,22 @@
     if (!trava && nDesc && !(l.medicoes.aterramento || []).length) { l.medicoes.aterramento = []; for (var q = 1; q <= nDesc; q++) l.medicoes.aterramento.push({ ponto: 'CX-' + String(q).padStart(2, '0'), local: '', valorOhm: '' }); gravarLaudo(l, { medicoes: l.medicoes }); }
     var m = l.medicoes, lim = m.limites || SPDA.LIMITES_PADRAO, eq = m.equipamento || {};
     var dis = trava ? ' disabled' : '';
+    // primeira linha sem foto (ou uma nova): o inspetor só vai fotografando ponto a ponto
+    var idxSemFoto = function (tipo) { var ls = m[tipo] || [], k = ls.findIndex(function (x) { return !(x.fotos || []).length; }); return k >= 0 ? k : ls.length; };
+    var proxSemFoto = function (tipo) { var ls = m[tipo] || [], k = idxSemFoto(tipo); return ls[k] ? (ls[k].ponto || ls[k].trecho || 'próxima medição') : (tipo === 'aterramento' ? 'novo ponto' : 'novo trecho'); };
     var linha = function (tipo, x, k) {
       var v = SPDA.num(x.valorOhm), max = tipo === 'aterramento' ? lim.aterramentoOhm : lim.continuidadeOhm, fora = !isNaN(v) && v > max;
       return '<div class="med-linha' + (fora ? ' fora' : '') + '"><input data-m="' + tipo + '|' + k + '|' + (tipo === 'aterramento' ? 'ponto' : 'trecho') + '" value="' + esc(tipo === 'aterramento' ? x.ponto : x.trecho) + '" placeholder="' + (tipo === 'aterramento' ? 'Ponto (ex.: CX-01)' : 'Trecho (ex.: Descida 1 → captação)') + '"' + dis + '>' +
         (tipo === 'aterramento' ? '<input data-m="' + tipo + '|' + k + '|local" value="' + esc(x.local || '') + '" placeholder="Local"' + dis + '>' : '') +
         '<div class="ohm"><input data-m="' + tipo + '|' + k + '|valorOhm" inputmode="decimal" value="' + esc(numCampo(x.valorOhm)) + '" placeholder="0,00"' + dis + '><span>Ω</span></div>' +
+        (trava ? '' : '<label class="foto-bt med-foto" title="Foto do aparelho nesta medição">' + ic('camera', 18) + ((x.fotos || []).length ? '<b>' + x.fotos.length + '</b>' : '') + '<input type="file" accept="image/*" capture="environment" data-mfoto="' + tipo + '|' + k + '" style="display:none"></label>') +
+        ((x.fotos || []).length ? '<span class="med-mini">' + x.fotos.map(function (f) { return '<img src="' + esc(f.thumb) + '" alt="Foto da medição">'; }).join('') + '</span>' : '') +
         (trava ? '' : '<button class="btn sec peq" data-mx="' + tipo + '|' + k + '" title="Excluir">×</button>') + '</div>';
     };
     a.innerHTML = '<div class="card"><h2>' + ic('medidor', 18) + ' Resistência de aterramento</h2><p class="muted">Referência: até ' + numCampo(lim.aterramentoOhm) + ' Ω. Valores acima entram como não conformidade.' + (nDesc ? ' Descidas encontradas: ' + nDesc + ' (altere na aba Edificação e inspeção).' : '') + '</p>' +
-      (m.aterramento || []).map(function (x, k) { return linha('aterramento', x, k); }).join('') + (trava ? '' : '<button class="btn sec" id="m-add-at">+ Ponto de medição</button>') + '</div>' +
+      (m.aterramento || []).map(function (x, k) { return linha('aterramento', x, k); }).join('') + (trava ? '' : '<div class="med-acoes"><label class="btn">' + ic('camera', 16) + ' Fotografar ' + proxSemFoto('aterramento') + '<input type="file" accept="image/*" capture="environment" data-mprox="aterramento" style="display:none"></label><button class="btn sec" id="m-add-at">+ Ponto de medição</button></div>') + '</div>' +
       '<div class="card"><h2>' + ic('medidor', 18) + ' Continuidade elétrica</h2><p class="muted">Referência: até ' + numCampo(lim.continuidadeOhm) + ' Ω.</p>' +
-      (m.continuidade || []).map(function (x, k) { return linha('continuidade', x, k); }).join('') + (trava ? '' : '<button class="btn sec" id="m-add-co">+ Trecho</button>') + '</div>' +
+      (m.continuidade || []).map(function (x, k) { return linha('continuidade', x, k); }).join('') + (trava ? '' : '<div class="med-acoes"><label class="btn">' + ic('camera', 16) + ' Fotografar ' + proxSemFoto('continuidade') + '<input type="file" accept="image/*" capture="environment" data-mprox="continuidade" style="display:none"></label><button class="btn sec" id="m-add-co">+ Trecho</button></div>') + '</div>' +
       '<div class="card"><h2>Equipamento e condições</h2><div class="linha"><div><label>Equipamento</label><input id="q-tipo" value="' + esc(eq.tipo || '') + '"' + dis + '></div><div><label>Marca</label><input id="q-marca" value="' + esc(eq.marca || '') + '"' + dis + '></div><div><label>Modelo</label><input id="q-mod" value="' + esc(eq.modelo || '') + '"' + dis + '></div></div>' +
       '<div class="linha"><div><label>Nº de série</label><input id="q-serie" value="' + esc(eq.serie || '') + '"' + dis + '></div><div><label>Certificado de calibração</label><input id="q-cert" value="' + esc(eq.certificado || '') + '"' + dis + '></div><div><label>Validade</label><input type="date" id="q-val" value="' + esc(eq.validade || '') + '"' + dis + '></div></div>' +
       '<div class="linha"><div><label>Método</label><input id="q-met" list="l-met" value="' + esc(m.metodo || '') + '"' + dis + '><datalist id="l-met"><option value="Queda de potencial"><option value="Alicate terrômetro"><option value="Método dos 62%"></datalist></div><div><label>Clima / solo</label><input id="q-cli" value="' + esc(m.clima || '') + '" placeholder="Ex.: tempo seco, solo seco"' + dis + '></div></div>' +
@@ -836,6 +866,8 @@
       inp.oninput = function () { var p = inp.dataset.m.split('|'), x = m[p[0]][Number(p[1])]; x[p[2]] = p[2] === 'valorOhm' ? (inp.value.trim() === '' ? '' : num(inp.value)) : inp.value; salvarM(false); };
       if (inp.dataset.m.indexOf('valorOhm') > 0) inp.onchange = function () { render(); };
     });
+    a.querySelectorAll('[data-mfoto]').forEach(function (inp) { inp.onchange = function () { var p = inp.dataset.mfoto.split('|'); enviarFotosMedicao(l, p[0], Number(p[1]), Array.from(this.files || [])); this.value = ''; }; });
+    a.querySelectorAll('[data-mprox]').forEach(function (inp) { inp.onchange = function () { var tp = inp.dataset.mprox; enviarFotosMedicao(l, tp, idxSemFoto(tp), Array.from(this.files || [])); this.value = ''; }; });
     a.querySelectorAll('[data-mx]').forEach(function (b) { b.onclick = function () { var p = b.dataset.mx.split('|'); m[p[0]].splice(Number(p[1]), 1); salvarM(true); }; });
     [['q-tipo', 'tipo'], ['q-marca', 'marca'], ['q-mod', 'modelo'], ['q-serie', 'serie'], ['q-cert', 'certificado'], ['q-val', 'validade']].forEach(function (x) { $(x[0]).oninput = function () { m.equipamento = Object.assign({}, m.equipamento, { [x[1]]: this.value }); salvarM(false); }; });
     $('q-met').oninput = function () { m.metodo = this.value; salvarM(false); };
@@ -1236,7 +1268,7 @@
     }).join('');
     var medAt = (m.aterramento || []).map(function (x) { var v = SPDA.num(x.valorOhm), f = !isNaN(v) && v > lim.aterramentoOhm; return '<tr><td>' + esc(x.ponto) + '</td><td>' + esc(x.local || '') + '</td><td class="num">' + numCampo(x.valorOhm) + ' Ω</td><td class="r ' + (f ? 'NC' : 'C') + '">' + (f ? 'Acima da referência' : 'Dentro da referência') + '</td></tr>'; });
     var medCo = (m.continuidade || []).map(function (x) { var v = SPDA.num(x.valorOhm), f = !isNaN(v) && v > lim.continuidadeOhm; return '<tr><td>' + esc(x.trecho) + '</td><td class="num">' + numCampo(x.valorOhm) + ' Ω</td><td class="r ' + (f ? 'NC' : 'C') + '">' + (f ? 'Acima da referência' : 'Dentro da referência') + '</td></tr>'; });
-    var fotoFig = function (x) { return '<figure><img src="' + grandes[x.f.id] + '"><figcaption><b>' + (x.item ? esc(x.item.codigo) : 'Geral') + '</b> ' + esc(x.f.legenda || (x.item ? x.item.texto : '')) + '</figcaption></figure>'; };
+    var fotoFig = function (x) { return '<figure><img src="' + grandes[x.f.id] + '"><figcaption><b>' + (x.item ? esc(x.item.codigo) : x.med ? 'Medição' : 'Geral') + '</b> ' + esc(x.f.legenda || (x.item ? x.item.texto : x.med ? rotuloMed(x.med.tipo, x.med.x) : '')) + '</figcaption></figure>'; };
     // Fotos em linhas de duas (tabela): no PDF do portal cada linha vai inteira para a página seguinte, sem cortar a foto
     var gradeFotos = function (lista, cab) {
       var linha = function (q) { return '<tr><td>' + fotoFig(lista[q]) + '</td><td>' + (lista[q + 1] ? fotoFig(lista[q + 1]) : '') + '</td></tr>'; }, h = '';
