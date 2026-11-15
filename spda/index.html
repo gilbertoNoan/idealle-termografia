@@ -221,6 +221,11 @@
     .sp-ed .sp-prog { grid-column: 2 / 4; } .sp-ed .sp-nc { grid-column: 2 / 4; text-align: left; } .sp-ed .sp-nc b { display: inline; margin-right: 4px; } .sp-seta { display: none; }
   }
   .sp-os-cab{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 4px 4px;font-size:13px;color:var(--muted, #94a3b8)}.sp-os-cab b{color:#7dd3fc}
+  .gerar-tx{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 4px}.gerar-tx .muted{font-size:13px}
+  .probs{margin:8px 0 6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}.probs-t{width:100%;font-size:12.5px;font-weight:700;color:var(--muted)}
+  .prob{display:inline-flex;align-items:center;gap:6px;text-align:left;border:1px solid rgba(255,255,255,.16);background:transparent;color:inherit;border-radius:10px;padding:7px 10px;font:inherit;font-size:13px;cursor:pointer}
+  .prob i{width:8px;height:8px;border-radius:50%;flex-shrink:0}.prob.sel{background:rgba(239,68,68,.14);border-color:var(--bad);font-weight:700}
+  .probs-rec{width:100%;font-size:12.5px;color:var(--muted);margin-top:2px}.probs-pr{display:flex;align-items:center;gap:6px;font-size:13px;margin:0}.probs-pr select{width:auto;padding:5px 8px}
   .z-lista{display:flex;flex-direction:column;gap:8px;margin-top:12px}.z-it{display:flex;gap:12px;align-items:center;flex-wrap:wrap;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 12px}
   .z-n{width:38px;height:38px;border-radius:10px;background:rgba(56,189,248,.12);color:#7dd3fc;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .z-np{display:flex;flex-direction:column;font-size:13px;min-width:110px}.z-np span{font-size:11.5px}
@@ -644,6 +649,18 @@
   }
 
   // ----- Checklist (campo, celular) -----
+  // Respostas prontas do item não conforme: um toque escolhe o problema (com correção e prazo); o texto só para detalhar
+  var COR_PR = { I: 'var(--bad)', A: 'var(--warn)', B: 'var(--azul)' };
+  function chipsProblemas(i, k, trava) {
+    var lib = SPDA.problemasDe(i.codigo), sel = (i.problemas || []).map(function (x) { return x.t; });
+    var auto = (i.problemas || []).map(function (x) { return x.pr; }).sort(function (a, b) { return 'IAB'.indexOf(a) - 'IAB'.indexOf(b); })[0] || 'A', pr = i.prioridade || auto;
+    return '<div class="probs"><div class="probs-t">Problema encontrado <span class="muted">(toque para marcar)</span></div>' + lib.map(function (p, n) {
+      var on = sel.indexOf(p.t) >= 0;
+      return '<button type="button" class="prob' + (on ? ' sel' : '') + '" data-prob="' + k + '|' + n + '"' + (trava ? ' disabled' : '') + ' title="' + esc(p.rec) + '"><i style="background:' + COR_PR[p.pr] + '"></i>' + (on ? '✓ ' : '') + esc(p.t) + '</button>';
+    }).join('') +
+      ((i.problemas || []).length ? '<div class="probs-rec"><b>Recomendação no laudo:</b> ' + esc((i.problemas || []).map(function (x) { return x.rec; }).join(' ')) + '</div>' : '') +
+      '<label class="probs-pr">Prazo <select data-prio="' + k + '"' + (trava ? ' disabled' : '') + '>' + Object.keys(SPDA.PRIORIDADES).map(function (c) { return '<option value="' + c + '"' + (c === pr ? ' selected' : '') + '>' + SPDA.PRIORIDADES[c][0] + '</option>'; }).join('') + '</select></label></div>';
+  }
   function abaChecklist(a, l, trava) {
     var ck = l.checklist || [];
     a.innerHTML = SPDA.CHECKLIST.map(function (b) {
@@ -655,7 +672,8 @@
           return '<div class="item ' + (i.r === 'NC' ? 'nc' : '') + '" id="it-' + k + '"><div class="item-tx"><span class="cod">' + esc(i.codigo) + '</span> ' + esc(i.texto) + '</div>' +
             '<div class="resp">' + ['C', 'NC', 'NA'].map(function (r) { return '<button class="r-' + r + (i.r === r ? ' sel' : '') + '" data-r="' + k + '|' + r + '"' + (trava ? ' disabled' : '') + '>' + r + '</button>'; }).join('') +
             '<label class="foto-bt' + (trava ? ' off' : '') + '" title="Foto deste item">' + ic('camera', 18) + (i.fotos && i.fotos.length ? '<b>' + i.fotos.length + '</b>' : '') + '<input type="file" accept="image/*" capture="environment" multiple data-foto="' + k + '" style="display:none"' + (trava ? ' disabled' : '') + '></label></div>' +
-            ((i.r === 'NC' || i.obs) ? '<textarea rows="2" data-obs="' + k + '" placeholder="' + (i.r === 'NC' ? 'Descreva a não conformidade (obrigatório)' : 'Observação') + '"' + (trava ? ' disabled' : '') + '>' + esc(i.obs || '') + '</textarea>' : '<button class="link-obs" data-addobs="' + k + '"' + (trava ? ' hidden' : '') + '>+ observação</button>') +
+            (i.r === 'NC' ? chipsProblemas(i, k, trava) : '') +
+            ((i.r === 'NC' || i.obs) ? '<textarea rows="2" data-obs="' + k + '" placeholder="' + (i.r === 'NC' ? 'Detalhe do problema (opcional se escolheu acima): local, quantidade, medida…' : 'Observação') + '"' + (trava ? ' disabled' : '') + '>' + esc(i.obs || '') + '</textarea>' : '<button class="link-obs" data-addobs="' + k + '"' + (trava ? ' hidden' : '') + '>+ observação</button>') +
             (i.fotos && i.fotos.length ? '<div class="mini-fotos">' + i.fotos.map(function (f) { return '<img src="' + esc(f.thumb) + '" alt="" title="' + esc(f.legenda || '') + '">'; }).join('') + '</div>' : '') + '</div>';
         }).join('') +
         (trava ? '' : '<button class="btn sec peq" data-todosc="' + b.bloco + '">Marcar os vazios deste bloco como C</button>') + '</details>';
@@ -667,9 +685,18 @@
         it.r = it.r === p[1] ? '' : p[1]; tela.bloco = it.bloco;
         gravarLaudo(l, { checklist: l.checklist });
         render();
-        if (it.r === 'NC') setTimeout(function () { var t = document.querySelector('[data-obs="' + p[0] + '"]'); if (t) t.focus(); }, 50);
+
       };
     });
+    a.querySelectorAll('[data-prob]').forEach(function (b) {
+      b.onclick = function () {
+        var q = b.dataset.prob.split('|'), it = l.checklist[Number(q[0])], lib = SPDA.problemasDe(it.codigo)[Number(q[1])];
+        var ps = (it.problemas || []).slice(), j = ps.findIndex(function (x) { return x.t === lib.t; });
+        if (j >= 0) ps.splice(j, 1); else ps.push(lib);
+        it.problemas = ps; tela.bloco = it.bloco; gravarLaudo(l, { checklist: l.checklist }); render();
+      };
+    });
+    a.querySelectorAll('[data-prio]').forEach(function (sel) { sel.onchange = function () { var it = l.checklist[Number(sel.dataset.prio)]; it.prioridade = sel.value; gravarLaudo(l, { checklist: l.checklist }); render(); }; });
     a.querySelectorAll('[data-obs]').forEach(function (t) { t.oninput = function () { l.checklist[Number(t.dataset.obs)].obs = t.value; gravarDepois(l, { checklist: l.checklist }); }; });
     a.querySelectorAll('[data-addobs]').forEach(function (b) { b.onclick = function () { var k = b.dataset.addobs; b.outerHTML = '<textarea rows="2" data-obs="' + k + '" placeholder="Observação"></textarea>'; var t = a.querySelector('[data-obs="' + k + '"]'); t.focus(); t.oninput = function () { l.checklist[Number(k)].obs = t.value; gravarDepois(l, { checklist: l.checklist }); }; }; });
     a.querySelectorAll('[data-todosc]').forEach(function (b) { b.onclick = function () { l.checklist.forEach(function (i) { if (i.bloco === b.dataset.todosc && !i.r) i.r = 'C'; }); tela.bloco = b.dataset.todosc; gravarLaudo(l, { checklist: l.checklist }, 'Bloco preenchido.'); render(); }; });
@@ -889,9 +916,10 @@
     var nc = SPDA.naoConformidades(l), sug = SPDA.parecerSugerido(l), c = l.conclusao || {}, rp = l.responsavel || {}, art = rp.art || {};
     var pend = SPDA.pendencias(l, l.status !== 'rascunho'), dis = trava ? ' disabled' : '';
     a.innerHTML = '<div class="card"><h2>Não conformidades <span class="muted" style="font-weight:400">' + nc.length + '</span></h2>' +
-      (nc.length ? nc.map(function (x) { return '<div class="nc-it"><span class="cod">' + esc(x.codigo) + '</span><div><b>' + esc(x.texto) + '</b>' + (x.obs ? '<div class="muted">' + esc(x.obs) + '</div>' : '') + '</div></div>'; }).join('') : '<p class="muted">Nenhuma não conformidade.</p>') + '</div>' +
+      (nc.length ? nc.map(function (x) { var pr = SPDA.PRIORIDADES[x.prioridade] || SPDA.PRIORIDADES.A; return '<div class="nc-it"><span class="cod">' + esc(x.codigo) + '</span><div style="flex:1"><b>' + esc((x.problemas || []).map(function (q) { return q.t; }).join('; ') || x.texto) + '</b>' + (x.obs ? '<div class="muted">' + esc(x.obs) + '</div>' : '') + (x.recomendacao ? '<div class="muted" style="margin-top:2px">→ ' + esc(x.recomendacao) + '</div>' : '') + '</div><span class="chip" style="background:transparent;border:1px solid ' + COR_PR[x.prioridade || 'A'] + ';color:' + COR_PR[x.prioridade || 'A'] + ';white-space:nowrap">' + pr[0] + '</span></div>'; }).join('') : '<p class="muted">Nenhuma não conformidade.</p>') + '</div>' +
       '<div class="card"><h2>Parecer</h2>' + (sug ? '<div class="muted">Sugestão pelo checklist e medições: <span class="chip ' + PARECER[sug][1] + '">' + PARECER[sug][0] + '</span></div>' : '<div class="muted">Responda todo o checklist para ver a sugestão de parecer.</div>') +
       '<div class="parecer">' + Object.keys(PARECER).map(function (k) { return '<button class="' + (c.parecer === k ? 'sel ' : '') + PARECER[k][1] + '" data-par="' + k + '"' + dis + '>' + PARECER[k][0] + '</button>'; }).join('') + '</div>' +
+      (trava ? '' : '<div class="gerar-tx"><button class="btn sec peq" id="c-gerar">' + ic('raio', 14) + ' Gerar conclusão e recomendações pelo checklist</button><span class="muted">Monta os textos com as respostas, medições e prazos. Você pode editar depois.</span></div>') +
       '<label>Conclusão</label><textarea id="c-txt" rows="3"' + dis + ' placeholder="Ex.: O SPDA inspecionado atende / não atende aos requisitos da ABNT NBR 5419...">' + esc(c.texto || '') + '</textarea>' +
       '<label>Recomendações</label><textarea id="c-rec" rows="3"' + dis + ' placeholder="Correções necessárias e prazos sugeridos">' + esc(c.recomendacoes || '') + '</textarea>' +
       '<div class="linha"><div><label>Próxima inspeção em (meses)</label><input id="c-per" inputmode="numeric" value="' + esc(l.periodicidadeMeses || '') + '"' + dis + '></div><div><label>Próxima inspeção</label><input disabled value="' + (l.proximaInspecao ? dt(l.proximaInspecao) : 'definida ao concluir') + '"></div></div></div>' +
@@ -910,6 +938,15 @@
     a.querySelectorAll('[data-st]').forEach(function (b) { b.onclick = function () { mudarStatus(l, b.dataset.st); }; });
     if (trava) return;
     a.querySelectorAll('[data-par]').forEach(function (b) { b.onclick = function () { var cc = Object.assign({}, l.conclusao, { parecer: b.dataset.par }); if (!cc.texto) cc.texto = textoConclusao(b.dataset.par); gravarLaudo(l, { conclusao: cc }); render(); }; });
+    var gerar = function (perguntar) {
+      var tx = SPDA.textosAutomaticos(l), cc = l.conclusao || {};
+      if (perguntar && (String(cc.texto || '').trim() || String(cc.recomendacoes || '').trim()) && !confirm('Substituir a conclusão e as recomendações atuais pelos textos gerados?')) return;
+      gravarLaudo(l, { conclusao: Object.assign({}, cc, { texto: tx.texto, recomendacoes: tx.recomendacoes, parecer: cc.parecer || tx.parecer }) }, 'Textos gerados pelo checklist.');
+      render();
+    };
+    $('c-gerar').onclick = function () { if (!SPDA.parecerSugerido(l)) { toast('Responda todo o checklist antes de gerar os textos.'); return; } gerar(true); };
+    // primeira vez na aba com o checklist completo e os textos vazios: já preenche
+    if (SPDA.parecerSugerido(l) && !String((l.conclusao || {}).texto || '').trim() && !String((l.conclusao || {}).recomendacoes || '').trim()) { gerar(false); return; }
     $('c-txt').oninput = function () { gravarDepois(l, { conclusao: Object.assign({}, l.conclusao, { texto: this.value }) }); };
     $('c-rec').oninput = function () { gravarDepois(l, { conclusao: Object.assign({}, l.conclusao, { recomendacoes: this.value }) }); };
     $('c-per').onchange = function () { gravarLaudo(l, { periodicidadeMeses: Math.round(num(this.value)) || SPDA.PERIODICIDADE_PADRAO_MESES }); };
@@ -975,7 +1012,7 @@
     var ncs = SPDA.naoConformidades(l).map(function (x) {
       var item = cl.filter(function (i) { return i.codigo === x.codigo; })[0] || {}, fotos = [];
       (x.fotos || []).slice(0, 2).forEach(function (f) { var t = String(f.thumb || ''); if (t && usado + t.length < 160000) { usado += t.length; fotos.push(t); } });
-      return { codigo: x.codigo, subsistema: item.bloco ? nomeBloco[item.bloco] : 'Medições elétricas', texto: x.texto || '', obs: x.obs || '', fotos: fotos };
+      return { codigo: x.codigo, subsistema: item.bloco ? nomeBloco[item.bloco] : 'Medições elétricas', texto: (x.problemas || []).map(function (q) { return q.t; }).join('; ') || x.texto || '', obs: x.obs || '', fotos: fotos, recomendacao: x.recomendacao || '', prazo: (SPDA.PRIORIDADES[x.prioridade] || SPDA.PRIORIDADES.A)[0], prioridade: x.prioridade || 'A' };
     });
     var med = function (lista, campo, max) { return (lista || []).filter(function (m) { return String(m.valorOhm == null ? '' : m.valorOhm).trim() !== ''; }).map(function (m) { var v = SPDA.num(m.valorOhm); return { ref: m[campo] || '', local: m.local || '', valor: isNaN(v) ? String(m.valorOhm) : v, ok: isNaN(v) ? null : v <= max }; }); };
     var c = l.conclusao || {}, rp = l.responsavel || {};
@@ -1167,7 +1204,7 @@
           '</div></div>';
       })() +
       '<div class="capa-r">IDEALLE Inspeções e Serviços · Guarulhos/SP</div></section>';
-    var sumarioHtml = '<h2>Sumário</h2><ol class="sum"><li>Dados da edificação</li><li>Critérios e nível de proteção</li>' + (temRisco(l, ed) ? '<li>Gerenciamento de risco por zonas</li>' : '') + '<li>Checklist de inspeção</li><li>Medições elétricas</li><li>Não conformidades</li><li>Registro fotográfico</li><li>Conclusão e recomendações</li><li>Responsável técnico</li></ol>';
+    var sumarioHtml = '<h2>Sumário</h2><ol class="sum"><li>Dados da edificação</li><li>Critérios e nível de proteção</li>' + (temRisco(l, ed) ? '<li>Gerenciamento de risco por zonas</li>' : '') + '<li>Checklist de inspeção</li><li>Medições elétricas</li><li>Não conformidades e plano de ação</li><li>Registro fotográfico</li><li>Conclusão e recomendações</li><li>Responsável técnico</li></ol>';
     var secoesHtml =
       titulo('Dados da edificação') + tabela(['Campo', 'Informação'], [['Cliente', l.empresaNome], ['CNPJ', l.cnpj], ['Edificação', ed.nome || l.edificacaoNome], ['Atividade', ed.atividade], ['Endereço', [en.logradouro, en.numero, en.bairro, en.cidade, en.uf, en.cep].filter(Boolean).join(', ')], ['Dimensões (C × L × A)', [dm.comprimentoM, dm.larguraM, dm.alturaM].some(function (x) { return x !== '' && x != null; }) ? [dm.comprimentoM, dm.larguraM, dm.alturaM].map(numCampo).join(' × ') + ' m' : ''], ['Estrutura', ed.tipoEstrutura], ['Cobertura', ed.coberturaTipo], ['Descidas (projeto)', ed.qtdDescidas], ['Tipo de inspeção', SPDA.TIPOS_INSPECAO[l.tipoInspecao]], ['Inspetor', l.inspetor]].map(function (x) { return '<tr><td><b>' + x[0] + '</b></td><td>' + esc(x[1] == null ? '' : x[1]) + '</td></tr>'; })) +
       titulo('Critérios e nível de proteção') + '<p>Inspeção realizada segundo a ABNT NBR 5419 (partes 1 a 4), com verificação visual dos subsistemas de captação, descidas, aterramento, equipotencialização e proteção contra surtos, e medições elétricas.</p>' +
@@ -1177,7 +1214,7 @@
       titulo('Medições elétricas') + '<p>Equipamento: ' + esc([m.equipamento.tipo, m.equipamento.marca, m.equipamento.modelo].filter(Boolean).join(' ') || '—') + (m.equipamento.serie ? ', série ' + esc(m.equipamento.serie) : '') + (m.equipamento.certificado ? ', certificado ' + esc(m.equipamento.certificado) + (m.equipamento.validade ? ' (válido até ' + dt(m.equipamento.validade) + ')' : '') : '') + '. Método: ' + esc(m.metodo || '—') + (m.clima ? '. Condições: ' + esc(m.clima) : '') + '.</p>' +
       '<h3>Resistência de aterramento (referência ≤ ' + numCampo(lim.aterramentoOhm) + ' Ω)</h3>' + (medAt.length ? tabela(['Ponto', 'Local', 'Valor', 'Avaliação'], medAt) : '<p>Sem medições.</p>') +
       '<h3>Continuidade elétrica (referência ≤ ' + numCampo(lim.continuidadeOhm) + ' Ω)</h3>' + (medCo.length ? tabela(['Trecho', 'Valor', 'Avaliação'], medCo) : '<p>Sem medições.</p>') +
-      titulo('Não conformidades') + (nc.length ? tabela(['Item', 'Descrição', 'Detalhe'], nc.map(function (x) { return '<tr><td class="cod">' + esc(x.codigo) + '</td><td>' + esc(x.texto) + '</td><td>' + esc(x.obs || '') + '</td></tr>'; })) + (fotosNc.length ? gradeFotos(fotosNc) : '') : '<p>Nenhuma não conformidade encontrada.</p>') +
+      titulo('Não conformidades e plano de ação') + (nc.length ? tabela(['Item', 'Problema encontrado', 'Recomendação', 'Prazo'], nc.slice().sort(function (a, b) { return 'IAB'.indexOf(a.prioridade) - 'IAB'.indexOf(b.prioridade); }).map(function (x) { var pr = SPDA.PRIORIDADES[x.prioridade] || SPDA.PRIORIDADES.A; return '<tr><td class="cod">' + esc(x.codigo) + '</td><td>' + esc((x.problemas || []).map(function (q) { return q.t; }).join('; ') || x.texto) + (x.obs ? '<br><i>' + esc(x.obs) + '</i>' : '') + '</td><td>' + esc(x.recomendacao || (x.obs ? 'Corrigir: ' + x.obs : 'Corrigir o item conforme a ABNT NBR 5419-3.')) + '</td><td class="pr-' + (x.prioridade || 'A') + '">' + pr[0] + '</td></tr>'; })) + (fotosNc.length ? gradeFotos(fotosNc) : '') : '<p>Nenhuma não conformidade encontrada.</p>') +
       (fotos.length ? gradeFotos(fotos, titulo('Registro fotográfico')) : titulo('Registro fotográfico') + '<p>Sem fotos.</p>') +
       titulo('Conclusão e recomendações') + (par ? '<p class="parecer ' + c.parecer + '">PARECER: ' + par[0].toUpperCase() + '</p>' : '') + '<p class="pre">' + esc(c.texto || '') + '</p>' + (c.recomendacoes ? '<h3>Recomendações</h3><p class="pre">' + esc(c.recomendacoes) + '</p>' : '') +
       '<p>Próxima inspeção recomendada: <b>' + (l.proximaInspecao ? dt(l.proximaInspecao) : 'em ' + (l.periodicidadeMeses || 12) + ' meses') + '</b>.</p>';
@@ -1189,6 +1226,7 @@
       '.r.C{color:#15803d;font-weight:700}.r.NC{color:#b91c1c;font-weight:700}.r.NA{color:#6b7280}.capa{height:250mm;display:flex;flex-direction:column;justify-content:space-between;page-break-after:always}.logo{max-height:70px;max-width:220px}' +
       '.capa-t{border-left:6px solid #4db6ef;padding-left:16px}.sup{letter-spacing:.2em;color:#6b7280;font-size:10pt}.norma{font-size:14pt;color:#0b5c99;font-weight:700}.capa-d{border:1px solid #cfe3f3;border-radius:10px;overflow:hidden}.cd-top{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#0b5c99;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px}.cd-num{font-size:18pt;font-weight:800;letter-spacing:.02em}.cd-par{font-weight:800;font-size:10pt;padding:5px 12px;border-radius:999px}.cd-grade{display:grid;grid-template-columns:1fr 1fr}.cf{padding:10px 16px;border-top:1px solid #e3eef7}.cf:nth-child(odd){border-right:1px solid #e3eef7}.cf-r{font-size:7.5pt;letter-spacing:.12em;text-transform:uppercase;color:#4b8fc4;font-weight:700}.cf-v{font-size:11pt;font-weight:700;color:#111;margin-top:2px}.cf-s{font-size:8.5pt;color:#6b7280;margin-top:1px}.capa-r{color:#6b7280;font-size:9pt}.sum li{margin:4px 0}' +
       'table.fotos{table-layout:fixed;border-collapse:separate;border-spacing:0}table.fotos td{border:0;padding:0 5px 10px;width:50%;vertical-align:top}table.fotos tr,.cab-fotos{page-break-inside:avoid}.fotos figure{margin:0}.fotos img{display:block;width:100%;height:62mm;object-fit:cover;border:1px solid #ccc;box-sizing:border-box}.fotos figcaption{font-size:9pt;margin-top:3px;overflow-wrap:anywhere}' +
+      '.pr-I{color:#b91c1c;font-weight:700;white-space:nowrap}.pr-A{color:#a16207;font-weight:700;white-space:nowrap}.pr-B{color:#0b5c99;font-weight:700;white-space:nowrap}' +
       '.parecer{font-weight:700;font-size:12pt;padding:8px 10px;border-radius:4px}.parecer.conforme{background:#dcfce7;color:#15803d}.parecer.conforme_ressalvas{background:#fef3c7;color:#92400e}.parecer.nao_conforme{background:#fee2e2;color:#b91c1c}.pre{white-space:pre-line}' +
       '.ass{margin-top:60px;text-align:center;line-height:1.5}.linha-ass{width:70%;margin:0 auto 6px;border-top:1px solid #000}' +
       (l.status !== 'concluido' ? 'body::before{content:"RASCUNHO";position:fixed;top:40%;left:15%;font-size:110pt;color:rgba(200,0,0,.08);transform:rotate(-30deg);z-index:-1}' : '');
