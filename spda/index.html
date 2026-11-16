@@ -1362,17 +1362,26 @@
     var gerar = function (perguntar) {
       var tx = SPDA.textosAutomaticos(l), cc = l.conclusao || {};
       if (perguntar && (String(cc.texto || '').trim() || String(cc.recomendacoes || '').trim()) && !confirm('Substituir a conclusão e as recomendações atuais pelos textos gerados?')) return;
-      gravarLaudo(l, { conclusao: Object.assign({}, cc, { texto: tx.texto, recomendacoes: tx.recomendacoes, parecer: cc.parecer || tx.parecer }) }, 'Textos gerados pelo checklist.');
+      gravarLaudo(l, { conclusao: Object.assign({}, cc, { texto: tx.texto, recomendacoes: tx.recomendacoes, parecer: cc.parecer || tx.parecer, textoGerado: tx.texto, recGerado: tx.recomendacoes }) }, 'Textos gerados pelo checklist.');
       render();
     };
     $('c-gerar').onclick = function () { if (!SPDA.parecerSugerido(l)) { toast('Responda todo o checklist antes de gerar os textos.'); return; } gerar(true); };
-    // primeira vez na aba com o checklist completo e os textos vazios: já preenche
-    if (SPDA.parecerSugerido(l) && !String((l.conclusao || {}).texto || '').trim() && !String((l.conclusao || {}).recomendacoes || '').trim()) { gerar(false); return; }
+    // checklist completo e textos não escritos à mão: mantém conclusão e recomendações em dia com o checklist
+    var novos = textosAtualizados(l); if (novos) { gravarLaudo(l, { conclusao: novos }, 'Conclusão e recomendações atualizadas pelo checklist.'); render(); return; }
     $('c-txt').oninput = function () { gravarDepois(l, { conclusao: Object.assign({}, l.conclusao, { texto: this.value }) }); };
     $('c-rec').oninput = function () { gravarDepois(l, { conclusao: Object.assign({}, l.conclusao, { recomendacoes: this.value }) }); };
     $('c-per').onchange = function () { gravarLaudo(l, { periodicidadeMeses: Math.round(num(this.value)) || SPDA.PERIODICIDADE_PADRAO_MESES }); };
     function resp() { gravarDepois(l, { responsavel: { nome: $('c-nome').value.trim(), crea: $('c-crea').value.trim(), art: { numero: $('c-art').value.trim(), data: $('c-artd').value } } }); }
     ['c-nome', 'c-crea', 'c-art', 'c-artd'].forEach(function (id) { $(id).oninput = resp; });
+  }
+  // Textos gerados de novo quando não foram escritos à mão (vazios, o texto padrão do parecer ou a última versão gerada)
+  function textosAtualizados(l) {
+    if (!SPDA.parecerSugerido(l)) return null;
+    var cc = l.conclusao || {}, tx = SPDA.textosAutomaticos(l), t = String(cc.texto || '').trim(), r = String(cc.recomendacoes || '').trim();
+    var padrao = ['conforme', 'conforme_ressalvas', 'nao_conforme'].map(textoConclusao);
+    var tLivre = !t || padrao.indexOf(t) >= 0 || t === String(cc.textoGerado || '').trim(), rLivre = !r || r === String(cc.recGerado || '').trim();
+    if (!tLivre || !rLivre || (t === tx.texto.trim() && r === tx.recomendacoes.trim())) return null;
+    return Object.assign({}, cc, { texto: tx.texto, recomendacoes: tx.recomendacoes, parecer: cc.parecer || tx.parecer, textoGerado: tx.texto, recGerado: tx.recomendacoes });
   }
   function textoConclusao(p) {
     return ({ conforme: 'O SPDA inspecionado encontra-se em conformidade com os requisitos da ABNT NBR 5419 verificados nesta inspeção.',
@@ -1381,6 +1390,7 @@
   }
   async function mudarStatus(l, para) {
     await salvarPendente();
+    if (para === 'concluido') { var nt = textosAtualizados(l); if (nt) await gravarLaudo(l, { conclusao: nt }); }
     var erro = SPDA.podeMudarStatus(l, para);
     if (erro) { toast(erro.length > 140 ? 'Ainda falta preencher itens (veja a lista).' : erro); render(); return; }
     var campos = { status: para, historico: (l.historico || []).concat([{ quando: agora(), quem: usuario, o: para }]) };
