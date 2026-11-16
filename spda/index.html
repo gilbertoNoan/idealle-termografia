@@ -238,6 +238,7 @@
   .esc{display:flex;flex-wrap:wrap;gap:6px}.esc-b{border:1px solid rgba(255,255,255,.16);background:transparent;color:inherit;border-radius:999px;padding:8px 14px;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
   .esc-b.sel{background:var(--pri-2);border-color:var(--pri);color:var(--pri)}.esc-b.sel.ok{background:rgba(34,197,94,.14);border-color:var(--ok);color:var(--ok)}.esc-b.sel.bad{background:rgba(239,68,68,.14);border-color:var(--bad);color:var(--bad)}
   .doc-it{padding:12px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}.doc-n{font-size:14px}.doc-obs{font-size:13.5px}
+  .solta-aqui{outline:2px dashed var(--pri)!important;outline-offset:3px;background:var(--pri-2)!important}
   .med-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.med-foto{width:44px;height:44px;flex-shrink:0}
   .med-mini{display:flex;gap:4px}.med-mini img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.15)}
   .desc-box{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;padding:12px;border:1px solid rgba(255,255,255,.1);border-radius:10px}
@@ -698,6 +699,37 @@
     v.querySelectorAll('[data-ede]').forEach(function (b) { b.onclick = function () { formEdificacao(edDe(b.dataset.ede), null, function () { render(); }); }; });
     v.querySelectorAll('[data-edz]').forEach(function (b) { b.onclick = function () { modalZonas(edDe(b.dataset.edz)); }; });
   }
+
+
+  // ===================== ARRASTAR FOTOS =====================
+  // Soltar a foto (do computador) sobre a câmera do item, a linha da medição, o item do checklist ou a aba Fotos
+  // faz o mesmo que escolher pelo botão: o arquivo vai para o campo de foto daquele lugar.
+  function alvoDaFoto(el) {
+    if (!el || !el.closest) return null;
+    var zona = el.closest('label, .med-linha, .item, .card'); if (!zona) return null;
+    var ins = Array.prototype.filter.call(zona.querySelectorAll('input[type=file]'), function (i) { return !i.disabled && /image/.test(i.accept || ''); });
+    if (!ins.length) { var c = zona.closest('.card'); if (c && c !== zona) return alvoDaFoto(c.parentElement && c); return null; }
+    var inp = ins.filter(function (i) { return i.dataset.mprox; })[0] || ins.filter(function (i) { return i.id === 'f-geral'; })[0] || ins[0];
+    return { zona: zona, input: inp };
+  }
+  var zonaAtual = null;
+  function marcarZona(z) { if (zonaAtual && zonaAtual !== z) zonaAtual.classList.remove('solta-aqui'); zonaAtual = z; if (z) z.classList.add('solta-aqui'); }
+  document.addEventListener('dragover', function (e) {
+    if (!e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') < 0) return;
+    e.preventDefault(); // não deixa o navegador abrir a imagem
+    var a = alvoDaFoto(e.target); e.dataTransfer.dropEffect = a ? 'copy' : 'none'; marcarZona(a ? a.zona : null);
+  });
+  document.addEventListener('dragleave', function (e) { if (!e.relatedTarget) marcarZona(null); });
+  document.addEventListener('drop', function (e) {
+    if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+    e.preventDefault(); marcarZona(null);
+    var a = alvoDaFoto(e.target);
+    var fotos = Array.prototype.filter.call(e.dataTransfer.files, function (f) { return /^image\//.test(f.type); });
+    if (!a) { toast('Solte a foto sobre a câmera do item, da medição ou na aba Fotos.'); return; }
+    if (!fotos.length) { toast('Só dá para soltar imagens (JPG, PNG…).'); return; }
+    var dt2 = new DataTransfer(); (a.input.multiple ? fotos : fotos.slice(0, 1)).forEach(function (f) { dt2.items.add(f); });
+    a.input.files = dt2.files; a.input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
 
   // ===================== LISTA =====================
   function porOs(itens) { var gs = [], m = {}; itens.forEach(function (l) { var k = l.osId || l.osCodigo || l.id; if (!m[k]) { m[k] = { cod: l.osCodigo, itens: [] }; gs.push(m[k]); } m[k].itens.push(l); }); return gs; }
