@@ -357,10 +357,18 @@
     $('btn-sair').classList.add('esconder'); $('quem').textContent = '';
     tela.innerHTML = '<div class="card entrar"><h1>Entrar</h1><p class="sub">Acompanhe seus equipamentos, prazos de inspeção e certificados.</p>' +
       (aviso ? '<p class="erro">' + esc(aviso) + '</p>' : '') +
+      (VER_COMO ? '<button class="btn" type="button" id="b-google" style="width:100%;margin:6px 0 14px">Entrar com Google (conta de sócio)</button><p class="sub" style="text-align:center;margin:0 0 6px">ou com e-mail e senha</p>' : '') +
       '<form id="f-entrar"><label for="e-email">E-mail</label><input id="e-email" type="email" autocomplete="username" required>' +
       '<label for="e-senha">Senha</label><input id="e-senha" type="password" autocomplete="current-password" required>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px"><button class="btn" type="submit">Entrar</button><button class="btn sec" type="button" id="b-esqueci">Esqueci a senha</button></div></form>' +
       '<p class="erro" id="e-erro"></p><p class="sub">Ainda não tem acesso? Peça o convite à IDEALLE: ' + esc(contato.telefone) + '.</p>' + dicaInstalar() + '</div>';
+    if ($('b-google')) $('b-google').onclick = function () {
+      $('e-erro').textContent = 'Abrindo o login do Google…';
+      auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(function (e) {
+        if (e && e.code === 'auth/popup-blocked') return auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+        $('e-erro').textContent = msgErro(e);
+      });
+    };
     $('f-entrar').onsubmit = function (ev) {
       ev.preventDefault(); $('e-erro').textContent = 'Entrando…';
       auth.signInWithEmailAndPassword($('e-email').value.trim(), $('e-senha').value).catch(function (e) { $('e-erro').textContent = msgErro(e); });
