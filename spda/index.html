@@ -944,7 +944,7 @@
           var k = ck.indexOf(i);
           return '<div class="item ' + (i.r === 'NC' ? 'nc' : '') + '" id="it-' + k + '"><div class="item-tx"><span class="cod">' + esc(i.codigo) + '</span> ' + esc(i.texto) + (i.docAuto ? ' <span class="muted" style="font-size:12px">· pela aba Documentação técnica</span>' : '') + '</div>' +
             '<div class="resp">' + ['C', 'NC', 'NA'].map(function (r) { return '<button class="r-' + r + (i.r === r ? ' sel' : '') + '" data-r="' + k + '|' + r + '"' + (trava ? ' disabled' : '') + '>' + r + '</button>'; }).join('') +
-            '<label class="foto-bt' + (trava ? ' off' : '') + '" title="Foto deste item">' + ic('camera', 18) + (i.fotos && i.fotos.length ? '<b>' + i.fotos.length + '</b>' : '') + '<input type="file" accept="image/*" capture="environment" multiple data-foto="' + k + '" style="display:none"' + (trava ? ' disabled' : '') + '></label></div>' +
+            '<label class="foto-bt' + (trava ? ' off' : '') + '" title="Foto deste item">' + ic('camera', 18) + (i.fotos && i.fotos.length ? '<b>' + i.fotos.length + '</b>' : '') + '<input type="file" accept="image/*" multiple data-foto="' + k + '" style="display:none"' + (trava ? ' disabled' : '') + '></label></div>' +
             (i.r === 'NC' ? chipsProblemas(i, k, trava) : '') +
             ((i.r === 'NC' || i.obs) ? '<textarea rows="2" data-obs="' + k + '" placeholder="' + (i.r === 'NC' ? 'Detalhe do problema (opcional se escolheu acima): local, quantidade, medida…' : 'Observação') + '"' + (trava ? ' disabled' : '') + '>' + esc(i.obs || '') + '</textarea>' : '<button class="link-obs" data-addobs="' + k + '"' + (trava ? ' hidden' : '') + '>+ observação</button>') +
             (i.fotos && i.fotos.length ? '<div class="mini-fotos">' + i.fotos.map(function (f) { return '<img src="' + esc(f.thumb) + '" alt="" title="' + esc(f.legenda || '') + '">'; }).join('') + '</div>' : '') + '</div>';
@@ -1033,7 +1033,7 @@
   function abaFotos(a, l, trava) {
     var t = todasFotos(l);
     a.innerHTML = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">Registro fotográfico <span class="muted" style="font-weight:400">' + plural(t.length, 'foto', 'fotos') + '</span></h2>' +
-      (trava ? '' : '<label class="btn">' + ic('camera', 16) + ' Foto geral<input type="file" accept="image/*" capture="environment" multiple id="f-geral" style="display:none"></label>') + '</div>' +
+      (trava ? '' : '<label class="btn">' + ic('camera', 16) + ' Foto geral<input type="file" accept="image/*" multiple id="f-geral" style="display:none"></label>') + '</div>' +
       '<p class="muted">As fotos tiradas no checklist já ficam ligadas ao item. Escreva uma legenda curta: ela sai no PDF.</p>' +
       (t.length ? '<div class="galeria">' + t.map(function (x, n) {
         return '<figure><img src="' + esc(x.f.thumb) + '" data-ver="' + x.f.id + '" alt=""><figcaption>' + (x.item ? '<span class="cod">' + esc(x.item.codigo) + '</span>' + (x.item.r === 'NC' ? ' <span class="chip bad">NC</span>' : '') : x.med ? '<span class="cod">Medição ' + esc(x.med.x.ponto || x.med.x.trecho || '') + '</span>' : '<span class="cod">Geral</span>') +
@@ -1075,14 +1075,14 @@
       return '<div class="med-linha' + (fora ? ' fora' : '') + '"><input data-m="' + tipo + '|' + k + '|' + (tipo === 'aterramento' ? 'ponto' : 'trecho') + '" value="' + esc(tipo === 'aterramento' ? x.ponto : x.trecho) + '" placeholder="' + (tipo === 'aterramento' ? 'Ponto (ex.: CX-01)' : 'Trecho (ex.: Descida 1 → captação)') + '"' + dis + '>' +
         (tipo === 'aterramento' ? '<input data-m="' + tipo + '|' + k + '|local" value="' + esc(x.local || '') + '" placeholder="Local"' + dis + '>' : '') +
         '<div class="ohm"><input data-m="' + tipo + '|' + k + '|valorOhm" inputmode="decimal" value="' + esc(numCampo(x.valorOhm)) + '" placeholder="0,00"' + dis + '><span>Ω</span></div>' +
-        (trava ? '' : '<label class="foto-bt med-foto" title="Foto do aparelho nesta medição">' + ic('camera', 18) + ((x.fotos || []).length ? '<b>' + x.fotos.length + '</b>' : '') + '<input type="file" accept="image/*" capture="environment" data-mfoto="' + tipo + '|' + k + '" style="display:none"></label>') +
+        (trava ? '' : '<label class="foto-bt med-foto" title="Tirar ou anexar fotos deste ponto (pode ser mais de uma)">' + ic('camera', 18) + ((x.fotos || []).length ? '<b>' + x.fotos.length + '</b>' : '') + '<input type="file" accept="image/*" multiple data-mfoto="' + tipo + '|' + k + '" style="display:none"></label>') +
         ((x.fotos || []).length ? '<span class="med-mini">' + x.fotos.map(function (f) { return '<img src="' + esc(f.thumb) + '" alt="Foto da medição">'; }).join('') + '</span>' : '') +
         (trava ? '' : '<button class="btn sec peq" data-mx="' + tipo + '|' + k + '" title="Excluir">×</button>') + '</div>';
     };
     a.innerHTML = '<div class="card"><h2>' + ic('medidor', 18) + ' Resistência de aterramento</h2><p class="muted">Referência: até ' + numCampo(lim.aterramentoOhm) + ' Ω. Valores acima entram como não conformidade.' + (nDesc ? ' Descidas encontradas: ' + nDesc + ' (altere na aba Edificação e inspeção).' : '') + '</p>' +
-      (m.aterramento || []).map(function (x, k) { return linha('aterramento', x, k); }).join('') + (trava ? '' : '<div class="med-acoes"><label class="btn">' + ic('camera', 16) + ' Fotografar ' + proxSemFoto('aterramento') + '<input type="file" accept="image/*" capture="environment" data-mprox="aterramento" style="display:none"></label><button class="btn sec" id="m-add-at">+ Ponto de medição</button></div>') + '</div>' +
+      (m.aterramento || []).map(function (x, k) { return linha('aterramento', x, k); }).join('') + (trava ? '' : '<div class="med-acoes"><label class="btn" title="Tire ou escolha fotos. Várias de uma vez: uma por ponto, na ordem.">' + ic('camera', 16) + ' Fotografar ' + proxSemFoto('aterramento') + '<input type="file" accept="image/*" multiple data-mprox="aterramento" style="display:none"></label><button class="btn sec" id="m-add-at">+ Ponto de medição</button></div>') + '</div>' +
       '<div class="card"><h2>' + ic('medidor', 18) + ' Continuidade elétrica</h2><p class="muted">Referência: até ' + numCampo(lim.continuidadeOhm) + ' Ω.</p>' +
-      (m.continuidade || []).map(function (x, k) { return linha('continuidade', x, k); }).join('') + (trava ? '' : '<div class="med-acoes"><label class="btn">' + ic('camera', 16) + ' Fotografar ' + proxSemFoto('continuidade') + '<input type="file" accept="image/*" capture="environment" data-mprox="continuidade" style="display:none"></label><button class="btn sec" id="m-add-co">+ Trecho</button></div>') + '</div>' +
+      (m.continuidade || []).map(function (x, k) { return linha('continuidade', x, k); }).join('') + (trava ? '' : '<div class="med-acoes"><label class="btn" title="Tire ou escolha fotos. Várias de uma vez: uma por trecho, na ordem.">' + ic('camera', 16) + ' Fotografar ' + proxSemFoto('continuidade') + '<input type="file" accept="image/*" multiple data-mprox="continuidade" style="display:none"></label><button class="btn sec" id="m-add-co">+ Trecho</button></div>') + '</div>' +
       '<div class="card"><h2>Equipamento e condições</h2>' +
       (function () {
         var eqs = (cache.equipamentos || []).filter(function (e) { return e.ativo !== false; }), e2 = m.equipamento2 || {};
@@ -1105,7 +1105,13 @@
       if (inp.dataset.m.indexOf('valorOhm') > 0) inp.onchange = function () { render(); };
     });
     a.querySelectorAll('[data-mfoto]').forEach(function (inp) { inp.onchange = function () { var p = inp.dataset.mfoto.split('|'); enviarFotosMedicao(l, p[0], Number(p[1]), Array.from(this.files || [])); this.value = ''; }; });
-    a.querySelectorAll('[data-mprox]').forEach(function (inp) { inp.onchange = function () { var tp = inp.dataset.mprox; enviarFotosMedicao(l, tp, idxSemFoto(tp), Array.from(this.files || [])); this.value = ''; }; });
+    a.querySelectorAll('[data-mprox]').forEach(function (inp) {
+      inp.onchange = async function () {
+        // várias fotos de uma vez: uma para cada ponto, na ordem (CX-01, CX-02…)
+        var tp = inp.dataset.mprox, fs = Array.from(this.files || []); this.value = '';
+        for (var q = 0; q < fs.length; q++) await enviarFotosMedicao(l, tp, idxSemFoto(tp), [fs[q]]);
+      };
+    });
     a.querySelectorAll('[data-mx]').forEach(function (b) { b.onclick = function () { var p = b.dataset.mx.split('|'); m[p[0]].splice(Number(p[1]), 1); salvarM(true); }; });
     [['q-tipo', 'tipo'], ['q-marca', 'marca'], ['q-mod', 'modelo'], ['q-serie', 'serie'], ['q-cert', 'certificado'], ['q-val', 'validade']].forEach(function (x) { $(x[0]).oninput = function () { m.equipamento = Object.assign({}, m.equipamento, { [x[1]]: this.value }); salvarM(false); }; });
     $('q-met').oninput = function () { m.metodo = this.value; salvarM(false); };
