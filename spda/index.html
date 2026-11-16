@@ -239,6 +239,7 @@
   .esc-b.sel{background:var(--pri-2);border-color:var(--pri);color:var(--pri)}.esc-b.sel.ok{background:rgba(34,197,94,.14);border-color:var(--ok);color:var(--ok)}.esc-b.sel.bad{background:rgba(239,68,68,.14);border-color:var(--bad);color:var(--bad)}
   .doc-it{padding:12px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}.doc-n{font-size:14px}.doc-obs{font-size:13.5px}
   .solta-aqui{outline:2px dashed var(--pri)!important;outline-offset:3px;background:var(--pri-2)!important}
+  .rn-bt{background:none;border:1px solid transparent;border-radius:8px;color:var(--muted);cursor:pointer;padding:4px 6px;vertical-align:middle}.rn-bt:hover{border-color:var(--line);color:var(--pri)}
   .med-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.med-foto{width:44px;height:44px;flex-shrink:0}
   .med-mini{display:flex;gap:4px}.med-mini img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.15)}
   .desc-box{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;padding:12px;border:1px solid rgba(255,255,255,.1);border-radius:10px}
@@ -406,7 +407,8 @@
     mais: '<path d="M12 5v14M5 12h14"/>',
     raio: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
     engrenagem: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
-    menu: '<path d="M4 6h16M4 12h16M4 18h16"/>'
+    menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    lapis: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'
   };
   function ic(n, t) { return '<svg class="ic" width="' + (t || 18) + '" height="' + (t || 18) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONES[n] || '') + '</svg>'; }
 
@@ -842,6 +844,28 @@
     var j = await r.json();
     return { logradouro: j.street || '', bairro: j.neighborhood || '', cidade: j.city || '', uf: j.state || '', cep: d.slice(0, 5) + '-' + d.slice(5) };
   }
+  // Nome corrigido na edificação vai também para os laudos dela que ainda não foram concluídos
+  async function nomeNosLaudos(edId, nome) {
+    var ls = cache.laudos.filter(function (x) { return x.edificacaoId === edId && x.edificacaoNome !== nome; });
+    var abertos = ls.filter(function (x) { return x.status !== 'concluido'; }), fechados = ls.length - abertos.length;
+    for (var i = 0; i < abertos.length; i++) await gravarLaudo(abertos[i], { edificacaoNome: nome });
+    if (fechados) toast(fechados + ' laudo(s) concluído(s) continuam com o nome antigo. Reabra para atualizar.');
+    render();
+  }
+  function renomearEdificacao(l) {
+    var ed = edDe(l.edificacaoId);
+    abrirModal('<h3>Nome da edificação</h3><label>Nome</label><input id="rn-nome" value="' + esc(l.edificacaoNome || (ed || {}).nome || '') + '">' +
+      '<p class="muted" style="font-size:13px">Muda no cadastro da edificação e nos laudos dela que ainda não foram concluídos.</p><div class="acoes"><button class="btn" id="rn-ok">Salvar</button><button class="btn sec" id="rn-c">Cancelar</button></div>');
+    $('rn-c').onclick = fecharModal; setTimeout(function () { var i = $('rn-nome'); i.focus(); i.select(); }, 30);
+    $('rn-nome').onkeydown = function (e) { if (e.key === 'Enter') $('rn-ok').click(); };
+    $('rn-ok').onclick = async function () {
+      var nome = $('rn-nome').value.trim(); if (!nome) { toast('Dê um nome à edificação.'); return; }
+      fecharModal();
+      if (ed && ed.id) { ed.nome = nome; await salvar(function () { return banco.atualizar(SPDA.COLECOES.edificacoes, ed.id, { nome: nome, atualizadoEm: agora() }); }); await nomeNosLaudos(ed.id, nome); }
+      else { await gravarLaudo(l, { edificacaoNome: nome }); render(); }
+      if (l.status === 'concluido' && ed) toast('Este laudo já está concluído: reabra para trocar o nome nele.'); else toast('Nome atualizado.');
+    };
+  }
   function formEdificacao(ed, emp, depois) {
     var novo = !ed, e = ed ? JSON.parse(JSON.stringify(ed)) : SPDA.novaEdificacao(emp || {}, {});
     var en = e.endereco || {}, dm = e.dimensoes || {}, np = (e.nivelProtecao || {}).np || '';
@@ -889,6 +913,7 @@
       if (novo) id = await salvar(function () { return banco.criar(SPDA.COLECOES.edificacoes, e); }, 'Edificação cadastrada.');
       else await salvar(function () { return banco.atualizar(SPDA.COLECOES.edificacoes, id, e); }, 'Edificação salva.');
       e.id = id; fecharModal();
+      if (!novo) await nomeNosLaudos(id, e.nome);
       if (depois) depois(e);
     };
   }
@@ -899,7 +924,7 @@
     var trava = l.status === 'concluido';
     var abas = [['checklist', 'Checklist', 'lista'], ['medicoes', 'Medições', 'medidor'], ['fotos', 'Fotos', 'fotos'], ['dados', 'Edificação e inspeção', 'predio'], ['docs', 'Documentação técnica', 'pdf'], ['conclusao', 'Conclusão e ART', 'selo']];
     v.innerHTML = '<button class="voltar" id="b-voltar">← Laudos</button>' +
-      '<div class="cab-laudo"><div><h1>' + esc(l.edificacaoNome || 'Edificação') + '</h1><div class="muted">' + esc(l.empresaNome || '') + ' · ' + esc(l.osCodigo || '') + (l.numero ? ' · <b>' + esc(l.numero) + '</b>' : '') + ' · NP ' + esc(l.nivelProtecao || '—') + '</div></div>' +
+      '<div class="cab-laudo"><div><h1>' + esc(l.edificacaoNome || 'Edificação') + (trava ? '' : ' <button class="rn-bt" id="b-renomear" title="Corrigir o nome da edificação" aria-label="Corrigir o nome da edificação">' + ic('lapis', 16) + '</button>') + '</h1><div class="muted">' + esc(l.empresaNome || '') + ' · ' + esc(l.osCodigo || '') + (l.numero ? ' · <b>' + esc(l.numero) + '</b>' : '') + ' · NP ' + esc(l.nivelProtecao || '—') + '</div></div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="chip ' + st[1] + '" style="font-size:13px;padding:4px 12px">' + st[0] + '</span><button class="btn sec" id="b-pdf">' + ic('pdf', 16) + ' Ver PDF</button></div></div>' +
       (function () {
         var irmaos = laudosDaOs(l);
@@ -914,6 +939,7 @@
       '<div class="abas">' + abas.map(function (a) { return '<button data-aba="' + a[0] + '"' + (tela.aba === a[0] ? ' class="ativo"' : '') + '>' + ic(a[2], 16) + a[1] + '</button>'; }).join('') + '</div><div id="aba"' + (trava ? ' class="travado"' : '') + '></div>';
     $('b-voltar').onclick = function () { irPara(''); };
     $('b-pdf').onclick = function () { gerarPdf(l); };
+    if ($('b-renomear')) $('b-renomear').onclick = function () { renomearEdificacao(l); };
     v.querySelectorAll('[data-irlaudo]').forEach(function (b) { b.onclick = function () { if (b.dataset.irlaudo !== l.id) irPara(b.dataset.irlaudo, tela.aba); }; });
     if ($('b-outra-ed')) $('b-outra-ed').onclick = function () { iniciarLaudo(osDe(l.osId) || { id: l.osId, codigo: l.osCodigo, empresaId: l.empresaId, empresaNome: l.empresaNome }); };
     if ($('b-pdf-os')) $('b-pdf-os').onclick = function () { gerarPdfOs(l); };
