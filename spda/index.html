@@ -234,6 +234,10 @@
   .eq-ic{width:44px;height:44px;border-radius:12px;background:var(--pri-2);color:var(--pri);display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .eq-acoes{display:flex;gap:8px;align-items:center}.eq-arq{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .ed-it{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
+  .dq{margin-top:14px}.dq-r{font-size:14px;font-weight:700;margin-bottom:6px}.dq-r .muted{font-weight:400;font-size:12.5px}
+  .esc{display:flex;flex-wrap:wrap;gap:6px}.esc-b{border:1px solid rgba(255,255,255,.16);background:transparent;color:inherit;border-radius:999px;padding:8px 14px;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
+  .esc-b.sel{background:var(--pri-2);border-color:var(--pri);color:var(--pri)}.esc-b.sel.ok{background:rgba(34,197,94,.14);border-color:var(--ok);color:var(--ok)}.esc-b.sel.bad{background:rgba(239,68,68,.14);border-color:var(--bad);color:var(--bad)}
+  .doc-it{padding:12px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}.doc-n{font-size:14px}.doc-obs{font-size:13.5px}
   .med-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.med-foto{width:44px;height:44px;flex-shrink:0}
   .med-mini{display:flex;gap:4px}.med-mini img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.15)}
   .desc-box{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;padding:12px;border:1px solid rgba(255,255,255,.1);border-radius:10px}
@@ -861,7 +865,7 @@
   function renderLaudo(v, l) {
     var st = ST[l.status] || ST.rascunho, r = respondidos(l), nc = SPDA.naoConformidades(l);
     var trava = l.status === 'concluido';
-    var abas = [['checklist', 'Checklist', 'lista'], ['medicoes', 'Medições', 'medidor'], ['fotos', 'Fotos', 'fotos'], ['dados', 'Edificação e inspeção', 'predio'], ['conclusao', 'Conclusão e ART', 'selo']];
+    var abas = [['checklist', 'Checklist', 'lista'], ['medicoes', 'Medições', 'medidor'], ['fotos', 'Fotos', 'fotos'], ['dados', 'Edificação e inspeção', 'predio'], ['docs', 'Documentação técnica', 'pdf'], ['conclusao', 'Conclusão e ART', 'selo']];
     v.innerHTML = '<button class="voltar" id="b-voltar">← Laudos</button>' +
       '<div class="cab-laudo"><div><h1>' + esc(l.edificacaoNome || 'Edificação') + '</h1><div class="muted">' + esc(l.empresaNome || '') + ' · ' + esc(l.osCodigo || '') + (l.numero ? ' · <b>' + esc(l.numero) + '</b>' : '') + ' · NP ' + esc(l.nivelProtecao || '—') + '</div></div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="chip ' + st[1] + '" style="font-size:13px;padding:4px 12px">' + st[0] + '</span><button class="btn sec" id="b-pdf">' + ic('pdf', 16) + ' Ver PDF</button></div></div>' +
@@ -882,7 +886,7 @@
     if ($('b-outra-ed')) $('b-outra-ed').onclick = function () { iniciarLaudo(osDe(l.osId) || { id: l.osId, codigo: l.osCodigo, empresaId: l.empresaId, empresaNome: l.empresaNome }); };
     if ($('b-pdf-os')) $('b-pdf-os').onclick = function () { gerarPdfOs(l); };
     v.querySelectorAll('[data-aba]').forEach(function (b) { b.onclick = function () { tela.aba = b.dataset.aba; render(); }; });
-    ({ checklist: abaChecklist, medicoes: abaMedicoes, fotos: abaFotos, dados: abaDados, conclusao: abaConclusao })[tela.aba]($('aba'), l, trava);
+    ({ checklist: abaChecklist, medicoes: abaMedicoes, fotos: abaFotos, dados: abaDados, docs: abaDocumentacao, conclusao: abaConclusao })[tela.aba]($('aba'), l, trava);
   }
 
   // ----- Checklist (campo, celular) -----
@@ -906,7 +910,7 @@
       return '<details class="bloco"' + (aberto ? ' open' : '') + ' data-bl="' + b.bloco + '"><summary><span>' + esc(b.nome) + '</span><span class="chip ' + (ncs ? 'bad' : feitos === itens.length ? 'ok' : '') + '">' + (ncs ? ncs + ' NC · ' : '') + feitos + '/' + itens.length + '</span></summary>' +
         itens.map(function (i) {
           var k = ck.indexOf(i);
-          return '<div class="item ' + (i.r === 'NC' ? 'nc' : '') + '" id="it-' + k + '"><div class="item-tx"><span class="cod">' + esc(i.codigo) + '</span> ' + esc(i.texto) + '</div>' +
+          return '<div class="item ' + (i.r === 'NC' ? 'nc' : '') + '" id="it-' + k + '"><div class="item-tx"><span class="cod">' + esc(i.codigo) + '</span> ' + esc(i.texto) + (i.docAuto ? ' <span class="muted" style="font-size:12px">· pela aba Documentação técnica</span>' : '') + '</div>' +
             '<div class="resp">' + ['C', 'NC', 'NA'].map(function (r) { return '<button class="r-' + r + (i.r === r ? ' sel' : '') + '" data-r="' + k + '|' + r + '"' + (trava ? ' disabled' : '') + '>' + r + '</button>'; }).join('') +
             '<label class="foto-bt' + (trava ? ' off' : '') + '" title="Foto deste item">' + ic('camera', 18) + (i.fotos && i.fotos.length ? '<b>' + i.fotos.length + '</b>' : '') + '<input type="file" accept="image/*" capture="environment" multiple data-foto="' + k + '" style="display:none"' + (trava ? ' disabled' : '') + '></label></div>' +
             (i.r === 'NC' ? chipsProblemas(i, k, trava) : '') +
@@ -1211,6 +1215,86 @@
   }
 
   // ----- Conclusão, ART e status -----
+  // ===================== DOCUMENTAÇÃO TÉCNICA =====================
+  // Múltipla escolha sobre a documentação que o cliente apresentou; DOC-01 a DOC-04 do checklist saem daqui.
+  function docDe(l) {
+    var d = Object.assign(SPDA.documentacaoVazia(), JSON.parse(JSON.stringify(l.documentacao || {})));
+    d.gr = Object.assign(SPDA.documentacaoVazia().gr, d.gr || {});
+    SPDA.DOC.ITENS.forEach(function (it) { d.itens[it[0]] = Object.assign({ status: '', obs: '' }, (d.itens || {})[it[0]] || {}); });
+    return d;
+  }
+  function escolha(caminho, opcoes, valor, trava) {
+    return '<div class="esc" role="group">' + opcoes.map(function (o) {
+      return '<button type="button" class="esc-b' + (o[0] === valor ? ' sel' : '') + (o[2] ? ' ' + o[2] : '') + '" data-dc="' + caminho + '" data-v="' + o[0] + '"' + (trava ? ' disabled' : '') + '>' + o[1] + '</button>';
+    }).join('') + '</div>';
+  }
+  function abaDocumentacao(a, l, trava) {
+    var d = docDe(l), D = SPDA.DOC, g = d.gr, dis = trava ? ' disabled' : '';
+    var pares = function (obj) { return Object.keys(obj).map(function (k) { return [k, obj[k]]; }); };
+    var npLaudo = l.nivelProtecao || '';
+    var q = function (rot, html, ajuda) { return '<div class="dq"><div class="dq-r">' + rot + (ajuda ? '<span class="muted">' + ajuda + '</span>' : '') + '</div>' + html + '</div>'; };
+    var apres = SPDA.DOC.ITENS.filter(function (it) { return d.itens[it[0]].status === 'apresentado'; }).length, resp = SPDA.DOC.ITENS.filter(function (it) { return d.itens[it[0]].status; }).length;
+    a.innerHTML =
+      '<div class="card"><h2>' + ic('selo', 18) + ' Gerenciamento de risco <span class="muted" style="font-weight:400;font-size:14px">ABNT NBR 5419-2</span></h2>' +
+      q('A edificação possui gerenciamento (análise) de risco?', escolha('gr.possui', [['sim', 'Sim', 'ok'], ['nao', 'Não', 'bad'], ['na', 'Não se aplica']], g.possui, trava)) +
+      (g.possui === 'sim' ?
+        q('Resultado do gerenciamento', escolha('gr.resultado', [['requer', 'Requer SPDA'], ['nao_requer', 'Não requer SPDA']], g.resultado, trava)) +
+        (g.resultado !== 'nao_requer' ? q('Nível de proteção indicado', escolha('gr.np', [['I', 'NP I'], ['II', 'NP II'], ['III', 'NP III'], ['IV', 'NP IV']], g.np, trava),
+          g.np && npLaudo && g.np !== npLaudo ? ' — diferente do NP ' + esc(npLaudo) + ' deste laudo' : '') : '') +
+        q('Norma usada no gerenciamento', escolha('gr.norma', pares(D.NORMAS).filter(function (x) { return x[0] !== 'nao_informada' && x[0] !== 'iec62305'; }).concat([['nao_informada', 'Não informada']]), g.norma, trava)) +
+        q('O gerenciamento reflete a edificação atual?', escolha('gr.atual', [['sim', 'Sim', 'ok'], ['nao', 'Desatualizado (reforma, ampliação ou mudança de uso)', 'bad']], g.atual, trava)) +
+        q('Possui ART?', escolha('gr.art', [['sim', 'Sim', 'ok'], ['nao', 'Não', 'bad']], g.art, trava)) +
+        '<div class="linha"><div style="flex:2"><label>Elaborado por</label><input data-dt="gr.autor" value="' + esc(g.autor) + '" placeholder="Empresa / profissional"' + dis + '></div><div><label>Data</label><input type="date" data-dt="gr.data" value="' + esc(g.data) + '"' + dis + '></div></div>' : '') +
+      (g.possui === 'nao' ? '<div class="aviso" style="margin-top:10px">Sem gerenciamento de risco: o item DOC-02 do checklist fica não conforme. O cálculo pode ser feito no quadro "Zonas de risco" (aba Edificação e inspeção).</div>' : '') + '</div>' +
+      '<div class="card"><h2>' + ic('predio', 18) + ' Projeto e norma</h2>' +
+      q('Norma em que o SPDA foi projetado / instalado', escolha('norma', pares(D.NORMAS), d.norma, trava)) +
+      (d.norma === 'outra' ? '<input data-dt="normaOutra" value="' + esc(d.normaOutra) + '" placeholder="Qual norma?"' + dis + '>' : '') +
+      q('O SPDA está adequado à norma vigente (ABNT NBR 5419:2015)?', escolha('adequacao', [['adequado', 'Adequado', 'ok'], ['parcial', 'Parcialmente'], ['nao_adequado', 'Não adequado', 'bad'], ['nao_avaliado', 'Não foi possível avaliar']], d.adequacao, trava),
+        d.norma === 'nbr5419_2005' || d.norma === 'nbr5419_2001' ? ' — projeto feito por norma cancelada: verificar a adequação à edição de 2015' : '') +
+      '<div class="linha"><div><label>Data da última inspeção (pelo laudo anterior)</label><input type="date" data-dt="ultimaInspecao" value="' + esc(d.ultimaInspecao) + '"' + dis + '></div><div></div></div></div>' +
+      '<div class="card"><h2>' + ic('pdf', 18) + ' Documentos apresentados pelo cliente <span class="muted" style="font-weight:400;font-size:14px">' + apres + ' de ' + SPDA.DOC.ITENS.length + ' apresentados</span></h2>' +
+      '<p class="muted" style="font-size:13px;margin-top:-4px">As respostas do projeto, das ARTs e do laudo anterior preenchem sozinhas os itens DOC-01 a DOC-04 do checklist.</p>' +
+      SPDA.DOC.ITENS.map(function (it) {
+        var x = d.itens[it[0]];
+        return '<div class="doc-it"><div class="doc-n"><b>' + esc(it[1]) + '</b>' + (it[2] ? '<span class="muted"> · ' + it[2] + '</span>' : '') + '</div>' +
+          escolha('itens.' + it[0] + '.status', [['apresentado', 'Apresentado', 'ok'], ['desatualizado', 'Desatualizado'], ['nao_apresentado', 'Não apresentado', 'bad'], ['na', 'Não se aplica']], x.status, trava) +
+          (x.status && x.status !== 'na' ? '<input class="doc-obs" data-dt="itens.' + it[0] + '.obs" value="' + esc(x.obs) + '" placeholder="Observação (nº, data, revisão, o que falta…)"' + dis + '>' : '') + '</div>';
+      }).join('') + '</div>' +
+      '<div class="card"><h2>Divergências entre a documentação e o campo</h2><textarea rows="4" data-dt="observacoes" placeholder="Ex.: o projeto prevê 12 descidas e foram encontradas 10; aterramento em anel não localizado…"' + dis + '>' + esc(d.observacoes) + '</textarea></div>';
+    if (trava) return;
+    var gravar = function (msg) {
+      l.documentacao = d;
+      if (d.gr.possui === 'sim') d.gr.desatualizado = d.gr.atual === 'nao';
+      SPDA.aplicarDocNoChecklist(l);
+      gravarLaudo(l, { documentacao: d, checklist: l.checklist }, msg);
+    };
+    var poe = function (cam, v) { var p = cam.split('.'), o = d; for (var i = 0; i < p.length - 1; i++) o = o[p[i]] = o[p[i]] || {}; o[p[p.length - 1]] = v; };
+    var pega = function (cam) { return cam.split('.').reduce(function (o, k) { return o == null ? undefined : o[k]; }, d); };
+    a.querySelectorAll('[data-dc]').forEach(function (b) { b.onclick = function () { var v = pega(b.dataset.dc) === b.dataset.v ? '' : b.dataset.v; poe(b.dataset.dc, v); gravar(); render(); }; });
+    a.querySelectorAll('[data-dt]').forEach(function (inp) { inp.onchange = function () { poe(inp.dataset.dt, inp.value.trim()); gravar(); if (inp.type === 'date') render(); }; });
+  }
+  // Seção do laudo em PDF
+  function secaoDocumentacao(l, titulo) {
+    var d = l.documentacao; if (!d) return '';
+    d = docDe(l); var D = SPDA.DOC, g = d.gr, S2 = { sim: 'Sim', nao: 'Não', na: 'Não se aplica' };
+    var algum = g.possui || d.norma || d.adequacao || SPDA.DOC.ITENS.some(function (it) { return d.itens[it[0]].status; }) || d.observacoes;
+    if (!algum) return '';
+    var lin = function (a2, b2) { return '<tr><td>' + a2 + '</td><td>' + b2 + '</td></tr>'; };
+    var grLinhas = [lin('Possui gerenciamento de risco', S2[g.possui] || '—')];
+    if (g.possui === 'sim') {
+      grLinhas.push(lin('Resultado', g.resultado === 'nao_requer' ? 'Não requer SPDA' : g.resultado === 'requer' ? 'Requer SPDA' + (g.np ? ' — NP ' + esc(g.np) : '') : '—'));
+      grLinhas.push(lin('Norma usada', esc(D.NORMAS[g.norma] || '—')));
+      grLinhas.push(lin('Reflete a edificação atual', g.atual === 'nao' ? 'Não (desatualizado)' : g.atual === 'sim' ? 'Sim' : '—'));
+      grLinhas.push(lin('ART', S2[g.art] || '—'));
+      if (g.autor || g.data) grLinhas.push(lin('Elaborado por', esc(g.autor || '—') + (g.data ? ' em ' + dt(g.data) : '')));
+    }
+    var stCor = { apresentado: '#15803d', desatualizado: '#a16207', nao_apresentado: '#b91c1c', na: '#555' };
+    return titulo('Documentação técnica') +
+      '<h3>Gerenciamento de risco (ABNT NBR 5419-2)</h3><table>' + grLinhas.join('') + '</table>' +
+      '<h3>Projeto e norma</h3><table>' + lin('Norma do projeto / instalação', esc(d.norma === 'outra' ? (d.normaOutra || 'Outra') : (D.NORMAS[d.norma] || '—'))) + lin('Adequação à ABNT NBR 5419:2015', esc(D.ADEQUACAO[d.adequacao] || '—')) + lin('Última inspeção (laudo anterior)', d.ultimaInspecao ? dt(d.ultimaInspecao) : '—') + '</table>' +
+      '<h3>Documentos apresentados pelo cliente</h3><table><tr><th>Documento</th><th>Situação</th><th>Observação</th></tr>' + SPDA.DOC.ITENS.map(function (it) { var x = d.itens[it[0]]; return '<tr><td>' + esc(it[1]) + '</td><td style="color:' + (stCor[x.status] || '#555') + ';font-weight:700">' + esc(D.STATUS[x.status] || '—') + '</td><td>' + esc(x.obs || '') + '</td></tr>'; }).join('') + '</table>' +
+      (d.observacoes ? '<p><b>Divergências entre a documentação e o campo:</b> ' + esc(d.observacoes) + '</p>' : '');
+  }
   function abaConclusao(a, l, trava) {
     var nc = SPDA.naoConformidades(l), sug = SPDA.parecerSugerido(l), c = l.conclusao || {}, rp = l.responsavel || {}, art = rp.art || {};
     var pend = SPDA.pendencias(l, l.status !== 'rascunho'), dis = trava ? ' disabled' : '';
@@ -1503,12 +1587,13 @@
           '</div></div>';
       })() +
       '<div class="capa-r">IDEALLE Inspeções e Serviços · Guarulhos/SP</div></section>';
-    var sumarioHtml = '<h2>Sumário</h2><ol class="sum"><li>Dados da edificação</li>' + (cfg().escopoNoLaudo && cfg().escopo.trim() ? '<li>Escopo, método e limitações</li>' : '') + '<li>Critérios e nível de proteção</li>' + (temRisco(l, ed) ? '<li>Gerenciamento de risco por zonas</li>' : '') + '<li>Checklist de inspeção</li><li>Medições elétricas</li><li>Não conformidades e plano de ação</li><li>Registro fotográfico</li><li>Conclusão e recomendações</li><li>Responsável técnico</li></ol>';
+    var sumarioHtml = '<h2>Sumário</h2><ol class="sum"><li>Dados da edificação</li>' + (cfg().escopoNoLaudo && cfg().escopo.trim() ? '<li>Escopo, método e limitações</li>' : '') + '<li>Critérios e nível de proteção</li>' + (secaoDocumentacao(l, function () { return ''; }) ? '<li>Documentação técnica</li>' : '') + (temRisco(l, ed) ? '<li>Gerenciamento de risco por zonas</li>' : '') + '<li>Checklist de inspeção</li><li>Medições elétricas</li><li>Não conformidades e plano de ação</li><li>Registro fotográfico</li><li>Conclusão e recomendações</li><li>Responsável técnico</li></ol>';
     var secoesHtml =
       titulo('Dados da edificação') + tabela(['Campo', 'Informação'], [['Cliente', l.empresaNome], ['CNPJ', l.cnpj], ['Edificação', ed.nome || l.edificacaoNome], ['Atividade', ed.atividade], ['Endereço', [en.logradouro, en.numero, en.bairro, en.cidade, en.uf, en.cep].filter(Boolean).join(', ')], ['Dimensões (C × L × A)', [dm.comprimentoM, dm.larguraM, dm.alturaM].some(function (x) { return x !== '' && x != null; }) ? [dm.comprimentoM, dm.larguraM, dm.alturaM].map(numCampo).join(' × ') + ' m' : ''], ['Estrutura', ed.tipoEstrutura], ['Cobertura', ed.coberturaTipo], ['Descidas encontradas na inspeção', descidasDoLaudo(l, ed) ? descidasDoLaudo(l, ed) + (ed.qtdDescidas && Number(ed.qtdDescidas) !== descidasDoLaudo(l, ed) ? ' (informado no cadastro: ' + ed.qtdDescidas + ')' : '') : ''], ['Tipo de inspeção', SPDA.TIPOS_INSPECAO[l.tipoInspecao]], ['Inspetor', l.inspetor]].map(function (x) { return '<tr><td><b>' + x[0] + '</b></td><td>' + esc(x[1] == null ? '' : x[1]) + '</td></tr>'; })) +
       (cfg().escopoNoLaudo && cfg().escopo.trim() ? titulo('Escopo, método e limitações') + cfg().escopo.trim().split(/\n+/).map(function (pp) { return '<p>' + esc(pp) + '</p>'; }).join('') : '') +
       titulo('Critérios e nível de proteção') + '<p>Inspeção realizada segundo a ABNT NBR 5419 (partes 1 a 4), com verificação visual dos subsistemas de captação, descidas, aterramento, equipotencialização e proteção contra surtos, e medições elétricas.</p>' +
       (n ? tabela(['Nível de proteção', 'Método de captação', 'Esfera rolante', 'Malha', 'Distância entre descidas'], ['<tr><td><b>NP ' + n.classe + '</b></td><td>' + esc(SPDA.METODOS_CAPTACAO[l.metodoCaptacao] || '—') + '</td><td>R = ' + n.raioEsferaM + ' m</td><td>' + n.malhaM.join(' × ') + ' m</td><td>' + n.distDescidasM + ' m</td></tr>']) : '<p>Nível de proteção não informado.</p>') +
+      secaoDocumentacao(l, titulo) +
       secaoRisco(l, ed, titulo) +
       titulo('Checklist de inspeção') + ckHtml +
       titulo('Medições elétricas') + '<p>Equipamento: ' + esc([m.equipamento.tipo, m.equipamento.marca, m.equipamento.modelo].filter(Boolean).join(' ') || '—') + (m.equipamento.serie ? ', série ' + esc(m.equipamento.serie) : '') + (m.equipamento.certificado ? ', certificado ' + esc(m.equipamento.certificado) + (m.equipamento.laboratorio ? ' — ' + esc(m.equipamento.laboratorio) : '') + (m.equipamento.validade ? ' (válido até ' + dt(m.equipamento.validade) + ')' : '') : '') + ((m.equipamento2 || {}).tipo ? '. Continuidade: ' + esc([m.equipamento2.tipo, m.equipamento2.marca, m.equipamento2.modelo].filter(Boolean).join(' ')) + (m.equipamento2.serie ? ', série ' + esc(m.equipamento2.serie) : '') + (m.equipamento2.certificado ? ', certificado ' + esc(m.equipamento2.certificado) + (m.equipamento2.validade ? ' (válido até ' + dt(m.equipamento2.validade) + ')' : '') : '') : '') + '. Método: ' + esc(m.metodo || '—') + (m.clima ? '. Condições: ' + esc(m.clima) : '') + '.</p>' +

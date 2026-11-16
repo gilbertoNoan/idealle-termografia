@@ -280,6 +280,58 @@
     if (para !== 'rascunho' && p.length) return 'Falta: ' + p.join('; ');
     return '';
   }
+  // ---------- Documentação técnica apresentada pelo cliente ----------
+  var DOC = {
+    STATUS: { apresentado: 'Apresentado', desatualizado: 'Desatualizado / incompleto', nao_apresentado: 'Não apresentado', na: 'Não se aplica' },
+    NORMAS: { nbr5419_2015: 'ABNT NBR 5419:2015 (partes 1 a 4)', nbr5419_2005: 'ABNT NBR 5419:2005 (cancelada)', nbr5419_2001: 'ABNT NBR 5419:2001 ou anterior (cancelada)',
+      iec62305: 'IEC 62305', outra: 'Outra norma', nao_informada: 'Não informada no documento' },
+    ADEQUACAO: { adequado: 'Adequado à norma vigente', parcial: 'Parcialmente adequado', nao_adequado: 'Não adequado', nao_avaliado: 'Não foi possível avaliar' },
+    ITENS: [ // id, nome, item do checklist ligado
+      ['projeto', 'Projeto do SPDA / as built (plantas e detalhes)', 'DOC-01'],
+      ['memorial', 'Memorial descritivo do SPDA', ''],
+      ['art_projeto', 'ART de projeto do SPDA', 'DOC-04'],
+      ['art_execucao', 'ART de execução / instalação', 'DOC-04'],
+      ['laudo_anterior', 'Laudo / relatório da inspeção anterior', 'DOC-03'],
+      ['medicao_anterior', 'Relatório de medição de aterramento anterior', ''],
+      ['dps', 'Registro das medidas de proteção contra surtos (DPS)', ''],
+      ['avcb', 'AVCB / CLCB do Corpo de Bombeiros', ''],
+      ['prontuario', 'Prontuário das instalações elétricas (NR-10)', '']
+    ]
+  };
+  function documentacaoVazia() {
+    var d = { gr: { possui: '', resultado: '', np: '', autor: '', data: '', art: '', norma: '' }, norma: '', normaOutra: '', adequacao: '', ultimaInspecao: '', itens: {}, observacoes: '' };
+    DOC.ITENS.forEach(function (it) { d.itens[it[0]] = { status: '', obs: '' }; });
+    return d;
+  }
+  // Respostas da documentação viram as respostas DOC-01 a DOC-04 do checklist (o inspetor não responde duas vezes)
+  function respostasDocChecklist(doc) {
+    doc = doc || {}; var it = doc.itens || {}, st = function (k) { return (it[k] || {}).status || ''; };
+    var r = function (lista) {
+      var v = lista.map(function (x) { return typeof x === 'string' ? st(x) : x; }).filter(Boolean);
+      if (!v.length) return '';
+      if (v.some(function (x) { return x === 'apresentado'; })) return v.some(function (x) { return x === 'desatualizado'; }) ? 'NC' : 'C';
+      if (v.every(function (x) { return x === 'na'; })) return 'NA';
+      return 'NC';
+    };
+    var gr = (doc.gr || {}).possui;
+    return {
+      'DOC-01': r(['projeto']),
+      'DOC-02': gr === 'sim' ? ((doc.gr || {}).desatualizado ? 'NC' : 'C') : gr === 'nao' ? 'NC' : gr === 'na' ? 'NA' : '',
+      'DOC-03': r(['laudo_anterior']),
+      'DOC-04': r(['art_projeto', 'art_execucao'])
+    };
+  }
+  function aplicarDocNoChecklist(laudo) {
+    var resp = respostasDocChecklist(laudo.documentacao), mudou = false;
+    (laudo.checklist || []).forEach(function (i) {
+      var r = resp[i.codigo]; if (!r || i.r === r && i.docAuto) return;
+      if (r) { i.r = r; i.docAuto = true; mudou = true;
+        if (r === 'NC' && !(i.problemas || []).length) i.problemas = problemasDe(i.codigo);
+        if (r !== 'NC') i.problemas = []; }
+    });
+    return mudou;
+  }
+
   // Textos do laudo gerados pelo checklist e pelas medições (o engenheiro revisa e completa)
   function dataBr(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; }
   function br(n) { return String(Math.round(n * 100) / 100).replace('.', ','); }
@@ -423,6 +475,7 @@
     novaEdificacao: novaEdificacao, novoLaudo: novoLaudo, novaFoto: novaFoto, checklistEmBranco: checklistEmBranco,
     avaliarMedicoes: avaliarMedicoes, naoConformidades: naoConformidades, parecerSugerido: parecerSugerido,
     pendencias: pendencias, podeMudarStatus: podeMudarStatus, aoConcluir: aoConcluir, proximoNumero: proximoNumero, num: num,
+    DOC: DOC, documentacaoVazia: documentacaoVazia, respostasDocChecklist: respostasDocChecklist, aplicarDocNoChecklist: aplicarDocNoChecklist,
     PROBLEMAS: PROBLEMAS, PRIORIDADES: PRIORIDADES, problemasDe: problemasDe, textosAutomaticos: textosAutomaticos,
     RISCO: RISCO, novaZona: novaZona, calcularRisco: calcularRisco, areaColeta: areaColeta, sugerirNivelProtecao: sugerirNivelProtecao
   };
