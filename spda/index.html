@@ -173,7 +173,8 @@
   .ic { flex: none; vertical-align: -3px; } .abas button { display: inline-flex; align-items: center; gap: 6px; }
   #pdf-viewer { position: fixed; inset: 0; z-index: 80; background: #1b1d22; display: none; flex-direction: column; }
   #pdf-viewer iframe { flex: 1; width: 100%; border: 0; background: #525659; }
-  @media (max-width: 640px) { .pdf-dica { display: none; } }
+  @media (max-width: 640px) { .pdf-dica { display: none; } .pdf-tit { display: none; } .pdf-barra { flex-wrap: nowrap; } .pdf-voltar-flut { display: inline-flex !important; } }
+  .pdf-voltar-flut { display: none; position: fixed; right: 16px; bottom: 18px; z-index: 5; align-items: center; gap: 6px; padding: 14px 20px; border-radius: 999px; border: 0; background: var(--pri); color: #06222b; font: inherit; font-weight: 800; font-size: 16px; box-shadow: 0 6px 20px rgba(0,0,0,.45); cursor: pointer; }
   .pdf-tit { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pdf-barra { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: var(--card); border-bottom: 1px solid var(--line); }
   #aviso-rede { display: none; background: var(--azul-2); color: var(--azul); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
@@ -1527,13 +1528,13 @@
     var v = $('pdf-viewer');
     if (!v) { v = document.createElement('div'); v.id = 'pdf-viewer'; document.body.appendChild(v); }
     v.innerHTML = '<div class="pdf-barra"><div style="display:flex;align-items:center;gap:12px;min-width:0"><button class="btn sec" id="pdf-x">← Voltar</button><b class="pdf-tit">Laudo ' + esc(l.numero || '(rascunho)') + ' · ' + esc(l.edificacaoNome || '') + '</b></div><div style="display:flex;gap:8px;align-items:center"><span class="muted pdf-dica">Páginas numeradas no PDF</span><button class="btn" id="pdf-imp">' + ic('pdf', 16) + ' Imprimir / salvar PDF</button></div></div>' +
-      '<iframe id="pdf-frame" title="Laudo SPDA" srcdoc="<p style=&quot;font-family:sans-serif;padding:30px;color:#555&quot;>Montando o laudo…</p>"></iframe>';
+      '<button class="pdf-voltar-flut" id="pdf-x2" aria-label="Voltar ao laudo">← Voltar</button><iframe id="pdf-frame" title="Laudo SPDA" srcdoc="<p style=&quot;font-family:sans-serif;padding:30px;color:#555&quot;>Montando o laudo…</p>"></iframe>';
     v.style.display = 'flex'; document.body.style.overflow = 'hidden';
     function fechar() { v.style.display = 'none'; v.innerHTML = ''; document.body.style.overflow = ''; window.removeEventListener('keydown', esc1); window.removeEventListener('popstate', fechar); }
     function esc1(e) { if (e.key === 'Escape') history.back(); }
     history.pushState({ pdf: 1 }, ''); // o "voltar" do celular / navegador fecha o laudo
     window.addEventListener('popstate', fechar); window.addEventListener('keydown', esc1);
-    $('pdf-x').onclick = function () { history.back(); };
+    $('pdf-x').onclick = $('pdf-x2').onclick = function () { history.back(); };
     $('pdf-imp').onclick = function () { var f = $('pdf-frame'); try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast('Não foi possível imprimir: ' + e.message); } };
   }
   // Laudo de todas as edificações da OS num documento só: capa da planta, resumo, uma parte por edificação e assinatura
