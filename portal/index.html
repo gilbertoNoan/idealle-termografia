@@ -160,6 +160,10 @@
   .ob-det-rod{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px;padding-top:12px;border-top:1px solid var(--linha)}
   .ob-det .ob-abas{background:var(--card)}
   @media (max-width:600px){.ob-cab{padding:12px;gap:10px;align-items:flex-start}.anel.mini{width:56px;height:56px}.ob-cab-a{font-size:0}.ob-det{padding:12px}}
+  #ver-como { position: fixed; left: 0; right: 0; bottom: 0; z-index: 70; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 16px; background: #7c2d12; color: #ffedd5; font-size: 13px; box-shadow: 0 -4px 18px rgba(0,0,0,.4); }
+  #ver-como b { font-size: 14px; color: #fff; } #ver-como span { flex: 1; min-width: 200px; }
+  #ver-como button { background: #fff; color: #7c2d12; border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; font-weight: 800; cursor: pointer; }
+  body.com-ver-como { padding-bottom: 64px; }
   /* SPDA: situação por edificação */
   .sp-filtro { display: inline-flex; border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; }
   .sp-filtro button { background: transparent; color: var(--sub); border: 0; padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
@@ -415,21 +419,36 @@
     };
   }
 
+  // Faixa fixa do modo "ver como o cliente"
+  function faixaVerComo() {
+    if (document.getElementById('ver-como')) return;
+    var f = document.createElement('div'); f.id = 'ver-como';
+    f.innerHTML = '<b>Visualização do sócio</b><span>Você está vendo o portal como o cliente vê. Nada é alterado e o acesso não é registrado.</span><button type="button" id="vc-fechar">Fechar visualização</button>';
+    document.body.appendChild(f); document.body.classList.add('com-ver-como');
+    document.getElementById('vc-fechar').onclick = function () { window.close(); setTimeout(function () { location.href = '/cronos/'; }, 200); };
+  }
   // ---------- Dados do cliente ----------
   async function carregar(u) {
     $('quem').textContent = u.email; $('btn-sair').classList.remove('esconder');
     tela.innerHTML = '<div class="carregando">Carregando seus equipamentos…</div>';
     try {
-      var us = await db.collection('portal_usuarios').doc(u.uid).get();
-      if (!us.exists) { await auth.signOut(); return telaEntrar('Esta conta não tem acesso ao Portal do Cliente.'); }
-      var empId = us.data().empresaId;
-      var ac = await db.collection('portal_acessos').doc(empId).get();
+      var empId;
+      if (VER_COMO) {
+        empId = VER_COMO; faixaVerComo();
+      } else {
+        var us = await db.collection('portal_usuarios').doc(u.uid).get();
+        if (!us.exists) { await auth.signOut(); return telaEntrar('Esta conta não tem acesso ao Portal do Cliente.'); }
+        empId = us.data().empresaId;
+      }
+      var ac = await db.collection('portal_acessos').doc(empId).get().catch(function (e) { if (VER_COMO && e.code === 'permission-denied') throw new Error('Só os sócios podem ver o portal como o cliente. Entre com a sua conta de sócio.'); throw e; });
+      if (VER_COMO && !ac.exists) { var dd0 = await db.collection('portal_dados').doc(empId).get(); ac = { exists: true, data: function () { return { nome: dd0.exists ? ((dd0.data().empresa || {}).nome || '') : '', acessoAteMs: Date.now() + 864e5, semAcesso: true }; } }; }
       estado.acesso = ac.exists ? ac.data() : null;
       if (!estado.acesso) { await auth.signOut(); return telaEntrar('O acesso da sua empresa ainda não foi liberado.'); }
       if (estado.acesso.bloqueado || !estado.acesso.acessoAteMs || estado.acesso.acessoAteMs < Date.now()) return telaEncerrado();
       var dd = await db.collection('portal_dados').doc(empId).get();
       estado.dados = dd.exists ? dd.data() : { empresa: { nome: estado.acesso.nome }, servicos: {}, vasos: [], certificados: [], os: [], contagem: {} };
       estado.empId = empId;
+      if (VER_COMO) { var fv = document.querySelector('#ver-como b'); if (fv) fv.textContent = 'Vendo como: ' + ((estado.dados.empresa || {}).nome || estado.acesso.nome || 'cliente'); if (estado.acesso.semAcesso) { var sp = document.querySelector('#ver-como span'); if (sp) sp.textContent = 'Este cliente ainda não tem acesso ao portal: é o que ele verá quando receber o convite. Nada é alterado.'; } }
       // Laudos NR-13 publicados pelo Relatório NR-13 (cópia para consulta)
       try { var li = await db.collection('portal_laudos').doc(empId).get(); estado.laudos = li.exists ? (li.data().laudos || {}) : {}; } catch (e) { estado.laudos = {}; }
       // Obras de engenharia civil publicadas pela Gestão de Obra (avanço, cronograma e diários de obra)
@@ -438,7 +457,7 @@
       aplicarEscolhaDeServicos();
       var ext0 = (estado.acesso && estado.acesso.servicosExtras) || {};
       if (Object.keys(estado.obras).length && ext0.obra !== false) { estado.dados.servicos = estado.dados.servicos || {}; estado.dados.servicos.obra = true; }
-      if (!sessionStorage.getItem('portal-acesso-' + u.uid)) {
+      if (!VER_COMO && !sessionStorage.getItem('portal-acesso-' + u.uid)) {
         db.collection('portal_usuarios').doc(u.uid).update({ ultimoAcesso: new Date().toISOString() }).catch(function () {});
         try { sessionStorage.setItem('portal-acesso-' + u.uid, '1'); } catch (e) {}
       }
@@ -447,7 +466,7 @@
     } catch (e) {
       console.error(e);
       // Sem permissão no meio do caminho = o contrato venceu agora ou o acesso foi retirado
-      if (e.code === 'permission-denied' && estado.acesso) return telaEncerrado();
+      if (e.code === 'permission-denied' && estado.acesso && !VER_COMO) return telaEncerrado();
       tela.innerHTML = '<div class="card entrar"><h1>Não foi possível abrir</h1><p class="erro">' + esc(e.message || e) + '</p><button class="btn" onclick="location.reload()">Tentar de novo</button></div>';
     }
   }
@@ -811,7 +830,7 @@
       (certsPub.length && !soCal ? '<section class="card" id="rel-calibracao"><div class="tit-sec"><h2>' + IC_VASO + ' CERTIFICADOS DE CALIBRAÇÃO (' + certsPub.length + ')</h2></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Instrumento</th><th>Calibração</th><th>Validade</th><th style="text-align:right">PDF</th></tr></thead><tbody>' + linhasCert + '</tbody></table></div></section>' : '');
 
     $('r-voltar').onclick = function () {
-      if (soNr13 || soCal) { location.href = location.pathname; return; } // página aberta pelo cartão do serviço: volta ao painel do portal
+      if (soNr13 || soCal) { location.href = location.pathname + (VER_COMO ? '?ver_como=' + encodeURIComponent(VER_COMO) : ''); return; } // página aberta pelo cartão do serviço: volta ao painel do portal
       painel(); window.scrollTo(0, 0);
     };
     tela.querySelectorAll('.oscab').forEach(function (c) {
@@ -1068,7 +1087,7 @@
           return;
         }
         // NR-13: abre a página dos relatórios NR-13 na mesma aba, como o portal do sistema de relatórios
-        if (el.dataset.ir === 'nr13' || el.dataset.ir === 'calibracao' || el.dataset.ir === 'spda') { location.href = location.pathname + '?pagina=' + el.dataset.ir; return; }
+        if (el.dataset.ir === 'nr13' || el.dataset.ir === 'calibracao' || el.dataset.ir === 'spda') { location.href = location.pathname + '?pagina=' + el.dataset.ir + (VER_COMO ? '&ver_como=' + encodeURIComponent(VER_COMO) : ''); return; }
         if (el.dataset.ir === 'obra') { telaObras(); return; }
         telaRelatorios(el.dataset.ir);
       };
@@ -1310,6 +1329,8 @@
   db.collection('config').doc('portal').get().then(function (s) { if (s.exists) Object.assign(contato, s.data()); }).catch(function () {});
   var convite = new URLSearchParams(location.search).get('convite');
   var PAGINA = new URLSearchParams(location.search).get('pagina') || '';
+  // Sócio vendo o portal como o cliente vê (aberto pelo Finanças › Portal do Cliente). Só leitura.
+  var VER_COMO = new URLSearchParams(location.search).get('ver_como') || '';
   var modoConvite = !!convite, conviteAberto = false;
   auth.onAuthStateChanged(function (u) {
     if (estado.criando) return; // o convite termina de gravar e abre o painel sozinho
@@ -1318,7 +1339,7 @@
       if (!conviteAberto) { conviteAberto = true; telaConvite(convite); }
       return;
     }
-    if (u) carregar(u); else telaEntrar();
+    if (u) carregar(u); else telaEntrar(VER_COMO ? 'Entre com a sua conta de sócio (a mesma do Finanças) para ver o portal como o cliente.' : undefined);
   });
 })();
 </script>

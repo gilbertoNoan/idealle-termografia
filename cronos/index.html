@@ -912,7 +912,7 @@
         var d = dadosPortal(l.c.id), us = cache.portal_usuarios.filter(function (u) { return u.empresaId === l.c.id; });
         var ult = us.map(function (u) { return u.ultimoAcesso || ''; }).sort().pop();
         var svs = PORTAL_SERVICOS.filter(function (s) { return d.servicos[s[0]]; }).map(function (s) { return '<span class="tag t-blue" style="margin:1px">' + esc(s[1].split(' (')[0]) + '</span>'; }).join('') || '<span class="muted">—</span>';
-        return '<tr class="clicavel" data-portal="' + l.c.id + '"><td><b>' + esc(l.c.nome) + '</b><div class="muted">' + l.n + ' OS · ' + us.length + ' usuário(s) no portal</div></td><td>' + svs + '</td><td>' + (l.ac ? data(l.ac.acessoAte) : '—') + '</td><td><span class="tag ' + l.st[1] + '">' + l.st[0] + '</span></td><td>' + (ult ? data(ult) : '—') + '</td><td style="text-align:right"><button class="btn peq' + (l.ac ? ' sec' : '') + '">' + (l.ac ? 'Gerenciar' : 'Enviar acesso') + '</button></td></tr>';
+        return '<tr class="clicavel" data-portal="' + l.c.id + '"><td><b>' + esc(l.c.nome) + '</b><div class="muted">' + l.n + ' OS · ' + us.length + ' usuário(s) no portal</div></td><td>' + svs + '</td><td>' + (l.ac ? data(l.ac.acessoAte) : '—') + '</td><td><span class="tag ' + l.st[1] + '">' + l.st[0] + '</span></td><td>' + (ult ? data(ult) : '—') + '</td><td style="text-align:right;white-space:nowrap"><button class="btn peq sec" data-vercomo="' + l.c.id + '" title="Abrir o portal como este cliente vê (só leitura)">👁 Ver como cliente</button> <button class="btn peq' + (l.ac ? ' sec' : '') + '">' + (l.ac ? 'Gerenciar' : 'Enviar acesso') + '</button></td></tr>';
       }).join('') + '</tbody></table>';
   }
 
@@ -1147,6 +1147,7 @@
   $('v-portal').addEventListener('click', function (e) {
     if (e.target.id === 'btn-portal-publicar') { publicarPortal(true); return; }
     if (e.target.id === 'btn-portal-config') { configPortal(); return; }
+    var vc = e.target.closest('[data-vercomo]'); if (vc) { window.open(urlPortal() + '?ver_como=' + encodeURIComponent(vc.dataset.vercomo), '_blank'); return; }
     var tr = e.target.closest('tr[data-portal]'); if (tr) telaAcessoPortal(tr.dataset.portal);
   });
   $('busca-portal').addEventListener('input', renderPortal);
