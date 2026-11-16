@@ -248,7 +248,7 @@
   .tagchip i { width: 8px; height: 8px; border-radius: 50%; background: var(--borda); } .tagchip i.ok { background: var(--ok); }
   .tagolho, .bicone { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--borda); background: transparent; color: var(--sub); border-radius: 8px; cursor: pointer; }
   .tagolho { width: 28px; height: 26px; margin-left: 4px; }
-  .bicones { display: inline-flex; gap: 6px; } .bicone { width: 38px; height: 36px; }
+  .bicones { display: inline-flex; gap: 6px; } .bicone { height: 36px; padding: 0 12px; gap: 6px; font: inherit; font-size: 13px; font-weight: 700; white-space: nowrap; } .bicone:hover { color: var(--texto); border-color: var(--amb); }
   .tagolho:hover, .bicone:hover { color: var(--amb-t); border-color: var(--amb-b); }
   .osacoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--linha); padding-top: 10px; }
   .relcta { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; border-color: var(--amb-b); }
@@ -695,8 +695,8 @@
   function iconeOlho() { return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>'; }
   function iconeBaixar() { return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>'; }
   function botoesIcone(x) {
-    return '<span class="bicones"><button type="button" class="bicone" data-laudo="' + esc(x.chave) + '" data-acao="ver" title="Ver o PDF" aria-label="Ver o PDF de ' + esc(x.tag || '') + '">' + iconeOlho() + '</button>' +
-      '<button type="button" class="bicone" data-laudo="' + esc(x.chave) + '" data-acao="baixar" title="Baixar o PDF" aria-label="Baixar o PDF de ' + esc(x.tag || '') + '">' + iconeBaixar() + '</button></span>';
+    return '<span class="bicones"><button type="button" class="bicone" data-laudo="' + esc(x.chave) + '" data-acao="ver" title="Ver o PDF" aria-label="Ver o PDF de ' + esc(x.tag || '') + '">' + iconeOlho() + '<span>Ver</span></button>' +
+      '<button type="button" class="bicone" data-laudo="' + esc(x.chave) + '" data-acao="baixar" title="Baixar o PDF" aria-label="Baixar o PDF de ' + esc(x.tag || '') + '">' + iconeBaixar() + '<span>Baixar</span></button></span>';
   }
   var NOME_EXAME = { externo: 'Exame externo', interno: 'Exame interno' };
   function telaRelatorios(irPara) {
