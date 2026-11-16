@@ -63,4 +63,14 @@ var cap = l2.checklist.filter(function (i) { return i.codigo === 'CAP-02'; })[0]
 var t1 = S.textosAutomaticos(l2); assert.strictEqual(t1.parecer, 'nao_conforme');
 assert.ok(/^1\. \[CAP-02\] Reinstalar/.test(t1.recomendacoes)); assert.ok(/imediata/.test(t1.recomendacoes)); assert.ok(/2\. \[DOC-01\]/.test(t1.recomendacoes));
 assert.ok(/1 de correção imediata/.test(t1.texto));
+// Documentação técnica -> checklist DOC
+var l4 = S.novoLaudo({ id: 'o4', codigo: 'X' }, ed, 'g'); l4.documentacao = S.documentacaoVazia();
+l4.documentacao.itens.projeto.status = 'apresentado'; l4.documentacao.itens.art_projeto.status = 'nao_apresentado'; l4.documentacao.itens.art_execucao.status = 'na';
+l4.documentacao.itens.laudo_anterior.status = 'desatualizado'; l4.documentacao.gr.possui = 'nao';
+assert.ok(S.aplicarDocNoChecklist(l4));
+var rr = {}; l4.checklist.forEach(function (i) { rr[i.codigo] = i.r; });
+assert.strictEqual(rr['DOC-01'], 'C'); assert.strictEqual(rr['DOC-02'], 'NC'); assert.strictEqual(rr['DOC-03'], 'NC'); assert.strictEqual(rr['DOC-04'], 'NC');
+assert.ok(l4.checklist.filter(function (i) { return i.codigo === 'DOC-02'; })[0].problemas.length === 1);
+l4.documentacao.itens.art_projeto.status = 'apresentado'; S.aplicarDocNoChecklist(l4);
+assert.strictEqual(l4.checklist.filter(function (i) { return i.codigo === 'DOC-04'; })[0].r, 'C');
 console.log('SPDA modelo: todos os testes passaram');
