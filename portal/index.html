@@ -165,6 +165,12 @@
   .sp-filtro button { background: transparent; color: var(--sub); border: 0; padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
   .sp-filtro button.sel { background: var(--amb); color: #111; }
   .sp-ed { border: 1px solid var(--linha); border-radius: 12px; padding: 16px; margin-top: 12px; background: rgba(255,255,255,.015); }
+  details.sp-ed > summary { list-style: none; cursor: pointer; } details.sp-ed > summary::-webkit-details-marker { display: none; }
+  .sp-seta { width: 10px; height: 10px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .2s; flex-shrink: 0; margin-right: 2px; }
+  details[open] > summary .sp-seta { transform: rotate(45deg); }
+  .sp-qtd { font-weight: 700; } .sp-qtd.bad { color: var(--bad-c); } .sp-qtd.ok { color: #4ade80; }
+  .sp-abrir { margin-top: 8px; font-size: 13px; font-weight: 700; color: var(--amb-t); } .sp-abrir .abre { display: none; } details[open] > summary .sp-abrir .abre { display: inline; } details[open] > summary .sp-abrir .fecha { display: none; }
+  .sp-corpo { margin-top: 4px; }
   .sp-ed.nc { border-left: 4px solid var(--bad); } .sp-ed.okk { border-left: 4px solid #4ade80; }
   .sp-cab { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
   .sp-cab h3 { margin: 0; font-size: 18px; text-transform: uppercase; }
@@ -837,10 +843,13 @@
   function cartaoSpda(x, so, anteriores) {
       var d = x.detalhe || {}, p = PARECER[x.parecer], ncs = d.ncs || [], prazo = '';
       if (x.proxima) prazo = x.proxima < hoje() ? '<span class="chip c-bad">Inspeção vencida</span>' : dias(x.proxima) <= 90 ? '<span class="chip c-warn">Vence em ' + dias(x.proxima) + ' dias</span>' : '';
-      var h = '<div class="sp-ed ' + (ncs.length || x.parecer === 'nao_conforme' ? 'nc' : 'okk') + '"><div class="sp-cab"><h3>' + esc(x.tag || 'Edificação') + '</h3>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '') + prazo +
+      // recolhido: o cliente vê o resumo e clica para abrir os detalhes (com o filtro "Só não conformidades" já abre)
+      var h = '<details class="sp-ed ' + (ncs.length || x.parecer === 'nao_conforme' ? 'nc' : 'okk') + '"' + (so ? ' open' : '') + '><summary class="sp-sum"><div class="sp-cab"><span class="sp-seta" aria-hidden="true"></span><h3>' + esc(x.tag || 'Edificação') + '</h3>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '') + prazo +
         '<span style="margin-left:auto">' + botoesIcone(x) + '</span></div>' +
         '<div class="sp-meta"><span>Laudo <b>' + esc(x.numero || '—') + '</b></span><span>Nível de proteção <b>' + esc(x.nivelProtecao || '—') + '</b></span><span>Inspeção <b>' + data(isoDe(x.dataInspecao)) + '</b></span>' +
-        '<span>Próxima inspeção <b>' + (x.proxima ? data(x.proxima) : '—') + '</b></span>' + (x.os ? '<span>OS <b>' + esc(x.os) + '</b></span>' : '') + '</div>';
+        '<span>Próxima inspeção <b>' + (x.proxima ? data(x.proxima) : '—') + '</b></span>' + (x.os ? '<span>OS <b>' + esc(x.os) + '</b></span>' : '') +
+        '<span class="sp-qtd ' + (ncs.length ? 'bad' : 'ok') + '">' + (ncs.length ? ncs.length + (ncs.length === 1 ? ' ponto não conforme' : ' pontos não conformes') : 'Nenhum ponto não conforme') + '</span></div>' +
+        '<div class="sp-abrir"><span class="fecha">Ver detalhes</span><span class="abre">Recolher</span></div></summary><div class="sp-corpo">';
       if (!so && d.resumo) h += '<div class="sp-subs">' + d.resumo.map(function (r) {
         var tot = r.c + r.nc + r.na;
         return '<div class="sp-sub' + (r.nc ? ' bad' : '') + '"><span>' + esc(r.nome) + '</span>' + (r.nc ? '<span class="chip c-bad" style="align-self:flex-start">' + r.nc + ' não conforme' + (r.nc > 1 ? 's' : '') + '</span>' : '<span class="chip c-ok" style="align-self:flex-start">Conforme</span>') +
@@ -862,7 +871,7 @@
       if (so && d.recomendacoes) h += '<div class="sp-h4">Recomendações</div><p class="sp-txt">' + esc(d.recomendacoes) + '</p>';
       if (!so && d.responsavel) h += '<div class="sp-meta" style="margin-top:14px"><span>Responsável técnico <b>' + esc(d.responsavel) + '</b></span>' + (d.crea ? '<span>CREA <b>' + esc(d.crea) + '</b></span>' : '') + (d.art ? '<span>ART <b>' + esc(d.art) + '</b></span>' : '') + '</div>';
       if (anteriores && anteriores.length) h += '<div class="sp-ant"><span class="sub">Laudos anteriores desta edificação:</span>' + anteriores.map(function (a) { return '<span class="sp-antit">' + esc(a.numero || '—') + ' · ' + data(isoDe(a.dataInspecao)) + (a.os ? ' · OS ' + esc(a.os) : '') + ' ' + botoesIcone(a) + '</span>'; }).join('') + '</div>';
-      return h + '</div>';
+      return h + '</div></details>';
   }
   // Organizado por OS: o cliente escolhe a OS (a mais recente vem primeiro) e vê as edificações inspecionadas nela
   function secaoSpda(docs, oss) {
@@ -900,6 +909,8 @@
       (lista.length > 1 ? '<p class="sub" style="margin:-4px 0 4px">' + lista.length + ' ordens de serviço. Escolha acima qual inspeção ver; a mais recente aparece primeiro.</p>' : '') +
       (corpo || '<p class="vazio">Nenhum laudo de SPDA liberado ainda.</p>') + '</section>';
   }
+  // botões (ver/baixar PDF) no resumo recolhido não abrem/fecham o cartão
+  document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('summary.sp-sum button')) e.preventDefault(); }, true);
   function redesenharSpda() { var sec = document.getElementById('sp-sec'); if (sec && estado.spdaOss) sec.outerHTML = secaoSpda(todosDocs(), estado.spdaOss); }
   document.addEventListener('change', function (e) { if (e.target && e.target.id === 'sp-os') { estado.spdaOs = e.target.value; redesenharSpda(); } });
   document.addEventListener('click', function (e) {
