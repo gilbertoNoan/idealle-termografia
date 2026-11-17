@@ -595,6 +595,8 @@
       // merge: true preserva campos que outros sistemas (como a Termografia) gravaram no mesmo documento
       atualizar: function (col, id, doc) { return db.collection(col).doc(id).set(doc, { merge: true }); },
       excluir: function (col, id) { return db.collection(col).doc(id).delete(); },
+      // Apaga um item de um mapa do documento (ex.: um documento de portal_laudos.laudos)
+      tirarDoMapa: function (col, id, mapa, chave) { return db.collection(col).doc(id).update(new firebase.firestore.FieldPath(mapa, chave), firebase.firestore.FieldValue.delete()); },
       // Muda um campo em todos os documentos onde ele é igual a `de` (coleções que o Finanças não carrega, como os pontos da Termografia)
       trocarCampo: async function (col, campo, de, para) {
         var snap = await db.collection(col).where(campo, '==', de).get(), n = 0;
@@ -624,6 +626,7 @@
       ler: function (col, id) { var x = col_(col).find(function (y) { return y.id === id; }); return Promise.resolve(x ? JSON.parse(JSON.stringify(x)) : null); },
       atualizar: function (col, id, doc) { col_(col); var i = dados[col].findIndex(function (x) { return x.id === id; }); if (i >= 0) Object.assign(dados[col][i], doc); else dados[col].push(Object.assign({ id: id }, doc)); salvar(); avisar(col); return Promise.resolve(); },
       excluir: function (col, id) { dados[col] = col_(col).filter(function (x) { return x.id !== id; }); salvar(); avisar(col); return Promise.resolve(); },
+      tirarDoMapa: function (col, id, mapa, chave) { var x = col_(col).find(function (y) { return y.id === id; }); if (x && x[mapa]) delete x[mapa][chave]; salvar(); avisar(col); return Promise.resolve(); },
       gravar: function (col, id, doc) { dados[col] = col_(col).filter(function (x) { return x.id !== id; }); dados[col].push(Object.assign({ id: id }, doc)); salvar(); avisar(col); return Promise.resolve(); },
       trocarCampo: function () { return Promise.resolve(0); },
       atualizarOnde: function () { return Promise.resolve(0); }
@@ -1177,9 +1180,9 @@
       var atual = function (d) { return (d.tipo || 'nr13') === 'calibracao' ? (/v[aá]lvula/i.test(d.equipamento || '') ? 'psv' : 'pi') : 'nr13'; };
       $('pp-noportal').innerHTML = (errados.length ? '<div style="border:1px solid var(--warn,#f59e0b);border-radius:10px;padding:10px 12px;margin:10px 0"><b>' + errados.length + ' certificado(s) estão como Relatório NR-13 no portal.</b> ' +
           '<button class="btn peq" id="pp-corrigir">Passar para Calibração</button></div>' : '') +
-        '<details' + (errados.length ? ' open' : '') + ' style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Já no portal (' + ks.length + ') · trocar o tipo</summary><div style="max-height:260px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>TAG</th><th>OS</th><th>Tipo</th></tr></thead><tbody>' +
+        '<details' + (errados.length ? ' open' : '') + ' style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Já no portal (' + ks.length + ') · trocar o tipo ou remover</summary><div style="max-height:260px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>TAG</th><th>OS</th><th>Tipo</th><th></th></tr></thead><tbody>' +
         ks.map(function (k) { var d = indicePortal[k];
-          return '<tr><td style="max-width:260px;word-break:break-all">' + esc(d.arquivo || d.equipamento || k) + '</td><td>' + esc(d.tag || '') + '</td><td>' + esc(d.os || '') + '</td><td>' + selTipo('data-k="' + esc(k) + '"', atual(d)) + '</td></tr>';
+          return '<tr><td style="max-width:260px;word-break:break-all">' + esc(d.arquivo || d.equipamento || k) + '</td><td>' + esc(d.tag || '') + '</td><td>' + esc(d.os || '') + '</td><td>' + selTipo('data-k="' + esc(k) + '"', atual(d)) + '</td><td><button class="btn perigo peq" data-remover="' + esc(k) + '" title="Tirar este documento do portal do cliente">Remover</button></td></tr>';
         }).join('') + '</tbody></table></div></details>';
       async function trocar(mudar) {
         try {
@@ -1196,6 +1199,20 @@
       }
       if ($('pp-corrigir')) $('pp-corrigir').onclick = function () { this.disabled = true; trocar(errados.map(function (k) { return [k, /psv|v[aá]lvula|valvula/i.test(indicePortal[k].arquivo || '') ? 'psv' : 'pi']; })); };
       $('pp-noportal').querySelectorAll('[data-k]').forEach(function (el) { el.onchange = function () { trocar([[el.dataset.k, el.value]]); }; });
+      $('pp-noportal').querySelectorAll('[data-remover]').forEach(function (el) {
+        el.onclick = async function () {
+          var k = el.dataset.remover, d = indicePortal[k] || {};
+          if (!confirm('Tirar do portal do cliente o documento "' + (d.arquivo || d.equipamento || k) + '"?\n\nO cliente deixa de ver e baixar. O PDF original no seu computador não é apagado.')) return;
+          el.disabled = true;
+          try {
+            await banco.tirarDoMapa('portal_laudos', empId, 'laudos', k);
+            for (var n = 0; n < (d.partes || 0); n++) await banco.excluir('portal_laudos_partes', k + '__' + d.versao + '__' + n).catch(function () {});
+            delete indicePortal[k];
+            toast('Documento removido do portal.');
+          } catch (e) { console.error(e); toast('Não foi possível remover: ' + (e.message || e)); }
+          desenharNoPortal();
+        };
+      });
     }
   }
   function telaAcessoPortal(empId) {
