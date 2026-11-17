@@ -553,7 +553,7 @@
     var vistos = {};
     (d.certificados || []).concat(todosDocs().filter(function (x) { return x.tipo === 'calibracao'; })).forEach(function (c) {
       var val = isoDe(c.validade); if (!val) return;
-      var tipo = /valvula|psv|safety/i.test(String(c.tipo || c.equipamento || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')) ? 'Válvula de segurança (PSV)' : 'Manômetro (PI)';
+      var tipo = /valvula|psv|safety/i.test(String((c.tipo !== 'calibracao' && c.tipo) || c.equipamento || c.arquivo || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')) ? 'Válvula de segurança (PSV)' : 'Manômetro (PI)';
       var chave = tipo + (c.tag || '') + (c.numero || '') + val; if (vistos[chave]) return; vistos[chave] = 1;
       var nome = tipo + (c.tag ? ' · ' + c.tag : '');
       if (val < hoje()) add('bad', 'calibracao', 'Calibração vencida — ' + nome, 'A validade do certificado' + (c.numero ? ' ' + c.numero : '') + ' terminou em ' + data(val) + '.', val);
@@ -713,11 +713,27 @@
     for (var i = 0; i < TIPOS_DOC.length; i++) if (TIPOS_DOC[i][0].test(nome)) return { ordem: i, nome: TIPOS_DOC[i][1] };
     return { ordem: x.antigo ? 9 : 0, nome: x.antigo ? String(x.equipamento || nome).replace(/\.pdf$/i, '') : (x.equipamento || 'Laudo NR-13') };
   }
+  // Certificado enviado como PDF (assinado no token ou antigo) sem número/datas: completa com o certificado
+  // registrado na OS pelo Gerador de Certificados (mesma TAG, mesma OS e mesmo tipo), para o aviso de vencimento
+  function completarCertificado(x) {
+    if (x.validade && x.dataInspecao && x.numero) return;
+    var so = function (s) { return String(s || '').replace(/\D/g, ''); }, tg = function (s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); };
+    var psv = /valvula|psv|safety/i.test(String(x.equipamento || x.arquivo || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+    var cs = ((estado.dados && estado.dados.certificados) || []).filter(function (c) {
+      return tg(c.tag) === tg(x.tag) && /v[aá]lvula/i.test(c.tipo || '') === psv;
+    });
+    var c = cs.filter(function (c) { return x.os && so(c.os) === so(x.os); })[0] || (cs.length === 1 ? cs[0] : null);
+    if (!c) return;
+    if (!x.numero) x.numero = c.numero || '';
+    if (!x.dataInspecao) x.dataInspecao = c.data || '';
+    if (!x.validade) x.validade = c.validade || '';
+  }
   function todosDocs() {
     var l = estado.laudos || {};
     return Object.keys(l).map(function (k) {
       var x = Object.assign({ chave: k, tipo: l[k].tipo || 'nr13' }, l[k]);
       if (!x.tag && x.tipo !== 'termografia' && x.tipo !== 'spda') x.tag = tagDoNome(x.arquivo) || tagDoNome(x.equipamento);
+      if (x.tipo === 'calibracao') completarCertificado(x);
       return x;
     })
       .sort(function (a, b) { return (isoDe(b.dataInspecao) || '') < (isoDe(a.dataInspecao) || '') ? -1 : 1; });
@@ -1082,7 +1098,7 @@
   // Tudo o que a IDEALLE liberou: laudos NR-13 (sem tipo), certificados ('calibracao') e OS de termografia
   function liberados(tipo) {
     var l = estado.laudos || {};
-    return Object.keys(l).map(function (k) { return Object.assign({ chave: k }, l[k]); })
+    return Object.keys(l).map(function (k) { var x = Object.assign({ chave: k }, l[k]); if (x.tipo === 'calibracao') completarCertificado(x); return x; })
       .filter(function (x) { return (x.tipo || 'nr13') === tipo; })
       .sort(function (a, b) { return (isoDe(b.dataInspecao) || b.publicadoEm || '') < (isoDe(a.dataInspecao) || a.publicadoEm || '') ? -1 : 1; });
   }

@@ -1027,6 +1027,28 @@
     await banco.atualizar('portal_acessos', empId, { hashDados: h, contagem: dd.contagem, publicadoEm: dd.atualizadoEm });
     return true;
   }
+  // Número e datas do certificado registrados na OS pelo Gerador de Certificados (mesma OS, TAG e tipo)
+  function certificadoDaOs(empId, os, tag, psv) {
+    var so = function (s) { return String(s || '').replace(/\D/g, ''); }, achados = [];
+    cache.ordens.forEach(function (o) {
+      if (o.empresaId !== empId) return;
+      var mesmaOs = os && so(codOS(o)) === so(os);
+      (((o.resultados || {})['Gerador de Certificados'] || {}).itens || []).forEach(function (i) {
+        if (chaveTag(i.tag) !== chaveTag(tag) || (i.tipo === 'manometer' || i.tipo === 'manometro') === !!psv) return;
+        achados.push({ mesmaOs: mesmaOs, numero: i.numero || '', data: dataVenc(i.data), validade: dataVenc(i.validade) });
+      });
+    });
+    return achados.filter(function (a) { return a.mesmaOs; })[0] || (achados.length === 1 ? achados[0] : null);
+  }
+  function completarDaOs(empId, m) {
+    if (m.tipo !== 'calibracao' || (m.validade && m.dataInspecao && m.numero)) return false;
+    var c = certificadoDaOs(empId, m.os, m.tag, /v[aá]lvula/i.test(m.equipamento || '')); if (!c) return false;
+    var mudou = false;
+    if (!m.numero && c.numero) { m.numero = c.numero; mudou = true; }
+    if (!m.dataInspecao && c.data) { m.dataInspecao = c.data; mudou = true; }
+    if (!m.validade && c.validade) { m.validade = c.validade; mudou = true; }
+    return mudou;
+  }
   function selTipo(attr, v) {
     return '<select ' + attr + ' style="min-width:190px;width:auto"><option value="nr13"' + (v === 'nr13' ? ' selected' : '') + '>Relatório NR-13</option><option value="pi"' + (v === 'pi' ? ' selected' : '') + '>Certificado · Manômetro</option><option value="psv"' + (v === 'psv' ? ' selected' : '') + '>Certificado · Válvula</option></select>';
   }
@@ -1162,6 +1184,7 @@
                 mudouTipo ? { equipamento: meta.equipamento, tag: meta.tag || existente.tag } : {});
             }
           }
+          completarDaOs(empId, meta);
           var campos = { empresaId: empId, laudos: {} }; campos.laudos[chave] = meta;
           await banco.atualizar('portal_laudos', empId, campos);
           var velho = antigos[chave];
@@ -1184,12 +1207,19 @@
       if (!ks.length) { $('pp-noportal').innerHTML = ''; return; }
       ks.sort(function (a, b) { var x = indicePortal[a], y = indicePortal[b]; return (String(x.os || '') + x.tag + x.arquivo) < (String(y.os || '') + y.tag + y.arquivo) ? -1 : 1; });
       var errados = ks.filter(function (k) { var d = indicePortal[k]; return (d.tipo || 'nr13') === 'nr13' && tipoPeloNome(d.arquivo || '', '') === 'calibracao'; });
+      var semData = ks.filter(function (k) { var d = Object.assign({}, indicePortal[k]); return d.tipo === 'calibracao' && completarDaOs(empId, d); });
       var atual = function (d) { return (d.tipo || 'nr13') === 'calibracao' ? (/v[aá]lvula/i.test(d.equipamento || '') ? 'psv' : 'pi') : 'nr13'; };
       $('pp-noportal').innerHTML = (errados.length ? '<div style="border:1px solid var(--warn,#f59e0b);border-radius:10px;padding:10px 12px;margin:10px 0"><b>' + errados.length + ' certificado(s) estão como Relatório NR-13 no portal.</b> ' +
           '<button class="btn peq" id="pp-corrigir">Passar para Calibração</button></div>' : '') +
-        '<details' + (errados.length ? ' open' : '') + ' style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Já no portal (' + ks.length + ') · trocar o tipo ou remover</summary><div style="max-height:260px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>TAG</th><th>OS</th><th>Tipo</th><th></th></tr></thead><tbody>' +
+        (semData.length ? '<div style="border:1px solid var(--warn,#f59e0b);border-radius:10px;padding:10px 12px;margin:10px 0"><b>' + semData.length + ' certificado(s) sem número ou datas no portal, mas registrados na OS pelo Gerador de Certificados.</b> ' +
+          '<button class="btn peq" id="pp-datas">Preencher pelas OS</button></div>' : '') +
+        '<details' + (errados.length ? ' open' : '') + ' style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Já no portal (' + ks.length + ') · trocar o tipo ou remover</summary><div style="max-height:260px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>TAG</th><th>OS</th><th>Tipo</th><th>Nº / calibrado em / validade</th><th></th></tr></thead><tbody>' +
         ks.map(function (k) { var d = indicePortal[k];
-          return '<tr><td style="max-width:260px;word-break:break-all">' + esc(d.arquivo || d.equipamento || k) + '</td><td>' + esc(d.tag || '') + '</td><td>' + esc(d.os || '') + '</td><td>' + selTipo('data-k="' + esc(k) + '"', atual(d)) + '</td><td><button class="btn perigo peq" data-remover="' + esc(k) + '" title="Tirar este documento do portal do cliente">Remover</button></td></tr>';
+          return '<tr><td style="max-width:260px;word-break:break-all">' + esc(d.arquivo || d.equipamento || k) + '</td><td>' + esc(d.tag || '') + '</td><td>' + esc(d.os || '') + '</td><td>' + selTipo('data-k="' + esc(k) + '"', atual(d)) + '</td><td style="white-space:nowrap">' +
+            ((d.tipo || 'nr13') === 'calibracao' ? '<input data-kc="' + esc(k) + '" data-campo="numero" value="' + esc(d.numero || '') + '" placeholder="Nº" style="width:70px"> ' +
+              '<input type="date" data-kc="' + esc(k) + '" data-campo="dataInspecao" value="' + esc(dataVenc(d.dataInspecao)) + '" title="Calibrado em"> ' +
+              '<input type="date" data-kc="' + esc(k) + '" data-campo="validade" value="' + esc(dataVenc(d.validade)) + '" title="Validade"' + (d.validade ? '' : ' style="border-color:var(--warn,#f59e0b)"') + '>' : '') +
+            '</td><td><button class="btn perigo peq" data-remover="' + esc(k) + '" title="Tirar este documento do portal do cliente">Remover</button></td></tr>';
         }).join('') + '</tbody></table></div></details>';
       async function trocar(mudar) {
         try {
@@ -1206,6 +1236,23 @@
       }
       if ($('pp-corrigir')) $('pp-corrigir').onclick = function () { this.disabled = true; trocar(errados.map(function (k) { return [k, /psv|v[aá]lvula|valvula/i.test(indicePortal[k].arquivo || '') ? 'psv' : 'pi']; })); };
       $('pp-noportal').querySelectorAll('[data-k]').forEach(function (el) { el.onchange = function () { trocar([[el.dataset.k, el.value]]); }; });
+      async function gravarCampos(novos) {
+        try {
+          var campos = { empresaId: empId, laudos: {} };
+          Object.keys(novos).forEach(function (k) { campos.laudos[k] = novos[k]; indicePortal[k] = novos[k]; });
+          await banco.atualizar('portal_laudos', empId, campos);
+          toast(Object.keys(novos).length + ' certificado(s) atualizado(s) no portal.');
+        } catch (e) { console.error(e); toast('Não foi possível gravar: ' + (e.message || e)); }
+        desenharNoPortal();
+      }
+      $('pp-noportal').querySelectorAll('[data-kc]').forEach(function (el) {
+        el.onchange = function () { var k = el.dataset.kc, n = Object.assign({}, indicePortal[k]); n[el.dataset.campo] = el.value.trim(); var o = {}; o[k] = n; gravarCampos(o); };
+      });
+      if ($('pp-datas')) $('pp-datas').onclick = function () {
+        this.disabled = true; var o = {};
+        semData.forEach(function (k) { var n = Object.assign({}, indicePortal[k]); if (completarDaOs(empId, n)) o[k] = n; });
+        gravarCampos(o);
+      };
       $('pp-noportal').querySelectorAll('[data-remover]').forEach(function (el) {
         el.onclick = async function () {
           var k = el.dataset.remover, d = indicePortal[k] || {};
