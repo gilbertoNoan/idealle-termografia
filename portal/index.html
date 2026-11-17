@@ -662,7 +662,7 @@
     var por = {};
     nr.forEach(function (x) { var t = String(x.tag || '').trim().toUpperCase(); if (t) (por[t] = por[t] || []).push(x); });
     return Object.keys(por).map(function (t) {
-      var e = dadosDoEquip(por[t]); if (!e.proximo && !e.nomeEquipamento) return null;
+      var e = dadosDoEquip(por[t]);
       return { tag: t, nome: e.nomeEquipamento || '', area: e.area || '', dataInspecao: isoDe(e.dataInspecao), externo: e.externo, interno: e.interno,
         categoria: e.categoria || '', parecer: e.parecer || '', proximo: e.proximo, situacao: sitProx(e.proximo), os: e.os || '', doPdf: true };
     }).filter(Boolean);
@@ -924,7 +924,8 @@
         g.docs.sort(function (a, b) { return tipoDoc(a).ordem - tipoDoc(b).ordem; });
         var v = vasos.filter(function (w) { return w.tag === g.tag; })[0] || {};
         var laudo = g.docs.filter(function (x) { return tipoDoc(x).ordem === 1; })[0], e = dadosDoEquip(g.docs);
-        var nomeEq = v.nome || e.nomeEquipamento || (laudo && laudo.equipamento && !laudo.antigo ? laudo.equipamento : '');
+        // o "equipamento" de um PDF subido é o nome do arquivo: não serve de nome do equipamento
+        var nomeEq = v.nome || e.nomeEquipamento || (laudo && laudo.equipamento && !laudo.antigo && laudo.equipamento !== String(laudo.arquivo || '').replace(/\.pdf$/i, '') ? laudo.equipamento : '');
         var area = v.area || e.area, insp = isoDe(e.dataInspecao) || v.dataInspecao || (laudo && isoDe(laudo.dataInspecao));
         var prox = v.proximo || e.proximo, pq = PARECER[(laudo && laudo.parecer) || e.parecer || v.parecer], cat = e.categoria || v.categoria;
         var sp = sitProx(prox);

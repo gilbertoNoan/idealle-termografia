@@ -1170,7 +1170,9 @@
     // Dados da pasta em JSON (formato idealle-portal-documentos): cada PDF já vem com tipo, TAG, OS, nº, calibração e validade
     // pasta de cada equipamento (ex.: TAG-VP-02): arquivos de mesmo nome em equipamentos diferentes (4 REGISTRO FOTOGRAFICO.pdf)
     function pastaDe(caminho) { var ps = String(caminho || '').split('/'); return ps.length > 1 ? ps[ps.length - 2] : ''; }
-    function chaveJson(pasta, arquivo) { return (String(pasta || '').split(/[\\\/]/).pop() + '/' + arquivo).toLowerCase(); }
+    // nome sem acento, caixa, espaço ou _ : "6 Registro de Ocorrência_2026.pdf" = "6_Registro_de_Ocorrencia_2026.pdf"
+    function nomeChave(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[\s_]+/g, ' ').trim(); }
+    function chaveJson(pasta, arquivo) { return nomeChave(String(pasta || '').split(/[\\\/]/).pop() + '/' + arquivo); }
     // Dados do equipamento NR-13 que vêm no JSON (nome, área, categoria, parecer e próximos exames do relatório)
     function camposNr13(d) {
       var r = {}; if (!d) return r;
@@ -1184,12 +1186,15 @@
     // o mesmo documento no JSON: pelo nome (quando único) ou pelo nome + TAG (o "4 REGISTRO FOTOGRAFICO.pdf" de cada equipamento)
     function jsonDoPortal(doc) {
       if (!dadosJson) return null;
-      var nome = String(doc.arquivo || '').toLowerCase(), tag = String(doc.tag || '').toUpperCase();
-      return dadosJson.porArquivo[nome] || dadosJson.documentos.filter(function (d) { return String(d.arquivo || '').toLowerCase() === nome && String(d.tag || '').toUpperCase() === tag; })[0] || null;
+      var nome = nomeChave(doc.arquivo), tag = String(doc.tag || '').toUpperCase(), tipo = docDoProntuario(doc.arquivo);
+      var mesmaTag = function (d) { return String(d.tag || '').toUpperCase() === tag; };
+      return dadosJson.porArquivo[nome] || dadosJson.documentos.filter(function (d) { return nomeChave(d.arquivo) === nome && mesmaTag(d); })[0] ||
+        // nome diferente (renomeado): o mesmo tipo de documento da mesma TAG (prontuário, relatório, PMTA...)
+        (tag && (doc.tipo || 'nr13') === 'nr13' ? dadosJson.documentos.filter(function (d) { return mesmaTag(d) && !d.instrumento && d.tipo !== 'calibracao' && docDoProntuario(d.arquivo) === tipo; })[0] : null) || null;
     }
     function aplicarJson(x) {
       if (!dadosJson) return;
-      var d = dadosJson.porPasta[chaveJson(x.pasta, x.arquivo)] || dadosJson.porArquivo[x.arquivo.toLowerCase()]; if (!d) return;
+      var d = dadosJson.porPasta[chaveJson(x.pasta, x.arquivo)] || jsonDoPortal({ arquivo: x.arquivo, tag: x.tag, tipo: x.tipoAuto || 'nr13' }); if (!d) return;
       x.doJson = d;
       x.tipoAuto = d.tipo === 'calibracao' || d.instrumento ? 'calibracao' : 'nr13';
       x.psv = d.instrumento === 'valvula';
@@ -1214,7 +1219,7 @@
         if (!j || !Array.isArray(j.documentos)) throw new Error('não é um arquivo de dados da pasta (falta "documentos").');
         // pelo nome só quando ele é único; repetido (um por equipamento), vale a pasta
         var por = {}, porPasta = {}, vistos = {};
-        j.documentos.forEach(function (d) { if (!d || !d.arquivo) return; var k = String(d.arquivo).toLowerCase(); vistos[k] = (vistos[k] || 0) + 1; porPasta[chaveJson(d.pasta, d.arquivo)] = d; por[k] = d; });
+        j.documentos.forEach(function (d) { if (!d || !d.arquivo) return; var k = nomeChave(d.arquivo); vistos[k] = (vistos[k] || 0) + 1; porPasta[chaveJson(d.pasta, d.arquivo)] = d; por[k] = d; });
         Object.keys(vistos).forEach(function (k) { if (vistos[k] > 1) delete por[k]; });
         dadosJson = { cliente: j.cliente || '', documentos: j.documentos, porArquivo: por, porPasta: porPasta };
         lista.forEach(aplicarJson); desenhar(); infoJson(); desenharNoPortal();
