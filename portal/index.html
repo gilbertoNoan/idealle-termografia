@@ -647,12 +647,38 @@
     Object.keys(ext).forEach(function (k) { if (ext[k] === true) sv[k] = true; else if (ext[k] === false) delete sv[k]; });
     if (estado.dados) estado.dados.servicos = sv;
   }
+  // Dados do equipamento que vêm junto com os PDFs do prontuário (JSON ou digitados no Cronos): vale o relatório, depois os outros
+  function dadosDoEquip(docs) {
+    var r = {}, ord = docs.slice().sort(function (a, b) { return (tipoDoc(a).ordem === 1 ? 0 : 1) - (tipoDoc(b).ordem === 1 ? 0 : 1); });
+    ['nomeEquipamento', 'area', 'categoria', 'parecer', 'proxExterno', 'proxInterno', 'proximaInspecao', 'dataInspecao', 'os'].forEach(function (c) {
+      for (var i = 0; i < ord.length; i++) if (ord[i][c]) { r[c] = ord[i][c]; break; }
+    });
+    r.externo = isoDe(r.proxExterno) || ''; r.interno = isoDe(r.proxInterno) || '';
+    r.proximo = [r.externo, r.interno, isoDe(r.proximaInspecao)].filter(Boolean).sort()[0] || '';
+    return r;
+  }
+  function sitProx(p) { return !p ? 'sem' : p < hoje() ? 'vencido' : dias(p) <= 90 ? 'vencendo' : 'emdia'; }
+  function vasosDosDocs(nr) {
+    var por = {};
+    nr.forEach(function (x) { var t = String(x.tag || '').trim().toUpperCase(); if (t) (por[t] = por[t] || []).push(x); });
+    return Object.keys(por).map(function (t) {
+      var e = dadosDoEquip(por[t]); if (!e.proximo && !e.nomeEquipamento) return null;
+      return { tag: t, nome: e.nomeEquipamento || '', area: e.area || '', dataInspecao: isoDe(e.dataInspecao), externo: e.externo, interno: e.interno,
+        categoria: e.categoria || '', parecer: e.parecer || '', proximo: e.proximo, situacao: sitProx(e.proximo), os: e.os || '', doPdf: true };
+    }).filter(Boolean);
+  }
   function soLiberados() {
     var d = estado.dados || {}, docs = todosDocs();
     var tipo = function (t) { return docs.filter(function (x) { return x.tipo === t; }); };
     var nr = tipo('nr13'), cal = tipo('calibracao'), te = tipo('termografia');
     var up = function (s) { return String(s || '').trim().toUpperCase(); };
     d.vasos = (d.vasos || []).filter(function (v) { return nr.some(function (x) { return up(x.tag) === up(v.tag); }); });
+    // Equipamentos com prontuário subido em PDF (feito fora do sistema): prazos que vieram com os documentos
+    vasosDosDocs(nr).forEach(function (v) {
+      var i = -1; d.vasos.forEach(function (w, j) { if (up(w.tag) === up(v.tag)) i = j; });
+      if (i < 0) d.vasos.push(v);
+      else if ((v.dataInspecao || '') > (d.vasos[i].dataInspecao || '') && v.proximo) d.vasos[i] = v;
+    });
     d.certificados = (d.certificados || []).filter(function (c) {
       return cal.some(function (x) { return (c.numero && x.numero && String(x.numero) === String(c.numero) && up(x.os) === up(c.os)) || (c.tag && up(x.tag) === up(c.tag) && up(x.os) === up(c.os)); });
     });
@@ -883,33 +909,40 @@
         porTag[k].docs.push(x);
       });
       grupos.sort(function (a, b) { return (a.tag ? 0 : 1) - (b.tag ? 0 : 1) || String(a.tag).localeCompare(String(b.tag), 'pt-BR', { numeric: true }); });
-      var linhaDoc = function (x) {
+      var linhaDoc = function (x, noGrupo) {
         var v = vasos.filter(function (w) { return w.tag === x.tag; })[0] || {}, p = PARECER[x.parecer || v.parecer];
         var td = tipoDoc(x), nomeDoc = x.tipo === 'calibracao' ? 'Certificado ' + (x.numero || '') : td.nome;
-        if (x.tipo === 'spda') return '<tr><td><span class="tagchip"><i class="ok"></i>' + esc(x.numero || '—') + '</span></td><td><b style="text-transform:uppercase">' + esc(x.tag || 'Edificação') + '</b><div class="sub">SPDA · NP ' + esc(x.nivelProtecao || '—') + (x.proxima ? ' · próxima inspeção ' + data(x.proxima) : '') + '</div></td><td>' + data(isoDe(x.dataInspecao)) + '</td><td>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '<span class="sub">—</span>') + '</td><td style="text-align:right">' + botoesIcone(x) + '</td></tr>';
+        if (x.tipo === 'spda') return '<tr><td><span class="tagchip"><i class="ok"></i>' + esc(x.numero || '—') + '</span></td><td><b style="text-transform:uppercase">' + esc(x.tag || 'Edificação') + '</b><div class="sub">SPDA · NP ' + esc(x.nivelProtecao || '—') + (x.proxima ? ' · próxima inspeção ' + data(x.proxima) : '') + '</div></td><td>' + data(isoDe(x.dataInspecao)) + '</td><td>' + (x.proxima ? data(x.proxima) : '<span class="sub">—</span>') + '</td><td>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '<span class="sub">—</span>') + '</td><td style="text-align:right">' + botoesIcone(x) + '</td></tr>';
         return '<tr class="docdatag"><td class="sub" style="padding-left:22px">↳</td>' +
           '<td><b>' + esc(nomeDoc) + '</b>' + (td.ordem === 1 && !x.antigo ? '' : '<div class="sub" style="word-break:break-all">' + esc(x.arquivo || '') + '</div>') + '</td>' +
-          '<td>' + data(isoDe(x.dataInspecao)) + '</td>' +
-          '<td>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '<span class="sub">—</span>') + '</td>' +
+          (noGrupo ? '<td></td><td></td><td></td>' : '<td>' + data(isoDe(x.dataInspecao)) + '</td><td></td>' +
+          '<td>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '<span class="sub">—</span>') + '</td>') +
           '<td style="text-align:right">' + botoesIcone(x) + '</td></tr>';
       };
       var linhasOs = soCal ? linhasCalPorTag(itensCal, false) : grupos.map(function (g) {
         if (!g.tag && g.docs[0].tipo === 'spda') return linhaDoc(g.docs[0]);
         g.docs.sort(function (a, b) { return tipoDoc(a).ordem - tipoDoc(b).ordem; });
         var v = vasos.filter(function (w) { return w.tag === g.tag; })[0] || {};
-        var laudo = g.docs.filter(function (x) { return tipoDoc(x).ordem === 1; })[0];
-        var nomeEq = v.nome || (laudo && laudo.equipamento && !laudo.antigo ? laudo.equipamento : '');
-        var cab = '<tr class="grupotag"><td colspan="5"><span class="tagchip"><i class="ok"></i>' + esc(g.tag || 'Sem TAG') + '</span>' +
-          (nomeEq ? ' <b style="text-transform:uppercase;margin-left:8px">' + esc(nomeEq) + '</b>' : '') + (v.area ? ' <span class="sub">· ' + esc(v.area) + '</span>' : '') +
-          ' <span class="sub">· ' + plural(g.docs.length, 'documento', 'documentos') + '</span></td></tr>';
-        return cab + g.docs.map(function (x) { return linhaDoc(x); }).join('');
+        var laudo = g.docs.filter(function (x) { return tipoDoc(x).ordem === 1; })[0], e = dadosDoEquip(g.docs);
+        var nomeEq = v.nome || e.nomeEquipamento || (laudo && laudo.equipamento && !laudo.antigo ? laudo.equipamento : '');
+        var area = v.area || e.area, insp = isoDe(e.dataInspecao) || v.dataInspecao || (laudo && isoDe(laudo.dataInspecao));
+        var prox = v.proximo || e.proximo, pq = PARECER[(laudo && laudo.parecer) || e.parecer || v.parecer], cat = e.categoria || v.categoria;
+        var sp = sitProx(prox);
+        // Um laudo por equipamento: a linha da TAG traz inspeção, próxima inspeção e parecer; os documentos do prontuário vêm embaixo
+        var cab = '<tr class="grupotag"><td><span class="tagchip"><i class="ok"></i>' + esc(g.tag || 'Sem TAG') + '</span></td>' +
+          '<td>' + (nomeEq ? '<b style="text-transform:uppercase">' + esc(nomeEq) + '</b>' : '<b>Equipamento</b>') + '<div class="sub">' + (area ? esc(area) + ' · ' : '') + (cat ? 'Categoria ' + esc(cat) + ' · ' : '') + plural(g.docs.length, 'documento', 'documentos') + '</div></td>' +
+          '<td>' + data(insp) + '</td>' +
+          '<td>' + (prox ? '<span class="chip ' + SIT[sp][1] + '">' + (sp === 'vencido' ? 'Vencida' : sp === 'vencendo' ? 'Vence em ' + dias(prox) + ' dias' : 'Em dia') + '</span><div class="sub">até ' + data(prox) +
+            (e.externo && e.interno && e.externo !== e.interno ? ' · externo ' + mesAno(e.externo) + ', interno ' + mesAno(e.interno) : '') + '</div>' : '<span class="sub">—</span>') + '</td>' +
+          '<td>' + (pq ? '<span class="chip ' + pq[1] + '">' + pq[0] + '</span>' : '<span class="sub">—</span>') + '</td><td></td></tr>';
+        return cab + g.docs.map(function (x) { return linhaDoc(x, true); }).join('');
       }).join('') + tagsSemDoc.map(function (v) {
-        return '<tr><td><span class="tagchip"><i></i>' + esc(v.tag) + '</span></td><td><b style="text-transform:uppercase">' + esc(v.nome || '—') + '</b></td><td>' + data(v.dataInspecao) + '</td><td colspan="2"><span class="sub">Laudo ainda não liberado</span></td></tr>';
+        return '<tr><td><span class="tagchip"><i></i>' + esc(v.tag) + '</span></td><td><b style="text-transform:uppercase">' + esc(v.nome || '—') + '</b></td><td>' + data(v.dataInspecao) + '</td><td colspan="3"><span class="sub">Laudo ainda não liberado</span></td></tr>';
       }).join('');
-      var cabTabela = soCal ? cabCalPorTag(itensCal) : '<th>TAG</th><th>Equipamento</th><th>Inspeção</th><th>Parecer</th><th style="text-align:right">PDF</th>';
+      var cabTabela = soCal ? cabCalPorTag(itensCal) : '<th>TAG</th><th>Equipamento</th><th>Inspeção</th><th>Próxima inspeção</th><th>Parecer</th><th style="text-align:right">PDF</th>';
       var det = '<div class="osdet">' + (linhasOs ? '<div class="tabela"><table' + (soCal ? ' class="caltab"' : '') + '><thead><tr>' + cabTabela + '</tr></thead><tbody>' + linhasOs + '</tbody></table></div>'
         : '<p class="vazio" style="margin:0">' + (termo ? 'Os laudos de termografia desta OS abrem no botão abaixo.' : 'Os relatórios desta OS ainda não foram liberados pela IDEALLE.') + '</p>') + '</div>';
-      var seta = '<span class="osseta">' + (pdfsOs.length ? 'Ver ' + pdfsOs.length + (soCal ? ' certificado(s)' : ' relatório(s)') : soCal ? 'Ver certificados' : 'Ver relatórios') + ' <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>';
+      var seta = '<span class="osseta">' + (pdfsOs.length ? 'Ver ' + (soCal ? pdfsOs.length + ' certificado(s)' : plural(grupos.length, 'laudo', 'laudos') + (grupos.length < pdfsOs.length ? ' · ' + pdfsOs.length + ' documentos' : '')) : soCal ? 'Ver certificados' : 'Ver relatórios') + ' <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>';
       return '<div class="oscard"><div class="oscab" role="button" tabindex="0" aria-expanded="false" title="Clique para ver os relatórios desta OS"><span class="mono" style="font-size:17px">' + esc(o.codigo) + '</span>' +
         (st ? '<span class="chip ' + (st === 'Concluída' ? 'c-ok' : 'c-warn') + '">' + esc(st === 'Concluída' ? 'Concluída' : 'Em andamento') + '</span>' : '') +
         '<span class="sub">' + data(o.abertura) + ' · ' + (pdfsOs.length || !termo ? pdfsOs.length + ' documento(s)' : (termo.qtd || 0) + ' ponto(s) de termografia') + (o.servicos.length ? ' · ' + esc(o.servicos.join(', ')) : '') + '</span>' + seta + '</div>' +

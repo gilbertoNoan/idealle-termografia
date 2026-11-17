@@ -1120,7 +1120,7 @@
       if (!lista.length) { $('pp-lista').innerHTML = 'Nenhum arquivo escolhido.'; $('pp-enviar').disabled = false; return; }
       var padrao = $('pp-tipo').value;
       lista.forEach(function (x) { x.tipo = x.tipoAuto || padrao; x.chavePortal = x.assinantes ? noPortal(x) : null; });
-      $('pp-lista').innerHTML = '<div style="max-height:300px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>Assinatura</th><th>Tipo</th><th>TAG</th><th>OS</th><th>Data</th><th>Nº / validade</th><th></th></tr></thead><tbody>' +
+      $('pp-lista').innerHTML = '<div style="max-height:300px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>Assinatura</th><th>Tipo</th><th>TAG</th><th>OS</th><th>Data</th><th>Nº / validade / próxima inspeção</th><th></th></tr></thead><tbody>' +
         lista.map(function (x, i) {
           return '<tr><td style="max-width:240px;word-break:break-all">' + esc(x.arquivo) + '</td>' +
             '<td style="white-space:nowrap">' + (x.assinantes ? '<span style="color:var(--ok,#4ade80);font-weight:700" title="' + esc(x.assinantes.join(', ')) + '">✓ ' + esc(x.assinantes.length ? x.assinantes.map(function (n) { return n.split(' ')[0]; }).join(' e ') : 'assinado') + '</span>' + (x.chavePortal ? '<br><span class="muted">substitui a do portal</span>' : '') : '<span class="muted">sem (consulta)</span>') + '</td>' +
@@ -1128,7 +1128,9 @@
             '<td><input data-i="' + i + '" data-c="tag" value="' + esc(x.tag) + '" style="width:110px"></td>' +
             '<td><input data-i="' + i + '" data-c="os" value="' + esc(x.os) + '" placeholder="da caixa acima" style="width:120px"></td>' +
             '<td><input data-i="' + i + '" data-c="data" type="date" value="' + esc(x.data) + '"></td>' +
-            '<td style="white-space:nowrap">' + (x.tipo === 'calibracao' ? '<input data-i="' + i + '" data-c="numero" value="' + esc(x.numero || '') + '" placeholder="Nº" style="width:110px"> <input data-i="' + i + '" data-c="validade" type="date" value="' + esc(x.validade || '') + '" title="Validade">' : '') +
+            '<td style="white-space:nowrap">' + (x.tipo === 'calibracao' ? '<input data-i="' + i + '" data-c="numero" value="' + esc(x.numero || '') + '" placeholder="Nº" style="width:110px"> <input data-i="' + i + '" data-c="validade" type="date" value="' + esc(x.validade || '') + '" title="Validade">' :
+              (function () { var j = camposNr13(x.doJson), pr = x.proxima || [j.proxExterno, j.proxInterno, j.proximaInspecao].filter(Boolean).sort()[0] || '';
+                return '<span class="muted" style="font-size:12px">próxima inspeção</span><br><input data-i="' + i + '" data-c="proxima" type="date" value="' + esc(pr) + '" title="Próxima inspeção do equipamento (prazo da categoria ou do PH)">'; })()) +
               (x.doJson ? '<br><span style="color:var(--ok,#4ade80);font-size:12px">dados do JSON</span>' : '') + '</td>' +
             '<td><button class="btn sec" data-tirar="' + i + '" title="Tirar da lista">×</button></td></tr>';
         }).join('') + '</tbody></table></div><p class="muted">' + lista.length + ' arquivo(s), ' + lista.filter(function (x) { return x.assinantes; }).length + ' assinado(s). Confira a TAG de cada um; ela aparece para o cliente.</p>';
@@ -1169,6 +1171,22 @@
     // pasta de cada equipamento (ex.: TAG-VP-02): arquivos de mesmo nome em equipamentos diferentes (4 REGISTRO FOTOGRAFICO.pdf)
     function pastaDe(caminho) { var ps = String(caminho || '').split('/'); return ps.length > 1 ? ps[ps.length - 2] : ''; }
     function chaveJson(pasta, arquivo) { return (String(pasta || '').split(/[\\\/]/).pop() + '/' + arquivo).toLowerCase(); }
+    // Dados do equipamento NR-13 que vêm no JSON (nome, área, categoria, parecer e próximos exames do relatório)
+    function camposNr13(d) {
+      var r = {}; if (!d) return r;
+      if (d.equipamento) r.nomeEquipamento = String(d.equipamento);
+      ['area', 'categoria', 'parecer'].forEach(function (c) { if (d[c]) r[c] = String(d[c]); });
+      if (d.proximoExameExterno) r.proxExterno = dataVenc(d.proximoExameExterno);
+      if (d.proximoExameInterno) r.proxInterno = dataVenc(d.proximoExameInterno);
+      if (d.proximaInspecao) r.proximaInspecao = dataVenc(d.proximaInspecao);
+      return r;
+    }
+    // o mesmo documento no JSON: pelo nome (quando único) ou pelo nome + TAG (o "4 REGISTRO FOTOGRAFICO.pdf" de cada equipamento)
+    function jsonDoPortal(doc) {
+      if (!dadosJson) return null;
+      var nome = String(doc.arquivo || '').toLowerCase(), tag = String(doc.tag || '').toUpperCase();
+      return dadosJson.porArquivo[nome] || dadosJson.documentos.filter(function (d) { return String(d.arquivo || '').toLowerCase() === nome && String(d.tag || '').toUpperCase() === tag; })[0] || null;
+    }
     function aplicarJson(x) {
       if (!dadosJson) return;
       var d = dadosJson.porPasta[chaveJson(x.pasta, x.arquivo)] || dadosJson.porArquivo[x.arquivo.toLowerCase()]; if (!d) return;
@@ -1270,6 +1288,8 @@
             equipamento: tipoX === 'calibracao' ? (x.psv ? 'Válvula de segurança' : 'Manômetro') : x.arquivo.replace(/\.pdf$/i, '') };
           if (tipoX === 'calibracao') { meta.validade = x.validade || val || ''; if (x.numero) meta.numero = x.numero; }
           if (x.doJson) ['fluido', 'faixa', 'modelo', 'pressaoAjuste', 'pressaoAbertura', 'pressaoFechamento'].forEach(function (c) { if (x.doJson[c]) meta[c] = x.doJson[c]; });
+          var dadosEquip = tipoX === 'nr13' ? Object.assign(camposNr13(x.doJson), x.proxima ? { proximaInspecao: x.proxima } : {}) : {};
+          Object.assign(meta, dadosEquip);
           if (x.assinantes) {
             meta.antigo = false;
             meta.assinado = { titular: x.assinantes.join(' e ') || 'certificado digital', em: agora(), token: true };
@@ -1281,6 +1301,7 @@
               // dados conferidos (JSON ou digitados na linha) valem mais que os que estavam no portal
               ['numero', 'validade', 'fluido', 'faixa', 'modelo', 'pressaoAjuste', 'pressaoAbertura', 'pressaoFechamento'].forEach(function (c) { if (novo[c]) meta[c] = novo[c]; });
               if (x.doJson) { meta.tag = novo.tag || meta.tag; meta.os = novo.os; meta.equipamento = novo.equipamento; meta.dataInspecao = novo.dataInspecao || meta.dataInspecao; }
+              Object.assign(meta, dadosEquip);
             }
           }
           completarDaOs(empId, meta);
@@ -1316,25 +1337,28 @@
       var errados = ks.filter(function (k) { var d = indicePortal[k]; return (d.tipo || 'nr13') === 'nr13' && tipoPeloNome(d.arquivo || '', '') === 'calibracao'; });
       var semData = ks.filter(function (k) { var d = Object.assign({}, indicePortal[k]); return d.tipo === 'calibracao' && completarDaOs(empId, d); });
       var atual = function (d) { return (d.tipo || 'nr13') === 'calibracao' ? (/v[aá]lvula/i.test(d.equipamento || '') ? 'psv' : 'pi') : 'nr13'; };
-      var doJsonNoPortal = dadosJson ? ks.filter(function (k) { return dadosJson.porArquivo[String(indicePortal[k].arquivo || '').toLowerCase()]; }) : [];
+      var doJsonNoPortal = dadosJson ? ks.filter(function (k) { return jsonDoPortal(indicePortal[k]); }) : [];
       var temCal = ks.some(function (k) { return indicePortal[k].tipo === 'calibracao'; });
       var semValidade = ks.some(function (k) { var d = indicePortal[k]; return d.tipo === 'calibracao' && (!d.validade || dataVenc(d.validade) <= dataVenc(d.dataInspecao)); });
       $('pp-noportal').innerHTML = (errados.length ? '<div style="border:1px solid var(--warn,#f59e0b);border-radius:10px;padding:10px 12px;margin:10px 0"><b>' + errados.length + ' certificado(s) estão como Relatório NR-13 no portal.</b> ' +
           '<button class="btn peq" id="pp-corrigir">Passar para Calibração</button></div>' : '') +
         (semData.length ? '<div style="border:1px solid var(--warn,#f59e0b);border-radius:10px;padding:10px 12px;margin:10px 0"><b>' + semData.length + ' certificado(s) sem número ou datas no portal, mas registrados na OS pelo Gerador de Certificados.</b> ' +
           '<button class="btn peq" id="pp-datas">Preencher pelas OS</button></div>' : '') +
-        (doJsonNoPortal.length ? '<div style="border:1px solid var(--ok,#4ade80);border-radius:10px;padding:10px 12px;margin:10px 0"><b>O JSON carregado tem os dados de ' + doJsonNoPortal.length + ' documento(s) que já estão no portal</b> (nº, calibração, validade, TAG, OS). ' +
+        (doJsonNoPortal.length ? '<div style="border:1px solid var(--ok,#4ade80);border-radius:10px;padding:10px 12px;margin:10px 0"><b>O JSON carregado tem os dados de ' + doJsonNoPortal.length + ' documento(s) que já estão no portal</b> (TAG, OS, datas, nº e validade dos certificados, próxima inspeção dos equipamentos). ' +
           '<button class="btn peq" id="pp-json-portal">Corrigir pelo JSON</button></div>' : '') +
         '<details' + (errados.length || semValidade ? ' open' : '') + ' style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Já no portal (' + ks.length + ') · editar nº e validade, trocar o tipo ou remover</summary>' +
         (temCal ? '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0;padding:8px 10px;border:1px solid var(--borda,#475569);border-radius:10px"><b style="font-size:13px">Prazo de notificação do cliente</b> <span class="muted" style="font-size:13px">(a data em que o portal avisa o vencimento; não muda o PDF do certificado). Nos marcados; sem marcar, em todos:</span>' +
           '<input type="date" id="pp-val-lote"> <button class="btn peq" id="pp-val-aplicar">Aplicar data</button><button class="btn sec peq" id="pp-val-1ano">Calibração + 1 ano</button></div>' : '') +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0"><button class="btn perigo peq" id="pp-rem-marcados" disabled>Remover marcados</button><button class="btn perigo peq" id="pp-rem-todos">Remover todos (' + ks.length + ')</button><span class="muted" style="font-size:13px">marque as caixas para escolher quais</span></div>' +
-        '<div style="max-height:260px;overflow:auto"><table><thead><tr><th style="width:28px"><input type="checkbox" id="pp-marcar-todos" title="Marcar todos"></th><th>Arquivo</th><th>TAG</th><th>OS</th><th>Tipo</th><th>Nº / calibrado em / prazo de notificação</th><th></th></tr></thead><tbody>' +
+        '<div style="max-height:260px;overflow:auto"><table><thead><tr><th style="width:28px"><input type="checkbox" id="pp-marcar-todos" title="Marcar todos"></th><th>Arquivo</th><th>TAG</th><th>OS</th><th>Tipo</th><th>Nº / calibrado em / prazo de notificação · NR-13: inspeção / próxima inspeção</th><th></th></tr></thead><tbody>' +
         ks.map(function (k) { var d = indicePortal[k];
-          return '<tr><td><input type="checkbox" data-marcar="' + esc(k) + '"></td><td style="max-width:260px;word-break:break-all">' + esc(d.arquivo || d.equipamento || k) + '</td><td>' + esc(d.tag || '') + '</td><td>' + esc(d.os || '') + '</td><td>' + selTipo('data-k="' + esc(k) + '"', atual(d)) + '</td><td style="white-space:nowrap">' +
+          return '<tr><td><input type="checkbox" data-marcar="' + esc(k) + '"></td><td style="max-width:260px;word-break:break-all">' + esc(d.arquivo || d.equipamento || k) + '</td><td>' + esc(d.tag || '') + '</td><td>' + ((d.tipo || 'nr13') === 'nr13' && d.tag ? '<input data-kt="' + esc(k) + '" data-campo="os" value="' + esc(d.os || '') + '" placeholder="ID-0000/2026" style="width:110px" title="OS (vale para todos os documentos desta TAG)">' : esc(d.os || '')) + '</td><td>' + selTipo('data-k="' + esc(k) + '"', atual(d)) + '</td><td style="white-space:nowrap">' +
             ((d.tipo || 'nr13') === 'calibracao' ? '<input data-kc="' + esc(k) + '" data-campo="numero" value="' + esc(d.numero || '') + '" placeholder="Nº" style="width:70px"> ' +
               '<input type="date" data-kc="' + esc(k) + '" data-campo="dataInspecao" value="' + esc(dataVenc(d.dataInspecao)) + '" title="Calibrado em"> ' +
-              '<input type="date" data-kc="' + esc(k) + '" data-campo="validade" value="' + esc(dataVenc(d.validade)) + '" title="Prazo de notificação do cliente (vencimento no portal)"' + (d.validade ? '' : ' style="border-color:var(--warn,#f59e0b)"') + '>' : '') +
+              '<input type="date" data-kc="' + esc(k) + '" data-campo="validade" value="' + esc(dataVenc(d.validade)) + '" title="Prazo de notificação do cliente (vencimento no portal)"' + (d.validade ? '' : ' style="border-color:var(--warn,#f59e0b)"') + '>' :
+              // NR-13: os dados valem para o equipamento (todos os documentos da mesma TAG)
+              '<input type="date" data-kt="' + esc(k) + '" data-campo="dataInspecao" value="' + esc(dataVenc(d.dataInspecao)) + '" title="Data da inspeção (vale para todos os documentos desta TAG)"> ' +
+              '<input type="date" data-kt="' + esc(k) + '" data-campo="proximaInspecao" value="' + esc([d.proxExterno, d.proxInterno, d.proximaInspecao].filter(Boolean).map(dataVenc).sort()[0] || '') + '" title="Próxima inspeção (vale para todos os documentos desta TAG)"' + (d.tag && !(d.proxExterno || d.proxInterno || d.proximaInspecao) ? ' style="border-color:var(--warn,#f59e0b)"' : '') + '>') +
             '</td><td><button class="btn perigo peq" data-remover="' + esc(k) + '" title="Tirar este documento do portal do cliente">Remover</button></td></tr>';
         }).join('') + '</tbody></table></div></details>';
       async function trocar(mudar) {
@@ -1361,6 +1385,19 @@
         } catch (e) { console.error(e); toast('Não foi possível gravar: ' + (e.message || e)); }
         desenharNoPortal();
       }
+      $('pp-noportal').querySelectorAll('[data-kt]').forEach(function (el) {
+        el.onchange = function () {
+          var d0 = indicePortal[el.dataset.kt], tag = String(d0.tag || '').toUpperCase(), c = el.dataset.campo, v = el.value.trim(), o = {};
+          ks.forEach(function (k) {
+            var d = indicePortal[k]; if ((d.tipo || 'nr13') !== 'nr13' || String(d.tag || '').toUpperCase() !== tag) return;
+            var n = Object.assign({}, d); n[c] = c === 'os' ? v.toUpperCase() : v;
+            // a próxima inspeção digitada vale no lugar dos prazos que vieram do relatório
+            if (c === 'proximaInspecao') { n.proxExterno = ''; n.proxInterno = ''; } // vazio (e não delete): a gravação junta os campos
+            o[k] = n;
+          });
+          gravarCampos(o);
+        };
+      });
       $('pp-noportal').querySelectorAll('[data-kc]').forEach(function (el) {
         el.onchange = function () { var k = el.dataset.kc, n = Object.assign({}, indicePortal[k]); n[el.dataset.campo] = el.value.trim(); var o = {}; o[k] = n; gravarCampos(o); };
       });
@@ -1389,7 +1426,7 @@
       if ($('pp-json-portal')) $('pp-json-portal').onclick = function () {
         this.disabled = true; var o = {};
         doJsonNoPortal.forEach(function (k) {
-          var d = dadosJson.porArquivo[String(indicePortal[k].arquivo || '').toLowerCase()], n = Object.assign({}, indicePortal[k]);
+          var d = jsonDoPortal(indicePortal[k]), n = Object.assign({}, indicePortal[k]);
           var cal = d.tipo === 'calibracao' || !!d.instrumento;
           n.tipo = cal ? 'calibracao' : 'nr13';
           if (cal) n.equipamento = d.instrumento === 'valvula' ? 'Válvula de segurança' : 'Manômetro';
@@ -1399,6 +1436,7 @@
           if (d.dataCalibracao || d.dataInspecao) n.dataInspecao = dataVenc(d.dataCalibracao || d.dataInspecao);
           if (d.validade || d.proximaInspecao) n.validade = dataVenc(d.validade || d.proximaInspecao);
           ['fluido', 'faixa', 'modelo', 'pressaoAjuste', 'pressaoAbertura', 'pressaoFechamento'].forEach(function (c) { if (d[c]) n[c] = d[c]; });
+          if (!cal) { n.validade = ''; Object.assign(n, camposNr13(d)); }
           o[k] = n;
         });
         gravarCampos(o);
