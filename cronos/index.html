@@ -426,7 +426,7 @@
       var t = normal(l);
       if (/termogr/.test(t)) r.termografia = true;
       if (/spda|descargas? atmosf|para-?raio|5419/.test(t)) r.spda = true;
-      if (/engenharia civil|obras? civil|servicos? (tecnicos )?civis|revestimento (ceramico|de fachada)|fachada|alvenaria|assentamento|reboco|emboco|contrapiso|porcelanato/.test(t)) r.civil = true;
+      if (/engenharia civil|obras? civil|servicos? (tecnicos )?civis|revestimento (ceramico|de fachada)|fachada|alvenaria|assentamento|reboco|emboco|contrapiso|porcelanato|valeta|drenagem|reforco estrutural|concretagem|sapatas?\b|fundac(ao|oes)|demolic|reaterro|escavac/.test(t)) r.civil = true;
       if (/manutenc|troca de (oleo|filtro|correia|retentor|gaxeta|rolamento)/.test(t)) r.manutencao = true;
       if (/pmta/.test(t)) r.pmta = true;
       if (/prontuario|reconstitui/.test(t)) r.prontuario = true;
