@@ -1305,9 +1305,10 @@
           '<button class="btn peq" id="pp-corrigir">Passar para Calibração</button></div>' : '') +
         (semData.length ? '<div style="border:1px solid var(--warn,#f59e0b);border-radius:10px;padding:10px 12px;margin:10px 0"><b>' + semData.length + ' certificado(s) sem número ou datas no portal, mas registrados na OS pelo Gerador de Certificados.</b> ' +
           '<button class="btn peq" id="pp-datas">Preencher pelas OS</button></div>' : '') +
-        '<details' + (errados.length ? ' open' : '') + ' style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Já no portal (' + ks.length + ') · trocar o tipo ou remover</summary><div style="max-height:260px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>TAG</th><th>OS</th><th>Tipo</th><th>Nº / calibrado em / validade</th><th></th></tr></thead><tbody>' +
+        '<details' + (errados.length ? ' open' : '') + ' style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Já no portal (' + ks.length + ') · trocar o tipo ou remover</summary><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0"><button class="btn perigo peq" id="pp-rem-marcados" disabled>Remover marcados</button><button class="btn perigo peq" id="pp-rem-todos">Remover todos (' + ks.length + ')</button><span class="muted" style="font-size:13px">marque as caixas para escolher quais</span></div>' +
+        '<div style="max-height:260px;overflow:auto"><table><thead><tr><th style="width:28px"><input type="checkbox" id="pp-marcar-todos" title="Marcar todos"></th><th>Arquivo</th><th>TAG</th><th>OS</th><th>Tipo</th><th>Nº / calibrado em / validade</th><th></th></tr></thead><tbody>' +
         ks.map(function (k) { var d = indicePortal[k];
-          return '<tr><td style="max-width:260px;word-break:break-all">' + esc(d.arquivo || d.equipamento || k) + '</td><td>' + esc(d.tag || '') + '</td><td>' + esc(d.os || '') + '</td><td>' + selTipo('data-k="' + esc(k) + '"', atual(d)) + '</td><td style="white-space:nowrap">' +
+          return '<tr><td><input type="checkbox" data-marcar="' + esc(k) + '"></td><td style="max-width:260px;word-break:break-all">' + esc(d.arquivo || d.equipamento || k) + '</td><td>' + esc(d.tag || '') + '</td><td>' + esc(d.os || '') + '</td><td>' + selTipo('data-k="' + esc(k) + '"', atual(d)) + '</td><td style="white-space:nowrap">' +
             ((d.tipo || 'nr13') === 'calibracao' ? '<input data-kc="' + esc(k) + '" data-campo="numero" value="' + esc(d.numero || '') + '" placeholder="Nº" style="width:70px"> ' +
               '<input type="date" data-kc="' + esc(k) + '" data-campo="dataInspecao" value="' + esc(dataVenc(d.dataInspecao)) + '" title="Calibrado em"> ' +
               '<input type="date" data-kc="' + esc(k) + '" data-campo="validade" value="' + esc(dataVenc(d.validade)) + '" title="Validade"' + (d.validade ? '' : ' style="border-color:var(--warn,#f59e0b)"') + '>' : '') +
@@ -1345,20 +1346,44 @@
         semData.forEach(function (k) { var n = Object.assign({}, indicePortal[k]); if (completarDaOs(empId, n)) o[k] = n; });
         gravarCampos(o);
       };
-      $('pp-noportal').querySelectorAll('[data-remover]').forEach(function (el) {
-        el.onclick = async function () {
-          var k = el.dataset.remover, d = indicePortal[k] || {};
-          if (!confirm('Tirar do portal do cliente o documento "' + (d.arquivo || d.equipamento || k) + '"?\n\nO cliente deixa de ver e baixar. O PDF original no seu computador não é apagado.')) return;
-          el.disabled = true;
+      async function remover(chaves, botoes) {
+        botoes.forEach(function (b) { b.disabled = true; });
+        var feitos = 0, falhas = 0;
+        for (var i = 0; i < chaves.length; i++) {
+          var k = chaves[i], d = indicePortal[k] || {};
+          if (chaves.length > 1) $('pp-status').textContent = 'Removendo ' + (i + 1) + ' de ' + chaves.length + '…';
           try {
             await banco.tirarDoMapa('portal_laudos', empId, 'laudos', k);
             for (var n = 0; n < (d.partes || 0); n++) await banco.excluir('portal_laudos_partes', k + '__' + d.versao + '__' + n).catch(function () {});
-            delete indicePortal[k];
-            toast('Documento removido do portal.');
-          } catch (e) { console.error(e); toast('Não foi possível remover: ' + (e.message || e)); }
-          desenharNoPortal();
+            delete indicePortal[k]; feitos++;
+          } catch (e) { console.error(e); falhas++; }
+        }
+        if (chaves.length > 1) $('pp-status').textContent = feitos + ' documento(s) removido(s) do portal' + (falhas ? ', ' + falhas + ' não foram (tente de novo)' : '') + '.';
+        toast(feitos === 1 && chaves.length === 1 ? 'Documento removido do portal.' : feitos + ' documento(s) removido(s) do portal.' + (falhas ? ' ' + falhas + ' não foram.' : ''));
+        desenharNoPortal();
+      }
+      var avisoRemover = '\n\nO cliente deixa de ver e baixar. Os PDFs originais no seu computador não são apagados.';
+      $('pp-noportal').querySelectorAll('[data-remover]').forEach(function (el) {
+        el.onclick = function () {
+          var k = el.dataset.remover, d = indicePortal[k] || {};
+          if (!confirm('Tirar do portal do cliente o documento "' + (d.arquivo || d.equipamento || k) + '"?' + avisoRemover)) return;
+          remover([k], [el]);
         };
       });
+      var caixas = Array.from($('pp-noportal').querySelectorAll('[data-marcar]'));
+      var marcados = function () { return caixas.filter(function (c) { return c.checked; }).map(function (c) { return c.dataset.marcar; }); };
+      var atualizarMarcados = function () { var n = marcados().length; $('pp-rem-marcados').disabled = !n; $('pp-rem-marcados').textContent = n ? 'Remover marcados (' + n + ')' : 'Remover marcados'; $('pp-marcar-todos').checked = n === caixas.length; };
+      caixas.forEach(function (c) { c.onchange = atualizarMarcados; });
+      $('pp-marcar-todos').onchange = function () { var v = this.checked; caixas.forEach(function (c) { c.checked = v; }); atualizarMarcados(); };
+      $('pp-rem-marcados').onclick = function () {
+        var m = marcados(); if (!m.length) return;
+        if (!confirm('Tirar do portal do cliente os ' + m.length + ' documento(s) marcado(s)?' + avisoRemover)) return;
+        remover(m, [this, $('pp-rem-todos')]);
+      };
+      $('pp-rem-todos').onclick = function () {
+        if (!confirm('Tirar do portal do cliente TODOS os ' + ks.length + ' documentos deste cliente?' + avisoRemover)) return;
+        remover(ks.slice(), [this, $('pp-rem-marcados')]);
+      };
     }
   }
   function telaAcessoPortal(empId) {
