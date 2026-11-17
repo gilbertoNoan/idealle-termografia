@@ -985,6 +985,9 @@
     // Relatório NR-13: Laudo_NR13_<TAG>_<OS>-<nº>.pdf · Certificados: CERT_<OS>_<PI-|PSV-><TAG>.pdf
     if ((m = base.match(/^Laudo_NR13_(.+?)_(IDE?-\d{3,4}_\d{4})/i))) { r.tag = m[1]; r.os = m[2].toUpperCase().replace('_', '/'); r.nr13 = true; }
     if ((m = base.match(/^CERT_(IDE?-\d{3,4}-\d{4})_(.+)$/i))) { r.os = m[1].toUpperCase().replace(/^(IDE?-\d+)-(\d{4})$/, '$1/$2'); r.tag = /[A-Z]/i.test(m[2].replace(/^(PI|PSV)-/i, '')) ? m[2].replace(/^(PI|PSV)-/i, '') : m[2]; r.psv = /^PSV-/i.test(m[2]); r.cal = true; }
+    // CERT_ com a OS fora do padrão (ex.: OS-ID-0277-2026 ou SEM-OS): continua sendo certificado
+    if (!r.cal && /^CERT_/i.test(base)) { r.cal = true; if ((m = base.match(/_(PI|PSV)-(.+)$/i))) { r.tag = /[A-Z]/i.test(m[2]) ? m[2] : m[1] + '-' + m[2]; r.psv = /^PSV$/i.test(m[1]); }
+      if ((m = base.match(/(?:^|[^A-Za-z])(IDE?-\d{3,4})[-_\/](\d{4})(?![0-9])/i))) r.os = (m[1] + '/' + m[2]).toUpperCase(); }
     if (r.tag) { r.tag = r.tag.toUpperCase().replace(/_/g, '-'); return r; }
     if ((m = base.match(/\b(IDE?-\d{3,4}[\/_-]\d{4})\b/i))) r.os = m[1].toUpperCase().replace(/_/g, '/').replace(/^(IDE?-\d+)-(\d{4})$/, '$1/$2');
     if (!r.os && (m = base.match(/(?:^|[^A-Za-z])(IDE?-\d{3,4})[-_\/](\d{4})(?![0-9])/i))) r.os = (m[1] + '/' + m[2]).toUpperCase();
@@ -996,16 +999,42 @@
     r.tag = r.tag.toUpperCase().replace(/_/g, '-');
     return r;
   }
+  // Relatório NR-13 ou certificado de calibração, pelo nome do arquivo e das pastas ('' = não deu para saber)
+  function tipoPeloNome(nome, caminho) {
+    var t = String((caminho || '') + ' ' + (nome || '')).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    var base = String(nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    // RO_OS-... é o Registro de Ocorrência do Gerador de Certificados (o do NR-13 se chama 6_Registro_de_Ocorrencia)
+    var cert = /certificad|calibra|manometr|valvula|^ro_|(^|[^a-z])(cert|psv|pi)([^a-z]|$)/;
+    var laudo = /laudo|relatorio|nr[\s_-]?13|prontuario|registro|ocorrencia|livro|pmta|desenquadr|termo de abertura/;
+    if (cert.test(base) && !laudo.test(base)) return 'calibracao';
+    if (laudo.test(base)) return 'nr13';
+    if (cert.test(t) && !laudo.test(t)) return 'calibracao';
+    if (laudo.test(t)) return 'nr13';
+    return '';
+  }
+  // Liga o serviço no portal (Serviços liberados) quando chegam documentos dele e ele ainda está trancado
+  async function liberarServicoNoPortal(empId, k) {
+    if (dadosPortal(empId).servicos[k]) return false;
+    var ac = portalAcesso(empId) || {}, extras = Object.assign({}, ac.servicosExtras || {}); extras[k] = true;
+    await banco.atualizar('portal_acessos', empId, { servicosExtras: extras, atualizadoEm: agora() });
+    var dd = dadosPortal(empId, { servicosExtras: extras }), h = hashTexto(JSON.stringify(dd)); dd.atualizadoEm = agora();
+    await banco.gravar('portal_dados', empId, dd);
+    await banco.atualizar('portal_acessos', empId, { hashDados: h, contagem: dd.contagem, publicadoEm: dd.atualizadoEm });
+    return true;
+  }
+  function selTipo(attr, v) {
+    return '<select ' + attr + ' style="min-width:190px;width:auto"><option value="nr13"' + (v === 'nr13' ? ' selected' : '') + '>Relatório NR-13</option><option value="pi"' + (v === 'pi' ? ' selected' : '') + '>Certificado · Manômetro</option><option value="psv"' + (v === 'psv' ? ' selected' : '') + '>Certificado · Válvula</option></select>';
+  }
   function telaPdfsAntigos(empId) {
     var emp = porId('empresas', empId) || {}, lista = [];
     var indicePortal = {};
-    banco.ler('portal_laudos', empId).then(function (d) { indicePortal = (d && d.laudos) || {}; if (lista.length) desenhar(); }).catch(function () {});
+    banco.ler('portal_laudos', empId).then(function (d) { indicePortal = (d && d.laudos) || {}; if (lista.length) desenhar(); desenharNoPortal(); }).catch(function () {});
     // Documento que já está no portal com o mesmo nome de arquivo (o envio do sistema), ou mesma OS + TAG + tipo
     function noPortal(x) {
       var ks = Object.keys(indicePortal), nome = x.arquivo.replace(/_ASSTMP(\.pdf)$/i, '$1').toLowerCase();
       var k = ks.filter(function (k) { return String(indicePortal[k].arquivo || '').toLowerCase() === nome; })[0];
       if (!k && x.tag && x.os) k = ks.filter(function (k) {
-        var d = indicePortal[k], tp = x.cal ? 'calibracao' : x.nr13 ? 'nr13' : null;
+        var d = indicePortal[k], tp = x.tipo || null;
         return d.tag === x.tag.toUpperCase() && String(d.os || '').toUpperCase() === x.os.toUpperCase() && (!tp || (d.tipo || 'nr13') === tp) &&
           (d.tipo !== 'calibracao' || /v[aá]lvula/i.test(d.equipamento || '') === !!x.psv);
       })[0];
@@ -1014,7 +1043,7 @@
     abrirModal('<h3>Subir PDFs ao portal · ' + esc(emp.nome || '') + '</h3>' +
       '<p class="muted" style="margin-top:0"><b>Assinados no token:</b> escolha a pasta assinada pelos .bat (ZIP do NR-13 ou dos Certificados). O PDF assinado vai sem nenhuma alteração e substitui a cópia para consulta da mesma TAG e OS que já estava no portal.</p>' +
       '<p class="muted" style="margin-top:0"><b>Antigos (sem assinatura):</b> relatórios NR-13 e certificados feitos antes dos sistemas vão como cópia para consulta (faixa no rodapé). Baixe a pasta do Google Drive e escolha os arquivos ou a pasta inteira.</p>' +
-      '<div class="grid"><div><label>Tipo</label><select id="pp-tipo"><option value="nr13">Relatórios NR-13</option><option value="calibracao">Certificados de calibração</option></select></div>' +
+      '<div class="grid"><div><label>Tipo (quando o nome não diz)</label><select id="pp-tipo"><option value="nr13">Relatórios NR-13</option><option value="calibracao">Certificados de calibração</option></select></div>' +
       '<div><label>OS (para todos os que não tiverem no nome)</label><input id="pp-os" placeholder="ex.: ID-0123/2025"></div>' +
       '<div><label>Data da inspeção/calibração (quando não estiver no nome)</label><input id="pp-data" type="date"></div>' +
       '<div><label>Validade da calibração (só certificados)</label><input id="pp-val" type="date"></div></div>' +
@@ -1023,23 +1052,28 @@
       '<div id="pp-soltar" style="border:2px dashed var(--borda,#475569);border-radius:12px;padding:22px 14px;text-align:center;margin:10px 0;color:var(--muted,#94a3b8);transition:background .15s,border-color .15s">' +
       '<b style="color:inherit">Arraste a pasta (ou os PDFs) para cá</b><br><span style="font-size:13px">pode ser a pasta inteira da OS, com as subpastas TAG-…</span></div>' +
       '<div id="pp-lista" class="muted">Nenhum arquivo escolhido.</div><p id="pp-status" class="muted"></p>' +
+      '<div id="pp-noportal"></div>' +
       '<div class="acoes"><button class="btn" id="pp-enviar" disabled>Enviar ao portal</button><button class="btn sec" id="pp-voltar">Voltar</button></div>');
     function desenhar() {
       if (!lista.length) { $('pp-lista').innerHTML = 'Nenhum arquivo escolhido.'; $('pp-enviar').disabled = true; return; }
-      var cal = $('pp-tipo').value === 'calibracao';
-      lista.forEach(function (x) { x.chavePortal = x.assinantes ? noPortal(x) : null; });
-      $('pp-lista').innerHTML = '<div style="max-height:300px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>Assinatura</th><th>TAG</th>' + (cal ? '<th>Instrumento</th>' : '') + '<th>OS</th><th>Data</th><th></th></tr></thead><tbody>' +
+      var padrao = $('pp-tipo').value;
+      lista.forEach(function (x) { x.tipo = x.tipoAuto || padrao; x.chavePortal = x.assinantes ? noPortal(x) : null; });
+      $('pp-lista').innerHTML = '<div style="max-height:300px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>Assinatura</th><th>Tipo</th><th>TAG</th><th>OS</th><th>Data</th><th></th></tr></thead><tbody>' +
         lista.map(function (x, i) {
           return '<tr><td style="max-width:240px;word-break:break-all">' + esc(x.arquivo) + '</td>' +
             '<td style="white-space:nowrap">' + (x.assinantes ? '<span style="color:var(--ok,#4ade80);font-weight:700" title="' + esc(x.assinantes.join(', ')) + '">✓ ' + esc(x.assinantes.length ? x.assinantes.map(function (n) { return n.split(' ')[0]; }).join(' e ') : 'assinado') + '</span>' + (x.chavePortal ? '<br><span class="muted">substitui a do portal</span>' : '') : '<span class="muted">sem (consulta)</span>') + '</td>' +
+            '<td>' + selTipo('data-i="' + i + '" data-c="tipo"', x.tipo === 'calibracao' ? (x.psv ? 'psv' : 'pi') : 'nr13') + (x.tipoAuto ? '' : '<br><span class="muted" style="font-size:12px">pelo tipo acima</span>') + '</td>' +
             '<td><input data-i="' + i + '" data-c="tag" value="' + esc(x.tag) + '" style="width:110px"></td>' +
-            (cal ? '<td><select data-i="' + i + '" data-c="psv"><option value="0"' + (x.psv ? '' : ' selected') + '>Manômetro (PI)</option><option value="1"' + (x.psv ? ' selected' : '') + '>Válvula (PSV)</option></select></td>' : '') +
             '<td><input data-i="' + i + '" data-c="os" value="' + esc(x.os) + '" placeholder="da caixa acima" style="width:120px"></td>' +
             '<td><input data-i="' + i + '" data-c="data" type="date" value="' + esc(x.data) + '"></td>' +
             '<td><button class="btn sec" data-tirar="' + i + '" title="Tirar da lista">×</button></td></tr>';
         }).join('') + '</tbody></table></div><p class="muted">' + lista.length + ' arquivo(s), ' + lista.filter(function (x) { return x.assinantes; }).length + ' assinado(s). Confira a TAG de cada um; ela aparece para o cliente.</p>';
       $('pp-lista').querySelectorAll('[data-c]').forEach(function (el) {
-        el.onchange = function () { var x = lista[+el.dataset.i], c = el.dataset.c; x[c] = c === 'psv' ? el.value === '1' : el.value.trim(); };
+        el.onchange = function () {
+          var x = lista[+el.dataset.i], c = el.dataset.c;
+          if (c === 'tipo') { x.tipoAuto = el.value === 'nr13' ? 'nr13' : 'calibracao'; x.psv = el.value === 'psv'; desenhar(); return; }
+          x[c] = el.value.trim();
+        };
       });
       $('pp-lista').querySelectorAll('[data-tirar]').forEach(function (b) { b.onclick = function () { lista.splice(+b.dataset.tirar, 1); desenhar(); }; });
       $('pp-enviar').disabled = false;
@@ -1052,7 +1086,9 @@
         if (!g.tag && (m = caminho.match(/(?:^|\/)TAG-([^\/]+)\//i))) g.tag = m[1].toUpperCase();
         var assinantes = null;
         try { assinantes = assinaturasDoPdf(new Uint8Array(await f.arrayBuffer())); } catch (e) { assinantes = null; }
-        lista.push({ file: f, arquivo: f.name.replace(/_ASSTMP(\.pdf)$/i, '$1'), tag: g.tag, os: g.os, data: g.data, psv: g.psv, cal: g.cal, nr13: g.nr13, assinantes: assinantes });
+        var tipoAuto = g.cal ? 'calibracao' : g.nr13 ? 'nr13' : tipoPeloNome(f.name, caminho);
+        if (tipoAuto === 'calibracao' && !g.cal) g.psv = /psv|v[aá]lvula|valvula/i.test(caminho + ' ' + f.name);
+        lista.push({ file: f, arquivo: f.name.replace(/_ASSTMP(\.pdf)$/i, '$1'), tag: g.tag, os: g.os, data: g.data, psv: g.psv, tipoAuto: tipoAuto, assinantes: assinantes });
       }
       desenhar();
     }
@@ -1088,8 +1124,8 @@
     $('pp-tipo').onchange = desenhar;
     $('pp-voltar').onclick = function () { telaAcessoPortal(empId); };
     $('pp-enviar').onclick = async function () {
-      var tipo = $('pp-tipo').value, osPadrao = $('pp-os').value.trim().toUpperCase(), dataPadrao = $('pp-data').value, val = $('pp-val').value;
-      var b = this; b.disabled = true; var ok = 0, falhas = [];
+      var osPadrao = $('pp-os').value.trim().toUpperCase(), dataPadrao = $('pp-data').value, val = $('pp-val').value;
+      var b = this; b.disabled = true; var ok = 0, falhas = [], tiposEnviados = {};
       var indice = (await banco.ler('portal_laudos', empId).catch(function () { return null; })) || {}, antigos = indice.laudos || {};
       for (var i = 0; i < lista.length; i++) {
         var x = lista[i];
@@ -1099,10 +1135,13 @@
           // já assinado (token): vai exatamente como está
           var bytes = x.assinantes ? original : await pdfParaConsulta(original);
           var existente = x.assinantes && x.chavePortal ? antigos[x.chavePortal] : null;
-          var b64 = base64De(bytes), chave = existente ? x.chavePortal : 'a_' + hashTexto(empId + '|' + tipo + '|' + x.arquivo), versao = Date.now().toString(36);
+          // o mesmo PDF antigo enviado de novo (ex.: com o tipo corrigido) troca o anterior, não duplica
+          var mesmoArquivo = !existente ? Object.keys(antigos).filter(function (k) { return /^a_/.test(k) && antigos[k].antigo && String(antigos[k].arquivo || '').toLowerCase() === x.arquivo.toLowerCase(); })[0] : null;
+          var b64 = base64De(bytes), chave = existente ? x.chavePortal : mesmoArquivo || 'a_' + hashTexto(empId + '|' + x.tipo + '|' + x.arquivo), versao = Date.now().toString(36);
           var partes = Math.ceil(b64.length / TAM_PARTE_PORTAL);
           for (var n = 0; n < partes; n++) await banco.gravar('portal_laudos_partes', chave + '__' + versao + '__' + n, { empresaId: empId, laudo: chave, parte: n, dados: b64.slice(n * TAM_PARTE_PORTAL, (n + 1) * TAM_PARTE_PORTAL) });
-          var tipoX = x.cal ? 'calibracao' : x.nr13 ? 'nr13' : tipo;
+          var tipoX = existente ? (existente.tipo || 'nr13') : x.tipo;
+          tiposEnviados[tipoX] = true;
           var meta = { tipo: tipoX, tag: String(x.tag || '').toUpperCase(), os: x.os ? x.os.toUpperCase() : (osPadrao || 'Documentos antigos'), arquivo: x.arquivo,
             dataInspecao: x.data || dataPadrao || '', versao: versao, partes: partes, tamanho: bytes.length, publicadoEm: agora(), antigo: true,
             equipamento: tipoX === 'calibracao' ? (x.psv ? 'Válvula de segurança' : 'Manômetro') : x.arquivo.replace(/\.pdf$/i, '') };
@@ -1120,12 +1159,44 @@
           ok++;
         } catch (e) { console.error(e); falhas.push(x.arquivo + ' (' + (e.message || e) + ')'); }
       }
+      var liberados = [];
+      for (var tk in tiposEnviados) { try { if (await liberarServicoNoPortal(empId, tk)) liberados.push(tk === 'calibracao' ? 'Calibração' : 'NR-13'); } catch (e) { console.error(e); } }
       var nAss = lista.filter(function (x) { return x.assinantes && !falhas.some(function (f) { return f.indexOf(x.arquivo) === 0; }); }).length;
       $('pp-status').innerHTML = esc(ok + ' arquivo(s) enviado(s) ao portal' + (nAss ? ', ' + nAss + ' já assinado(s) no token (enviados sem alteração)' : '') + (ok > nAss ? ', os demais como cópia para consulta' : '') + '.') + (falhas.length ? '<br><span style="color:var(--bad,#f87171)">Não foram: ' + esc(falhas.join('; ')) + '</span>' : '') +
-        '<br>Confira se o serviço (NR-13 / Calibração) está marcado em Serviços liberados.';
+        (liberados.length ? '<br>' + esc(liberados.join(' e ')) + ' liberado(s) no portal do cliente (Serviços liberados).' : '');
       toast(ok + ' PDF(s) enviado(s) ao portal.');
       lista = lista.filter(function (x) { return falhas.some(function (f) { return f.indexOf(x.arquivo) === 0; }); }); desenhar(); b.disabled = !lista.length;
+      indicePortal = ((await banco.ler('portal_laudos', empId).catch(function () { return null; })) || {}).laudos || indicePortal; desenharNoPortal();
     };
+    // Documentos que já estão no portal: trocar o tipo (NR-13 / certificado) dos que entraram errado
+    function desenharNoPortal() {
+      var ks = Object.keys(indicePortal).filter(function (k) { var t = indicePortal[k].tipo || 'nr13'; return t === 'nr13' || t === 'calibracao'; });
+      if (!ks.length) { $('pp-noportal').innerHTML = ''; return; }
+      ks.sort(function (a, b) { var x = indicePortal[a], y = indicePortal[b]; return (String(x.os || '') + x.tag + x.arquivo) < (String(y.os || '') + y.tag + y.arquivo) ? -1 : 1; });
+      var errados = ks.filter(function (k) { var d = indicePortal[k]; return (d.tipo || 'nr13') === 'nr13' && tipoPeloNome(d.arquivo || '', '') === 'calibracao'; });
+      var atual = function (d) { return (d.tipo || 'nr13') === 'calibracao' ? (/v[aá]lvula/i.test(d.equipamento || '') ? 'psv' : 'pi') : 'nr13'; };
+      $('pp-noportal').innerHTML = (errados.length ? '<div style="border:1px solid var(--warn,#f59e0b);border-radius:10px;padding:10px 12px;margin:10px 0"><b>' + errados.length + ' certificado(s) estão como Relatório NR-13 no portal.</b> ' +
+          '<button class="btn peq" id="pp-corrigir">Passar para Calibração</button></div>' : '') +
+        '<details' + (errados.length ? ' open' : '') + ' style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Já no portal (' + ks.length + ') · trocar o tipo</summary><div style="max-height:260px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>TAG</th><th>OS</th><th>Tipo</th></tr></thead><tbody>' +
+        ks.map(function (k) { var d = indicePortal[k];
+          return '<tr><td style="max-width:260px;word-break:break-all">' + esc(d.arquivo || d.equipamento || k) + '</td><td>' + esc(d.tag || '') + '</td><td>' + esc(d.os || '') + '</td><td>' + selTipo('data-k="' + esc(k) + '"', atual(d)) + '</td></tr>';
+        }).join('') + '</tbody></table></div></details>';
+      async function trocar(mudar) {
+        try {
+          var campos = { empresaId: empId, laudos: {} }, tipos = {};
+          mudar.forEach(function (p) { var d = indicePortal[p[0]], t = p[1] === 'nr13' ? 'nr13' : 'calibracao';
+            var n = Object.assign({}, d, { tipo: t, equipamento: t === 'calibracao' ? (p[1] === 'psv' ? 'Válvula de segurança' : 'Manômetro') : String(d.arquivo || d.equipamento || '').replace(/\.pdf$/i, '') });
+            campos.laudos[p[0]] = n; indicePortal[p[0]] = n; tipos[t] = true; });
+          await banco.atualizar('portal_laudos', empId, campos);
+          var lib = [];
+          for (var tk in tipos) if (await liberarServicoNoPortal(empId, tk)) lib.push(tk === 'calibracao' ? 'Calibração' : 'NR-13');
+          toast(mudar.length + ' documento(s) corrigido(s)' + (lib.length ? '; ' + lib.join(' e ') + ' liberado no portal' : '') + '.');
+        } catch (e) { console.error(e); toast('Não foi possível corrigir: ' + (e.message || e)); }
+        desenharNoPortal();
+      }
+      if ($('pp-corrigir')) $('pp-corrigir').onclick = function () { this.disabled = true; trocar(errados.map(function (k) { return [k, /psv|v[aá]lvula|valvula/i.test(indicePortal[k].arquivo || '') ? 'psv' : 'pi']; })); };
+      $('pp-noportal').querySelectorAll('[data-k]').forEach(function (el) { el.onchange = function () { trocar([[el.dataset.k, el.value]]); }; });
+    }
   }
   function telaAcessoPortal(empId) {
     var c = porId('empresas', empId) || {}, ac = portalAcesso(empId) || {}, d = dadosPortal(empId);
