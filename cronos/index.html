@@ -945,6 +945,23 @@
       document.head.appendChild(sc);
     });
   }
+  function carregarFflate() {
+    if (window.fflate) return Promise.resolve(window.fflate);
+    return new Promise(function (ok, erro) {
+      var sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js';
+      sc.onload = function () { ok(window.fflate); }; sc.onerror = function () { erro(new Error('não foi possível carregar o leitor de ZIP')); };
+      document.head.appendChild(sc);
+    });
+  }
+  // PDFs de dentro de um ZIP (a pasta zipada, ou arrastada de dentro do ZIP no Windows), com o caminho das subpastas
+  async function pdfsDoZip(zip) {
+    var F = await carregarFflate(), arqs = F.unzipSync(new Uint8Array(await zip.arrayBuffer()), { filter: function (a) { return /\.pdf$/i.test(a.name); } });
+    return Object.keys(arqs).map(function (caminho) {
+      var nome = caminho.split('/').pop(), f = new File([arqs[caminho]], nome, { type: 'application/pdf' });
+      try { f._caminho = caminho; } catch (e) {}
+      return f;
+    });
+  }
   async function pdfParaConsulta(bytes) {
     var L = await carregarPdfLib();
     var doc = await L.PDFDocument.load(bytes, { ignoreEncryption: true });
@@ -1082,12 +1099,12 @@
       '<div><label>OS (para todos os que não tiverem no nome)</label><input id="pp-os" placeholder="ex.: ID-0123/2025"></div>' +
       '<div><label>Data da inspeção/calibração (quando não estiver no nome)</label><input id="pp-data" type="date"></div>' +
       '<div><label>Validade da calibração (só certificados)</label><input id="pp-val" type="date"></div></div>' +
-      '<div class="acoes" style="justify-content:flex-start"><label class="btn sec" style="cursor:pointer">Escolher PDFs<input id="pp-arq" type="file" accept="application/pdf,.pdf" multiple style="display:none"></label>' +
+      '<div class="acoes" style="justify-content:flex-start"><label class="btn sec" style="cursor:pointer">Escolher PDFs ou ZIP<input id="pp-arq" type="file" accept="application/pdf,.pdf,.zip,application/zip" multiple style="display:none"></label>' +
       '<label class="btn sec" style="cursor:pointer">Escolher pasta<input id="pp-pasta" type="file" webkitdirectory multiple style="display:none"></label>' +
       '<label class="btn sec" style="cursor:pointer" title="Arquivo de dados da pasta (cliente, OS, TAG, nº, calibração e validade de cada PDF), feito pela IDEALLE">Carregar dados (JSON)<input id="pp-json" type="file" accept=".json,application/json" style="display:none"></label></div>' +
       '<div id="pp-json-info"></div>' +
       '<div id="pp-soltar" style="border:2px dashed var(--borda,#475569);border-radius:12px;padding:22px 14px;text-align:center;margin:10px 0;color:var(--muted,#94a3b8);transition:background .15s,border-color .15s">' +
-      '<b style="color:inherit">Arraste a pasta (ou os PDFs) para cá</b><br><span style="font-size:13px">pode ser a pasta inteira da OS, com as subpastas TAG-…</span></div>' +
+      '<b style="color:inherit">Arraste a pasta, os PDFs ou o ZIP para cá</b><br><span style="font-size:13px">pode ser a pasta inteira da OS, com as subpastas TAG-…</span></div>' +
       '<div id="pp-lista" class="muted">Nenhum arquivo escolhido.</div><p id="pp-status" class="muted"></p>' +
       '<div id="pp-noportal"></div>' +
       '<div class="acoes"><button class="btn" id="pp-enviar" disabled>Enviar ao portal</button><button class="btn sec" id="pp-voltar">Voltar</button></div>');
@@ -1118,6 +1135,14 @@
       $('pp-enviar').disabled = false;
     }
     async function adicionar(files) {
+      var todos = Array.from(files || []), zips = todos.filter(function (f) { return /\.zip$/i.test(f.name); });
+      for (var z = 0; z < zips.length; z++) {
+        try { todos = todos.concat(await pdfsDoZip(zips[z])); } catch (e) { console.error(e); toast('Não foi possível abrir o ZIP ' + zips[z].name + ': ' + (e.message || e)); }
+      }
+      if (todos.length && !todos.some(function (f) { return /\.pdf$/i.test(f.name); })) {
+        toast('Nenhum PDF encontrado. Se a pasta está no OneDrive só na nuvem, clique nela com o botão direito → "Sempre manter neste dispositivo", ou arraste o ZIP.');
+      }
+      files = todos;
       var novos = Array.from(files || []).filter(function (f) { return /\.pdf$/i.test(f.name) && !lista.some(function (x) { return x.file.name === f.name && x.file.size === f.size; }); });
       for (var i = 0; i < novos.length; i++) {
         var f = novos[i], g = lerNomePdf(f.name), caminho = f._caminho || f.webkitRelativePath || '', m;
@@ -1185,12 +1210,17 @@
     zona.addEventListener('dragleave', function () { destacar(false); });
     zona.addEventListener('drop', async function (e) {
       e.preventDefault(); destacar(false);
+      var soltos = Array.from(e.dataTransfer.files || []); // guardado já: a lista some depois do primeiro await
       var itens = Array.from(e.dataTransfer.items || []), entradas = itens.map(function (i) { return i.webkitGetAsEntry ? i.webkitGetAsEntry() : null; }).filter(Boolean);
-      if (!entradas.length) { adicionar(e.dataTransfer.files); return; }
+      if (!entradas.length) { adicionar(soltos); return; }
       zona.querySelector('b').textContent = 'Lendo os arquivos…';
       var listas = await Promise.all(entradas.map(function (en) { return lerEntrada(en, ''); }));
-      zona.querySelector('b').textContent = 'Arraste a pasta (ou os PDFs) para cá';
-      await adicionar([].concat.apply([], listas));
+      zona.querySelector('b').textContent = 'Arraste a pasta, os PDFs ou o ZIP para cá';
+      var lidos = [].concat.apply([], listas);
+      // pasta que o navegador não conseguiu abrir (ex.: OneDrive só na nuvem): tenta os arquivos soltos
+      if (!lidos.length && soltos.length) lidos = soltos;
+      if (!lidos.length) toast('O navegador não conseguiu ler a pasta. Use o botão "Escolher pasta" ou arraste o ZIP.');
+      await adicionar(lidos);
     });
     $('pp-tipo').onchange = desenhar;
     $('pp-voltar').onclick = function () { telaAcessoPortal(empId); };
