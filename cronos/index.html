@@ -923,7 +923,8 @@
   }
 
   // ---------- PDFs antigos no Portal do Cliente (relatórios NR-13 e certificados feitos antes dos sistemas) ----------
-  // Cada PDF vai como cópia para consulta (faixa no rodapé), no mesmo lugar que os sistemas publicam (portal_laudos).
+  // PDF já assinado (token, pelos .bat dos sistemas) vai sem alteração e substitui a cópia para consulta do mesmo documento;
+  // PDF sem assinatura vai como cópia para consulta (faixa no rodapé). Mesmo lugar que os sistemas publicam (portal_laudos).
   var TAM_PARTE_PORTAL = 700000;
   function carregarPdfLib() {
     if (window.PDFLib) return Promise.resolve(window.PDFLib);
@@ -945,9 +946,36 @@
     return doc.save();
   }
   function base64De(bytes) { var s = ''; for (var i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + 0x8000))); return btoa(s); }
+  // PDF que já vem assinado (token A3 pelos .bat do NR-13 e dos Certificados, Adobe, gov.br...): vai ao portal
+  // sem nenhuma alteração, porque regravar o arquivo quebraria a assinatura. Devolve os nomes de quem assinou
+  // (CN do certificado ICP-Brasil "NOME:CPF/CNPJ") ou null quando o PDF não tem assinatura.
+  function assinaturasDoPdf(bytes) {
+    var txt = new TextDecoder('latin1').decode(bytes);
+    if (txt.indexOf('/ByteRange') < 0) return null;
+    var re = /\/Contents\s*<([0-9A-Fa-f\s]{400,})>/g, m, nomes = [], achou = false;
+    while ((m = re.exec(txt))) {
+      achou = true;
+      var hex = m[1].replace(/\s+/g, ''), b = new Uint8Array(hex.length >> 1);
+      for (var i = 0; i < b.length; i++) b[i] = parseInt(hex.substr(i * 2, 2), 16);
+      var cns = [];
+      for (var j = 0; j < b.length - 5; j++) {
+        if (b[j] === 0x55 && b[j + 1] === 0x04 && b[j + 2] === 0x03 && [0x0c, 0x13, 0x14].indexOf(b[j + 3]) >= 0 && b[j + 4] < 128) {
+          cns.push(new TextDecoder('utf-8').decode(b.subarray(j + 5, j + 5 + b[j + 4])));
+        }
+      }
+      // ICP-Brasil: o titular vem como "NOME:12345678900"; as ACs não têm o número
+      var titular = cns.filter(function (c) { return /:\d{11,14}$/.test(c); })[0] || cns[1] || cns[0];
+      if (titular) { titular = titular.replace(/:\d{11,14}$/, '').trim(); if (nomes.indexOf(titular) < 0) nomes.push(titular); }
+    }
+    return achou ? nomes : null;
+  }
   // TAG, data, OS e tipo tirados do nome do arquivo (o usuário confere e corrige na lista)
   function lerNomePdf(nome) {
-    var base = nome.replace(/\.pdf$/i, ''), m, r = { tag: '', data: '', os: '', psv: /psv|v[aá]lvula|valvula/i.test(base) };
+    var base = nome.replace(/\.pdf$/i, '').replace(/_ASSTMP$/i, ''), m, r = { tag: '', data: '', os: '', psv: /psv|v[aá]lvula|valvula/i.test(base) };
+    // Relatório NR-13: Laudo_NR13_<TAG>_<OS>-<nº>.pdf · Certificados: CERT_<OS>_<PI-|PSV-><TAG>.pdf
+    if ((m = base.match(/^Laudo_NR13_(.+?)_(IDE?-\d{3,4}_\d{4})/i))) { r.tag = m[1]; r.os = m[2].toUpperCase().replace('_', '/'); r.nr13 = true; }
+    if ((m = base.match(/^CERT_(IDE?-\d{3,4}-\d{4})_(.+)$/i))) { r.os = m[1].toUpperCase().replace(/^(IDE?-\d+)-(\d{4})$/, '$1/$2'); r.tag = /^(PI|PSV)-.*[A-Z]/i.test(m[2].replace(/^(PI|PSV)-/i, '')) ? m[2].replace(/^(PI|PSV)-/i, '') : m[2]; r.psv = /^PSV-/i.test(m[2]); r.cal = true; }
+    if (r.tag) { r.tag = r.tag.toUpperCase().replace(/_/g, '-'); return r; }
     if ((m = base.match(/\b(IDE?-\d{3,4}[\/_-]\d{4})\b/i))) r.os = m[1].toUpperCase().replace(/_/g, '/').replace(/^(IDE?-\d+)-(\d{4})$/, '$1/$2');
     if ((m = base.match(/TAG[\s_-]*([A-Z0-9][A-Z0-9.\-]*[0-9][A-Z0-9.]*)/i))) r.tag = m[1];
     else if ((m = base.match(/\b((?:VP|VS|RAC|RA|PSV|PI|PG|TQ|CL|CA|FL|SP|AC|TK)[\s_-]?\d+[A-Z0-9.\-]*)\b/i))) r.tag = m[1];
@@ -958,8 +986,22 @@
   }
   function telaPdfsAntigos(empId) {
     var emp = porId('empresas', empId) || {}, lista = [];
-    abrirModal('<h3>Subir PDFs antigos · ' + esc(emp.nome || '') + '</h3>' +
-      '<p class="muted" style="margin-top:0">Relatórios NR-13 e certificados de calibração feitos antes dos sistemas. O cliente vê e baixa como cópia para consulta (faixa no rodapé). Baixe a pasta do Google Drive e escolha os arquivos ou a pasta inteira.</p>' +
+    var indicePortal = {};
+    banco.ler('portal_laudos', empId).then(function (d) { indicePortal = (d && d.laudos) || {}; if (lista.length) desenhar(); }).catch(function () {});
+    // Documento que já está no portal com o mesmo nome de arquivo (o envio do sistema), ou mesma OS + TAG + tipo
+    function noPortal(x) {
+      var ks = Object.keys(indicePortal), nome = x.arquivo.replace(/_ASSTMP(\.pdf)$/i, '$1').toLowerCase();
+      var k = ks.filter(function (k) { return String(indicePortal[k].arquivo || '').toLowerCase() === nome; })[0];
+      if (!k && x.tag && x.os) k = ks.filter(function (k) {
+        var d = indicePortal[k], tp = x.cal ? 'calibracao' : x.nr13 ? 'nr13' : null;
+        return d.tag === x.tag.toUpperCase() && String(d.os || '').toUpperCase() === x.os.toUpperCase() && (!tp || (d.tipo || 'nr13') === tp) &&
+          (d.tipo !== 'calibracao' || /v[aá]lvula/i.test(d.equipamento || '') === !!x.psv);
+      })[0];
+      return k || null;
+    }
+    abrirModal('<h3>Subir PDFs ao portal · ' + esc(emp.nome || '') + '</h3>' +
+      '<p class="muted" style="margin-top:0"><b>Assinados no token:</b> escolha a pasta assinada pelos .bat (ZIP do NR-13 ou dos Certificados). O PDF assinado vai sem nenhuma alteração e substitui a cópia para consulta da mesma TAG e OS que já estava no portal.</p>' +
+      '<p class="muted" style="margin-top:0"><b>Antigos (sem assinatura):</b> relatórios NR-13 e certificados feitos antes dos sistemas vão como cópia para consulta (faixa no rodapé). Baixe a pasta do Google Drive e escolha os arquivos ou a pasta inteira.</p>' +
       '<div class="grid"><div><label>Tipo</label><select id="pp-tipo"><option value="nr13">Relatórios NR-13</option><option value="calibracao">Certificados de calibração</option></select></div>' +
       '<div><label>OS (para todos os que não tiverem no nome)</label><input id="pp-os" placeholder="ex.: ID-0123/2025"></div>' +
       '<div><label>Data da inspeção/calibração (quando não estiver no nome)</label><input id="pp-data" type="date"></div>' +
@@ -971,26 +1013,33 @@
     function desenhar() {
       if (!lista.length) { $('pp-lista').innerHTML = 'Nenhum arquivo escolhido.'; $('pp-enviar').disabled = true; return; }
       var cal = $('pp-tipo').value === 'calibracao';
-      $('pp-lista').innerHTML = '<div style="max-height:300px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>TAG</th>' + (cal ? '<th>Instrumento</th>' : '') + '<th>OS</th><th>Data</th><th></th></tr></thead><tbody>' +
+      lista.forEach(function (x) { x.chavePortal = x.assinantes ? noPortal(x) : null; });
+      $('pp-lista').innerHTML = '<div style="max-height:300px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>Assinatura</th><th>TAG</th>' + (cal ? '<th>Instrumento</th>' : '') + '<th>OS</th><th>Data</th><th></th></tr></thead><tbody>' +
         lista.map(function (x, i) {
           return '<tr><td style="max-width:240px;word-break:break-all">' + esc(x.arquivo) + '</td>' +
+            '<td style="white-space:nowrap">' + (x.assinantes ? '<span style="color:var(--ok,#4ade80);font-weight:700" title="' + esc(x.assinantes.join(', ')) + '">✓ ' + esc(x.assinantes.length ? x.assinantes.map(function (n) { return n.split(' ')[0]; }).join(' e ') : 'assinado') + '</span>' + (x.chavePortal ? '<br><span class="muted">substitui a do portal</span>' : '') : '<span class="muted">sem (consulta)</span>') + '</td>' +
             '<td><input data-i="' + i + '" data-c="tag" value="' + esc(x.tag) + '" style="width:110px"></td>' +
             (cal ? '<td><select data-i="' + i + '" data-c="psv"><option value="0"' + (x.psv ? '' : ' selected') + '>Manômetro (PI)</option><option value="1"' + (x.psv ? ' selected' : '') + '>Válvula (PSV)</option></select></td>' : '') +
             '<td><input data-i="' + i + '" data-c="os" value="' + esc(x.os) + '" placeholder="da caixa acima" style="width:120px"></td>' +
             '<td><input data-i="' + i + '" data-c="data" type="date" value="' + esc(x.data) + '"></td>' +
             '<td><button class="btn sec" data-tirar="' + i + '" title="Tirar da lista">×</button></td></tr>';
-        }).join('') + '</tbody></table></div><p class="muted">' + lista.length + ' arquivo(s). Confira a TAG de cada um; ela aparece para o cliente.</p>';
+        }).join('') + '</tbody></table></div><p class="muted">' + lista.length + ' arquivo(s), ' + lista.filter(function (x) { return x.assinantes; }).length + ' assinado(s). Confira a TAG de cada um; ela aparece para o cliente.</p>';
       $('pp-lista').querySelectorAll('[data-c]').forEach(function (el) {
         el.onchange = function () { var x = lista[+el.dataset.i], c = el.dataset.c; x[c] = c === 'psv' ? el.value === '1' : el.value.trim(); };
       });
       $('pp-lista').querySelectorAll('[data-tirar]').forEach(function (b) { b.onclick = function () { lista.splice(+b.dataset.tirar, 1); desenhar(); }; });
       $('pp-enviar').disabled = false;
     }
-    function adicionar(files) {
-      Array.from(files || []).filter(function (f) { return /\.pdf$/i.test(f.name); }).forEach(function (f) {
-        if (lista.some(function (x) { return x.file.name === f.name && x.file.size === f.size; })) return;
-        var g = lerNomePdf(f.name); lista.push({ file: f, arquivo: f.name, tag: g.tag, os: g.os, data: g.data, psv: g.psv });
-      });
+    async function adicionar(files) {
+      var novos = Array.from(files || []).filter(function (f) { return /\.pdf$/i.test(f.name) && !lista.some(function (x) { return x.file.name === f.name && x.file.size === f.size; }); });
+      for (var i = 0; i < novos.length; i++) {
+        var f = novos[i], g = lerNomePdf(f.name), caminho = f.webkitRelativePath || '', m;
+        // pasta TAG-<tag> do ZIP (o nome do arquivo nem sempre traz a TAG)
+        if (!g.tag && (m = caminho.match(/(?:^|\/)TAG-([^\/]+)\//i))) g.tag = m[1].toUpperCase();
+        var assinantes = null;
+        try { assinantes = assinaturasDoPdf(new Uint8Array(await f.arrayBuffer())); } catch (e) { assinantes = null; }
+        lista.push({ file: f, arquivo: f.name.replace(/_ASSTMP(\.pdf)$/i, '$1'), tag: g.tag, os: g.os, data: g.data, psv: g.psv, cal: g.cal, nr13: g.nr13, assinantes: assinantes });
+      }
       desenhar();
     }
     $('pp-arq').onchange = function (e) { adicionar(e.target.files); e.target.value = ''; };
@@ -1005,14 +1054,24 @@
         var x = lista[i];
         $('pp-status').textContent = 'Enviando ' + (i + 1) + ' de ' + lista.length + ': ' + x.arquivo + '…';
         try {
-          var bytes = await pdfParaConsulta(new Uint8Array(await x.file.arrayBuffer()));
-          var b64 = base64De(bytes), chave = 'a_' + hashTexto(empId + '|' + tipo + '|' + x.arquivo), versao = Date.now().toString(36);
+          var original = new Uint8Array(await x.file.arrayBuffer());
+          // já assinado (token): vai exatamente como está
+          var bytes = x.assinantes ? original : await pdfParaConsulta(original);
+          var existente = x.assinantes && x.chavePortal ? antigos[x.chavePortal] : null;
+          var b64 = base64De(bytes), chave = existente ? x.chavePortal : 'a_' + hashTexto(empId + '|' + tipo + '|' + x.arquivo), versao = Date.now().toString(36);
           var partes = Math.ceil(b64.length / TAM_PARTE_PORTAL);
           for (var n = 0; n < partes; n++) await banco.gravar('portal_laudos_partes', chave + '__' + versao + '__' + n, { empresaId: empId, laudo: chave, parte: n, dados: b64.slice(n * TAM_PARTE_PORTAL, (n + 1) * TAM_PARTE_PORTAL) });
-          var meta = { tipo: tipo, tag: String(x.tag || '').toUpperCase(), os: x.os ? x.os.toUpperCase() : (osPadrao || 'Documentos antigos'), arquivo: x.arquivo,
+          var tipoX = x.cal ? 'calibracao' : x.nr13 ? 'nr13' : tipo;
+          var meta = { tipo: tipoX, tag: String(x.tag || '').toUpperCase(), os: x.os ? x.os.toUpperCase() : (osPadrao || 'Documentos antigos'), arquivo: x.arquivo,
             dataInspecao: x.data || dataPadrao || '', versao: versao, partes: partes, tamanho: bytes.length, publicadoEm: agora(), antigo: true,
-            equipamento: tipo === 'calibracao' ? (x.psv ? 'Válvula de segurança' : 'Manômetro') : x.arquivo.replace(/\.pdf$/i, '') };
-          if (tipo === 'calibracao') meta.validade = val || '';
+            equipamento: tipoX === 'calibracao' ? (x.psv ? 'Válvula de segurança' : 'Manômetro') : x.arquivo.replace(/\.pdf$/i, '') };
+          if (tipoX === 'calibracao') meta.validade = val || '';
+          if (x.assinantes) {
+            meta.antigo = false;
+            meta.assinado = { titular: x.assinantes.join(' e ') || 'certificado digital', em: agora(), token: true };
+            // substitui a cópia para consulta: mantém o que o sistema publicou (equipamento, parecer, número, validade, resumo)
+            if (existente) meta = Object.assign({}, existente, { versao: versao, partes: partes, tamanho: bytes.length, publicadoEm: agora(), arquivo: existente.arquivo || x.arquivo, assinado: meta.assinado });
+          }
           var campos = { empresaId: empId, laudos: {} }; campos.laudos[chave] = meta;
           await banco.atualizar('portal_laudos', empId, campos);
           var velho = antigos[chave];
@@ -1020,8 +1079,9 @@
           ok++;
         } catch (e) { console.error(e); falhas.push(x.arquivo + ' (' + (e.message || e) + ')'); }
       }
-      $('pp-status').innerHTML = esc(ok + ' arquivo(s) enviado(s) ao portal.') + (falhas.length ? '<br><span style="color:var(--bad,#f87171)">Não foram: ' + esc(falhas.join('; ')) + '</span>' : '') +
-        '<br>Confira se o serviço (' + (tipo === 'nr13' ? 'NR-13' : 'Calibração') + ') está marcado em Serviços liberados.';
+      var nAss = lista.filter(function (x) { return x.assinantes && !falhas.some(function (f) { return f.indexOf(x.arquivo) === 0; }); }).length;
+      $('pp-status').innerHTML = esc(ok + ' arquivo(s) enviado(s) ao portal' + (nAss ? ', ' + nAss + ' já assinado(s) no token (enviados sem alteração)' : '') + (ok > nAss ? ', os demais como cópia para consulta' : '') + '.') + (falhas.length ? '<br><span style="color:var(--bad,#f87171)">Não foram: ' + esc(falhas.join('; ')) + '</span>' : '') +
+        '<br>Confira se o serviço (NR-13 / Calibração) está marcado em Serviços liberados.';
       toast(ok + ' PDF(s) enviado(s) ao portal.');
       lista = lista.filter(function (x) { return falhas.some(function (f) { return f.indexOf(x.arquivo) === 0; }); }); desenhar(); b.disabled = !lista.length;
     };
@@ -1053,7 +1113,7 @@
       '<div id="pa-convite"></div>' +
       '<div class="acoes"><button class="btn" id="pa-enviar">Salvar e gerar convite</button><button class="btn sec" id="pa-salvar">Só salvar</button>' +
       (us.length ? '<a class="btn sec" href="' + esc(urlPortal()) + '" target="_blank" rel="noopener">Abrir o portal</a>' : '') +
-      '<button class="btn sec" id="pa-pdfs" title="Relatórios NR-13 e certificados de calibração antigos (PDF), para o cliente ver e baixar">Subir PDFs antigos</button>' +
+      '<button class="btn sec" id="pa-pdfs" title="PDFs assinados no token (pasta dos .bat) ou relatórios e certificados antigos, para o cliente ver e baixar">Subir PDFs (assinados ou antigos)</button>' +
       '<button class="btn sec" id="pa-fechar">Fechar</button></div>');
 
     var logoNovo = ac.logo || '';
