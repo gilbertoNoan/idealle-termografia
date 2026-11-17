@@ -1082,12 +1082,20 @@
     var indicePortal = {};
     banco.ler('portal_laudos', empId).then(function (d) { indicePortal = (d && d.laudos) || {}; if (lista.length) desenhar(); desenharNoPortal(); }).catch(function () {});
     // Documento que já está no portal com o mesmo nome de arquivo (o envio do sistema), ou mesma OS + TAG + tipo
+    function docDoProntuario(nome) {
+      var t = String(nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      return /prontuario/.test(t) ? 'prontuario' : /pmta/.test(t) ? 'pmta' : /registro[\s_-]*fotogr/.test(t) ? 'fotos' : /livro|termo[\s_-]*de[\s_-]*abertura/.test(t) ? 'livro' :
+        /registro[\s_-]*de[\s_-]*ocorr|^ro_/.test(t) ? 'ro' : /desenquadr/.test(t) ? 'desenq' : 'laudo';
+    }
     function noPortal(x) {
       var ks = Object.keys(indicePortal), nome = x.arquivo.replace(/_ASSTMP(\.pdf)$/i, '$1').toLowerCase();
-      var k = ks.filter(function (k) { return String(indicePortal[k].arquivo || '').toLowerCase() === nome; })[0];
+      var tagOk = function (d) { return !d.tag || !x.tag || String(d.tag).toUpperCase() === String(x.tag).toUpperCase(); };
+      var k = ks.filter(function (k) { return String(indicePortal[k].arquivo || '').toLowerCase() === nome && tagOk(indicePortal[k]); })[0];
       if (!k && x.tag && x.os) k = ks.filter(function (k) {
         var d = indicePortal[k], tp = x.tipo || null;
+        // NR-13: só troca o mesmo documento (relatório por relatório, livro por livro...), não outro da mesma TAG
         return d.tag === x.tag.toUpperCase() && String(d.os || '').toUpperCase() === x.os.toUpperCase() && (!tp || (d.tipo || 'nr13') === tp) &&
+          ((d.tipo || 'nr13') !== 'nr13' || docDoProntuario(d.arquivo || d.equipamento) === docDoProntuario(x.arquivo)) &&
           (d.tipo !== 'calibracao' || /v[aá]lvula/i.test(d.equipamento || '') === !!x.psv);
       })[0];
       return k || null;
@@ -1143,7 +1151,7 @@
         toast('Nenhum PDF encontrado. Se a pasta está no OneDrive só na nuvem, clique nela com o botão direito → "Sempre manter neste dispositivo", ou arraste o ZIP.');
       }
       files = todos;
-      var novos = Array.from(files || []).filter(function (f) { return /\.pdf$/i.test(f.name) && !lista.some(function (x) { return x.file.name === f.name && x.file.size === f.size; }); });
+      var novos = Array.from(files || []).filter(function (f) { return /\.pdf$/i.test(f.name) && !lista.some(function (x) { return x.file.name === f.name && x.file.size === f.size && (x.file._caminho || x.file.webkitRelativePath || '') === (f._caminho || f.webkitRelativePath || ''); }); });
       for (var i = 0; i < novos.length; i++) {
         var f = novos[i], g = lerNomePdf(f.name), caminho = f._caminho || f.webkitRelativePath || '', m;
         // pasta TAG-<tag> do ZIP (o nome do arquivo nem sempre traz a TAG)
@@ -1152,15 +1160,18 @@
         try { assinantes = assinaturasDoPdf(new Uint8Array(await f.arrayBuffer())); } catch (e) { assinantes = null; }
         var tipoAuto = g.cal ? 'calibracao' : g.nr13 ? 'nr13' : tipoPeloNome(f.name, caminho);
         if (tipoAuto === 'calibracao' && !g.cal) g.psv = /psv|v[aá]lvula|valvula/i.test(caminho + ' ' + f.name);
-        var item = { file: f, arquivo: f.name.replace(/_ASSTMP(\.pdf)$/i, '$1'), tag: g.tag, os: g.os, data: g.data, psv: g.psv, tipoAuto: tipoAuto, assinantes: assinantes };
+        var item = { file: f, pasta: pastaDe(caminho), arquivo: f.name.replace(/_ASSTMP(\.pdf)$/i, '$1'), tag: g.tag, os: g.os, data: g.data, psv: g.psv, tipoAuto: tipoAuto, assinantes: assinantes };
         aplicarJson(item); lista.push(item);
       }
       desenhar(); infoJson();
     }
     // Dados da pasta em JSON (formato idealle-portal-documentos): cada PDF já vem com tipo, TAG, OS, nº, calibração e validade
+    // pasta de cada equipamento (ex.: TAG-VP-02): arquivos de mesmo nome em equipamentos diferentes (4 REGISTRO FOTOGRAFICO.pdf)
+    function pastaDe(caminho) { var ps = String(caminho || '').split('/'); return ps.length > 1 ? ps[ps.length - 2] : ''; }
+    function chaveJson(pasta, arquivo) { return (String(pasta || '').split(/[\\\/]/).pop() + '/' + arquivo).toLowerCase(); }
     function aplicarJson(x) {
       if (!dadosJson) return;
-      var d = dadosJson.porArquivo[x.arquivo.toLowerCase()]; if (!d) return;
+      var d = dadosJson.porPasta[chaveJson(x.pasta, x.arquivo)] || dadosJson.porArquivo[x.arquivo.toLowerCase()]; if (!d) return;
       x.doJson = d;
       x.tipoAuto = d.tipo === 'calibracao' || d.instrumento ? 'calibracao' : 'nr13';
       x.psv = d.instrumento === 'valvula';
@@ -1183,8 +1194,11 @@
       f.text().then(function (t) {
         var j = JSON.parse(t);
         if (!j || !Array.isArray(j.documentos)) throw new Error('não é um arquivo de dados da pasta (falta "documentos").');
-        var por = {}; j.documentos.forEach(function (d) { if (d && d.arquivo) por[String(d.arquivo).toLowerCase()] = d; });
-        dadosJson = { cliente: j.cliente || '', documentos: j.documentos, porArquivo: por };
+        // pelo nome só quando ele é único; repetido (um por equipamento), vale a pasta
+        var por = {}, porPasta = {}, vistos = {};
+        j.documentos.forEach(function (d) { if (!d || !d.arquivo) return; var k = String(d.arquivo).toLowerCase(); vistos[k] = (vistos[k] || 0) + 1; porPasta[chaveJson(d.pasta, d.arquivo)] = d; por[k] = d; });
+        Object.keys(vistos).forEach(function (k) { if (vistos[k] > 1) delete por[k]; });
+        dadosJson = { cliente: j.cliente || '', documentos: j.documentos, porArquivo: por, porPasta: porPasta };
         lista.forEach(aplicarJson); desenhar(); infoJson(); desenharNoPortal();
       }).catch(function (e2) { toast('JSON inválido: ' + (e2.message || e2)); });
     };
@@ -1243,8 +1257,9 @@
           var bytes = x.assinantes ? original : await pdfParaConsulta(original);
           var existente = x.assinantes && x.chavePortal ? antigos[x.chavePortal] : null;
           // o mesmo PDF antigo enviado de novo (ex.: com o tipo corrigido) troca o anterior, não duplica
-          var mesmoArquivo = !existente ? Object.keys(antigos).filter(function (k) { return /^a_/.test(k) && antigos[k].antigo && String(antigos[k].arquivo || '').toLowerCase() === x.arquivo.toLowerCase(); })[0] : null;
-          var b64 = base64De(bytes), chave = existente ? x.chavePortal : mesmoArquivo || 'a_' + hashTexto(empId + '|' + x.tipo + '|' + x.arquivo), versao = Date.now().toString(36);
+          var mesmaTag = function (k) { var t = String(antigos[k].tag || '').toUpperCase(); return !t || !x.tag || t === String(x.tag).toUpperCase(); };
+          var mesmoArquivo = !existente ? Object.keys(antigos).filter(function (k) { return /^a_/.test(k) && antigos[k].antigo && String(antigos[k].arquivo || '').toLowerCase() === x.arquivo.toLowerCase() && mesmaTag(k); })[0] : null;
+          var b64 = base64De(bytes), chave = existente ? x.chavePortal : mesmoArquivo || 'a_' + hashTexto(empId + '|' + x.tipo + '|' + (x.tipo === 'nr13' && x.tag ? String(x.tag).toUpperCase() + '|' : '') + x.arquivo), versao = Date.now().toString(36);
           var partes = Math.ceil(b64.length / TAM_PARTE_PORTAL);
           for (var n = 0; n < partes; n++) await banco.gravar('portal_laudos_partes', chave + '__' + versao + '__' + n, { empresaId: empId, laudo: chave, parte: n, dados: b64.slice(n * TAM_PARTE_PORTAL, (n + 1) * TAM_PARTE_PORTAL) });
           // o tipo da linha (pelo nome ou escolhido) vale mais que o do documento que estava no portal (que podia ter entrado errado)
@@ -1274,7 +1289,7 @@
           var velho = antigos[chave];
           if (velho && velho.versao && velho.versao !== versao) for (var k = 0; k < (velho.partes || 0); k++) await banco.excluir('portal_laudos_partes', chave + '__' + velho.versao + '__' + k).catch(function () {});
           // o mesmo PDF enviado antes com outra chave (ex.: primeiro como NR-13): tira a cópia repetida
-          var repetidas = Object.keys(antigos).filter(function (k2) { return k2 !== chave && String(antigos[k2].arquivo || '').toLowerCase() === x.arquivo.toLowerCase(); });
+          var repetidas = Object.keys(antigos).filter(function (k2) { return k2 !== chave && String(antigos[k2].arquivo || '').toLowerCase() === x.arquivo.toLowerCase() && mesmaTag(k2); });
           for (var r = 0; r < repetidas.length; r++) {
             var vr = antigos[repetidas[r]];
             await banco.tirarDoMapa('portal_laudos', empId, 'laudos', repetidas[r]).catch(function () {});
