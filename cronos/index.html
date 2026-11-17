@@ -1107,9 +1107,9 @@
       '<b style="color:inherit">Arraste a pasta, os PDFs ou o ZIP para cá</b><br><span style="font-size:13px">pode ser a pasta inteira da OS, com as subpastas TAG-…</span></div>' +
       '<div id="pp-lista" class="muted">Nenhum arquivo escolhido.</div><p id="pp-status" class="muted"></p>' +
       '<div id="pp-noportal"></div>' +
-      '<div class="acoes"><button class="btn" id="pp-enviar" disabled>Enviar ao portal</button><button class="btn sec" id="pp-voltar">Voltar</button></div>');
+      '<div class="acoes"><button class="btn" id="pp-enviar">Enviar ao portal</button><button class="btn sec" id="pp-voltar">Voltar</button></div>');
     function desenhar() {
-      if (!lista.length) { $('pp-lista').innerHTML = 'Nenhum arquivo escolhido.'; $('pp-enviar').disabled = true; return; }
+      if (!lista.length) { $('pp-lista').innerHTML = 'Nenhum arquivo escolhido.'; $('pp-enviar').disabled = false; return; }
       var padrao = $('pp-tipo').value;
       lista.forEach(function (x) { x.tipo = x.tipoAuto || padrao; x.chavePortal = x.assinantes ? noPortal(x) : null; });
       $('pp-lista').innerHTML = '<div style="max-height:300px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>Assinatura</th><th>Tipo</th><th>TAG</th><th>OS</th><th>Data</th><th>Nº / validade</th><th></th></tr></thead><tbody>' +
@@ -1225,6 +1225,12 @@
     $('pp-tipo').onchange = desenhar;
     $('pp-voltar').onclick = function () { telaAcessoPortal(empId); };
     $('pp-enviar').onclick = async function () {
+      if (!lista.length) {
+        // o JSON só traz os dados: os PDFs têm que ser escolhidos também
+        var msg = 'Nenhum PDF escolhido ainda. ' + (Object.keys(dadosJson || {}).length ? 'O JSON já está carregado, mas ele só tem os dados: ' : '') + 'clique em "Escolher PDFs ou ZIP" e escolha o ZIP da pasta (ou use "Escolher pasta"). Depois clique em Enviar.';
+        $('pp-status').innerHTML = '<span style="color:var(--bad,#f87171);font-weight:700">' + esc(msg) + '</span>';
+        toast('Escolha os PDFs ou o ZIP antes de enviar.'); return;
+      }
       var osPadrao = $('pp-os').value.trim().toUpperCase(), dataPadrao = $('pp-data').value, val = $('pp-val').value;
       var b = this; b.disabled = true; var ok = 0, falhas = [], tiposEnviados = {};
       var indice = (await banco.ler('portal_laudos', empId).catch(function () { return null; })) || {}, antigos = indice.laudos || {};
@@ -1284,7 +1290,7 @@
       $('pp-status').innerHTML = esc(ok + ' arquivo(s) enviado(s) ao portal' + (nAss ? ', ' + nAss + ' já assinado(s) no token (enviados sem alteração)' : '') + (ok > nAss ? ', os demais como cópia para consulta' : '') + '.') + (falhas.length ? '<br><span style="color:var(--bad,#f87171)">Não foram: ' + esc(falhas.join('; ')) + '</span>' : '') +
         (liberados.length ? '<br>' + esc(liberados.join(' e ')) + ' liberado(s) no portal do cliente (Serviços liberados).' : '');
       toast(ok + ' PDF(s) enviado(s) ao portal.');
-      lista = lista.filter(function (x) { return falhas.some(function (f) { return f.indexOf(x.arquivo) === 0; }); }); desenhar(); b.disabled = !lista.length;
+      lista = lista.filter(function (x) { return falhas.some(function (f) { return f.indexOf(x.arquivo) === 0; }); }); desenhar(); b.disabled = false;
       indicePortal = ((await banco.ler('portal_laudos', empId).catch(function () { return null; })) || {}).laudos || indicePortal; desenharNoPortal();
     };
     // Documentos que já estão no portal: trocar o tipo (NR-13 / certificado) dos que entraram errado
