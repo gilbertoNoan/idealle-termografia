@@ -1311,15 +1311,15 @@
         (doJsonNoPortal.length ? '<div style="border:1px solid var(--ok,#4ade80);border-radius:10px;padding:10px 12px;margin:10px 0"><b>O JSON carregado tem os dados de ' + doJsonNoPortal.length + ' documento(s) que já estão no portal</b> (nº, calibração, validade, TAG, OS). ' +
           '<button class="btn peq" id="pp-json-portal">Corrigir pelo JSON</button></div>' : '') +
         '<details' + (errados.length || semValidade ? ' open' : '') + ' style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Já no portal (' + ks.length + ') · editar nº e validade, trocar o tipo ou remover</summary>' +
-        (temCal ? '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0;padding:8px 10px;border:1px solid var(--borda,#475569);border-radius:10px"><b style="font-size:13px">Validade dos certificados</b> <span class="muted" style="font-size:13px">(dos marcados; sem marcar, de todos):</span>' +
+        (temCal ? '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0;padding:8px 10px;border:1px solid var(--borda,#475569);border-radius:10px"><b style="font-size:13px">Prazo de notificação do cliente</b> <span class="muted" style="font-size:13px">(a data em que o portal avisa o vencimento; não muda o PDF do certificado). Nos marcados; sem marcar, em todos:</span>' +
           '<input type="date" id="pp-val-lote"> <button class="btn peq" id="pp-val-aplicar">Aplicar data</button><button class="btn sec peq" id="pp-val-1ano">Calibração + 1 ano</button></div>' : '') +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0"><button class="btn perigo peq" id="pp-rem-marcados" disabled>Remover marcados</button><button class="btn perigo peq" id="pp-rem-todos">Remover todos (' + ks.length + ')</button><span class="muted" style="font-size:13px">marque as caixas para escolher quais</span></div>' +
-        '<div style="max-height:260px;overflow:auto"><table><thead><tr><th style="width:28px"><input type="checkbox" id="pp-marcar-todos" title="Marcar todos"></th><th>Arquivo</th><th>TAG</th><th>OS</th><th>Tipo</th><th>Nº / calibrado em / validade</th><th></th></tr></thead><tbody>' +
+        '<div style="max-height:260px;overflow:auto"><table><thead><tr><th style="width:28px"><input type="checkbox" id="pp-marcar-todos" title="Marcar todos"></th><th>Arquivo</th><th>TAG</th><th>OS</th><th>Tipo</th><th>Nº / calibrado em / prazo de notificação</th><th></th></tr></thead><tbody>' +
         ks.map(function (k) { var d = indicePortal[k];
           return '<tr><td><input type="checkbox" data-marcar="' + esc(k) + '"></td><td style="max-width:260px;word-break:break-all">' + esc(d.arquivo || d.equipamento || k) + '</td><td>' + esc(d.tag || '') + '</td><td>' + esc(d.os || '') + '</td><td>' + selTipo('data-k="' + esc(k) + '"', atual(d)) + '</td><td style="white-space:nowrap">' +
             ((d.tipo || 'nr13') === 'calibracao' ? '<input data-kc="' + esc(k) + '" data-campo="numero" value="' + esc(d.numero || '') + '" placeholder="Nº" style="width:70px"> ' +
               '<input type="date" data-kc="' + esc(k) + '" data-campo="dataInspecao" value="' + esc(dataVenc(d.dataInspecao)) + '" title="Calibrado em"> ' +
-              '<input type="date" data-kc="' + esc(k) + '" data-campo="validade" value="' + esc(dataVenc(d.validade)) + '" title="Validade"' + (d.validade ? '' : ' style="border-color:var(--warn,#f59e0b)"') + '>' : '') +
+              '<input type="date" data-kc="' + esc(k) + '" data-campo="validade" value="' + esc(dataVenc(d.validade)) + '" title="Prazo de notificação do cliente (vencimento no portal)"' + (d.validade ? '' : ' style="border-color:var(--warn,#f59e0b)"') + '>' : '') +
             '</td><td><button class="btn perigo peq" data-remover="' + esc(k) + '" title="Tirar este documento do portal do cliente">Remover</button></td></tr>';
         }).join('') + '</tbody></table></div></details>';
       async function trocar(mudar) {
@@ -1392,14 +1392,14 @@
         var marc = Array.from($('pp-noportal').querySelectorAll('[data-marcar]')).filter(function (c) { return c.checked; }).map(function (c) { return c.dataset.marcar; });
         var alvo = (marc.length ? marc : ks).filter(function (k) { return indicePortal[k].tipo === 'calibracao'; });
         if (!alvo.length) { toast('Nenhum certificado de calibração ' + (marc.length ? 'marcado' : 'no portal') + '.'); return; }
-        if (!marc.length && !confirm('Mudar a validade de todos os ' + alvo.length + ' certificados deste cliente?')) return;
+        if (!marc.length && !confirm('Mudar o prazo de notificação de todos os ' + alvo.length + ' certificados deste cliente?\n\nSó muda a data em que o portal avisa o vencimento; os PDFs dos certificados não são alterados.')) return;
         var o = {}, sem = 0;
         alvo.forEach(function (k) { var v = calcular(indicePortal[k]); if (!v) { sem++; return; } o[k] = Object.assign({}, indicePortal[k], { validade: v }); });
         if (sem) toast(sem + ' certificado(s) sem data de calibração ficaram como estavam.');
         if (Object.keys(o).length) gravarCampos(o);
       }
       if ($('pp-val-aplicar')) $('pp-val-aplicar').onclick = function () {
-        var v = $('pp-val-lote').value; if (!v) { toast('Escolha a data de validade.'); return; }
+        var v = $('pp-val-lote').value; if (!v) { toast('Escolha a data do prazo de notificação.'); return; }
         validadeEmLote(function () { return v; });
       };
       if ($('pp-val-1ano')) $('pp-val-1ano').onclick = function () {
