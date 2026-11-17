@@ -293,8 +293,11 @@
     messagingSenderId: "577776042104",
     appId: "1:577776042104:web:508a131e13a4ef4afbed8d"
   };
-  // App com nome próprio: o login do cliente fica separado do login da equipe no mesmo site
-  var app = firebase.initializeApp(CONFIG, 'portal-cliente');
+  // App com nome próprio: o login do cliente fica separado do login da equipe no mesmo site.
+  // "Ver como cliente" (sócio, aberto pelo Cronos): usa o mesmo login do Cronos (app padrão, mesmo site),
+  // assim não pede outra entrada com Google nem perde o login a cada abertura.
+  var verComoIni = !!new URLSearchParams(location.search).get('ver_como');
+  var app = verComoIni ? firebase.initializeApp(CONFIG) : firebase.initializeApp(CONFIG, 'portal-cliente');
   var auth = app.auth(), db = app.firestore();
   var $ = function (id) { return document.getElementById(id); };
   var tela = $('tela');
@@ -1429,7 +1432,8 @@
   }
 
   // ---------- Início ----------
-  $('btn-sair').onclick = function () { estado = { dados: null, acesso: null }; auth.signOut(); };
+  // No "Ver como cliente" o login é o do Cronos: Sair só fecha a visualização (não desloga o Cronos)
+  $('btn-sair').onclick = function () { if (VER_COMO) { window.close(); setTimeout(function () { location.href = '/cronos/'; }, 200); return; } estado = { dados: null, acesso: null }; auth.signOut(); };
   db.collection('config').doc('portal').get().then(function (s) { if (s.exists) Object.assign(contato, s.data()); }).catch(function () {});
   var convite = new URLSearchParams(location.search).get('convite');
   var PAGINA = new URLSearchParams(location.search).get('pagina') || '';
@@ -1443,7 +1447,7 @@
       if (!conviteAberto) { conviteAberto = true; telaConvite(convite); }
       return;
     }
-    if (u) carregar(u); else telaEntrar(VER_COMO ? 'Entre com a sua conta de sócio (a mesma do Finanças) para ver o portal como o cliente.' : undefined);
+    if (u) carregar(u); else telaEntrar(VER_COMO ? 'Entre com a sua conta de sócio (a mesma do Finanças). Depois disso o Finanças e esta visualização ficam com o mesmo login.' : undefined);
   });
 })();
 </script>
