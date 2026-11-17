@@ -171,6 +171,34 @@
   .visor-barra b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .visor iframe { flex: 1; width: 100%; border: 0; background: #fff; border-radius: 6px; }
   .check { display: flex; gap: 8px; align-items: center; color: var(--text); font-size: 14px; } .check input { width: auto; }
+  #gp-tela { position: fixed; inset: 0; z-index: 45; background: var(--bg); overflow: auto; display: none; }
+  .gp-topo { position: sticky; top: 0; z-index: 2; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+  .gp-topo .gp-tit { flex: 1 1 320px; font-size: 18px; }
+  .gp-topo .btn { white-space: nowrap; }
+  .gp-corpo { padding: 14px 20px 90px; max-width: 1500px; margin: 0 auto; }
+  .gp-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .gp-kpi { margin: 0; } .gp-kpi .valor { font-size: 24px; font-weight: 700; } .gp-w .valor { color: var(--warn); } .gp-r .valor { color: var(--bad); }
+  .gp-pends { border: 1px solid var(--warn); background: var(--warn-2); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+  .gp-pend { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; font-size: 14px; }
+  .gp-filtros { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .gp-filtros input, .gp-filtros select { width: auto; flex: 0 1 220px; padding: 7px 9px; }
+  .gp-filtros #gp-q { flex: 1 1 260px; }
+  .gp-eq { padding: 0; overflow: hidden; }
+  .gp-cab { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; padding: 10px 12px; background: var(--pri-2); }
+  .gp-cab input, .gp-cab select { padding: 6px 8px; }
+  .gp-lab { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 3px; white-space: nowrap; }
+  .gp-cabtag { min-width: 90px; } .gp-cabtag b { font-size: 17px; line-height: 34px; }
+  .gp-f { flex: 0 1 150px; } .gp-f.gp-larg { flex: 1 1 240px; } .gp-f.gp-cur { flex: 0 1 80px; } .gp-f.gp-sit { flex: 0 0 auto; padding-bottom: 6px; }
+  .gp-mk { width: 26px; } .gp-mk input { width: auto; } label.gp-mk { margin: 0 0 8px; }
+  .gp-tab { overflow-x: auto; } .gp-tab td, .gp-tab th { vertical-align: middle; } .gp-tab td input { padding: 5px 7px; }
+  .gp-arq { font-size: 12px; word-break: break-all; }
+  .gp-acoes { white-space: nowrap; text-align: right; }
+  tr.gp-sel td { background: var(--pri-2); }
+  input.gp-falta { border-color: var(--warn); }
+  .gp-lote { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 3; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; background: var(--card); border: 1px solid var(--pri); border-radius: 12px; padding: 10px 14px; box-shadow: 0 6px 24px rgba(0,0,0,.35); max-width: calc(100vw - 32px); }
+  body.gp-aberto #toast { bottom: 84px; }
+  @media (max-width: 700px) { .gp-topo, .gp-corpo { padding-left: 12px; padding-right: 12px; } .gp-f, .gp-f.gp-larg { flex: 1 1 45%; } .gp-topo .gp-tit { font-size: 16px; } .gp-topo .gp-tit .muted { display: none; }
+    .gp-lote { left: 12px; right: 12px; transform: none; max-width: none; padding: 8px 10px; } body.gp-aberto #toast { bottom: 150px; } }
   #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #1d2433; color: #fff; padding: 10px 16px; border-radius: 8px; display: none; z-index: 100; max-width: 90vw; }
   .aviso { background: var(--warn-2); color: var(--warn); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
   .modal-fundo { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: flex-start; justify-content: center; z-index: 50; overflow-y: auto; padding: 24px 12px; }
@@ -923,7 +951,7 @@
         var d = dadosPortal(l.c.id), us = cache.portal_usuarios.filter(function (u) { return u.empresaId === l.c.id; });
         var ult = us.map(function (u) { return u.ultimoAcesso || ''; }).sort().pop();
         var svs = PORTAL_SERVICOS.filter(function (s) { return d.servicos[s[0]]; }).map(function (s) { return '<span class="tag t-blue" style="margin:1px">' + esc(s[1].split(' (')[0]) + '</span>'; }).join('') || '<span class="muted">—</span>';
-        return '<tr class="clicavel" data-portal="' + l.c.id + '"><td><b>' + esc(l.c.nome) + '</b><div class="muted">' + l.n + ' OS · ' + us.length + ' usuário(s) no portal</div></td><td>' + svs + '</td><td>' + (l.ac ? data(l.ac.acessoAte) : '—') + '</td><td><span class="tag ' + l.st[1] + '">' + l.st[0] + '</span></td><td>' + (ult ? data(ult) : '—') + '</td><td style="text-align:right;white-space:nowrap"><button class="btn peq sec" data-vercomo="' + l.c.id + '" title="Abrir o portal como este cliente vê (só leitura)">👁 Ver como cliente</button> <button class="btn peq' + (l.ac ? ' sec' : '') + '">' + (l.ac ? 'Gerenciar' : 'Enviar acesso') + '</button></td></tr>';
+        return '<tr class="clicavel" data-portal="' + l.c.id + '"><td><b>' + esc(l.c.nome) + '</b><div class="muted">' + l.n + ' OS · ' + us.length + ' usuário(s) no portal</div></td><td>' + svs + '</td><td>' + (l.ac ? data(l.ac.acessoAte) : '—') + '</td><td><span class="tag ' + l.st[1] + '">' + l.st[0] + '</span></td><td>' + (ult ? data(ult) : '—') + '</td><td style="text-align:right;white-space:nowrap"><button class="btn peq sec" data-vercomo="' + l.c.id + '" title="Abrir o portal como este cliente vê (só leitura)">👁 Ver como cliente</button> <button class="btn peq sec" data-painel="' + l.c.id + '" title="Equipamentos, documentos, datas e prazos que o cliente vê, para editar">📋 Painel do portal</button> <button class="btn peq' + (l.ac ? ' sec' : '') + '">' + (l.ac ? 'Gerenciar' : 'Enviar acesso') + '</button></td></tr>';
       }).join('') + '</tbody></table>';
   }
 
@@ -1260,7 +1288,8 @@
       await adicionar(lidos);
     });
     $('pp-tipo').onchange = desenhar;
-    $('pp-voltar').onclick = function () { telaAcessoPortal(empId); };
+    // aberto pelo Painel do portal: Voltar fecha e o painel recarrega
+    $('pp-voltar').onclick = function () { if ($('gp-tela') && $('gp-tela').style.display === 'block') fecharModal(); else telaAcessoPortal(empId); };
     $('pp-enviar').onclick = async function () {
       if (!lista.length) {
         // o JSON só traz os dados: os PDFs têm que ser escolhidos também
@@ -1486,6 +1515,348 @@
       };
     }
   }
+  // ---------- Painel do portal: tela cheia, por cliente, tudo o que o cliente vê ----------
+  // Um bloco por equipamento (TAG) com os documentos dentro. Os dados do equipamento NR-13 (nome, OS, inspeção, próxima,
+  // parecer) valem para todos os documentos da mesma TAG; os certificados têm nº, calibração e prazo de notificação próprios.
+  var GP_ORDEM = { prontuario: 1, laudo: 2, pmta: 3, fotos: 4, livro: 5, ro: 6, desenq: 7 };
+  var GP_NOMES = { prontuario: 'Prontuário', laudo: 'Relatório de inspeção', pmta: 'Cálculo de PMTA', fotos: 'Registro fotográfico', livro: 'Livro digital · termo de abertura', ro: 'Registro de ocorrência', desenq: 'Desenquadramento' };
+  var GP_TIPOS = { nr13: 'NR-13', calibracao: 'Calibração', termografia: 'Termografia', spda: 'SPDA' };
+  var GP_PARECER = ['', 'APTO', 'APTO COM RESTRIÇÕES', 'NÃO APTO', 'INTERDITADO'];
+  function gpDocProntuario(nome) {
+    var t = String(nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    return /prontuario/.test(t) ? 'prontuario' : /pmta/.test(t) ? 'pmta' : /registro[\s_-]*fotogr/.test(t) ? 'fotos' : /livro|termo[\s_-]*de[\s_-]*abertura/.test(t) ? 'livro' :
+      /registro[\s_-]*de[\s_-]*ocorr|^ro_/.test(t) ? 'ro' : /desenquadr/.test(t) ? 'desenq' : 'laudo';
+  }
+  function gpSemOs(os) { os = String(os || '').trim(); return !os || /antigo/i.test(os); }
+  function gpProxima(d) { return [d.proxExterno, d.proxInterno, d.proximaInspecao].filter(Boolean).map(dataVenc).filter(Boolean).sort()[0] || ''; }
+  function gpValvula(d) { return /v[aá]lvula|psv/i.test(String(d.equipamento || '') + ' ' + (/^CERT_/i.test(d.arquivo || '') ? (String(d.arquivo).match(/_(PI|PSV)-/i) || [''])[0] : '')); }
+  function gpBytes(b64) { var bin = atob(b64), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+
+  function telaGestaoPortal(empId) {
+    var el = $('gp-tela');
+    if (!el) { el = document.createElement('div'); el.id = 'gp-tela'; document.body.appendChild(el); }
+    el.style.display = 'block'; document.body.style.overflow = 'hidden'; document.body.classList.add('gp-aberto');
+    var idx = {}, marcados = {}, f = { q: '', tipo: '', os: '', pend: false }, carregado = false;
+    var emp = porId('empresas', empId) || {};
+    var vasosOs = {}; (dadosPortal(empId).vasos || []).forEach(function (v) { vasosOs[chaveTag(v.tag)] = v; });
+
+    function fechar() { el.style.display = 'none'; el.innerHTML = ''; document.body.style.overflow = ''; document.body.classList.remove('gp-aberto'); if (obs) obs.disconnect(); document.removeEventListener('keydown', teclaEsc); }
+    function teclaEsc(e) { if (e.key === 'Escape' && !$('modal-fundo').classList.contains('aberto')) fechar(); }
+    document.addEventListener('keydown', teclaEsc);
+    // depois do "Adicionar documentos" (janela Subir PDFs) fechar, recarrega o que está no portal
+    var obs = new MutationObserver(function () { if (!$('modal-fundo').classList.contains('aberto') && el.style.display === 'block') carregar(); });
+    obs.observe($('modal-fundo'), { attributes: true, attributeFilter: ['class'] });
+
+    async function carregar() {
+      try { idx = ((await banco.ler('portal_laudos', empId)) || {}).laudos || {}; carregado = true; }
+      catch (e) { console.error(e); toast('Não foi possível ler o portal: ' + (e.message || e)); }
+      Object.keys(marcados).forEach(function (k) { if (!idx[k]) delete marcados[k]; });
+      desenhar();
+    }
+    async function gravar(novos, msg) {
+      var ks = Object.keys(novos); if (!ks.length) return;
+      try {
+        var campos = { empresaId: empId, laudos: {} }, tipos = {};
+        ks.forEach(function (k) { campos.laudos[k] = novos[k]; idx[k] = novos[k]; tipos[novos[k].tipo || 'nr13'] = true; });
+        await banco.atualizar('portal_laudos', empId, campos);
+        for (var t in tipos) if (t === 'nr13' || t === 'calibracao') await liberarServicoNoPortal(empId, t).catch(function () {});
+        toast(msg || (ks.length + ' documento(s) atualizado(s) no portal.'));
+      } catch (e) { console.error(e); toast('Não foi possível gravar: ' + (e.message || e)); }
+      desenhar();
+    }
+    async function remover(chaves) {
+      var feitos = 0, falhas = 0;
+      for (var i = 0; i < chaves.length; i++) {
+        var k = chaves[i], d = idx[k] || {};
+        try {
+          await banco.tirarDoMapa('portal_laudos', empId, 'laudos', k);
+          for (var n = 0; n < (d.partes || 0); n++) await banco.excluir('portal_laudos_partes', k + '__' + d.versao + '__' + n).catch(function () {});
+          delete idx[k]; delete marcados[k]; feitos++;
+        } catch (e) { console.error(e); falhas++; }
+      }
+      toast(feitos + ' documento(s) removido(s) do portal.' + (falhas ? ' ' + falhas + ' não foram (tente de novo).' : ''));
+      desenhar();
+    }
+    async function verPdf(k) {
+      var d = idx[k]; if (!d || !d.partes) { toast('Este documento não tem PDF no portal (só os dados).'); return; }
+      var janela = window.open('', '_blank');
+      try {
+        var b64 = '';
+        for (var n = 0; n < d.partes; n++) { var p = await banco.ler('portal_laudos_partes', k + '__' + d.versao + '__' + n); if (!p) throw new Error('arquivo incompleto no portal'); b64 += p.dados; }
+        var url = URL.createObjectURL(new Blob([gpBytes(b64)], { type: 'application/pdf' }));
+        if (janela) janela.location = url; else window.open(url, '_blank');
+        setTimeout(function () { URL.revokeObjectURL(url); }, 300000);
+      } catch (e) { if (janela) janela.close(); toast('Não foi possível abrir o PDF: ' + (e.message || e)); }
+    }
+
+    // ---- dados organizados por equipamento ----
+    function docInfo(k) {
+      var d = idx[k], tipo = d.tipo || 'nr13', tag = String(d.tag || '').toUpperCase();
+      if (!tag && (tipo === 'nr13' || tipo === 'calibracao')) tag = tagDoNome(d.arquivo) || '';
+      var nome, ordem;
+      // válvulas "REF-04 A" / "REF-04 B" ficam junto do manômetro "REF-04" (como no portal)
+      var base = tipo === 'calibracao' ? tag.replace(/\s+[A-Z]$/, '') : tag;
+      if (tipo === 'calibracao') { var v = gpValvula(d); nome = 'Certificado · ' + (v ? 'Válvula de segurança' : 'Manômetro') + (base !== tag ? ' ' + tag.slice(base.length).trim() : ''); ordem = v ? 20 : 21; }
+      else if (tipo === 'nr13') { var p = gpDocProntuario(d.arquivo || d.equipamento); nome = GP_NOMES[p]; ordem = GP_ORDEM[p]; }
+      else { nome = GP_TIPOS[tipo] || tipo; ordem = 30; }
+      return { k: k, d: d, tipo: tipo, tag: base, nome: nome, ordem: ordem };
+    }
+    function grupos() {
+      var gs = {}, lista = [];
+      Object.keys(idx).forEach(function (k) {
+        var i = docInfo(k), g = i.tag ? 'T:' + chaveTag(i.tag) : (i.tipo === 'nr13' || i.tipo === 'calibracao' ? 'SEM' : 'X:' + i.tipo);
+        if (!gs[g]) { gs[g] = { id: g, tag: i.tag, docs: [], outro: g.indexOf('X:') === 0 ? i.tipo : '' }; lista.push(gs[g]); }
+        gs[g].docs.push(i);
+      });
+      lista.forEach(function (g) {
+        g.docs.sort(function (a, b) { return a.ordem - b.ordem || String(a.d.arquivo || '').localeCompare(String(b.d.arquivo || ''), 'pt-BR', { numeric: true }); });
+        g.nr13 = g.docs.filter(function (i) { return i.tipo === 'nr13'; });
+        g.cal = g.docs.filter(function (i) { return i.tipo === 'calibracao'; });
+        // dados do equipamento: o documento NR-13 mais completo (com OS de verdade) é a referência
+        var ref = g.nr13.slice().sort(function (a, b) { return pontos(b.d) - pontos(a.d); })[0];
+        g.ref = ref ? ref.d : {};
+        g.vaso = vasosOs[chaveTag(g.tag)] || null;
+        g.oss = []; g.docs.forEach(function (i) { var o = gpSemOs(i.d.os) ? 'Sem OS' : String(i.d.os).toUpperCase(); if (g.oss.indexOf(o) < 0) g.oss.push(o); });
+        g.prox = g.nr13.length ? (gpProxima(g.ref) || (g.vaso && g.vaso.proximo) || '') : '';
+        var datas = [g.prox].concat(g.cal.map(function (i) { return dataVenc(i.d.validade); })).filter(Boolean).sort();
+        g.venc = datas[0] || '';
+        g.situacao = situacaoVenc(g.venc);
+        g.pend = pendenciasGrupo(g);
+      });
+      // equipamentos NR-13 primeiro, depois os instrumentos; sem TAG e outros serviços no fim
+      var peso = function (g) { return g.outro ? 3 : g.id === 'SEM' ? 2 : g.nr13.length ? 0 : 1; };
+      lista.sort(function (a, b) { return peso(a) - peso(b) || String(a.tag).localeCompare(String(b.tag), 'pt-BR', { numeric: true }); });
+      return lista;
+    }
+    function pontos(d) { return (gpSemOs(d.os) ? 0 : 10) + ['nomeEquipamento', 'area', 'categoria', 'parecer', 'dataInspecao', 'proxExterno', 'proxInterno', 'proximaInspecao'].filter(function (c) { return d[c]; }).length + (d.assinado ? 1 : 0); }
+    var CAMPOS_EQ = ['os', 'nomeEquipamento', 'area', 'categoria', 'parecer', 'dataInspecao', 'proxExterno', 'proxInterno', 'proximaInspecao'];
+    function pendenciasGrupo(g) {
+      var p = [];
+      if (g.id === 'SEM') p.push({ txt: g.docs.length + ' documento(s) sem TAG: use Mover para dizer de qual equipamento são.' });
+      if (g.outro) return p;
+      var ossNr = []; g.nr13.forEach(function (i) { var o = gpSemOs(i.d.os) ? 'Sem OS' : String(i.d.os).toUpperCase(); if (ossNr.indexOf(o) < 0) ossNr.push(o); });
+      var difer = g.nr13.some(function (i) { return CAMPOS_EQ.some(function (c) { return c !== 'os' && g.ref[c] && String(i.d[c] || '') !== String(g.ref[c]); }); });
+      if (g.tag && g.nr13.length && (ossNr.length > 1 || difer)) {
+        var alvo = gpSemOs(g.ref.os) ? '' : String(g.ref.os).toUpperCase();
+        p.push({ txt: (ossNr.length > 1 ? 'documentos em ' + ossNr.length + ' lugares no portal (' + ossNr.join(' e ') + ')' : 'documentos com dados diferentes do equipamento'), juntar: true, alvo: alvo });
+      }
+      if (g.tag && g.nr13.length && !g.prox) p.push({ txt: 'sem próxima inspeção: o cliente não recebe o aviso de vencimento.' });
+      var semPrazo = g.cal.filter(function (i) { return !i.d.validade; });
+      if (semPrazo.length) p.push({ txt: semPrazo.length + ' certificado(s) sem prazo de notificação.', umAno: semPrazo.map(function (i) { return i.k; }) });
+      var errados = g.nr13.filter(function (i) { return tipoPeloNome(i.d.arquivo || '', '') === 'calibracao'; });
+      if (errados.length) p.push({ txt: errados.length + ' certificado(s) estão como NR-13.', paraCal: errados.map(function (i) { return i.k; }) });
+      return p;
+    }
+    function juntarGrupo(g, alvo) {
+      var o = {};
+      g.nr13.forEach(function (i) {
+        var n = Object.assign({}, i.d);
+        CAMPOS_EQ.forEach(function (c) { if (c !== 'os' && g.ref[c]) n[c] = g.ref[c]; });
+        if (alvo) n.os = alvo;
+        if (!n.tag) n.tag = g.tag;
+        o[i.k] = n;
+      });
+      gravar(o, g.tag + ': ' + Object.keys(o).length + ' documento(s) juntados' + (alvo ? ' na ' + alvo : '') + '.');
+    }
+    // Campo do equipamento editado na linha da TAG: vale para todos os documentos NR-13 desta TAG
+    function gravarEquip(g, campo, v) {
+      var o = {};
+      // OS do equipamento NR-13 não muda a OS dos certificados da mesma TAG (calibração costuma ser outra OS)
+      (g.nr13.length ? g.nr13 : g.cal).forEach(function (i) {
+        var n = Object.assign({}, i.d);
+        if (campo === 'proximaInspecao') { n.proximaInspecao = v; n.proxExterno = ''; n.proxInterno = ''; }
+        else n[campo] = campo === 'os' ? (v.toUpperCase() || 'Documentos antigos') : v;
+        if (!n.tag && g.tag) n.tag = g.tag;
+        o[i.k] = n;
+      });
+      gravar(o, g.tag + ': ' + Object.keys(o).length + ' documento(s) atualizado(s).');
+    }
+
+    // ---- desenho ----
+    function inp(attrs, v, w, tipo) { return '<input ' + attrs + (tipo ? ' type="' + tipo + '"' : '') + ' value="' + esc(v || '') + '" style="width:' + (w || '100%') + '">'; }
+    function chip(sit, venc) {
+      var m = { vencido: ['t-bad', 'vencido'], vencendo: ['t-warn', 'vence em ' + data(venc)], emdia: ['t-ok', 'em dia'], sem: ['t-gray', 'sem prazo'] }[sit];
+      return '<span class="tag ' + m[0] + '" title="' + (venc ? 'vence ' + data(venc) : '') + '">' + m[1] + '</span>';
+    }
+    function passaFiltro(g) {
+      if (f.pend && !g.pend.length) return false;
+      if (f.tipo && !g.docs.some(function (i) { return i.tipo === f.tipo; })) return false;
+      if (f.os && g.oss.indexOf(f.os) < 0) return false;
+      if (f.q) { var q = normal(f.q); if (normal([g.tag, g.ref.nomeEquipamento, g.vaso && g.vaso.nome].concat(g.docs.map(function (i) { return [i.d.arquivo, i.d.numero, i.d.os].join(' '); })).join(' ')).indexOf(q) < 0) return false; }
+      return true;
+    }
+    function linhaEquip(g) {
+      var gid = esc(g.id);
+      if (g.outro) return '<div class="gp-cab"><div class="gp-cabtag"><span class="gp-lab">Serviço</span><b>' + esc(GP_TIPOS[g.outro] || g.outro) + '</b></div><div class="muted" style="align-self:center">' + g.docs.length + ' documento(s)</div></div>';
+      if (g.id === 'SEM') return '<div class="gp-cab"><div class="gp-cabtag"><span class="gp-lab">TAG</span><b style="color:var(--warn)">Sem TAG</b></div><div class="muted" style="align-self:center">Estes documentos aparecem soltos no portal. Marque e use <b>Mover</b> para pôr na TAG certa.</div></div>';
+      var r = g.ref, v = g.vaso || {}, os = g.oss.filter(function (o) { return o !== 'Sem OS'; })[0] || '';
+      var h = '<div class="gp-cab"><label class="gp-mk"><input type="checkbox" data-gp-mkg="' + gid + '"></label>' +
+        '<div class="gp-cabtag"><span class="gp-lab">TAG</span><b>' + esc(g.tag) + '</b></div>';
+      if (g.nr13.length) {
+        h += '<div class="gp-f gp-larg"><span class="gp-lab">Equipamento</span>' + inp('data-gp-eq="' + gid + '" data-c="nomeEquipamento" placeholder="' + esc(v.nome || 'nome do equipamento') + '"', r.nomeEquipamento) + '</div>' +
+          '<div class="gp-f"><span class="gp-lab">Área</span>' + inp('data-gp-eq="' + gid + '" data-c="area" placeholder="' + esc(v.area || '') + '"', r.area) + '</div>' +
+          '<div class="gp-f gp-cur"><span class="gp-lab">Categoria</span>' + inp('data-gp-eq="' + gid + '" data-c="categoria" placeholder="' + esc(v.categoria || '') + '"', r.categoria) + '</div>' +
+          '<div class="gp-f"><span class="gp-lab">OS</span>' + inp('data-gp-eq="' + gid + '" data-c="os" list="gp-oss" placeholder="ID-0000/2026"', gpSemOs(r.os) ? '' : r.os) + '</div>' +
+          '<div class="gp-f"><span class="gp-lab">Inspeção</span>' + inp('data-gp-eq="' + gid + '" data-c="dataInspecao"', dataVenc(r.dataInspecao), '', 'date') + '</div>' +
+          '<div class="gp-f"><span class="gp-lab" title="Data em que o portal avisa o cliente do vencimento (o menor entre exame externo e interno)">Próxima inspeção</span>' + inp('data-gp-eq="' + gid + '" data-c="proximaInspecao"' + (g.prox ? '' : ' class="gp-falta"'), g.prox, '', 'date') + '</div>' +
+          '<div class="gp-f"><span class="gp-lab">Parecer</span><select data-gp-eq="' + gid + '" data-c="parecer">' + GP_PARECER.concat(r.parecer && GP_PARECER.indexOf(String(r.parecer).toUpperCase()) < 0 ? [r.parecer] : []).map(function (p) { return '<option value="' + esc(p) + '"' + (String(r.parecer || '').toUpperCase() === p.toUpperCase() ? ' selected' : '') + '>' + esc(p || '—') + '</option>'; }).join('') + '</select></div>';
+      } else {
+        h += '<div class="gp-f gp-larg"><span class="gp-lab">Instrumentos</span><span style="line-height:34px">' + g.cal.length + ' certificado(s) de calibração</span></div>' +
+          '<div class="gp-f"><span class="gp-lab">OS</span>' + inp('data-gp-eq="' + gid + '" data-c="os" list="gp-oss" placeholder="ID-0000/2026"', os) + '</div>';
+      }
+      return h + '<div class="gp-f gp-sit"><span class="gp-lab">Situação</span>' + chip(g.situacao, g.venc) + '</div></div>';
+    }
+    function linhaDoc(i) {
+      var d = i.d, k = esc(i.k), cal = i.tipo === 'calibracao';
+      var ass = d.assinado ? '<span style="color:var(--ok)" title="' + esc((d.assinado.titular || '') + (d.assinado.em ? ' · ' + data(d.assinado.em) : '')) + '">✓ assinado</span>' : d.antigo ? '<span class="muted">cópia p/ consulta</span>' : '<span class="muted">do sistema</span>';
+      return '<tr' + (marcados[i.k] ? ' class="gp-sel"' : '') + '><td class="gp-mk"><input type="checkbox" data-gp-mk="' + k + '"' + (marcados[i.k] ? ' checked' : '') + '></td>' +
+        '<td><b>' + esc(i.nome) + '</b><div class="muted gp-arq">' + esc(d.arquivo || d.equipamento || i.k) + '</div></td>' +
+        '<td>' + (gpSemOs(d.os) ? '<span class="tag t-warn">sem OS</span>' : esc(d.os)) + '</td>' +
+        (cal ? '<td>' + inp('data-gp-doc="' + k + '" data-c="numero" placeholder="Nº"', d.numero, '150px') + '</td>' +
+            '<td>' + inp('data-gp-doc="' + k + '" data-c="dataInspecao"', dataVenc(d.dataInspecao), '140px', 'date') + '</td>' +
+            '<td>' + inp('data-gp-doc="' + k + '" data-c="validade"' + (d.validade ? '' : ' class="gp-falta"'), dataVenc(d.validade), '140px', 'date') + '</td>'
+          : '<td></td><td>' + (d.dataInspecao ? data(dataVenc(d.dataInspecao)) : '<span class="muted">—</span>') + '</td><td><span class="muted">' + (i.tipo === 'nr13' ? 'na linha da TAG' : '—') + '</span></td>') +
+        '<td>' + ass + '</td>' +
+        '<td class="gp-acoes"><button class="btn sec peq" data-gp-ver="' + k + '">Ver PDF</button> <button class="btn sec peq" data-gp-mover="' + k + '">Mover</button> <button class="btn perigo peq" data-gp-rem="' + k + '">Remover</button></td></tr>';
+    }
+    function desenhar() {
+      var gs = grupos(), ks = Object.keys(idx), vis = gs.filter(passaFiltro);
+      var nEq = gs.filter(function (g) { return g.tag; }).length;
+      var oss = []; gs.forEach(function (g) { g.oss.forEach(function (o) { if (oss.indexOf(o) < 0) oss.push(o); }); }); oss.sort();
+      var cont = { vencido: 0, vencendo: 0 }; gs.forEach(function (g) { if (g.situacao in cont) cont[g.situacao]++; });
+      var pends = []; gs.forEach(function (g) { g.pend.forEach(function (p) { pends.push({ g: g, p: p }); }); });
+      var nMarc = Object.keys(marcados).length;
+      var osCronos = cache.ordens.filter(function (o) { return o.empresaId === empId; }).map(codOS);
+      var clientes = cache.empresas.filter(function (c) { return c.id === empId || portalAcesso(c.id); }).sort(function (a, b) { return normal(a.nome) < normal(b.nome) ? -1 : 1; });
+      var kp = function (n, t, cls, filtro) { return '<div class="card kpi gp-kpi' + (cls ? ' ' + cls : '') + '"' + (filtro ? ' data-gp-kpi="' + filtro + '" style="cursor:pointer"' : '') + '><div class="valor">' + n + '</div><div class="rotulo">' + t + '</div></div>'; };
+      el.innerHTML = '<div class="gp-topo"><div class="gp-tit"><b>Portal do cliente</b> · ' + esc(emp.nome || '') + '<div class="muted" style="font-size:13px">Tudo o que o cliente vê no portal: equipamentos, documentos, datas e prazos. O que você muda aqui o cliente já vê.</div></div>' +
+          '<select id="gp-cli" style="width:auto;max-width:260px">' + clientes.map(function (c) { return '<option value="' + esc(c.id) + '"' + (c.id === empId ? ' selected' : '') + '>' + esc(c.nome) + '</option>'; }).join('') + '</select>' +
+          '<button class="btn sec" id="gp-vercomo" title="Abre o portal como o cliente vê (só leitura)">👁 Ver como o cliente vê</button>' +
+          '<button class="btn" id="gp-add">+ Adicionar documentos</button><button class="btn sec" id="gp-fechar">Fechar</button></div>' +
+        '<div class="gp-corpo">' +
+        (!carregado ? '<div class="vazio">Carregando o portal…</div>' :
+        '<div class="gp-kpis">' + kp(nEq, 'equipamentos (TAGs)') + kp(ks.length, 'documentos no portal') + kp(oss.filter(function (o) { return o !== 'Sem OS'; }).length, 'OS') +
+          kp(cont.vencendo, 'vencendo em 90 dias', cont.vencendo ? 'gp-w' : '') + kp(cont.vencido, 'vencidos', cont.vencido ? 'gp-r' : '') + kp(pends.length, 'pendências', pends.length ? 'gp-w' : '', 'pend') + '</div>' +
+        (pends.length ? '<div class="gp-pends"><b>Pendências</b>' + pends.map(function (x) {
+            var g = x.g, p = x.p;
+            return '<div class="gp-pend">⚠ <span><b>' + esc(g.tag || (g.id === 'SEM' ? 'Sem TAG' : '')) + '</b> ' + esc(p.txt) + '</span>' +
+              (p.juntar ? '<button class="btn peq" data-gp-juntar="' + esc(g.id) + '">' + (p.alvo ? 'Juntar tudo na ' + esc(p.alvo) : 'Igualar os dados') + '</button>' : '') +
+              (p.umAno ? '<button class="btn peq" data-gp-umano="' + esc(p.umAno.join('|')) + '">Calibração + 1 ano</button>' : '') +
+              (p.paraCal ? '<button class="btn peq" data-gp-paracal="' + esc(p.paraCal.join('|')) + '">Passar para Calibração</button>' : '') + '</div>';
+          }).join('') + '</div>' : '') +
+        '<div class="gp-filtros"><input id="gp-q" placeholder="Buscar TAG, equipamento, arquivo, nº…" value="' + esc(f.q) + '">' +
+          '<select id="gp-tipo"><option value="">Todos os tipos</option>' + Object.keys(GP_TIPOS).map(function (t) { return '<option value="' + t + '"' + (f.tipo === t ? ' selected' : '') + '>' + GP_TIPOS[t] + '</option>'; }).join('') + '</select>' +
+          '<select id="gp-os"><option value="">Todas as OS</option>' + oss.map(function (o) { return '<option' + (f.os === o ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>' +
+          '<label class="check" style="margin:0;white-space:nowrap"><input type="checkbox" id="gp-pend"' + (f.pend ? ' checked' : '') + '> só com pendência</label>' +
+          '<span class="muted" style="font-size:13px">' + vis.length + ' de ' + gs.length + ' grupo(s)</span></div>' +
+        (!ks.length ? '<div class="card vazio">Nada no portal deste cliente ainda. Use <b>+ Adicionar documentos</b>.</div>' :
+          vis.map(function (g) {
+            var cal = g.cal.length && !g.nr13.length;
+            return '<div class="card gp-eq">' + linhaEquip(g) + '<div class="gp-tab"><table><thead><tr><th class="gp-mk"></th><th>Documento</th><th>OS</th><th>' + (g.cal.length ? 'Nº do certificado' : '') + '</th><th>' + (cal ? 'Calibrado em' : 'Data') + '</th><th>Prazo de notificação</th><th>Assinatura</th><th></th></tr></thead><tbody>' +
+              g.docs.map(linhaDoc).join('') + '</tbody></table></div></div>';
+          }).join('') || '<div class="card vazio">Nenhum equipamento com esses filtros.</div>')) +
+        '</div>' +
+        '<datalist id="gp-oss">' + osCronos.concat(oss.filter(function (o) { return o !== 'Sem OS'; })).filter(function (o, i, a) { return a.indexOf(o) === i; }).map(function (o) { return '<option value="' + esc(o) + '">'; }).join('') + '</datalist>' +
+        '<datalist id="gp-tags">' + gs.filter(function (g) { return g.tag; }).map(function (g) { return '<option value="' + esc(g.tag) + '">'; }).join('') + '</datalist>' +
+        (nMarc ? '<div class="gp-lote"><b>' + nMarc + ' marcado(s)</b><button class="btn sec peq" id="gp-l-mover">Mover para TAG / OS…</button><button class="btn sec peq" id="gp-l-prazo">Prazo de notificação…</button>' +
+          '<button class="btn sec peq" id="gp-l-umano">Calibração + 1 ano</button><button class="btn perigo peq" id="gp-l-rem">Remover</button><button class="btn sec peq" id="gp-l-limpar">Desmarcar</button></div>' : '');
+      ligar(gs);
+    }
+    function ligar(gs) {
+      var gpPor = {}; gs.forEach(function (g) { gpPor[g.id] = g; });
+      $('gp-fechar').onclick = fechar;
+      $('gp-vercomo').onclick = function () { window.open(urlPortal() + '?ver_como=' + encodeURIComponent(empId), '_blank'); };
+      $('gp-add').onclick = function () { telaPdfsAntigos(empId); };
+      $('gp-cli').onchange = function () { fechar(); telaGestaoPortal(this.value); };
+      if (!carregado) return;
+      var refiltrar = function () { f.q = $('gp-q').value; f.tipo = $('gp-tipo').value; f.os = $('gp-os').value; f.pend = $('gp-pend').checked; var pos = $('gp-q').selectionStart, foco = document.activeElement && document.activeElement.id; desenhar(); if (foco === 'gp-q') { $('gp-q').focus(); $('gp-q').setSelectionRange(pos, pos); } };
+      $('gp-q').oninput = refiltrar; $('gp-tipo').onchange = refiltrar; $('gp-os').onchange = refiltrar; $('gp-pend').onchange = refiltrar;
+      el.querySelectorAll('[data-gp-kpi]').forEach(function (b) { b.onclick = function () { f.pend = !f.pend; desenhar(); }; });
+      el.querySelectorAll('[data-gp-eq]').forEach(function (inpEl) {
+        inpEl.onchange = function () { var g = gpPor[inpEl.dataset.gpEq]; if (g) gravarEquip(g, inpEl.dataset.c, inpEl.value.trim()); };
+      });
+      el.querySelectorAll('[data-gp-doc]').forEach(function (inpEl) {
+        inpEl.onchange = function () { var k = inpEl.dataset.gpDoc, n = Object.assign({}, idx[k]); n[inpEl.dataset.c] = inpEl.value.trim(); var o = {}; o[k] = n; gravar(o, 'Certificado atualizado no portal.'); };
+      });
+      el.querySelectorAll('[data-gp-mk]').forEach(function (c) { c.onchange = function () { if (c.checked) marcados[c.dataset.gpMk] = true; else delete marcados[c.dataset.gpMk]; desenhar(); }; });
+      el.querySelectorAll('[data-gp-mkg]').forEach(function (c) {
+        var g = gpPor[c.dataset.gpMkg]; c.checked = g && g.docs.every(function (i) { return marcados[i.k]; });
+        c.onchange = function () { g.docs.forEach(function (i) { if (c.checked) marcados[i.k] = true; else delete marcados[i.k]; }); desenhar(); };
+      });
+      el.querySelectorAll('[data-gp-ver]').forEach(function (b) { b.onclick = function () { verPdf(b.dataset.gpVer); }; });
+      el.querySelectorAll('[data-gp-mover]').forEach(function (b) { b.onclick = function () { telaMover([b.dataset.gpMover]); }; });
+      el.querySelectorAll('[data-gp-rem]').forEach(function (b) {
+        b.onclick = function () { var d = idx[b.dataset.gpRem] || {}; if (confirm('Tirar do portal do cliente o documento "' + (d.arquivo || d.equipamento) + '"?\n\nO cliente deixa de ver e baixar. Os PDFs no seu computador não são apagados.')) remover([b.dataset.gpRem]); };
+      });
+      el.querySelectorAll('[data-gp-juntar]').forEach(function (b) { b.onclick = function () { var g = gpPor[b.dataset.gpJuntar]; var p = g.pend.filter(function (x) { return x.juntar; })[0]; juntarGrupo(g, p && p.alvo); }; });
+      el.querySelectorAll('[data-gp-umano]').forEach(function (b) { b.onclick = function () { umAno(b.dataset.gpUmano.split('|')); }; });
+      el.querySelectorAll('[data-gp-paracal]').forEach(function (b) {
+        b.onclick = function () { var o = {}; b.dataset.gpParacal.split('|').forEach(function (k) { var d = idx[k]; o[k] = Object.assign({}, d, { tipo: 'calibracao', equipamento: /psv|v[aá]lvula/i.test(d.arquivo || '') ? 'Válvula de segurança' : 'Manômetro' }); }); gravar(o, Object.keys(o).length + ' documento(s) passados para Calibração.'); };
+      });
+      if (!$('gp-l-mover')) return;
+      var marc = function () { return Object.keys(marcados).filter(function (k) { return idx[k]; }); };
+      $('gp-l-limpar').onclick = function () { marcados = {}; desenhar(); };
+      $('gp-l-mover').onclick = function () { telaMover(marc()); };
+      $('gp-l-umano').onclick = function () { umAno(marc()); };
+      $('gp-l-prazo').onclick = function () {
+        var cs = marc().filter(function (k) { return idx[k].tipo === 'calibracao'; });
+        if (!cs.length) { toast('Nenhum certificado de calibração entre os marcados.'); return; }
+        abrirModal('<h3>Prazo de notificação</h3><p class="muted">Data em que o portal avisa o cliente do vencimento de ' + cs.length + ' certificado(s). O PDF não muda.</p><input type="date" id="gp-pz"><div class="acoes"><button class="btn" id="gp-pz-ok">Aplicar</button><button class="btn sec" id="gp-pz-x">Cancelar</button></div>');
+        $('gp-pz-x').onclick = fecharModal;
+        $('gp-pz-ok').onclick = function () { var v = $('gp-pz').value; if (!v) { toast('Escolha a data.'); return; } var o = {}; cs.forEach(function (k) { o[k] = Object.assign({}, idx[k], { validade: v }); }); fecharModal(); gravar(o); };
+      };
+      $('gp-l-rem').onclick = function () {
+        var m = marc(); if (!confirm('Tirar do portal do cliente os ' + m.length + ' documento(s) marcado(s)?\n\nO cliente deixa de ver e baixar. Os PDFs no seu computador não são apagados.')) return;
+        remover(m);
+      };
+    }
+    function umAno(ks) {
+      var o = {}, sem = 0;
+      ks.forEach(function (k) { var d = idx[k]; if (!d || d.tipo !== 'calibracao') return; var c = dataVenc(d.dataInspecao); if (!c) { sem++; return; } o[k] = Object.assign({}, d, { validade: (+c.slice(0, 4) + 1) + c.slice(4) }); });
+      if (sem) toast(sem + ' certificado(s) sem data de calibração ficaram como estavam.');
+      if (Object.keys(o).length) gravar(o, Object.keys(o).length + ' prazo(s) de notificação = calibração + 1 ano.');
+      else if (!sem) toast('Nenhum certificado de calibração entre os escolhidos.');
+    }
+    // Mover documentos para outra TAG e/ou OS (e trocar o tipo, se entrou errado)
+    function telaMover(ks) {
+      ks = ks.filter(function (k) { return idx[k]; }); if (!ks.length) return;
+      var d0 = idx[ks[0]], um = ks.length === 1;
+      var tipo0 = (d0.tipo || 'nr13') === 'calibracao' ? (gpValvula(d0) ? 'psv' : 'pi') : (d0.tipo || 'nr13');
+      abrirModal('<h3>Mover ' + (um ? 'documento' : ks.length + ' documentos') + '</h3>' +
+        '<p class="muted" style="word-break:break-all">' + esc(ks.map(function (k) { return idx[k].arquivo || idx[k].equipamento || k; }).slice(0, 6).join(' · ')) + (ks.length > 6 ? ' …' : '') + '</p>' +
+        '<div class="linha"><div><label>Para a TAG (equipamento)</label><input id="gp-mv-tag" list="gp-tags" value="' + esc(um ? d0.tag || '' : '') + '" placeholder="' + (um ? '' : 'deixe vazio para não mudar') + '"></div>' +
+        '<div><label>Na OS</label><input id="gp-mv-os" list="gp-oss" value="' + esc(um && !gpSemOs(d0.os) ? d0.os : '') + '" placeholder="' + (um ? 'vazio = Documentos antigos' : 'deixe vazio para não mudar') + '"></div>' +
+        '<div><label>Tipo</label><select id="gp-mv-tipo">' + (um ? '' : '<option value="">não mudar</option>') +
+          [['nr13', 'Relatório NR-13'], ['pi', 'Certificado · Manômetro'], ['psv', 'Certificado · Válvula'], ['termografia', 'Termografia'], ['spda', 'SPDA']].map(function (t) { return '<option value="' + t[0] + '"' + (um && t[0] === tipo0 ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select></div></div>' +
+        '<p class="muted" style="font-size:13px">Documento NR-13 levado para uma TAG que já existe passa a ter os dados desse equipamento (nome, inspeção, próxima inspeção, parecer).</p>' +
+        '<div class="acoes"><button class="btn" id="gp-mv-ok">Mover</button><button class="btn sec" id="gp-mv-x">Cancelar</button></div>');
+      $('gp-mv-x').onclick = fecharModal;
+      $('gp-mv-ok').onclick = function () {
+        var tag = $('gp-mv-tag').value.trim().toUpperCase(), os = $('gp-mv-os').value.trim().toUpperCase(), tp = $('gp-mv-tipo').value;
+        var refEq = null;
+        if (tag) { var gAlvo = grupos().filter(function (g) { return chaveTag(g.tag) === chaveTag(tag); })[0]; if (gAlvo && gAlvo.nr13.length) refEq = gAlvo.ref; if (gAlvo) tag = gAlvo.tag; }
+        var o = {};
+        ks.forEach(function (k) {
+          var n = Object.assign({}, idx[k]);
+          if (tp) {
+            var t = tp === 'pi' || tp === 'psv' ? 'calibracao' : tp;
+            if (t === 'calibracao') n.equipamento = tp === 'psv' ? 'Válvula de segurança' : 'Manômetro';
+            else if ((n.tipo || 'nr13') === 'calibracao') n.equipamento = String(n.arquivo || '').replace(/\.pdf$/i, '');
+            n.tipo = t;
+          }
+          if (tag) n.tag = tag;
+          // OS vazia: a do equipamento de destino (NR-13); sem ela, "Documentos antigos" (só quando é um documento só)
+          var osAlvo = os || (refEq && (n.tipo || 'nr13') === 'nr13' && !gpSemOs(refEq.os) ? String(refEq.os).toUpperCase() : '');
+          if (osAlvo) n.os = osAlvo; else if (um) n.os = 'Documentos antigos';
+          if (tag && refEq && (n.tipo || 'nr13') === 'nr13' && refEq !== idx[k]) CAMPOS_EQ.forEach(function (c) { if (c !== 'os' && refEq[c]) n[c] = refEq[c]; });
+          o[k] = n;
+        });
+        fecharModal(); marcados = {};
+        gravar(o, Object.keys(o).length + ' documento(s) movido(s).');
+      };
+    }
+    desenhar(); carregar();
+  }
   function telaAcessoPortal(empId) {
     var c = porId('empresas', empId) || {}, ac = portalAcesso(empId) || {}, d = dadosPortal(empId);
     var ext = ac.servicosExtras || {};
@@ -1513,6 +1884,7 @@
       '<div id="pa-convite"></div>' +
       '<div class="acoes"><button class="btn" id="pa-enviar">Salvar e gerar convite</button><button class="btn sec" id="pa-salvar">Só salvar</button>' +
       (us.length ? '<a class="btn sec" href="' + esc(urlPortal()) + '" target="_blank" rel="noopener">Abrir o portal</a>' : '') +
+      '<button class="btn sec" id="pa-painel" title="Equipamentos, documentos, datas e prazos que o cliente vê, para editar">📋 Painel do portal</button>' +
       '<button class="btn sec" id="pa-pdfs" title="PDFs assinados no token (pasta dos .bat) ou relatórios e certificados antigos, para o cliente ver e baixar">Subir PDFs (assinados ou antigos)</button>' +
       '<button class="btn sec" id="pa-fechar">Fechar</button></div>');
 
@@ -1561,6 +1933,7 @@
     }
     $('pa-fechar').onclick = fecharModal;
     $('pa-pdfs').onclick = function () { telaPdfsAntigos(empId); };
+    $('pa-painel').onclick = function () { fecharModal(); telaGestaoPortal(empId); };
     $('pa-salvar').onclick = async function () { try { var sv = await salvar(); toast('Acesso salvo. No portal: ' + (sv.servicosPublicados.join(', ') || 'nenhum serviço') + '.'); fecharModal(); } catch (e) { toast('Erro: ' + e.message); } };
     $('modal').querySelectorAll('[data-tirar]').forEach(function (b) {
       b.onclick = async function () {
@@ -1607,6 +1980,7 @@
   $('v-portal').addEventListener('click', function (e) {
     if (e.target.id === 'btn-portal-publicar') { publicarPortal(true); return; }
     if (e.target.id === 'btn-portal-config') { configPortal(); return; }
+    var pn = e.target.closest('[data-painel]'); if (pn) { telaGestaoPortal(pn.dataset.painel); return; }
     var vc = e.target.closest('[data-vercomo]'); if (vc) { window.open(urlPortal() + '?ver_como=' + encodeURIComponent(vc.dataset.vercomo), '_blank'); return; }
     var tr = e.target.closest('tr[data-portal]'); if (tr) telaAcessoPortal(tr.dataset.portal);
   });
