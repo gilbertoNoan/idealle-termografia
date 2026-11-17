@@ -249,7 +249,6 @@
   @media (max-width: 600px) {
     .caltab thead { display: none; } .caltab tr { display: block; border-top: 1px solid var(--linha); padding: 8px 0; } .caltab tr:first-child { border-top: 0; }
     .caltab td { display: block; border: 0; padding: 6px 4px; min-width: 0; width: auto; } .caltab td.calvazia { display: none; }
-    .caltab td[data-rot]::before { content: attr(data-rot); display: block; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
   }
   .osdet { display: none; border-top: 1px solid var(--linha); padding-top: 10px; }
   .oscard.aberta .osdet { display: block; }
@@ -791,7 +790,9 @@
   function colsCal(itens) { return COLS_CAL.filter(function (c) { return c[0] !== 'outro' || itens.some(function (x) { return x.tipo === 'outro'; }); }); }
   function cabCalPorTag(itens) { return '<th>TAG</th>' + colsCal(itens).map(function (c) { return '<th>' + c[1] + '</th>'; }).join(''); }
   function celCal(x) {
-    return '<div class="calcel">' + (x.tipo === 'outro' ? '<b style="text-transform:uppercase">' + esc(x.nome || 'Instrumento') + '</b>' : '') +
+    // o tipo e a TAG vão em cada certificado: o cabeçalho da tabela some ao rolar
+    var rot = x.tipo === 'psv' ? 'Válvula de segurança' : x.tipo === 'pi' ? 'Manômetro' : (x.nome || 'Instrumento');
+    return '<div class="calcel"><div class="sub" style="text-transform:uppercase;letter-spacing:.04em;font-weight:700;color:' + (x.tipo === 'psv' ? 'var(--amb-t)' : x.tipo === 'pi' ? 'var(--azul)' : 'var(--sub)') + '">' + esc(rot) + (x.tagPropria ? ' · ' + esc(x.tagPropria) : '') + '</div>' +
       '<div><b>Certificado ' + esc(x.numero || '—') + '</b><div class="sub">calibrado em ' + data(x.calib) + '</div></div>' +
       '<div>' + (x.sit ? chipSit(x.sit, x.val) + (x.val ? ' <span class="sub">até ' + data(x.val) + '</span>' : '') : '<span class="sub">sem validade</span>') + '</div>' +
       '<div>' + (x.doc ? botoesIcone(x.doc) : '<span class="sub">PDF ainda não liberado</span>') + '</div></div>';
@@ -800,7 +801,10 @@
   function linhasCalPorTag(itens, comOs) {
     var cols = colsCal(itens), grupos = [], porChave = {};
     itens.forEach(function (x, i) {
-      var tag = String(x.tag || '').trim().toUpperCase();
+      var tagX = String(x.tag || '').trim().toUpperCase();
+      // válvulas "REF-04 A" / "REF-04 B" ficam na mesma linha do manômetro "REF-04"
+      var tag = tagX.replace(/\s+[A-Z]$/, '');
+      x.tagPropria = tag !== tagX ? tagX : '';
       var k = tag ? tag + (comOs ? '|' + (x.os || '') : '') : 'sem:' + i;
       if (!porChave[k]) { porChave[k] = { tag: tag, os: x.os, itens: [] }; grupos.push(porChave[k]); }
       porChave[k].itens.push(x);

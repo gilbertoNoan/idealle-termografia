@@ -1185,7 +1185,7 @@
         if (!j || !Array.isArray(j.documentos)) throw new Error('não é um arquivo de dados da pasta (falta "documentos").');
         var por = {}; j.documentos.forEach(function (d) { if (d && d.arquivo) por[String(d.arquivo).toLowerCase()] = d; });
         dadosJson = { cliente: j.cliente || '', documentos: j.documentos, porArquivo: por };
-        lista.forEach(aplicarJson); desenhar(); infoJson();
+        lista.forEach(aplicarJson); desenhar(); infoJson(); desenharNoPortal();
       }).catch(function (e2) { toast('JSON inválido: ' + (e2.message || e2)); });
     };
     $('pp-arq').onchange = function (e) { adicionar(e.target.files); e.target.value = ''; };
@@ -1301,11 +1301,19 @@
       var errados = ks.filter(function (k) { var d = indicePortal[k]; return (d.tipo || 'nr13') === 'nr13' && tipoPeloNome(d.arquivo || '', '') === 'calibracao'; });
       var semData = ks.filter(function (k) { var d = Object.assign({}, indicePortal[k]); return d.tipo === 'calibracao' && completarDaOs(empId, d); });
       var atual = function (d) { return (d.tipo || 'nr13') === 'calibracao' ? (/v[aá]lvula/i.test(d.equipamento || '') ? 'psv' : 'pi') : 'nr13'; };
+      var doJsonNoPortal = dadosJson ? ks.filter(function (k) { return dadosJson.porArquivo[String(indicePortal[k].arquivo || '').toLowerCase()]; }) : [];
+      var temCal = ks.some(function (k) { return indicePortal[k].tipo === 'calibracao'; });
+      var semValidade = ks.some(function (k) { var d = indicePortal[k]; return d.tipo === 'calibracao' && (!d.validade || dataVenc(d.validade) <= dataVenc(d.dataInspecao)); });
       $('pp-noportal').innerHTML = (errados.length ? '<div style="border:1px solid var(--warn,#f59e0b);border-radius:10px;padding:10px 12px;margin:10px 0"><b>' + errados.length + ' certificado(s) estão como Relatório NR-13 no portal.</b> ' +
           '<button class="btn peq" id="pp-corrigir">Passar para Calibração</button></div>' : '') +
         (semData.length ? '<div style="border:1px solid var(--warn,#f59e0b);border-radius:10px;padding:10px 12px;margin:10px 0"><b>' + semData.length + ' certificado(s) sem número ou datas no portal, mas registrados na OS pelo Gerador de Certificados.</b> ' +
           '<button class="btn peq" id="pp-datas">Preencher pelas OS</button></div>' : '') +
-        '<details' + (errados.length ? ' open' : '') + ' style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Já no portal (' + ks.length + ') · trocar o tipo ou remover</summary><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0"><button class="btn perigo peq" id="pp-rem-marcados" disabled>Remover marcados</button><button class="btn perigo peq" id="pp-rem-todos">Remover todos (' + ks.length + ')</button><span class="muted" style="font-size:13px">marque as caixas para escolher quais</span></div>' +
+        (doJsonNoPortal.length ? '<div style="border:1px solid var(--ok,#4ade80);border-radius:10px;padding:10px 12px;margin:10px 0"><b>O JSON carregado tem os dados de ' + doJsonNoPortal.length + ' documento(s) que já estão no portal</b> (nº, calibração, validade, TAG, OS). ' +
+          '<button class="btn peq" id="pp-json-portal">Corrigir pelo JSON</button></div>' : '') +
+        '<details' + (errados.length || semValidade ? ' open' : '') + ' style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Já no portal (' + ks.length + ') · editar nº e validade, trocar o tipo ou remover</summary>' +
+        (temCal ? '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0;padding:8px 10px;border:1px solid var(--borda,#475569);border-radius:10px"><b style="font-size:13px">Validade dos certificados</b> <span class="muted" style="font-size:13px">(dos marcados; sem marcar, de todos):</span>' +
+          '<input type="date" id="pp-val-lote"> <button class="btn peq" id="pp-val-aplicar">Aplicar data</button><button class="btn sec peq" id="pp-val-1ano">Calibração + 1 ano</button></div>' : '') +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0"><button class="btn perigo peq" id="pp-rem-marcados" disabled>Remover marcados</button><button class="btn perigo peq" id="pp-rem-todos">Remover todos (' + ks.length + ')</button><span class="muted" style="font-size:13px">marque as caixas para escolher quais</span></div>' +
         '<div style="max-height:260px;overflow:auto"><table><thead><tr><th style="width:28px"><input type="checkbox" id="pp-marcar-todos" title="Marcar todos"></th><th>Arquivo</th><th>TAG</th><th>OS</th><th>Tipo</th><th>Nº / calibrado em / validade</th><th></th></tr></thead><tbody>' +
         ks.map(function (k) { var d = indicePortal[k];
           return '<tr><td><input type="checkbox" data-marcar="' + esc(k) + '"></td><td style="max-width:260px;word-break:break-all">' + esc(d.arquivo || d.equipamento || k) + '</td><td>' + esc(d.tag || '') + '</td><td>' + esc(d.os || '') + '</td><td>' + selTipo('data-k="' + esc(k) + '"', atual(d)) + '</td><td style="white-space:nowrap">' +
@@ -1363,6 +1371,40 @@
         desenharNoPortal();
       }
       var avisoRemover = '\n\nO cliente deixa de ver e baixar. Os PDFs originais no seu computador não são apagados.';
+      if ($('pp-json-portal')) $('pp-json-portal').onclick = function () {
+        this.disabled = true; var o = {};
+        doJsonNoPortal.forEach(function (k) {
+          var d = dadosJson.porArquivo[String(indicePortal[k].arquivo || '').toLowerCase()], n = Object.assign({}, indicePortal[k]);
+          var cal = d.tipo === 'calibracao' || !!d.instrumento;
+          n.tipo = cal ? 'calibracao' : 'nr13';
+          if (cal) n.equipamento = d.instrumento === 'valvula' ? 'Válvula de segurança' : 'Manômetro';
+          if (d.tag) n.tag = String(d.tag).toUpperCase();
+          if (d.os) n.os = String(d.os).toUpperCase();
+          if (d.numero) n.numero = String(d.numero);
+          if (d.dataCalibracao || d.dataInspecao) n.dataInspecao = dataVenc(d.dataCalibracao || d.dataInspecao);
+          if (d.validade || d.proximaInspecao) n.validade = dataVenc(d.validade || d.proximaInspecao);
+          ['fluido', 'faixa', 'modelo', 'pressaoAjuste', 'pressaoAbertura', 'pressaoFechamento'].forEach(function (c) { if (d[c]) n[c] = d[c]; });
+          o[k] = n;
+        });
+        gravarCampos(o);
+      };
+      function validadeEmLote(calcular) {
+        var marc = Array.from($('pp-noportal').querySelectorAll('[data-marcar]')).filter(function (c) { return c.checked; }).map(function (c) { return c.dataset.marcar; });
+        var alvo = (marc.length ? marc : ks).filter(function (k) { return indicePortal[k].tipo === 'calibracao'; });
+        if (!alvo.length) { toast('Nenhum certificado de calibração ' + (marc.length ? 'marcado' : 'no portal') + '.'); return; }
+        if (!marc.length && !confirm('Mudar a validade de todos os ' + alvo.length + ' certificados deste cliente?')) return;
+        var o = {}, sem = 0;
+        alvo.forEach(function (k) { var v = calcular(indicePortal[k]); if (!v) { sem++; return; } o[k] = Object.assign({}, indicePortal[k], { validade: v }); });
+        if (sem) toast(sem + ' certificado(s) sem data de calibração ficaram como estavam.');
+        if (Object.keys(o).length) gravarCampos(o);
+      }
+      if ($('pp-val-aplicar')) $('pp-val-aplicar').onclick = function () {
+        var v = $('pp-val-lote').value; if (!v) { toast('Escolha a data de validade.'); return; }
+        validadeEmLote(function () { return v; });
+      };
+      if ($('pp-val-1ano')) $('pp-val-1ano').onclick = function () {
+        validadeEmLote(function (d) { var c = dataVenc(d.dataInspecao); return c ? (+c.slice(0, 4) + 1) + c.slice(4) : ''; });
+      };
       $('pp-noportal').querySelectorAll('[data-remover]').forEach(function (el) {
         el.onclick = function () {
           var k = el.dataset.remover, d = indicePortal[k] || {};
