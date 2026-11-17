@@ -244,6 +244,13 @@
   .osseta { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--sub); white-space: nowrap; }
   .osseta svg { transition: transform .2s; }
   .oscard.aberta .osseta svg { transform: rotate(180deg); }
+  .caltab td { min-width: 200px; } .caltab td:first-child { min-width: 0; width: 1%; white-space: nowrap; }
+  .calcel { display: flex; flex-direction: column; gap: 8px; } .calcel + .calcel { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--linha); }
+  @media (max-width: 600px) {
+    .caltab thead { display: none; } .caltab tr { display: block; border-top: 1px solid var(--linha); padding: 8px 0; } .caltab tr:first-child { border-top: 0; }
+    .caltab td { display: block; border: 0; padding: 6px 4px; min-width: 0; width: auto; } .caltab td.calvazia { display: none; }
+    .caltab td[data-rot]::before { content: attr(data-rot); display: block; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+  }
   .osdet { display: none; border-top: 1px solid var(--linha); padding-top: 10px; }
   .oscard.aberta .osdet { display: block; }
   .oscard.aberta .tagchips { display: none; }
@@ -720,6 +727,43 @@
     }
     botao.disabled = false; botao.textContent = txt;
   }
+  // ---------- Certificados de calibração agrupados pela TAG: válvula (PSV) e manômetro (PI) lado a lado ----------
+  var COLS_CAL = [['psv', 'Válvula de segurança'], ['pi', 'Manômetro'], ['outro', 'Outro instrumento']];
+  function tipoCal(nome) {
+    var t = String(nome || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    return /valvula|psv|safety|valve/.test(t) ? 'psv' : /manometro|\bpi\b|pressure gauge|vacuometro/.test(t) || !t ? 'pi' : 'outro';
+  }
+  function sitDe(val) { return !val ? 'sem' : val < hoje() ? 'vencido' : dias(val) <= 90 ? 'vencendo' : 'emdia'; }
+  // PDF liberado no portal
+  function docCal(x) { var val = isoDe(x.validade); return { tag: x.tag, os: x.os, nome: x.equipamento, tipo: tipoCal(x.equipamento), numero: x.numero, calib: isoDe(x.dataInspecao), val: val, sit: sitDe(val), doc: x }; }
+  // Certificado registrado na OS que ainda não tem PDF liberado
+  function certCal(c) { return { tag: c.tag, os: c.os, nome: c.tipo, tipo: tipoCal(c.tipo), numero: c.numero, calib: c.data, val: c.validade, sit: c.validade ? (c.situacao || 'sem') : null, doc: null }; }
+  function colsCal(itens) { return COLS_CAL.filter(function (c) { return c[0] !== 'outro' || itens.some(function (x) { return x.tipo === 'outro'; }); }); }
+  function cabCalPorTag(itens) { return '<th>TAG</th>' + colsCal(itens).map(function (c) { return '<th>' + c[1] + '</th>'; }).join(''); }
+  function celCal(x) {
+    return '<div class="calcel">' + (x.tipo === 'outro' ? '<b style="text-transform:uppercase">' + esc(x.nome || 'Instrumento') + '</b>' : '') +
+      '<div><b>Certificado ' + esc(x.numero || '—') + '</b><div class="sub">calibrado em ' + data(x.calib) + '</div></div>' +
+      '<div>' + (x.sit ? chipSit(x.sit, x.val) + (x.val ? ' <span class="sub">até ' + data(x.val) + '</span>' : '') : '<span class="sub">sem validade</span>') + '</div>' +
+      '<div>' + (x.doc ? botoesIcone(x.doc) : '<span class="sub">PDF ainda não liberado</span>') + '</div></div>';
+  }
+  // Uma linha por TAG (e por OS quando a lista mistura OS); cada tipo de instrumento na sua coluna
+  function linhasCalPorTag(itens, comOs) {
+    var cols = colsCal(itens), grupos = [], porChave = {};
+    itens.forEach(function (x, i) {
+      var tag = String(x.tag || '').trim().toUpperCase();
+      var k = tag ? tag + (comOs ? '|' + (x.os || '') : '') : 'sem:' + i;
+      if (!porChave[k]) { porChave[k] = { tag: tag, os: x.os, itens: [] }; grupos.push(porChave[k]); }
+      porChave[k].itens.push(x);
+    });
+    return grupos.map(function (g) {
+      var ok = g.itens.some(function (x) { return x.doc; });
+      return '<tr><td><span class="tagchip"><i' + (ok ? ' class="ok"' : '') + '></i>' + (g.tag ? esc(g.tag) : '<span style="color:var(--sub);font-weight:600">sem TAG</span>') + '</span>' + (comOs && g.os ? '<div class="sub">OS ' + esc(g.os) + '</div>' : '') + '</td>' +
+        cols.map(function (c) {
+          var dela = g.itens.filter(function (x) { return x.tipo === c[0]; });
+          return '<td data-rot="' + c[1] + '"' + (dela.length ? '' : ' class="calvazia"') + '>' + (dela.length ? dela.map(celCal).join('') : '<span class="sub calvazio">—</span>') + '</td>';
+        }).join('') + '</tr>';
+    }).join('');
+  }
   // ---------- Página "Meus relatórios" (no modelo da página do cliente do sistema de relatórios) ----------
   function iconeOlho() { return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>'; }
   function iconeBaixar() { return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>'; }
@@ -763,17 +807,9 @@
       var tagsSemDoc = vasos.filter(function (v) { return v.os === o.codigo && !pdfsOs.some(function (x) { return x.tag === v.tag; }); });
       var st = STATUS_OS[o.status] || '';
       // Relatórios desta OS (aparecem ao clicar na OS)
-      var linhasOs = soCal ? pdfsOs.map(function (x) {
-        var s = sitCert(x);
-        return '<tr><td><span class="tagchip"><i class="ok"></i>' + esc(x.tag || '—') + '</span></td>' +
-          '<td><b style="text-transform:uppercase">' + esc(x.equipamento || 'Instrumento') + '</b><div class="sub">Certificado ' + esc(x.numero || '—') + '</div></td>' +
-          '<td>' + data(isoDe(x.dataInspecao)) + '</td><td>' + chipSit(s.sit, s.val) + (s.val ? '<div class="sub">validade ' + data(s.val) + '</div>' : '') + '</td>' +
-          '<td style="text-align:right">' + botoesIcone(x) + '</td></tr>';
-      }).join('') + certs.filter(function (c) { return c.os === o.codigo && !pdfsOs.some(function (x) { return x.tag === c.tag && (!c.numero || !x.numero || String(x.numero) === String(c.numero)); }); }).map(function (c) {
-        var rotTag = c.tag ? esc(c.tag) : '<span style="color:var(--sub);font-weight:600">sem TAG</span>';
-        return '<tr><td><span class="tagchip"><i></i>' + rotTag + '</span></td><td><b style="text-transform:uppercase">' + esc(c.tipo || 'Instrumento') + '</b>' + (c.numero ? '<div class="sub">Certificado ' + esc(c.numero) + '</div>' : '') + '</td><td>' + data(c.data) + '</td>' +
-          '<td>' + (c.validade ? chipSit(c.situacao || 'sem', c.validade) + '<div class="sub">validade ' + data(c.validade) + '</div>' : '<span class="sub">—</span>') + '</td><td style="text-align:right"><span class="sub">PDF ainda não liberado</span></td></tr>';
-      }).join('') : pdfsOs.map(function (x) {
+      // Calibração: certificados liberados mais os registrados na OS sem PDF, agrupados pela TAG
+      var itensCal = soCal ? pdfsOs.map(docCal).concat(certs.filter(function (c) { return c.os === o.codigo && !pdfsOs.some(function (x) { return x.tag === c.tag && (!c.numero || !x.numero || String(x.numero) === String(c.numero)); }); }).map(certCal)) : [];
+      var linhasOs = soCal ? linhasCalPorTag(itensCal, false) : pdfsOs.map(function (x) {
         var v = vasos.filter(function (w) { return w.tag === x.tag; })[0] || {}, p = PARECER[x.parecer || v.parecer];
         var nomeDoc = x.tipo === 'calibracao' ? 'Certificado ' + (x.numero || '') : (x.equipamento || v.nome || 'Laudo NR-13');
         if (x.tipo === 'spda') return '<tr><td><span class="tagchip"><i class="ok"></i>' + esc(x.numero || '—') + '</span></td><td><b style="text-transform:uppercase">' + esc(x.tag || 'Edificação') + '</b><div class="sub">SPDA · NP ' + esc(x.nivelProtecao || '—') + (x.proxima ? ' · próxima inspeção ' + data(x.proxima) : '') + '</div></td><td>' + data(isoDe(x.dataInspecao)) + '</td><td>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '<span class="sub">—</span>') + '</td><td style="text-align:right">' + botoesIcone(x) + '</td></tr>';
@@ -785,8 +821,8 @@
       }).join('') + tagsSemDoc.map(function (v) {
         return '<tr><td><span class="tagchip"><i></i>' + esc(v.tag) + '</span></td><td><b style="text-transform:uppercase">' + esc(v.nome || '—') + '</b></td><td>' + data(v.dataInspecao) + '</td><td colspan="2"><span class="sub">Laudo ainda não liberado</span></td></tr>';
       }).join('');
-      var cabTabela = soCal ? '<th>TAG</th><th>Instrumento</th><th>Calibração</th><th>Validade</th><th style="text-align:right">PDF</th>' : '<th>TAG</th><th>Equipamento</th><th>Inspeção</th><th>Parecer</th><th style="text-align:right">PDF</th>';
-      var det = '<div class="osdet">' + (linhasOs ? '<div class="tabela"><table><thead><tr>' + cabTabela + '</tr></thead><tbody>' + linhasOs + '</tbody></table></div>'
+      var cabTabela = soCal ? cabCalPorTag(itensCal) : '<th>TAG</th><th>Equipamento</th><th>Inspeção</th><th>Parecer</th><th style="text-align:right">PDF</th>';
+      var det = '<div class="osdet">' + (linhasOs ? '<div class="tabela"><table' + (soCal ? ' class="caltab"' : '') + '><thead><tr>' + cabTabela + '</tr></thead><tbody>' + linhasOs + '</tbody></table></div>'
         : '<p class="vazio" style="margin:0">' + (termo ? 'Os laudos de termografia desta OS abrem no botão abaixo.' : 'Os relatórios desta OS ainda não foram liberados pela IDEALLE.') + '</p>') + '</div>';
       var seta = '<span class="osseta">' + (pdfsOs.length ? 'Ver ' + pdfsOs.length + (soCal ? ' certificado(s)' : ' relatório(s)') : soCal ? 'Ver certificados' : 'Ver relatórios') + ' <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>';
       return '<div class="oscard"><div class="oscab" role="button" tabindex="0" aria-expanded="false" title="Clique para ver os relatórios desta OS"><span class="mono" style="font-size:17px">' + esc(o.codigo) + '</span>' +
@@ -801,10 +837,7 @@
     }).join('');
 
     var certsPub = docs.filter(function (x) { return x.tipo === 'calibracao'; });
-    var linhasCert = certsPub.map(function (x) {
-      var val = isoDe(x.validade), sit = !val ? 'sem' : val < hoje() ? 'vencido' : dias(val) <= 90 ? 'vencendo' : 'emdia';
-      return '<tr><td><span class="tagchip"><i class="ok"></i>' + esc(x.tag || '—') + '</span></td><td>' + esc(x.equipamento || '') + '<div class="sub">Certificado ' + esc(x.numero || '—') + '</div></td><td>' + data(isoDe(x.dataInspecao)) + '<div class="sub">OS ' + esc(x.os || '') + '</div></td><td>' + chipSit(sit, val) + '<div class="sub">validade ' + data(val) + '</div></td><td style="text-align:right">' + botoesIcone(x) + '</td></tr>';
-    }).join('');
+    var linhasCert = linhasCalPorTag(certsPub.map(docCal), true);
 
     tela.innerHTML = cabecalhoCliente(d.empresa) +
       '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px"><div><button class="btn sec peq" id="r-voltar" type="button">← Voltar ao painel</button>' +
@@ -837,7 +870,7 @@
       '</div>') +
       (soSpda ? (estado.spdaOss = oss, secaoSpda(docs, oss)) : '') +
       (soSpda ? '' : '<section class="card" id="rel-os"><div class="tit-sec"><h2>' + IC_OS + ' ORDENS DE SERVIÇO (' + oss.length + ')</h2></div>' + (cartoesOs || '<p class="vazio">Nenhuma OS ainda.</p>') + '</section>') +
-      (certsPub.length && !soCal ? '<section class="card" id="rel-calibracao"><div class="tit-sec"><h2>' + IC_VASO + ' CERTIFICADOS DE CALIBRAÇÃO (' + certsPub.length + ')</h2></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Instrumento</th><th>Calibração</th><th>Validade</th><th style="text-align:right">PDF</th></tr></thead><tbody>' + linhasCert + '</tbody></table></div></section>' : '');
+      (certsPub.length && !soCal ? '<section class="card" id="rel-calibracao"><div class="tit-sec"><h2>' + IC_VASO + ' CERTIFICADOS DE CALIBRAÇÃO (' + certsPub.length + ')</h2></div><div class="tabela"><table class="caltab"><thead><tr>' + cabCalPorTag(certsPub.map(docCal)) + '</tr></thead><tbody>' + linhasCert + '</tbody></table></div></section>' : '');
 
     $('r-voltar').onclick = function () {
       if (soNr13 || soCal) { location.href = location.pathname + (VER_COMO ? '?ver_como=' + encodeURIComponent(VER_COMO) : ''); return; } // página aberta pelo cartão do serviço: volta ao painel do portal
