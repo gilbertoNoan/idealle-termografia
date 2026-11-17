@@ -1008,6 +1008,8 @@
       '<div><label>Validade da calibração (só certificados)</label><input id="pp-val" type="date"></div></div>' +
       '<div class="acoes" style="justify-content:flex-start"><label class="btn sec" style="cursor:pointer">Escolher PDFs<input id="pp-arq" type="file" accept="application/pdf,.pdf" multiple style="display:none"></label>' +
       '<label class="btn sec" style="cursor:pointer">Escolher pasta<input id="pp-pasta" type="file" webkitdirectory multiple style="display:none"></label></div>' +
+      '<div id="pp-soltar" style="border:2px dashed var(--borda,#475569);border-radius:12px;padding:22px 14px;text-align:center;margin:10px 0;color:var(--muted,#94a3b8);transition:background .15s,border-color .15s">' +
+      '<b style="color:inherit">Arraste a pasta (ou os PDFs) para cá</b><br><span style="font-size:13px">pode ser a pasta inteira da OS, com as subpastas TAG-…</span></div>' +
       '<div id="pp-lista" class="muted">Nenhum arquivo escolhido.</div><p id="pp-status" class="muted"></p>' +
       '<div class="acoes"><button class="btn" id="pp-enviar" disabled>Enviar ao portal</button><button class="btn sec" id="pp-voltar">Voltar</button></div>');
     function desenhar() {
@@ -1033,7 +1035,7 @@
     async function adicionar(files) {
       var novos = Array.from(files || []).filter(function (f) { return /\.pdf$/i.test(f.name) && !lista.some(function (x) { return x.file.name === f.name && x.file.size === f.size; }); });
       for (var i = 0; i < novos.length; i++) {
-        var f = novos[i], g = lerNomePdf(f.name), caminho = f.webkitRelativePath || '', m;
+        var f = novos[i], g = lerNomePdf(f.name), caminho = f._caminho || f.webkitRelativePath || '', m;
         // pasta TAG-<tag> do ZIP (o nome do arquivo nem sempre traz a TAG)
         if (!g.tag && (m = caminho.match(/(?:^|\/)TAG-([^\/]+)\//i))) g.tag = m[1].toUpperCase();
         var assinantes = null;
@@ -1044,6 +1046,33 @@
     }
     $('pp-arq').onchange = function (e) { adicionar(e.target.files); e.target.value = ''; };
     $('pp-pasta').onchange = function (e) { adicionar(e.target.files); e.target.value = ''; };
+    // Arrastar e soltar: pastas são lidas por inteiro (subpastas também), guardando o caminho para achar a TAG
+    function lerEntrada(ent, caminho) {
+      if (ent.isFile) return new Promise(function (ok) { ent.file(function (f) { try { f._caminho = caminho + f.name; } catch (e) {} ok([f]); }, function () { ok([]); }); });
+      if (!ent.isDirectory) return Promise.resolve([]);
+      var leitor = ent.createReader(), todos = [];
+      return new Promise(function (ok) {
+        (function proximo() {
+          leitor.readEntries(function (itens) {
+            if (!itens.length) return Promise.all(todos).then(function (l) { ok([].concat.apply([], l)); });
+            itens.forEach(function (i) { todos.push(lerEntrada(i, caminho + ent.name + '/')); });
+            proximo(); // readEntries devolve em lotes
+          }, function () { Promise.all(todos).then(function (l) { ok([].concat.apply([], l)); }); });
+        })();
+      });
+    }
+    var zona = $('pp-soltar'), destacar = function (sim) { zona.style.background = sim ? 'rgba(59,130,246,.12)' : ''; zona.style.borderColor = sim ? 'var(--azul,#3b82f6)' : ''; };
+    ['dragenter', 'dragover'].forEach(function (ev) { zona.addEventListener(ev, function (e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; destacar(true); }); });
+    zona.addEventListener('dragleave', function () { destacar(false); });
+    zona.addEventListener('drop', async function (e) {
+      e.preventDefault(); destacar(false);
+      var itens = Array.from(e.dataTransfer.items || []), entradas = itens.map(function (i) { return i.webkitGetAsEntry ? i.webkitGetAsEntry() : null; }).filter(Boolean);
+      if (!entradas.length) { adicionar(e.dataTransfer.files); return; }
+      zona.querySelector('b').textContent = 'Lendo os arquivos…';
+      var listas = await Promise.all(entradas.map(function (en) { return lerEntrada(en, ''); }));
+      zona.querySelector('b').textContent = 'Arraste a pasta (ou os PDFs) para cá';
+      await adicionar([].concat.apply([], listas));
+    });
     $('pp-tipo').onchange = desenhar;
     $('pp-voltar').onclick = function () { telaAcessoPortal(empId); };
     $('pp-enviar').onclick = async function () {
