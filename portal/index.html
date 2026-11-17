@@ -255,6 +255,8 @@
   .oscard.aberta .osdet { display: block; }
   .oscard.aberta .tagchips { display: none; }
   .tagchips { display: flex; flex-wrap: wrap; gap: 8px; }
+  tr.grupotag td { background: rgba(148,163,184,.08); border-top: 2px solid var(--borda); padding-top: 10px; padding-bottom: 10px; }
+  tr.docdatag td { padding-top: 6px; padding-bottom: 6px; }
   .tagchip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px 4px 10px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; font-size: 13px; color: var(--amb-t); white-space: nowrap; }
   .tagchip i { width: 8px; height: 8px; border-radius: 50%; background: var(--borda); } .tagchip i.ok { background: var(--ok); }
   .tagolho, .bicone { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--borda); background: transparent; color: var(--sub); border-radius: 8px; cursor: pointer; }
@@ -525,7 +527,7 @@
       faixaContrato() +
       secCondicoes() +
       '<section><div class="tit-sec"><h2>Seus serviços</h2><span class="sub">' + ativos + ' contratado(s) · ' + (SERVICOS.length - ativos) + ' disponível(is)</span></div><div class="servicos">' + cards + '</div></section>' +
-      '<p class="rodape">Dados atualizados em ' + data(d.atualizadoEm) + '. Os documentos assinados ficam com a IDEALLE e são enviados sob solicitação. IDEALLE Inspeções e Serviços · CREA-SP · ' + esc(contato.telefone) + '</p>';
+      '<p class="rodape">Dados atualizados em ' + data(d.atualizadoEm) + '. ' + (algumAssinado(todosDocs()) ? 'Os documentos com o selo "Assinado" têm assinatura digital ICP-Brasil (confira em validar.iti.gov.br).' : 'Os documentos assinados ficam com a IDEALLE e são enviados sob solicitação.') + ' IDEALLE Inspeções e Serviços · CREA-SP · ' + esc(contato.telefone) + '</p>';
     ligarBuscas();
     var br = $('b-relatorios'); if (br) br.onclick = function () { telaRelatorios(); };
     tela.querySelectorAll('[data-relatorios]').forEach(function (b) { b.onclick = function () { telaRelatorios(); }; });
@@ -684,9 +686,37 @@
     return linhas.map(function (l) { var m = l.trim().match(/^([^:]+):\s*(\d+)$/); return '<span class="qtd"><span class="rot">' + esc(m[1]) + '</span><span class="num">' + m[2] + '</span></span>'; }).join('');
   }
   function plural(n, um, varios) { return n + ' ' + (n === 1 ? um : varios); }
+
+  // TAG tirada do nome do arquivo quando o documento não tem: "..._TAG-TACHO-20", "TAG - TACHO 20", "RO_OS-ID-0277-2026_POS- 4018"
+  function tagDoNome(nome) {
+    var b = String(nome || '').replace(/\.pdf$/i, '').replace(/_ASSTMP$/i, ''), m, resto = '';
+    if ((m = b.match(/(?:^|[\s_-])TAG(?:[\s_]*-[\s_]*|[\s_]+)(.+)$/i))) resto = m[1];
+    else if ((m = b.match(/^RO_(?:OS[-_ ]?)?IDE?-\d{3,4}[-_]\d{4}_(.+)$/i))) resto = m[1];
+    if (!resto) return '';
+    resto = resto.replace(/[_\s]+\d{2}[._]\d{2}[._]\d{4}$/, '').trim().replace(/\s*-\s*/g, '-').replace(/[\s_]+/g, '-').toUpperCase();
+    return /\d/.test(resto) && resto.length <= 30 ? resto : '';
+  }
+  // Tipo do documento do equipamento (pelo nome do arquivo), na ordem em que aparece no grupo da TAG
+  var TIPOS_DOC = [
+    [/laudo_?nr-?13|relat[oó]rio.*inspe|^laudo/i, 'Laudo de inspeção NR-13'],
+    [/prontu[aá]rio/i, 'Prontuário'],
+    [/livro_?digital|termo_?de_?abertura/i, 'Livro digital · termo de abertura'],
+    [/registro_?de_?ocorr|^RO_/i, 'Registro de ocorrência'],
+    [/c[aá]lculo.*pmta|pmta/i, 'Cálculo de PMTA'],
+    [/desenquadr/i, 'Desenquadramento']
+  ];
+  function tipoDoc(x) {
+    var nome = String(x.arquivo || x.equipamento || '');
+    for (var i = 0; i < TIPOS_DOC.length; i++) if (TIPOS_DOC[i][0].test(nome)) return { ordem: i, nome: TIPOS_DOC[i][1] };
+    return { ordem: x.antigo ? 9 : 0, nome: x.antigo ? String(x.equipamento || nome).replace(/\.pdf$/i, '') : (x.equipamento || 'Laudo NR-13') };
+  }
   function todosDocs() {
     var l = estado.laudos || {};
-    return Object.keys(l).map(function (k) { return Object.assign({ chave: k, tipo: l[k].tipo || 'nr13' }, l[k]); })
+    return Object.keys(l).map(function (k) {
+      var x = Object.assign({ chave: k, tipo: l[k].tipo || 'nr13' }, l[k]);
+      if (!x.tag && x.tipo !== 'termografia' && x.tipo !== 'spda') x.tag = tagDoNome(x.arquivo) || tagDoNome(x.equipamento);
+      return x;
+    })
       .sort(function (a, b) { return (isoDe(b.dataInspecao) || '') < (isoDe(a.dataInspecao) || '') ? -1 : 1; });
   }
   async function bytesDoDoc(x) {
@@ -821,15 +851,34 @@
       // Relatórios desta OS (aparecem ao clicar na OS)
       // Calibração: certificados liberados mais os registrados na OS sem PDF, agrupados pela TAG
       var itensCal = soCal ? pdfsOs.map(docCal).concat(certs.filter(function (c) { return c.os === o.codigo && !pdfsOs.some(function (x) { return x.tag === c.tag && (!c.numero || !x.numero || String(x.numero) === String(c.numero)); }); }).map(certCal)) : [];
-      var linhasOs = soCal ? linhasCalPorTag(itensCal, false) : pdfsOs.map(function (x) {
+      // Tudo de um mesmo equipamento junto: grupo por TAG, documentos na ordem laudo, prontuário, livro, registro, PMTA
+      var grupos = [], porTag = {};
+      pdfsOs.forEach(function (x) {
+        var k = x.tipo === 'spda' ? '~spda' + x.chave : (x.tag || '~sem');
+        if (!porTag[k]) { porTag[k] = { tag: x.tipo === 'spda' ? '' : x.tag, docs: [] }; grupos.push(porTag[k]); }
+        porTag[k].docs.push(x);
+      });
+      grupos.sort(function (a, b) { return (a.tag ? 0 : 1) - (b.tag ? 0 : 1) || String(a.tag).localeCompare(String(b.tag), 'pt-BR', { numeric: true }); });
+      var linhaDoc = function (x) {
         var v = vasos.filter(function (w) { return w.tag === x.tag; })[0] || {}, p = PARECER[x.parecer || v.parecer];
-        var nomeDoc = x.tipo === 'calibracao' ? 'Certificado ' + (x.numero || '') : (x.equipamento || v.nome || 'Laudo NR-13');
+        var td = tipoDoc(x), nomeDoc = x.tipo === 'calibracao' ? 'Certificado ' + (x.numero || '') : td.nome;
         if (x.tipo === 'spda') return '<tr><td><span class="tagchip"><i class="ok"></i>' + esc(x.numero || '—') + '</span></td><td><b style="text-transform:uppercase">' + esc(x.tag || 'Edificação') + '</b><div class="sub">SPDA · NP ' + esc(x.nivelProtecao || '—') + (x.proxima ? ' · próxima inspeção ' + data(x.proxima) : '') + '</div></td><td>' + data(isoDe(x.dataInspecao)) + '</td><td>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '<span class="sub">—</span>') + '</td><td style="text-align:right">' + botoesIcone(x) + '</td></tr>';
-        return '<tr><td><span class="tagchip"><i class="ok"></i>' + esc(x.tag || x.numero || '—') + '</span></td>' +
-          '<td><b style="text-transform:uppercase">' + esc(nomeDoc) + '</b>' + (v.area ? '<div class="sub">' + esc(v.area) + '</div>' : '') + '</td>' +
+        return '<tr class="docdatag"><td class="sub" style="padding-left:22px">↳</td>' +
+          '<td><b>' + esc(nomeDoc) + '</b>' + (td.ordem === 0 && !x.antigo ? '' : '<div class="sub" style="word-break:break-all">' + esc(x.arquivo || '') + '</div>') + '</td>' +
           '<td>' + data(isoDe(x.dataInspecao)) + '</td>' +
           '<td>' + (p ? '<span class="chip ' + p[1] + '">' + p[0] + '</span>' : '<span class="sub">—</span>') + '</td>' +
           '<td style="text-align:right">' + botoesIcone(x) + '</td></tr>';
+      };
+      var linhasOs = soCal ? linhasCalPorTag(itensCal, false) : grupos.map(function (g) {
+        if (!g.tag && g.docs[0].tipo === 'spda') return linhaDoc(g.docs[0]);
+        g.docs.sort(function (a, b) { return tipoDoc(a).ordem - tipoDoc(b).ordem; });
+        var v = vasos.filter(function (w) { return w.tag === g.tag; })[0] || {};
+        var laudo = g.docs.filter(function (x) { return tipoDoc(x).ordem === 0; })[0];
+        var nomeEq = v.nome || (laudo && laudo.equipamento && !laudo.antigo ? laudo.equipamento : '');
+        var cab = '<tr class="grupotag"><td colspan="5"><span class="tagchip"><i class="ok"></i>' + esc(g.tag || 'Sem TAG') + '</span>' +
+          (nomeEq ? ' <b style="text-transform:uppercase;margin-left:8px">' + esc(nomeEq) + '</b>' : '') + (v.area ? ' <span class="sub">· ' + esc(v.area) + '</span>' : '') +
+          ' <span class="sub">· ' + plural(g.docs.length, 'documento', 'documentos') + '</span></td></tr>';
+        return cab + g.docs.map(function (x) { return linhaDoc(x); }).join('');
       }).join('') + tagsSemDoc.map(function (v) {
         return '<tr><td><span class="tagchip"><i></i>' + esc(v.tag) + '</span></td><td><b style="text-transform:uppercase">' + esc(v.nome || '—') + '</b></td><td>' + data(v.dataInspecao) + '</td><td colspan="2"><span class="sub">Laudo ainda não liberado</span></td></tr>';
       }).join('');
@@ -877,7 +926,7 @@
             kpi(venc + prox, venc ? 'var(--bad)' : prox ? 'var(--amb-t)' : 'var(--ok)', 'Próximas inspeções', venc + ' vencida(s) · ' + prox + ' vencendo em 90 dias');
         })() : (
         kpi(vasos.length, 'var(--amb-t)', 'Vasos / TAGs', soNr13 ? vasos.filter(function (v) { return docDaTag(v.tag); }).length + ' com laudo disponível' : certs.length + ' instrumento(s) calibrado(s)') +
-        kpi(docsPdf.length, 'var(--texto)', soNr13 ? 'Laudos disponíveis' : 'Documentos disponíveis', soNr13 ? (algumAssinado(docsPdf) ? 'PDFs assinados digitalmente' : 'cópias para consulta em PDF') : laudos.length + ' laudo(s) · ' + certsPub.length + ' certificado(s)' + (termos.length ? ' · ' + termos.length + ' OS de termografia' : '')) +
+        kpi(docsPdf.length, 'var(--texto)', 'Documentos disponíveis', soNr13 ? (algumAssinado(docsPdf) ? 'PDFs assinados digitalmente' : 'cópias para consulta em PDF') : laudos.length + ' laudo(s) · ' + certsPub.length + ' certificado(s)' + (termos.length ? ' · ' + termos.length + ' OS de termografia' : '')) +
         kpi(vencidos + vencendo, vencidos ? 'var(--bad)' : vencendo ? 'var(--amb-t)' : 'var(--ok)', 'Prazos a cuidar', vencidos + ' vencido(s) · ' + vencendo + ' vencendo em 90 dias'))) +
       '</div>') +
       (soSpda ? (estado.spdaOss = oss, secaoSpda(docs, oss)) : '') +
