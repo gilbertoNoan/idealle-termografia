@@ -259,7 +259,8 @@
   .tagchip i { width: 8px; height: 8px; border-radius: 50%; background: var(--borda); } .tagchip i.ok { background: var(--ok); }
   .tagolho, .bicone { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--borda); background: transparent; color: var(--sub); border-radius: 8px; cursor: pointer; }
   .tagolho { width: 28px; height: 26px; margin-left: 4px; }
-  .bicones { display: inline-flex; gap: 6px; } .bicone { height: 36px; padding: 0 12px; gap: 6px; font: inherit; font-size: 13px; font-weight: 700; white-space: nowrap; } .bicone:hover { color: var(--texto); border-color: var(--amb); }
+  .bicones { display: inline-flex; gap: 6px; align-items: center; }
+  .selo-ass { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--ok, #34d399); white-space: nowrap; cursor: help; } .bicone { height: 36px; padding: 0 12px; gap: 6px; font: inherit; font-size: 13px; font-weight: 700; white-space: nowrap; } .bicone:hover { color: var(--texto); border-color: var(--amb); }
   .tagolho:hover, .bicone:hover { color: var(--amb-t); border-color: var(--amb-b); }
   .osacoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--linha); padding-top: 10px; }
   .relcta { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; border-color: var(--amb-b); }
@@ -767,8 +768,19 @@
   // ---------- Página "Meus relatórios" (no modelo da página do cliente do sistema de relatórios) ----------
   function iconeOlho() { return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>'; }
   function iconeBaixar() { return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>'; }
+  // Documento assinado digitalmente (certificado A1 da IDEALLE, PAdES): selo ao lado dos botões
+  function seloAssinado(x) {
+    if (!x || !x.assinado) return '';
+    var t = 'Assinado digitalmente por ' + (x.assinado.titular || 'IDEALLE') + ' (certificado ICP-Brasil)' + (x.assinado.em ? ' em ' + data(String(x.assinado.em).slice(0, 10)) : '') + '. Confira em validar.iti.gov.br';
+    return '<span class="selo-ass" title="' + esc(t) + '" aria-label="' + esc(t) + '"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l7 3v6c0 5-3.5 9-7 11-3.5-2-7-6-7-11V5z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>Assinado</span>';
+  }
+  function algumAssinado(lista) { return (lista || []).some(function (x) { return x && x.assinado; }); }
+  function textoOriginais(lista) {
+    return algumAssinado(lista) ? 'Documentos assinados digitalmente com certificado ICP-Brasil (selo "Assinado"). A assinatura pode ser conferida em validar.iti.gov.br.'
+      : 'Cópias para consulta. Os originais assinados digitalmente ficam arquivados na IDEALLE e são enviados sob solicitação.';
+  }
   function botoesIcone(x) {
-    return '<span class="bicones"><button type="button" class="bicone" data-laudo="' + esc(x.chave) + '" data-acao="ver" title="Ver o PDF" aria-label="Ver o PDF de ' + esc(x.tag || '') + '">' + iconeOlho() + '<span>Ver</span></button>' +
+    return '<span class="bicones">' + seloAssinado(x) + '<button type="button" class="bicone" data-laudo="' + esc(x.chave) + '" data-acao="ver" title="Ver o PDF" aria-label="Ver o PDF de ' + esc(x.tag || '') + '">' + iconeOlho() + '<span>Ver</span></button>' +
       '<button type="button" class="bicone" data-laudo="' + esc(x.chave) + '" data-acao="baixar" title="Baixar o PDF" aria-label="Baixar o PDF de ' + esc(x.tag || '') + '">' + iconeBaixar() + '<span>Baixar</span></button></span>';
   }
   var NOME_EXAME = { externo: 'Exame externo', interno: 'Exame interno' };
@@ -841,7 +853,7 @@
 
     tela.innerHTML = cabecalhoCliente(d.empresa) +
       '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px"><div><button class="btn sec peq" id="r-voltar" type="button">← Voltar ao painel</button>' +
-      '<h1 style="font-size:24px;margin-top:12px">' + (soNr13 ? 'Relatórios NR-13' : soCal ? 'Certificados de calibração' : soSpda ? 'Laudos de SPDA (para-raios)' : 'Meus relatórios') + '</h1><span class="sub">Cópias para consulta. Os originais assinados digitalmente ficam arquivados na IDEALLE e são enviados sob solicitação.</span></div>' +
+      '<h1 style="font-size:24px;margin-top:12px">' + (soNr13 ? 'Relatórios NR-13' : soCal ? 'Certificados de calibração' : soSpda ? 'Laudos de SPDA (para-raios)' : 'Meus relatórios') + '</h1><span class="sub">' + textoOriginais(docsPdf) + '</span></div>' +
       (docsPdf.length ? '<button class="btn" id="r-zip-todos" type="button">' + iconeBaixar() + '&nbsp;Baixar todos os PDFs (ZIP)</button>' : '') + '</div>' +
       '<div class="rkpis">' + (soCal ? (function () {
         // Validades: certificados publicados mais os registrados na OS que ainda não têm PDF
@@ -865,7 +877,7 @@
             kpi(venc + prox, venc ? 'var(--bad)' : prox ? 'var(--amb-t)' : 'var(--ok)', 'Próximas inspeções', venc + ' vencida(s) · ' + prox + ' vencendo em 90 dias');
         })() : (
         kpi(vasos.length, 'var(--amb-t)', 'Vasos / TAGs', soNr13 ? vasos.filter(function (v) { return docDaTag(v.tag); }).length + ' com laudo disponível' : certs.length + ' instrumento(s) calibrado(s)') +
-        kpi(docsPdf.length, 'var(--texto)', soNr13 ? 'Laudos disponíveis' : 'Documentos disponíveis', soNr13 ? 'cópias para consulta em PDF' : laudos.length + ' laudo(s) · ' + certsPub.length + ' certificado(s)' + (termos.length ? ' · ' + termos.length + ' OS de termografia' : '')) +
+        kpi(docsPdf.length, 'var(--texto)', soNr13 ? 'Laudos disponíveis' : 'Documentos disponíveis', soNr13 ? (algumAssinado(docsPdf) ? 'PDFs assinados digitalmente' : 'cópias para consulta em PDF') : laudos.length + ' laudo(s) · ' + certsPub.length + ' certificado(s)' + (termos.length ? ' · ' + termos.length + ' OS de termografia' : '')) +
         kpi(vencidos + vencendo, vencidos ? 'var(--bad)' : vencendo ? 'var(--amb-t)' : 'var(--ok)', 'Prazos a cuidar', vencidos + ' vencido(s) · ' + vencendo + ' vencendo em 90 dias'))) +
       '</div>') +
       (soSpda ? (estado.spdaOss = oss, secaoSpda(docs, oss)) : '') +
@@ -1032,12 +1044,12 @@
   }
   function laudoDaTag(tag) { tag = String(tag || '').toUpperCase(); return listaLaudos().filter(function (x) { return x.tag === tag; })[0]; }
   function botoesLaudo(x) {
-    return '<button class="btn sec peq" data-laudo="' + esc(x.chave) + '" data-acao="ver">Ver laudo</button> <button class="btn peq" data-laudo="' + esc(x.chave) + '" data-acao="baixar">Baixar PDF</button>';
+    return seloAssinado(x) + (x.assinado ? ' ' : '') + '<button class="btn sec peq" data-laudo="' + esc(x.chave) + '" data-acao="ver">Ver laudo</button> <button class="btn peq" data-laudo="' + esc(x.chave) + '" data-acao="baixar">Baixar PDF</button>';
   }
   function secLaudos() {
     var ll = listaLaudos();
     if (!ll.length) return '';
-    return '<section class="card" id="sec-laudos"><div class="tit-sec"><h2>Laudos NR-13</h2><span class="sub">cópias para consulta · o original assinado fica arquivado na IDEALLE</span></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Equipamento</th><th>Inspeção</th><th>OS</th><th></th></tr></thead><tbody>' +
+    return '<section class="card" id="sec-laudos"><div class="tit-sec"><h2>Laudos NR-13</h2><span class="sub">' + (algumAssinado(ll) ? 'assinados digitalmente · confira em validar.iti.gov.br' : 'cópias para consulta · o original assinado fica arquivado na IDEALLE') + '</span></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Equipamento</th><th>Inspeção</th><th>OS</th><th></th></tr></thead><tbody>' +
       ll.map(function (x) { return '<tr><td class="mono">' + esc(x.tag || '—') + '</td><td>' + esc(x.equipamento || '—') + '</td><td>' + data(isoDe(x.dataInspecao)) + '</td><td class="mono">' + esc(x.os || '') + '</td><td style="text-align:right;white-space:nowrap">' + botoesLaudo(x) + '</td></tr>'; }).join('') +
       '</tbody></table></div></section>';
   }

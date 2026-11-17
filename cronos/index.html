@@ -923,7 +923,8 @@
   }
 
   // ---------- PDFs antigos no Portal do Cliente (relatórios NR-13 e certificados feitos antes dos sistemas) ----------
-  // Cada PDF vai como cópia para consulta (faixa no rodapé), no mesmo lugar que os sistemas publicam (portal_laudos).
+  // Cada PDF vai assinado digitalmente com o certificado A1 da IDEALLE (/assinatura/assinar-pdf.js); sem a assinatura
+  // configurada, vai como cópia para consulta (faixa no rodapé). Mesmo lugar que os sistemas publicam (portal_laudos).
   var TAM_PARTE_PORTAL = 700000;
   function carregarPdfLib() {
     if (window.PDFLib) return Promise.resolve(window.PDFLib);
@@ -944,6 +945,13 @@
     });
     return doc.save();
   }
+  async function statusAssinaturaPortal() {
+    try {
+      var u = window.firebase && firebase.auth().currentUser; if (!u) return { ativo: false, motivo: 'sem login (modo de teste)' };
+      if (!window.IdealleAssinatura) await carregarScript('/assinatura/assinar-pdf.js');
+      var tk = await u.getIdToken(), st = await window.IdealleAssinatura.status(tk); st.token = tk; return st;
+    } catch (e) { return { ativo: false, motivo: e.message || String(e) }; }
+  }
   function base64De(bytes) { var s = ''; for (var i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + 0x8000))); return btoa(s); }
   // TAG, data, OS e tipo tirados do nome do arquivo (o usuário confere e corrige na lista)
   function lerNomePdf(nome) {
@@ -959,7 +967,7 @@
   function telaPdfsAntigos(empId) {
     var emp = porId('empresas', empId) || {}, lista = [];
     abrirModal('<h3>Subir PDFs antigos · ' + esc(emp.nome || '') + '</h3>' +
-      '<p class="muted" style="margin-top:0">Relatórios NR-13 e certificados de calibração feitos antes dos sistemas. O cliente vê e baixa como cópia para consulta (faixa no rodapé). Baixe a pasta do Google Drive e escolha os arquivos ou a pasta inteira.</p>' +
+      '<p class="muted" style="margin-top:0">Relatórios NR-13 e certificados de calibração feitos antes dos sistemas. O cliente vê e baixa o PDF assinado digitalmente com o certificado da IDEALLE (sem a assinatura configurada, vai como cópia para consulta). Baixe a pasta do Google Drive e escolha os arquivos ou a pasta inteira.</p>' +
       '<div class="grid"><div><label>Tipo</label><select id="pp-tipo"><option value="nr13">Relatórios NR-13</option><option value="calibracao">Certificados de calibração</option></select></div>' +
       '<div><label>OS (para todos os que não tiverem no nome)</label><input id="pp-os" placeholder="ex.: ID-0123/2025"></div>' +
       '<div><label>Data da inspeção/calibração (quando não estiver no nome)</label><input id="pp-data" type="date"></div>' +
@@ -1001,16 +1009,20 @@
       var tipo = $('pp-tipo').value, osPadrao = $('pp-os').value.trim().toUpperCase(), dataPadrao = $('pp-data').value, val = $('pp-val').value;
       var b = this; b.disabled = true; var ok = 0, falhas = [];
       var indice = (await banco.ler('portal_laudos', empId).catch(function () { return null; })) || {}, antigos = indice.laudos || {};
+      $('pp-status').textContent = 'Conferindo a assinatura digital…';
+      var assin = await statusAssinaturaPortal();
       for (var i = 0; i < lista.length; i++) {
         var x = lista[i];
         $('pp-status').textContent = 'Enviando ' + (i + 1) + ' de ' + lista.length + ': ' + x.arquivo + '…';
         try {
-          var bytes = await pdfParaConsulta(new Uint8Array(await x.file.arrayBuffer()));
+          var original = new Uint8Array(await x.file.arrayBuffer());
+          var bytes = assin.ativo ? await window.IdealleAssinatura.assinar(original, assin.token, { status: assin, documento: x.arquivo, motivo: 'Documento emitido pela IDEALLE' }) : await pdfParaConsulta(original);
           var b64 = base64De(bytes), chave = 'a_' + hashTexto(empId + '|' + tipo + '|' + x.arquivo), versao = Date.now().toString(36);
           var partes = Math.ceil(b64.length / TAM_PARTE_PORTAL);
           for (var n = 0; n < partes; n++) await banco.gravar('portal_laudos_partes', chave + '__' + versao + '__' + n, { empresaId: empId, laudo: chave, parte: n, dados: b64.slice(n * TAM_PARTE_PORTAL, (n + 1) * TAM_PARTE_PORTAL) });
           var meta = { tipo: tipo, tag: String(x.tag || '').toUpperCase(), os: x.os ? x.os.toUpperCase() : (osPadrao || 'Documentos antigos'), arquivo: x.arquivo,
             dataInspecao: x.data || dataPadrao || '', versao: versao, partes: partes, tamanho: bytes.length, publicadoEm: agora(), antigo: true,
+            assinado: assin.ativo ? { titular: assin.titular, em: agora() } : null,
             equipamento: tipo === 'calibracao' ? (x.psv ? 'Válvula de segurança' : 'Manômetro') : x.arquivo.replace(/\.pdf$/i, '') };
           if (tipo === 'calibracao') meta.validade = val || '';
           var campos = { empresaId: empId, laudos: {} }; campos.laudos[chave] = meta;
@@ -1020,7 +1032,7 @@
           ok++;
         } catch (e) { console.error(e); falhas.push(x.arquivo + ' (' + (e.message || e) + ')'); }
       }
-      $('pp-status').innerHTML = esc(ok + ' arquivo(s) enviado(s) ao portal.') + (falhas.length ? '<br><span style="color:var(--bad,#f87171)">Não foram: ' + esc(falhas.join('; ')) + '</span>' : '') +
+      $('pp-status').innerHTML = esc(ok + ' arquivo(s) enviado(s) ao portal' + (assin.ativo ? ', assinado(s) digitalmente por ' + assin.titular + '.' : ' sem assinatura digital (' + assin.motivo + ').')) + (falhas.length ? '<br><span style="color:var(--bad,#f87171)">Não foram: ' + esc(falhas.join('; ')) + '</span>' : '') +
         '<br>Confira se o serviço (' + (tipo === 'nr13' ? 'NR-13' : 'Calibração') + ') está marcado em Serviços liberados.';
       toast(ok + ' PDF(s) enviado(s) ao portal.');
       lista = lista.filter(function (x) { return falhas.some(function (f) { return f.indexOf(x.arquivo) === 0; }); }); desenhar(); b.disabled = !lista.length;
