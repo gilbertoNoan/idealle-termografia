@@ -671,7 +671,7 @@
   function contarCalibracao(lista) {
     var vistos = {}, psv = 0, pi = 0;
     lista.forEach(function (c, i) {
-      var tipo = /valvula|psv|safety|valve/.test(String(c.tipo || c.equipamento || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')) ? 'psv' : 'pi';
+      var tipo = /valvula|psv|safety|valve/.test(String((c.tipo !== 'calibracao' && c.tipo) || c.equipamento || c.arquivo || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')) ? 'psv' : 'pi';
       var id = String(c.tag || '').trim().toUpperCase() || (c.numero ? 'n:' + c.numero : 's:' + (c.os || '') + ':' + i);
       if (vistos[tipo + '|' + id]) return;
       vistos[tipo + '|' + id] = 1;

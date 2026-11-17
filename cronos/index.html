@@ -1017,7 +1017,9 @@
   }
   // Liga o serviço no portal (Serviços liberados) quando chegam documentos dele e ele ainda está trancado
   async function liberarServicoNoPortal(empId, k) {
-    if (dadosPortal(empId).servicos[k]) return false;
+    // confere o que o cliente vê (portal_dados publicado), não só a conta local
+    var pub = await banco.ler('portal_dados', empId).catch(function () { return null; });
+    if (dadosPortal(empId).servicos[k] && pub && pub.servicos && pub.servicos[k]) return false;
     var ac = portalAcesso(empId) || {}, extras = Object.assign({}, ac.servicosExtras || {}); extras[k] = true;
     await banco.atualizar('portal_acessos', empId, { servicosExtras: extras, atualizadoEm: agora() });
     var dd = dadosPortal(empId, { servicosExtras: extras }), h = hashTexto(JSON.stringify(dd)); dd.atualizadoEm = agora();
@@ -1143,7 +1145,8 @@
           var b64 = base64De(bytes), chave = existente ? x.chavePortal : mesmoArquivo || 'a_' + hashTexto(empId + '|' + x.tipo + '|' + x.arquivo), versao = Date.now().toString(36);
           var partes = Math.ceil(b64.length / TAM_PARTE_PORTAL);
           for (var n = 0; n < partes; n++) await banco.gravar('portal_laudos_partes', chave + '__' + versao + '__' + n, { empresaId: empId, laudo: chave, parte: n, dados: b64.slice(n * TAM_PARTE_PORTAL, (n + 1) * TAM_PARTE_PORTAL) });
-          var tipoX = existente ? (existente.tipo || 'nr13') : x.tipo;
+          // o tipo da linha (pelo nome ou escolhido) vale mais que o do documento que estava no portal (que podia ter entrado errado)
+          var tipoX = existente && !x.tipoAuto ? (existente.tipo || 'nr13') : x.tipo;
           tiposEnviados[tipoX] = true;
           var meta = { tipo: tipoX, tag: String(x.tag || '').toUpperCase(), os: x.os ? x.os.toUpperCase() : (osPadrao || 'Documentos antigos'), arquivo: x.arquivo,
             dataInspecao: x.data || dataPadrao || '', versao: versao, partes: partes, tamanho: bytes.length, publicadoEm: agora(), antigo: true,
@@ -1153,7 +1156,11 @@
             meta.antigo = false;
             meta.assinado = { titular: x.assinantes.join(' e ') || 'certificado digital', em: agora(), token: true };
             // substitui a cópia para consulta: mantém o que o sistema publicou (equipamento, parecer, número, validade, resumo)
-            if (existente) meta = Object.assign({}, existente, { versao: versao, partes: partes, tamanho: bytes.length, publicadoEm: agora(), arquivo: existente.arquivo || x.arquivo, assinado: meta.assinado });
+            if (existente) {
+              var mudouTipo = (existente.tipo || 'nr13') !== tipoX;
+              meta = Object.assign({}, existente, { tipo: tipoX, versao: versao, partes: partes, tamanho: bytes.length, publicadoEm: agora(), arquivo: existente.arquivo || x.arquivo, assinado: meta.assinado },
+                mudouTipo ? { equipamento: meta.equipamento, tag: meta.tag || existente.tag } : {});
+            }
           }
           var campos = { empresaId: empId, laudos: {} }; campos.laudos[chave] = meta;
           await banco.atualizar('portal_laudos', empId, campos);
