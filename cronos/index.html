@@ -612,6 +612,13 @@
     };
   }
 
+  function juntarFundo(alvo, novo) {
+    Object.keys(novo).forEach(function (k) {
+      var v = novo[k];
+      if (v && typeof v === 'object' && !Array.isArray(v) && alvo[k] && typeof alvo[k] === 'object' && !Array.isArray(alvo[k])) juntarFundo(alvo[k], v); else alvo[k] = v;
+    });
+    return alvo;
+  }
   function bancoLocal() {
     var CH = 'cronos-demo-v1', ouvintes = {}, dados;
     try { dados = JSON.parse(localStorage.getItem(CH) || 'null'); } catch (e) { dados = null; }
@@ -624,7 +631,8 @@
       ouvir: function (col, cb) { (ouvintes[col] = ouvintes[col] || []).push(cb); setTimeout(function () { avisar(col); }, 0); },
       criar: function (col, doc) { doc = Object.assign({}, doc); doc.id = 'L' + Date.now() + Math.random().toString(36).slice(2, 6); dados[col].push(doc); salvar(); avisar(col); return Promise.resolve(doc.id); },
       ler: function (col, id) { var x = col_(col).find(function (y) { return y.id === id; }); return Promise.resolve(x ? JSON.parse(JSON.stringify(x)) : null); },
-      atualizar: function (col, id, doc) { col_(col); var i = dados[col].findIndex(function (x) { return x.id === id; }); if (i >= 0) Object.assign(dados[col][i], doc); else dados[col].push(Object.assign({ id: id }, doc)); salvar(); avisar(col); return Promise.resolve(); },
+      // como o Firestore (set com merge): junta também os mapas internos (ex.: portal_laudos.laudos)
+      atualizar: function (col, id, doc) { col_(col); var i = dados[col].findIndex(function (x) { return x.id === id; }); if (i >= 0) juntarFundo(dados[col][i], doc); else dados[col].push(Object.assign({ id: id }, doc)); salvar(); avisar(col); return Promise.resolve(); },
       excluir: function (col, id) { dados[col] = col_(col).filter(function (x) { return x.id !== id; }); salvar(); avisar(col); return Promise.resolve(); },
       tirarDoMapa: function (col, id, mapa, chave) { var x = col_(col).find(function (y) { return y.id === id; }); if (x && x[mapa]) delete x[mapa][chave]; salvar(); avisar(col); return Promise.resolve(); },
       gravar: function (col, id, doc) { dados[col] = col_(col).filter(function (x) { return x.id !== id; }); dados[col].push(Object.assign({ id: id }, doc)); salvar(); avisar(col); return Promise.resolve(); },
@@ -1053,7 +1061,7 @@
     return '<select ' + attr + ' style="min-width:190px;width:auto"><option value="nr13"' + (v === 'nr13' ? ' selected' : '') + '>Relatório NR-13</option><option value="pi"' + (v === 'pi' ? ' selected' : '') + '>Certificado · Manômetro</option><option value="psv"' + (v === 'psv' ? ' selected' : '') + '>Certificado · Válvula</option></select>';
   }
   function telaPdfsAntigos(empId) {
-    var emp = porId('empresas', empId) || {}, lista = [];
+    var emp = porId('empresas', empId) || {}, lista = [], dadosJson = null;
     var indicePortal = {};
     banco.ler('portal_laudos', empId).then(function (d) { indicePortal = (d && d.laudos) || {}; if (lista.length) desenhar(); desenharNoPortal(); }).catch(function () {});
     // Documento que já está no portal com o mesmo nome de arquivo (o envio do sistema), ou mesma OS + TAG + tipo
@@ -1075,7 +1083,9 @@
       '<div><label>Data da inspeção/calibração (quando não estiver no nome)</label><input id="pp-data" type="date"></div>' +
       '<div><label>Validade da calibração (só certificados)</label><input id="pp-val" type="date"></div></div>' +
       '<div class="acoes" style="justify-content:flex-start"><label class="btn sec" style="cursor:pointer">Escolher PDFs<input id="pp-arq" type="file" accept="application/pdf,.pdf" multiple style="display:none"></label>' +
-      '<label class="btn sec" style="cursor:pointer">Escolher pasta<input id="pp-pasta" type="file" webkitdirectory multiple style="display:none"></label></div>' +
+      '<label class="btn sec" style="cursor:pointer">Escolher pasta<input id="pp-pasta" type="file" webkitdirectory multiple style="display:none"></label>' +
+      '<label class="btn sec" style="cursor:pointer" title="Arquivo de dados da pasta (cliente, OS, TAG, nº, calibração e validade de cada PDF), feito pela IDEALLE">Carregar dados (JSON)<input id="pp-json" type="file" accept=".json,application/json" style="display:none"></label></div>' +
+      '<div id="pp-json-info"></div>' +
       '<div id="pp-soltar" style="border:2px dashed var(--borda,#475569);border-radius:12px;padding:22px 14px;text-align:center;margin:10px 0;color:var(--muted,#94a3b8);transition:background .15s,border-color .15s">' +
       '<b style="color:inherit">Arraste a pasta (ou os PDFs) para cá</b><br><span style="font-size:13px">pode ser a pasta inteira da OS, com as subpastas TAG-…</span></div>' +
       '<div id="pp-lista" class="muted">Nenhum arquivo escolhido.</div><p id="pp-status" class="muted"></p>' +
@@ -1085,7 +1095,7 @@
       if (!lista.length) { $('pp-lista').innerHTML = 'Nenhum arquivo escolhido.'; $('pp-enviar').disabled = true; return; }
       var padrao = $('pp-tipo').value;
       lista.forEach(function (x) { x.tipo = x.tipoAuto || padrao; x.chavePortal = x.assinantes ? noPortal(x) : null; });
-      $('pp-lista').innerHTML = '<div style="max-height:300px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>Assinatura</th><th>Tipo</th><th>TAG</th><th>OS</th><th>Data</th><th></th></tr></thead><tbody>' +
+      $('pp-lista').innerHTML = '<div style="max-height:300px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>Assinatura</th><th>Tipo</th><th>TAG</th><th>OS</th><th>Data</th><th>Nº / validade</th><th></th></tr></thead><tbody>' +
         lista.map(function (x, i) {
           return '<tr><td style="max-width:240px;word-break:break-all">' + esc(x.arquivo) + '</td>' +
             '<td style="white-space:nowrap">' + (x.assinantes ? '<span style="color:var(--ok,#4ade80);font-weight:700" title="' + esc(x.assinantes.join(', ')) + '">✓ ' + esc(x.assinantes.length ? x.assinantes.map(function (n) { return n.split(' ')[0]; }).join(' e ') : 'assinado') + '</span>' + (x.chavePortal ? '<br><span class="muted">substitui a do portal</span>' : '') : '<span class="muted">sem (consulta)</span>') + '</td>' +
@@ -1093,6 +1103,8 @@
             '<td><input data-i="' + i + '" data-c="tag" value="' + esc(x.tag) + '" style="width:110px"></td>' +
             '<td><input data-i="' + i + '" data-c="os" value="' + esc(x.os) + '" placeholder="da caixa acima" style="width:120px"></td>' +
             '<td><input data-i="' + i + '" data-c="data" type="date" value="' + esc(x.data) + '"></td>' +
+            '<td style="white-space:nowrap">' + (x.tipo === 'calibracao' ? '<input data-i="' + i + '" data-c="numero" value="' + esc(x.numero || '') + '" placeholder="Nº" style="width:110px"> <input data-i="' + i + '" data-c="validade" type="date" value="' + esc(x.validade || '') + '" title="Validade">' : '') +
+              (x.doJson ? '<br><span style="color:var(--ok,#4ade80);font-size:12px">dados do JSON</span>' : '') + '</td>' +
             '<td><button class="btn sec" data-tirar="' + i + '" title="Tirar da lista">×</button></td></tr>';
         }).join('') + '</tbody></table></div><p class="muted">' + lista.length + ' arquivo(s), ' + lista.filter(function (x) { return x.assinantes; }).length + ' assinado(s). Confira a TAG de cada um; ela aparece para o cliente.</p>';
       $('pp-lista').querySelectorAll('[data-c]').forEach(function (el) {
@@ -1115,10 +1127,42 @@
         try { assinantes = assinaturasDoPdf(new Uint8Array(await f.arrayBuffer())); } catch (e) { assinantes = null; }
         var tipoAuto = g.cal ? 'calibracao' : g.nr13 ? 'nr13' : tipoPeloNome(f.name, caminho);
         if (tipoAuto === 'calibracao' && !g.cal) g.psv = /psv|v[aá]lvula|valvula/i.test(caminho + ' ' + f.name);
-        lista.push({ file: f, arquivo: f.name.replace(/_ASSTMP(\.pdf)$/i, '$1'), tag: g.tag, os: g.os, data: g.data, psv: g.psv, tipoAuto: tipoAuto, assinantes: assinantes });
+        var item = { file: f, arquivo: f.name.replace(/_ASSTMP(\.pdf)$/i, '$1'), tag: g.tag, os: g.os, data: g.data, psv: g.psv, tipoAuto: tipoAuto, assinantes: assinantes };
+        aplicarJson(item); lista.push(item);
       }
-      desenhar();
+      desenhar(); infoJson();
     }
+    // Dados da pasta em JSON (formato idealle-portal-documentos): cada PDF já vem com tipo, TAG, OS, nº, calibração e validade
+    function aplicarJson(x) {
+      if (!dadosJson) return;
+      var d = dadosJson.porArquivo[x.arquivo.toLowerCase()]; if (!d) return;
+      x.doJson = d;
+      x.tipoAuto = d.tipo === 'calibracao' || d.instrumento ? 'calibracao' : 'nr13';
+      x.psv = d.instrumento === 'valvula';
+      if (d.tag) x.tag = String(d.tag).toUpperCase();
+      if (d.os) x.os = String(d.os).toUpperCase();
+      if (d.dataCalibracao || d.dataInspecao) x.data = dataVenc(d.dataCalibracao || d.dataInspecao);
+      if (d.numero) x.numero = String(d.numero);
+      if (d.validade || d.proximaInspecao) x.validade = dataVenc(d.validade || d.proximaInspecao);
+    }
+    function infoJson() {
+      if (!dadosJson) { $('pp-json-info').innerHTML = ''; return; }
+      var docs = dadosJson.documentos, achados = docs.filter(function (d) { return lista.some(function (x) { return x.doJson === d; }); }).length;
+      var outro = dadosJson.cliente && chaveTag(dadosJson.cliente).slice(0, 8) !== chaveTag(emp.nome || '').slice(0, 8);
+      $('pp-json-info').innerHTML = '<div style="border:1px solid var(--borda,#475569);border-radius:10px;padding:10px 12px;margin:10px 0"><b>Dados carregados:</b> ' + esc(dadosJson.cliente || '') + ' · ' + docs.length + ' documento(s). ' +
+        (lista.length ? achados + ' com o PDF escolhido' + (achados < docs.length ? '; falta escolher a pasta com os outros ' + (docs.length - achados) + '.' : '.') : 'Agora escolha ou arraste a pasta com os PDFs.') +
+        (outro ? '<br><span style="color:var(--bad,#f87171)">Atenção: o JSON é de "' + esc(dadosJson.cliente) + '" e este cliente é "' + esc(emp.nome || '') + '".</span>' : '') + '</div>';
+    }
+    $('pp-json').onchange = function (e) {
+      var f = e.target.files[0]; e.target.value = ''; if (!f) return;
+      f.text().then(function (t) {
+        var j = JSON.parse(t);
+        if (!j || !Array.isArray(j.documentos)) throw new Error('não é um arquivo de dados da pasta (falta "documentos").');
+        var por = {}; j.documentos.forEach(function (d) { if (d && d.arquivo) por[String(d.arquivo).toLowerCase()] = d; });
+        dadosJson = { cliente: j.cliente || '', documentos: j.documentos, porArquivo: por };
+        lista.forEach(aplicarJson); desenhar(); infoJson();
+      }).catch(function (e2) { toast('JSON inválido: ' + (e2.message || e2)); });
+    };
     $('pp-arq').onchange = function (e) { adicionar(e.target.files); e.target.value = ''; };
     $('pp-pasta').onchange = function (e) { adicionar(e.target.files); e.target.value = ''; };
     // Arrastar e soltar: pastas são lidas por inteiro (subpastas também), guardando o caminho para achar a TAG
@@ -1173,15 +1217,19 @@
           var meta = { tipo: tipoX, tag: String(x.tag || '').toUpperCase(), os: x.os ? x.os.toUpperCase() : (osPadrao || 'Documentos antigos'), arquivo: x.arquivo,
             dataInspecao: x.data || dataPadrao || '', versao: versao, partes: partes, tamanho: bytes.length, publicadoEm: agora(), antigo: true,
             equipamento: tipoX === 'calibracao' ? (x.psv ? 'Válvula de segurança' : 'Manômetro') : x.arquivo.replace(/\.pdf$/i, '') };
-          if (tipoX === 'calibracao') meta.validade = val || '';
+          if (tipoX === 'calibracao') { meta.validade = x.validade || val || ''; if (x.numero) meta.numero = x.numero; }
+          if (x.doJson) ['fluido', 'faixa', 'modelo', 'pressaoAjuste', 'pressaoAbertura', 'pressaoFechamento'].forEach(function (c) { if (x.doJson[c]) meta[c] = x.doJson[c]; });
           if (x.assinantes) {
             meta.antigo = false;
             meta.assinado = { titular: x.assinantes.join(' e ') || 'certificado digital', em: agora(), token: true };
             // substitui a cópia para consulta: mantém o que o sistema publicou (equipamento, parecer, número, validade, resumo)
             if (existente) {
-              var mudouTipo = (existente.tipo || 'nr13') !== tipoX;
+              var novo = meta, mudouTipo = (existente.tipo || 'nr13') !== tipoX;
               meta = Object.assign({}, existente, { tipo: tipoX, versao: versao, partes: partes, tamanho: bytes.length, publicadoEm: agora(), arquivo: existente.arquivo || x.arquivo, assinado: meta.assinado },
                 mudouTipo ? { equipamento: meta.equipamento, tag: meta.tag || existente.tag } : {});
+              // dados conferidos (JSON ou digitados na linha) valem mais que os que estavam no portal
+              ['numero', 'validade', 'fluido', 'faixa', 'modelo', 'pressaoAjuste', 'pressaoAbertura', 'pressaoFechamento'].forEach(function (c) { if (novo[c]) meta[c] = novo[c]; });
+              if (x.doJson) { meta.tag = novo.tag || meta.tag; meta.os = novo.os; meta.equipamento = novo.equipamento; meta.dataInspecao = novo.dataInspecao || meta.dataInspecao; }
             }
           }
           completarDaOs(empId, meta);
@@ -1189,6 +1237,14 @@
           await banco.atualizar('portal_laudos', empId, campos);
           var velho = antigos[chave];
           if (velho && velho.versao && velho.versao !== versao) for (var k = 0; k < (velho.partes || 0); k++) await banco.excluir('portal_laudos_partes', chave + '__' + velho.versao + '__' + k).catch(function () {});
+          // o mesmo PDF enviado antes com outra chave (ex.: primeiro como NR-13): tira a cópia repetida
+          var repetidas = Object.keys(antigos).filter(function (k2) { return k2 !== chave && String(antigos[k2].arquivo || '').toLowerCase() === x.arquivo.toLowerCase(); });
+          for (var r = 0; r < repetidas.length; r++) {
+            var vr = antigos[repetidas[r]];
+            await banco.tirarDoMapa('portal_laudos', empId, 'laudos', repetidas[r]).catch(function () {});
+            for (var q = 0; q < (vr.partes || 0); q++) await banco.excluir('portal_laudos_partes', repetidas[r] + '__' + vr.versao + '__' + q).catch(function () {});
+            delete antigos[repetidas[r]];
+          }
           ok++;
         } catch (e) { console.error(e); falhas.push(x.arquivo + ' (' + (e.message || e) + ')'); }
       }
