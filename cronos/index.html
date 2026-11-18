@@ -1674,7 +1674,28 @@
     }
 
     // ---- desenho ----
-    function inp(attrs, v, w, tipo) { return '<input ' + attrs + (tipo ? ' type="' + tipo + '"' : '') + ' value="' + esc(v || '') + '" style="width:' + (w || '100%') + '">'; }
+    // Datas em texto dd/mm/aaaa (o campo de data do navegador grava a cada dígito e o ano saía 0004): digita ou cola a data inteira, grava ao sair do campo
+    function inp(attrs, v, w, tipo) {
+      if (tipo === 'date') return '<input ' + attrs + ' data-gp-data="1" inputmode="numeric" maxlength="10" placeholder="dd/mm/aaaa" value="' + esc(v ? data(v) : '') + '" style="width:' + (w || '100%') + '">';
+      return '<input ' + attrs + (tipo ? ' type="' + tipo + '"' : '') + ' value="' + esc(v || '') + '" style="width:' + (w || '100%') + '">';
+    }
+    // texto da data → AAAA-MM-DD ('' = vazio; null = inválida). Aceita 31/08/2031, 31082031, 31/08/31, 08/2031 e 2031-08-31
+    function gpLerData(t) {
+      t = String(t || '').trim(); if (!t) return '';
+      var m, d, me, a;
+      if ((m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/))) { a = +m[1]; me = +m[2]; d = +m[3]; }
+      else if ((m = t.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/)) || (m = t.match(/^(\d{2})(\d{2})(\d{4}|\d{2})$/))) { d = +m[1]; me = +m[2]; a = m[3].length === 2 ? 2000 + +m[3] : +m[3]; }
+      else if ((m = t.match(/^(\d{1,2})[\/.\-](\d{4})$/))) { me = +m[1]; a = +m[2]; d = new Date(a, me, 0).getDate(); }
+      else return null;
+      if (a < 1980 || a > 2100 || me < 1 || me > 12 || d < 1 || d > new Date(a, me, 0).getDate()) return null;
+      return a + '-' + pad(me, 2) + '-' + pad(d, 2);
+    }
+    function gpValor(el) {
+      if (!el.dataset.gpData) return el.value.trim();
+      var v = gpLerData(el.value);
+      if (v === null) { toast('Data inválida: "' + el.value + '". Use dd/mm/aaaa, por exemplo 31/08/2031.'); el.classList.add('gp-falta'); el.focus(); return null; }
+      return v;
+    }
     function chip(sit, venc) {
       var m = { vencido: ['t-bad', 'vencido'], vencendo: ['t-warn', 'vence em ' + data(venc)], emdia: ['t-ok', 'em dia'], sem: ['t-gray', 'sem prazo'] }[sit];
       return '<span class="tag ' + m[0] + '" title="' + (venc ? 'vence ' + data(venc) : '') + '">' + m[1] + '</span>';
@@ -1779,10 +1800,23 @@
       $('gp-q').oninput = refiltrar; $('gp-tipo').onchange = refiltrar; $('gp-os').onchange = refiltrar; $('gp-pend').onchange = refiltrar;
       el.querySelectorAll('[data-gp-kpi]').forEach(function (b) { b.onclick = function () { f.pend = !f.pend; desenhar(); }; });
       el.querySelectorAll('[data-gp-eq]').forEach(function (inpEl) {
-        inpEl.onchange = function () { var g = gpPor[inpEl.dataset.gpEq]; if (g) gravarEquip(g, inpEl.dataset.c, inpEl.value.trim()); };
+        inpEl.onchange = function () { var g = gpPor[inpEl.dataset.gpEq], v = gpValor(inpEl); if (g && v !== null) gravarEquip(g, inpEl.dataset.c, v); };
       });
       el.querySelectorAll('[data-gp-doc]').forEach(function (inpEl) {
-        inpEl.onchange = function () { var k = inpEl.dataset.gpDoc, n = Object.assign({}, idx[k]); n[inpEl.dataset.c] = inpEl.value.trim(); var o = {}; o[k] = n; gravar(o, 'Certificado atualizado no portal.'); };
+        inpEl.onchange = function () { var k = inpEl.dataset.gpDoc, v = gpValor(inpEl); if (v === null) return; var n = Object.assign({}, idx[k]); n[inpEl.dataset.c] = v; var o = {}; o[k] = n; gravar(o, 'Certificado atualizado no portal.'); };
+      });
+      // máscara dd/mm/aaaa enquanto digita; Enter grava
+      el.querySelectorAll('[data-gp-data]').forEach(function (c) {
+        c.oninput = function () {
+          // só números (digitando 31082031): põe as barras; com barra ou colado em outro formato, confere ao sair
+          if (!/^[\d\/]+$/.test(c.value) || c.value.length < 3) return;
+          var partes = c.value.split('/');
+          if (partes.length > 1 && partes.slice(0, -1).every(function (x) { return x.length === 2; }) === false) return;
+          var dg = c.value.replace(/\D/g, '').slice(0, 8);
+          if (partes.length === 2 && partes[1].length === 4) return; // 08/2031 (mês/ano)
+          c.value = dg.length > 4 ? dg.slice(0, 2) + '/' + dg.slice(2, 4) + '/' + dg.slice(4) : dg.length > 2 ? dg.slice(0, 2) + '/' + dg.slice(2) : dg;
+        };
+        c.onkeydown = function (e) { if (e.key === 'Enter') c.blur(); };
       });
       el.querySelectorAll('[data-gp-mk]').forEach(function (c) { c.onchange = function () { if (c.checked) marcados[c.dataset.gpMk] = true; else delete marcados[c.dataset.gpMk]; desenhar(); }; });
       el.querySelectorAll('[data-gp-mkg]').forEach(function (c) {
