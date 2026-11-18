@@ -657,7 +657,7 @@
   function aplicarEscolhaDeServicos() {
     var ext = (estado.acesso && estado.acesso.servicosExtras) || {}, sv = Object.assign({}, (estado.dados && estado.dados.servicos) || {});
     // Serviço com documento enviado pela IDEALLE aparece como contratado, mesmo que a OS do Cronos não o tenha marcado
-    todosDocs().forEach(function (x) { if (x.tipo && x.tipo !== 'termografia') sv[x.tipo] = true; if (ehTubulacao(x)) sv.tubulacao = true; });
+    todosDocs().forEach(function (x) { if (x.tipo) sv[x.tipo] = true; if (ehTubulacao(x)) sv.tubulacao = true; });
     Object.keys(ext).forEach(function (k) { if (ext[k] === true) sv[k] = true; else if (ext[k] === false) delete sv[k]; });
     if (estado.dados) estado.dados.servicos = sv;
   }

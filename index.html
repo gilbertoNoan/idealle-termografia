@@ -687,6 +687,7 @@
       <label for="dash-empresa"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 10h1M14 10h1M9 14h1M14 14h1M10.5 21v-3.5h3V21"/></svg> Empresa</label>
       <select id="dash-empresa"><option value="">Todas as empresas</option></select>
       <button type="button" class="btn-secondary" id="dash-link-cliente" style="margin-top:8px;"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg> Copiar link do cliente</button>
+      <button type="button" class="btn-secondary" id="dash-portal-cliente" style="margin-top:8px;" title="Libera no Portal do Cliente todos os laudos desta empresa, mesmo os que não estão numa OS"><svg class="ico-i" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg> Enviar ao portal do cliente</button>
     </div>
     <div class="dash-grid">
       <div class="dash-card dash-total" data-severidade="">
@@ -2529,6 +2530,46 @@
   }
 
   // Grava na OS o resumo dos laudos dela, para o Cronos mostrar sem abrir a Termografia.
+  // Todos os laudos da empresa no Portal do Cliente, um bloco por OS. Os laudos sem OS (ou de OS excluída)
+  // também vão: o bloco deles leva o número de OS gravado no laudo, ou "Termografia".
+  async function enviarEmpresaAoPortal(empId, botao) {
+    var emp = empresasCache.find(function (x) { return x.id === empId; });
+    if (!emp || !db) return;
+    var pts = pontosCache.filter(function (p) { return empresaIdDoPonto(p) === empId; });
+    if (!pts.length) { toast('Esta empresa ainda não tem laudos.'); return; }
+    var grupos = {};
+    pts.forEach(function (p) {
+      var os = ordensTodasCache.find(function (o) { return o.id === p.osId; }) || ordensCache.find(function (o) { return o.id === p.osId; });
+      var id = os ? os.id : (p.osNumero != null && p.osNumero !== '' ? 'n' + p.osNumero : 'semos');
+      if (!grupos[id]) grupos[id] = { os: os, rotulo: os ? rotuloOS(os) : (id === 'semos' ? 'Termografia' : 'OS-' + p.osNumero), pts: [], data: '' };
+      grupos[id].pts.push(p);
+      var d = String(p.dataHora || '').slice(0, 10); if (d > grupos[id].data) grupos[id].data = d;
+    });
+    var ids = Object.keys(grupos);
+    if (!confirm('Liberar os ' + pts.length + ' laudo(s) de ' + emp.nome + ' no Portal do Cliente?\n\n' + ids.map(function (k) { return grupos[k].rotulo + ': ' + grupos[k].pts.length + ' laudo(s)'; }).join('\n') + '\n\nSe você lançar mais laudos depois, clique de novo para atualizar.')) return;
+    var laudos = {};
+    ids.forEach(function (k) {
+      var g = grupos[k], porNivel = {};
+      g.pts.forEach(function (p) { var n = classificarPrincipal(p).key; porNivel[n] = (porNivel[n] || 0) + 1; });
+      var chave = g.os ? 't_' + String(g.os.id).replace(/[^a-zA-Z0-9_]/g, '_') : 't_emp_' + String(empId).replace(/[^a-zA-Z0-9_]/g, '_') + '_' + k;
+      laudos[chave] = {
+        tipo: 'termografia', os: g.rotulo, osId: g.os ? g.os.id : '', dataInspecao: (g.os && g.os.dataAbertura) || g.data || new Date().toISOString().slice(0, 10),
+        qtd: g.pts.length, porNivel: porNivel, criticos: (porNivel.urgencia || 0) + (porNivel.emergencia || 0),
+        link: 'https://idealle-termografia.vercel.app/?cliente=' + encodeURIComponent(emp.nome || '') + (g.os ? '&os=' + encodeURIComponent(g.os.id) : ''),
+        publicadoEm: new Date().toISOString()
+      };
+    });
+    if (botao) botao.disabled = true;
+    try {
+      await db.collection('portal_laudos').doc(empId).set({ empresaId: empId, laudos: laudos }, { merge: true });
+      toast(pts.length + ' laudo(s) de ' + emp.nome + ' liberado(s) no Portal do Cliente.');
+    } catch (err) {
+      console.error(err);
+      toast('Não foi possível enviar ao portal: ' + (err && err.code === 'permission-denied' ? 'entre pelo CRONOS com o seu login.' : (err.message || err)));
+    }
+    if (botao) botao.disabled = false;
+  }
+
   async function devolverParaCronos(osId) {
     if (!db || !osId) return;
     try {
@@ -2570,7 +2611,7 @@
       (e.cnpj ? '<span>CNPJ: <b>' + escapeHtml(e.cnpj) + '</b></span>' : '') + (endereco ? '<span>Localização: <b>' + escapeHtml(endereco) + '</b> · <a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([e.endereco, e.cidade, e.uf, e.cep].filter(Boolean).join(', ')) + '" target="_blank" rel="noopener" style="color:#7CACFF;font-weight:700;">ver no mapa</a></span>' : '<span>Localização: <i>não cadastrada</i> (edite a empresa para informar)</span>') +
       (e.codigo ? '<span>Cliente ' + escapeHtml(e.codigo) + '</span>' : '') + '</div></div></div>' +
       '<div class="pag-emp-kpis">' + kpi(oss.length, 'OS · ' + abertas + ' em aberto') + kpi(pts.length, 'quadros inspecionados') + kpi(criticos, 'críticos (urgência/emergência)') + '</div>' +
-      '<div style="margin-top:12px;"><button type="button" class="btn-secondary" data-action="link-cliente-painel" data-id="' + escapeHtml(e.id) + '">Copiar link do cliente</button> <button type="button" class="btn-secondary" data-action="editar-painel" data-id="' + escapeHtml(e.id) + '">Editar dados</button> <button type="button" class="btn-danger" data-action="del-painel" data-id="' + escapeHtml(e.id) + '">Excluir empresa</button></div>' +
+      '<div style="margin-top:12px;"><button type="button" class="btn-secondary" data-action="link-cliente-painel" data-id="' + escapeHtml(e.id) + '">Copiar link do cliente</button> <button type="button" class="btn-secondary" data-action="portal-painel" data-id="' + escapeHtml(e.id) + '" title="Libera no Portal do Cliente todos os laudos desta empresa, mesmo os que não estão numa OS">Enviar ao portal do cliente</button> <button type="button" class="btn-secondary" data-action="editar-painel" data-id="' + escapeHtml(e.id) + '">Editar dados</button> <button type="button" class="btn-danger" data-action="del-painel" data-id="' + escapeHtml(e.id) + '">Excluir empresa</button></div>' +
       '<div class="pag-emp-niveis">' + Object.keys(SEVERIDADE_LABEL).map(function (k) { return '<span class="filtro-badge ' + k + '">' + SEVERIDADE_LABEL[k] + ': ' + (porNivel[k] || 0) + '</span>'; }).join('') + '</div>';
   }
   function normBusca(t) { return String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
@@ -2743,6 +2784,10 @@
     var base = /\.vercel\.app$/i.test(window.location.hostname) ? (window.location.origin + window.location.pathname) : PORTAL;
     return base + '?cliente=' + encodeURIComponent(nome || '');
   }
+  document.getElementById('dash-portal-cliente').addEventListener('click', function () {
+    if (!dashEmpresaId) { toast('Escolha uma empresa na lista acima para enviar ao portal.'); return; }
+    enviarEmpresaAoPortal(dashEmpresaId, this);
+  });
   document.getElementById('dash-link-cliente').addEventListener('click', function () {
     var emp = empresasCache.find(function (x) { return x.id === dashEmpresaId; });
     if (!emp) { toast('Escolha uma empresa na lista acima para gerar o link do cliente.'); return; }
@@ -2919,6 +2964,7 @@
     var act = b.getAttribute('data-action');
     var emp = empresasCache.find(function (x) { return x.id === b.getAttribute('data-id'); });
     if (!emp) return;
+    if (act === 'portal-painel') { enviarEmpresaAoPortal(emp.id, b); return; }
     if (act === 'link-cliente-painel') copiarParaAreaDeTransferencia(linkClienteDaEmpresa(emp.nome), 'Link do cliente ' + emp.nome + ' copiado!');
     else if (act === 'editar-painel') { filtroEmpresaOrdens = null; mostrarView('empresas'); editarEmpresa(emp); }
     else if (act === 'del-painel') {
