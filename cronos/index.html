@@ -1746,7 +1746,10 @@
         (cal ? '<td>' + inp('data-gp-doc="' + k + '" data-c="numero" placeholder="Nº"', d.numero, '150px') + '</td>' +
             '<td>' + inp('data-gp-doc="' + k + '" data-c="dataInspecao"', dataVenc(d.dataInspecao), '140px', 'date') + '</td>' +
             '<td>' + inp('data-gp-doc="' + k + '" data-c="validade"' + (d.validade ? '' : ' class="gp-falta"'), dataVenc(d.validade), '140px', 'date') + '</td>'
-          : '<td></td><td>' + (d.dataInspecao ? data(dataVenc(d.dataInspecao)) : '<span class="muted">—</span>') + '</td><td><span class="muted">' + (i.tipo === 'nr13' ? 'na linha da TAG' : '—') + '</span></td>') +
+          : i.tipo === 'nr13' ? '<td></td><td>' + (d.dataInspecao ? data(dataVenc(d.dataInspecao)) : '<span class="muted">—</span>') + '</td><td><span class="muted">na linha da TAG</span></td>'
+          // termografia, SPDA...: data da inspeção e prazo (próxima inspeção) que o portal usa para avisar o cliente
+          : '<td></td><td>' + inp('data-gp-doc="' + k + '" data-c="dataInspecao"', dataVenc(d.dataInspecao), '140px', 'date') + '</td>' +
+            '<td>' + inp('data-gp-doc="' + k + '" data-c="proxima" title="Próxima inspeção: o portal avisa o cliente 90 dias antes"', dataVenc(d.proxima), '140px', 'date') + '</td>') +
         '<td>' + ass + '</td>' +
         '<td class="gp-acoes"><button class="btn sec peq" data-gp-ver="' + k + '">Ver PDF</button> <button class="btn sec peq" data-gp-mover="' + k + '">Mover</button> <button class="btn perigo peq" data-gp-rem="' + k + '">Remover</button></td></tr>';
     }
@@ -1817,7 +1820,7 @@
         inpEl.onchange = function () { var g = gpPor[inpEl.dataset.gpEq], v = gpValor(inpEl); if (g && v !== null) gravarEquip(g, inpEl.dataset.c, v); };
       });
       el.querySelectorAll('[data-gp-doc]').forEach(function (inpEl) {
-        inpEl.onchange = function () { var k = inpEl.dataset.gpDoc, v = gpValor(inpEl); if (v === null) return; var n = Object.assign({}, idx[k]); n[inpEl.dataset.c] = v; var o = {}; o[k] = n; gravar(o, 'Certificado atualizado no portal.'); };
+        inpEl.onchange = function () { var k = inpEl.dataset.gpDoc, v = gpValor(inpEl); if (v === null) return; var n = Object.assign({}, idx[k]); n[inpEl.dataset.c] = v; var o = {}; o[k] = n; gravar(o, (n.tipo === 'calibracao' ? 'Certificado' : 'Documento') + ' atualizado no portal.'); };
       });
       // máscara dd/mm/aaaa enquanto digita; Enter grava
       el.querySelectorAll('[data-gp-data]').forEach(function (c) {

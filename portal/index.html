@@ -581,6 +581,12 @@
       else if (x.proxima && dias(x.proxima) <= 90) add('warn', 'spda', 'Inspeção do SPDA vencendo — ' + (x.tag || ''), 'Próxima inspeção até ' + data(x.proxima) + ' (' + dias(x.proxima) + ' dias).', x.proxima);
       if (x.parecer === 'nao_conforme') add('bad', 'spda', 'Não conforme — ' + nome, 'O laudo de SPDA tem não conformidades a corrigir.', '0');
     });
+    // termografia: próxima inspeção (prazo de notificação) informada no Painel do portal
+    todosDocs().filter(function (x) { return x.tipo === 'termografia'; }).forEach(function (x) {
+      var p = isoDe(x.proxima), os = x.os ? ' — ' + x.os : ''; if (!p) return;
+      if (p < hoje()) add('bad', 'termografia', 'Termografia atrasada' + os, 'A próxima inspeção termográfica venceu em ' + data(p) + '.', p);
+      else if (dias(p) <= 90) add('warn', 'termografia', 'Termografia vencendo' + os, 'Próxima inspeção termográfica até ' + data(p) + ' (' + dias(p) + ' dias).', p);
+    });
     // avisos da obra enviados pela IDEALLE (falta de material, atraso...) ainda não resolvidos
     listaObras().forEach(function (ob) {
       (ob.avisos || []).forEach(function (x) {
@@ -639,9 +645,12 @@
     }
     if (sv.termografia && d.termografia) {
       var n = d.termografia.porNivel || {};
+      var proxTe = todosDocs().filter(function (x) { return x.tipo === 'termografia' && isoDe(x.proxima); }).map(function (x) { return isoDe(x.proxima); }).sort()[0];
       var tn = [['Normal', n.normal || 0, COR.ok], ['Observar', n.observar || 0, COR.azul], ['Programar', n.programar || 0, COR.warn], ['Urgência', n.urgencia || 0, COR.laranja], ['Emergência', n.emergencia || 0, COR.bad]];
       cards.push('<div class="cond ativo" data-ir="termografia" tabindex="0" role="button" title="Abrir os laudos de termografia" style="cursor:pointer"><div class="cond-top"><span class="nome">Termografia</span><span class="cond-num"><b>' + (d.termografia.laudos || 0) + '</b> ponto(s)</span></div>' +
-        '<span class="cond-rot">Condição dos pontos inspecionados</span>' + barra(tn) + legenda(tn) + '<span style="font-size:13px;font-weight:600;color:var(--amb-t);margin-top:4px">Ver laudos de termografia ›</span></div>');
+        '<span class="cond-rot">Condição dos pontos inspecionados</span>' + barra(tn) + legenda(tn) +
+        (proxTe ? '<span class="cond-rot">Próxima inspeção: <b style="color:' + (proxTe < hoje() ? COR.bad : dias(proxTe) <= 90 ? COR.warn : 'inherit') + '">' + data(proxTe) + '</b></span>' : '') +
+        '<span style="font-size:13px;font-weight:600;color:var(--amb-t);margin-top:4px">Ver laudos de termografia ›</span></div>');
     }
     if (!cards.length) return '';
     return '<section><div class="tit-sec"><h2>Seus equipamentos</h2><span class="sub">quantidade e condição por serviço</span></div><div class="conds">' + cards.join('') + '</div></section>';
