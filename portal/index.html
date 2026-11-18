@@ -628,9 +628,11 @@
         '<span class="cond-rot">Prazo da próxima inspeção</span>' + barra(pz) + legenda(pz) + '<span style="font-size:13px;font-weight:600;color:var(--amb-t);margin-top:4px">Ver relatórios NR-13 ›</span></div>');
     }
     if (sv.calibracao) {
-      var cc = d.certificados || [];
-      var psv = cc.filter(function (x) { return /válvula/i.test(x.tipo); }).length;
+      // os mesmos instrumentos do card do resumo: certificados do sistema + PDFs de calibração do portal
+      var cc = instrumentosCalibracao((d.certificados || []).concat(todosDocs().filter(function (x) { return x.tipo === 'calibracao'; })));
+      var psv = conta(cc, 'tipo', 'psv');
       var vz = [['Em dia', conta(cc, 'situacao', 'emdia'), COR.ok], ['Vence em 90 dias', conta(cc, 'situacao', 'vencendo'), COR.warn], ['Vencido', conta(cc, 'situacao', 'vencido'), COR.bad]];
+      if (conta(cc, 'situacao', 'sem')) vz.push(['Sem validade', conta(cc, 'situacao', 'sem'), COR.cinza]);
       cards.push('<div class="cond ativo" data-ir="calibracao" tabindex="0" role="button" title="Abrir os certificados de calibração" style="cursor:pointer"><div class="cond-top"><span class="nome">Calibração</span><span class="cond-num"><b>' + cc.length + '</b> instrumento(s)</span></div>' +
         '<span class="cond-rot">' + psv + ' válvula(s) de segurança · ' + (cc.length - psv) + ' manômetro(s)</span>' +
         '<span class="cond-rot">Validade da calibração</span>' + barra(vz) + legenda(vz) + '</div>');
@@ -709,15 +711,24 @@
   }
   // Instrumentos de calibração por tipo: cada TAG conta uma vez por tipo (a mesma TAG pode ter PSV e manômetro)
   function contarCalibracao(lista) {
-    var vistos = {}, psv = 0, pi = 0;
+    var ins = instrumentosCalibracao(lista);
+    return { psv: ins.filter(function (x) { return x.tipo === 'psv'; }).length, pi: ins.filter(function (x) { return x.tipo === 'pi'; }).length };
+  }
+  // Um item por instrumento (tipo + TAG), com a validade mais nova entre os certificados dele e a situação
+  function instrumentosCalibracao(lista) {
+    var porId = {}, ordem = [];
     lista.forEach(function (c, i) {
       var tipo = /valvula|psv|safety|valve/.test(String((c.tipo !== 'calibracao' && c.tipo) || c.equipamento || c.arquivo || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')) ? 'psv' : 'pi';
-      var id = String(c.tag || '').trim().toUpperCase() || (c.numero ? 'n:' + c.numero : 's:' + (c.os || '') + ':' + i);
-      if (vistos[tipo + '|' + id]) return;
-      vistos[tipo + '|' + id] = 1;
-      if (tipo === 'psv') psv++; else pi++;
+      var id = tipo + '|' + (String(c.tag || '').trim().toUpperCase() || (c.numero ? 'n:' + c.numero : 's:' + (c.os || '') + ':' + i));
+      var val = isoDe(c.validade) || '';
+      if (!porId[id]) { porId[id] = { tipo: tipo, tag: c.tag || '', validade: val }; ordem.push(id); }
+      else if (val > porId[id].validade) porId[id].validade = val;
     });
-    return { psv: psv, pi: pi };
+    return ordem.map(function (id) {
+      var x = porId[id], v = x.validade;
+      x.situacao = !v ? 'sem' : v < hoje() ? 'vencido' : dias(v) <= 90 ? 'vencendo' : 'emdia';
+      return x;
+    });
   }
   // "Rótulo: N" (uma por linha) vira linhas com o número grande; outro texto sai como está
   function infoHtml(info) {
