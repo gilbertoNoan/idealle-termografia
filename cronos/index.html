@@ -2016,7 +2016,7 @@
         var token = Array.prototype.map.call(b, function (x) { return ALF[x % ALF.length]; }).join('');
         var expira = Date.now() + 7 * 864e5;
         await banco.gravar('portal_convites', token, { empresaId: empId, empresaNome: c.nome || '', email: v.email, contatoNome: v.contatoNome, expiraMs: expira, usado: false, criadoEm: agora() });
-        var link = location.origin + '/c/' + token; // /c/<código> redireciona para /portal/?convite=<código> (vercel.json); links antigos continuam valendo
+        var link = 'https://portal.ideallesp.com.br/c/' + token; // domínio próprio do portal // /c/<código> redireciona para /portal/?convite=<código> (vercel.json); links antigos continuam valendo
         var msg = 'Olá' + (v.contatoNome ? ', ' + v.contatoNome.split(' ')[0] : '') + '! Seu acesso ao Portal do Cliente IDEALLE está pronto. Lá você acompanha seus equipamentos, os prazos de inspeção e os certificados.\n\nCrie sua senha pelo link abaixo (vale por 7 dias e funciona uma vez só). Seu login é ' + v.email + '.\n' + link;
         $('pa-convite').innerHTML = '<div class="card" style="margin-top:12px;border-color:var(--pri)"><b>Convite pronto</b><textarea id="pa-msg" rows="6" style="margin-top:8px">' + esc(msg) + '</textarea>' +
           '<div class="acoes">' + (soDigitos(v.whatsapp).length >= 10 ? '<a class="btn ok" target="_blank" rel="noopener" href="' + esc(linkWhats(v.whatsapp, msg)) + '">Enviar no WhatsApp</a>' : '') +
