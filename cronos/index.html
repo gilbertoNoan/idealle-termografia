@@ -1763,6 +1763,15 @@
         (!carregado ? '<div class="vazio">Carregando o portal…</div>' :
         '<div class="gp-kpis">' + kp(nEq, 'equipamentos (TAGs)') + kp(ks.length, 'documentos no portal') + kp(oss.filter(function (o) { return o !== 'Sem OS'; }).length, 'OS') +
           kp(cont.vencendo, 'vencendo em 90 dias', cont.vencendo ? 'gp-w' : '') + kp(cont.vencido, 'vencidos', cont.vencido ? 'gp-r' : '') + kp(pends.length, 'pendências', pends.length ? 'gp-w' : '', 'pend') + '</div>' +
+        // documentos do cliente em mais de uma OS (ex.: certificados na 0286 e relatórios na 0282 do mesmo serviço): juntar com um clique
+        (function () {
+          var cont = {}; ks.forEach(function (k) { var o = gpSemOs(idx[k].os) ? 'Sem OS' : String(idx[k].os).toUpperCase(); cont[o] = (cont[o] || 0) + 1; });
+          var lista = Object.keys(cont).sort(function (a, b) { return cont[b] - cont[a]; });
+          if (lista.length < 2) return '';
+          return '<div class="gp-pends" style="border-color:var(--pri);background:var(--pri-2)"><b>Os documentos deste cliente estão em ' + lista.length + ' OS:</b> ' +
+            lista.map(function (o) { return esc(o) + ' (' + cont[o] + ')'; }).join(' · ') +
+            '<div class="gp-pend">Se for tudo do mesmo serviço, junte em uma OS só: ' + lista.filter(function (o) { return o !== 'Sem OS'; }).map(function (o) { return '<button class="btn peq" data-gp-juntaros="' + esc(o) + '">Juntar tudo na ' + esc(o) + '</button>'; }).join(' ') + '</div></div>';
+        })() +
         (pends.length ? '<div class="gp-pends"><b>Pendências</b>' + pends.map(function (x) {
             var g = x.g, p = x.p;
             return '<div class="gp-pend">⚠ <span><b>' + esc(g.tag || (g.id === 'SEM' ? 'Sem TAG' : '')) + '</b> ' + esc(p.txt) + '</span>' +
@@ -1822,6 +1831,14 @@
       el.querySelectorAll('[data-gp-mkg]').forEach(function (c) {
         var g = gpPor[c.dataset.gpMkg]; c.checked = g && docsVisiveis(g).every(function (i) { return marcados[i.k]; });
         c.onchange = function () { docsVisiveis(g).forEach(function (i) { if (c.checked) marcados[i.k] = true; else delete marcados[i.k]; }); desenhar(); };
+      });
+      el.querySelectorAll('[data-gp-juntaros]').forEach(function (b) {
+        b.onclick = function () {
+          var alvo = b.dataset.gpJuntaros, mudar = Object.keys(idx).filter(function (k) { return String(idx[k].os || '').toUpperCase() !== alvo; });
+          if (!mudar.length || !confirm('Colocar os ' + mudar.length + ' documento(s) das outras OS na ' + alvo + '?\n\nSó muda a OS que o portal mostra; os PDFs e os números dos certificados não mudam.')) return;
+          var o = {}; mudar.forEach(function (k) { o[k] = Object.assign({}, idx[k], { os: alvo }); });
+          gravar(o, mudar.length + ' documento(s) passados para a ' + alvo + '.');
+        };
       });
       if ($('gp-mk-todos')) $('gp-mk-todos').onclick = function () { gs.filter(passaFiltro).forEach(function (g) { docsVisiveis(g).forEach(function (i) { marcados[i.k] = true; }); }); desenhar(); };
       el.querySelectorAll('[data-gp-ver]').forEach(function (b) { b.onclick = function () { verPdf(b.dataset.gpVer); }; });
