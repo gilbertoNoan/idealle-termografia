@@ -1679,6 +1679,10 @@
       var m = { vencido: ['t-bad', 'vencido'], vencendo: ['t-warn', 'vence em ' + data(venc)], emdia: ['t-ok', 'em dia'], sem: ['t-gray', 'sem prazo'] }[sit];
       return '<span class="tag ' + m[0] + '" title="' + (venc ? 'vence ' + data(venc) : '') + '">' + m[1] + '</span>';
     }
+    // com filtro de OS ou de tipo, cada equipamento mostra (e a caixa da TAG marca) só os documentos daquela OS/tipo
+    function docsVisiveis(g) {
+      return g.docs.filter(function (i) { return (!f.os || (gpSemOs(i.d.os) ? 'Sem OS' : String(i.d.os).toUpperCase()) === f.os) && (!f.tipo || i.tipo === f.tipo); });
+    }
     function passaFiltro(g) {
       if (f.pend && !g.pend.length) return false;
       if (f.tipo && !g.docs.some(function (i) { return i.tipo === f.tipo; })) return false;
@@ -1749,12 +1753,13 @@
           '<select id="gp-tipo"><option value="">Todos os tipos</option>' + Object.keys(GP_TIPOS).map(function (t) { return '<option value="' + t + '"' + (f.tipo === t ? ' selected' : '') + '>' + GP_TIPOS[t] + '</option>'; }).join('') + '</select>' +
           '<select id="gp-os"><option value="">Todas as OS</option>' + oss.map(function (o) { return '<option' + (f.os === o ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>' +
           '<label class="check" style="margin:0;white-space:nowrap"><input type="checkbox" id="gp-pend"' + (f.pend ? ' checked' : '') + '> só com pendência</label>' +
-          '<span class="muted" style="font-size:13px">' + vis.length + ' de ' + gs.length + ' grupo(s)</span></div>' +
+          '<span class="muted" style="font-size:13px">' + vis.length + ' de ' + gs.length + ' grupo(s)</span>' +
+          (vis.length ? '<button class="btn sec peq" id="gp-mk-todos">Marcar os ' + vis.reduce(function (n, g) { return n + docsVisiveis(g).length; }, 0) + ' documentos mostrados</button>' : '') + '</div>' +
         (!ks.length ? '<div class="card vazio">Nada no portal deste cliente ainda. Use <b>+ Adicionar documentos</b>.</div>' :
           vis.map(function (g) {
             var cal = g.cal.length && !g.nr13.length;
             return '<div class="card gp-eq">' + linhaEquip(g) + '<div class="gp-tab"><table><thead><tr><th class="gp-mk"></th><th>Documento</th><th>OS</th><th>' + (g.cal.length ? 'Nº do certificado' : '') + '</th><th>' + (cal ? 'Calibrado em' : 'Data') + '</th><th>Prazo de notificação</th><th>Assinatura</th><th></th></tr></thead><tbody>' +
-              g.docs.map(linhaDoc).join('') + '</tbody></table></div></div>';
+              docsVisiveis(g).map(linhaDoc).join('') + '</tbody></table></div></div>';
           }).join('') || '<div class="card vazio">Nenhum equipamento com esses filtros.</div>')) +
         '</div>' +
         '<datalist id="gp-oss">' + osCronos.concat(oss.filter(function (o) { return o !== 'Sem OS'; })).filter(function (o, i, a) { return a.indexOf(o) === i; }).map(function (o) { return '<option value="' + esc(o) + '">'; }).join('') + '</datalist>' +
@@ -1781,9 +1786,10 @@
       });
       el.querySelectorAll('[data-gp-mk]').forEach(function (c) { c.onchange = function () { if (c.checked) marcados[c.dataset.gpMk] = true; else delete marcados[c.dataset.gpMk]; desenhar(); }; });
       el.querySelectorAll('[data-gp-mkg]').forEach(function (c) {
-        var g = gpPor[c.dataset.gpMkg]; c.checked = g && g.docs.every(function (i) { return marcados[i.k]; });
-        c.onchange = function () { g.docs.forEach(function (i) { if (c.checked) marcados[i.k] = true; else delete marcados[i.k]; }); desenhar(); };
+        var g = gpPor[c.dataset.gpMkg]; c.checked = g && docsVisiveis(g).every(function (i) { return marcados[i.k]; });
+        c.onchange = function () { docsVisiveis(g).forEach(function (i) { if (c.checked) marcados[i.k] = true; else delete marcados[i.k]; }); desenhar(); };
       });
+      if ($('gp-mk-todos')) $('gp-mk-todos').onclick = function () { gs.filter(passaFiltro).forEach(function (g) { docsVisiveis(g).forEach(function (i) { marcados[i.k] = true; }); }); desenhar(); };
       el.querySelectorAll('[data-gp-ver]').forEach(function (b) { b.onclick = function () { verPdf(b.dataset.gpVer); }; });
       el.querySelectorAll('[data-gp-mover]').forEach(function (b) { b.onclick = function () { telaMover([b.dataset.gpMover]); }; });
       el.querySelectorAll('[data-gp-rem]').forEach(function (b) {
