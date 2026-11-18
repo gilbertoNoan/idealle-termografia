@@ -2011,11 +2011,12 @@
       if (v.acessoAte < hoje()) { toast('A data do contrato já passou: ajuste o "Acesso até".'); return; }
       try {
         await salvar();
-        var b = new Uint8Array(24); crypto.getRandomValues(b);
-        var token = Array.prototype.map.call(b, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+        // Código curto (10 letras/números sem os que confundem: 0/o, 1/l/i): ~50 bits, vale 7 dias e uma vez só
+        var ALF = 'abcdefghjkmnpqrstuvwxyz23456789', b = new Uint8Array(10); crypto.getRandomValues(b);
+        var token = Array.prototype.map.call(b, function (x) { return ALF[x % ALF.length]; }).join('');
         var expira = Date.now() + 7 * 864e5;
         await banco.gravar('portal_convites', token, { empresaId: empId, empresaNome: c.nome || '', email: v.email, contatoNome: v.contatoNome, expiraMs: expira, usado: false, criadoEm: agora() });
-        var link = urlPortal() + '?convite=' + token;
+        var link = location.origin + '/c/' + token; // /c/<código> redireciona para /portal/?convite=<código> (vercel.json); links antigos continuam valendo
         var msg = 'Olá' + (v.contatoNome ? ', ' + v.contatoNome.split(' ')[0] : '') + '! Seu acesso ao Portal do Cliente IDEALLE está pronto. Lá você acompanha seus equipamentos, os prazos de inspeção e os certificados.\n\nCrie sua senha pelo link abaixo (vale por 7 dias e funciona uma vez só). Seu login é ' + v.email + '.\n' + link;
         $('pa-convite').innerHTML = '<div class="card" style="margin-top:12px;border-color:var(--pri)"><b>Convite pronto</b><textarea id="pa-msg" rows="6" style="margin-top:8px">' + esc(msg) + '</textarea>' +
           '<div class="acoes">' + (soDigitos(v.whatsapp).length >= 10 ? '<a class="btn ok" target="_blank" rel="noopener" href="' + esc(linkWhats(v.whatsapp, msg)) + '">Enviar no WhatsApp</a>' : '') +
