@@ -28,5 +28,12 @@
         }
       ]
     }
+  ],
+  "redirects": [
+    {
+      "source": "/c/:codigo",
+      "destination": "/portal/?convite=:codigo",
+      "permanent": false
+    }
   ]
 }
