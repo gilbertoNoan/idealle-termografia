@@ -515,11 +515,12 @@
     var d = estado.dados, c = d.contagem || {}, sv = d.servicos || {};
     var cards = SERVICOS.map(function (s) {
       var ativo = servicoAtivo(sv, s[0]), info = s[2];
-      if (ativo && s[0] === 'nr13') { var nLaudos = todosDocs().filter(function (x) { return x.tipo === 'nr13'; }).length; info = 'Relatórios: ' + nLaudos; }
+      // Cada TAG é um equipamento (que tem vários documentos): o card conta equipamentos, não PDFs
+      if (ativo && s[0] === 'nr13') { var tagsNr = {}; todosDocs().forEach(function (x) { if (x.tipo === 'nr13' && x.tag) tagsNr[String(x.tag).trim().toUpperCase()] = 1; }); info = 'Equipamentos: ' + Object.keys(tagsNr).length; }
       if (ativo && s[0] === 'calibracao') {
         var docsCal = todosDocs().filter(function (x) { return x.tipo === 'calibracao'; }), qc = contarCalibracao((d.certificados || []).concat(docsCal));
         info = 'PSV: ' + qc.psv + '\nPI: ' + qc.pi; }
-      if (ativo && s[0] === 'tubulacao') { var dTub = todosDocs().filter(ehTubulacao); info = 'Linhas: ' + tagsTubulacao(dTub).length + '\nRelatórios: ' + dTub.length; }
+      if (ativo && s[0] === 'tubulacao') { var dTub = todosDocs().filter(ehTubulacao); info = 'Linhas: ' + tagsTubulacao(dTub.filter(function (x) { return x.tag; })).length; }
       if (ativo && s[0] === 'spda') { info = 'Laudos: ' + todosDocs().filter(function (x) { return x.tipo === 'spda'; }).length; }
       if (ativo && s[0] === 'termografia') {
         info = 'Quadros: ' + ((d.termografia && d.termografia.laudos) || 0);
