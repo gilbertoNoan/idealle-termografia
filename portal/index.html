@@ -322,6 +322,7 @@
   var STATUS_OS = { aberta: 'Aberta', execucao: 'Em execução', concluida: 'Concluída', parcial: 'Concluída', faturada: 'Concluída' };
   var SERVICOS = [
     ['nr13', 'NR-13', 'Vasos, caldeiras, tubulações e tanques'],
+    ['tubulacao', 'Tubulação', 'Linhas de tubulação (NR-13)'],
     ['calibracao', 'Calibração', 'Válvulas de segurança e manômetros'],
     ['termografia', 'Termografia', 'Painéis e instalações elétricas'],
     ['spda', 'SPDA', 'Para-raios (NBR 5419)'],
@@ -333,6 +334,13 @@
   // Serviços que ainda não têm sistema no portal (feitos sob demanda): aparecem sempre com "Quero contratar".
   // Quando o sistema de um deles ficar pronto, é só tirar daqui.
   var SEM_SISTEMA = ['nr10', 'avcb', 'linhavida'];
+  // Tubulação (NR-13): documento NR-13 de TAG TUB-... ou com "tubulação" no nome
+  function ehTubulacao(x) {
+    if (!x || (x.tipo || 'nr13') !== 'nr13') return false;
+    var t = String([x.arquivo, x.equipamento, x.nomeEquipamento].join(' ')).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return /^TUB/i.test(String(x.tag || '').trim()) || /tubula/i.test(t);
+  }
+  function tagsTubulacao(docs) { var t = {}; docs.filter(ehTubulacao).forEach(function (x) { t[String(x.tag || x.arquivo).toUpperCase()] = 1; }); return Object.keys(t); }
   function servicoAtivo(sv, k) { return !!sv[k] && SEM_SISTEMA.indexOf(k) < 0; }
 
   // Fala com a IDEALLE: WhatsApp quando cadastrado, senão e-mail, senão telefone
@@ -482,7 +490,7 @@
         try { sessionStorage.setItem('portal-acesso-' + u.uid, '1'); } catch (e) {}
       }
       // Aberto pelo cartão NR-13 (?pagina=nr13): página só dos relatórios NR-13, como um portal do sistema de relatórios
-      if (PAGINA === 'nr13' || PAGINA === 'calibracao' || PAGINA === 'spda') telaRelatorios(); else painel();
+      if (PAGINA === 'nr13' || PAGINA === 'tubulacao' || PAGINA === 'calibracao' || PAGINA === 'spda') telaRelatorios(); else painel();
     } catch (e) {
       console.error(e);
       // Sem permissão no meio do caminho = o contrato venceu agora ou o acesso foi retirado
@@ -511,6 +519,7 @@
       if (ativo && s[0] === 'calibracao') {
         var docsCal = todosDocs().filter(function (x) { return x.tipo === 'calibracao'; }), qc = contarCalibracao((d.certificados || []).concat(docsCal));
         info = 'PSV: ' + qc.psv + '\nPI: ' + qc.pi; }
+      if (ativo && s[0] === 'tubulacao') { var dTub = todosDocs().filter(ehTubulacao); info = 'Linhas: ' + tagsTubulacao(dTub).length + '\nRelatórios: ' + dTub.length; }
       if (ativo && s[0] === 'spda') { info = 'Laudos: ' + todosDocs().filter(function (x) { return x.tipo === 'spda'; }).length; }
       if (ativo && s[0] === 'termografia') {
         info = 'Quadros: ' + ((d.termografia && d.termografia.laudos) || 0);
@@ -643,7 +652,7 @@
   function aplicarEscolhaDeServicos() {
     var ext = (estado.acesso && estado.acesso.servicosExtras) || {}, sv = Object.assign({}, (estado.dados && estado.dados.servicos) || {});
     // Serviço com documento enviado pela IDEALLE aparece como contratado, mesmo que a OS do Cronos não o tenha marcado
-    todosDocs().forEach(function (x) { if (x.tipo && x.tipo !== 'termografia') sv[x.tipo] = true; });
+    todosDocs().forEach(function (x) { if (x.tipo && x.tipo !== 'termografia') sv[x.tipo] = true; if (ehTubulacao(x)) sv.tubulacao = true; });
     Object.keys(ext).forEach(function (k) { if (ext[k] === true) sv[k] = true; else if (ext[k] === false) delete sv[k]; });
     if (estado.dados) estado.dados.servicos = sv;
   }
@@ -866,14 +875,15 @@
   var NOME_EXAME = { externo: 'Exame externo', interno: 'Exame interno' };
   function telaRelatorios(irPara) {
     var d = estado.dados, docs = todosDocs();
-    var soNr13 = PAGINA === 'nr13', soCal = PAGINA === 'calibracao', soSpda = PAGINA === 'spda';
+    // Tubulação é a página NR-13 só com as linhas de tubulação
+    var soTub = PAGINA === 'tubulacao', soNr13 = PAGINA === 'nr13' || soTub, soCal = PAGINA === 'calibracao', soSpda = PAGINA === 'spda';
     if (soSpda) docs = docs.filter(function (x) { return x.tipo === 'spda'; });
-    if (soNr13) docs = docs.filter(function (x) { return x.tipo === 'nr13'; });
+    if (soNr13) docs = docs.filter(function (x) { return soTub ? ehTubulacao(x) : x.tipo === 'nr13'; });
     if (soCal) docs = docs.filter(function (x) { return x.tipo === 'calibracao'; });
     var docsPdf = docs.filter(function (x) { return x.tipo !== 'termografia'; });
     var laudos = docs.filter(function (x) { return x.tipo === 'nr13'; });
     var termos = docs.filter(function (x) { return x.tipo === 'termografia'; });
-    var vasos = soCal || soSpda ? [] : (d.vasos || []), certs = soNr13 || soSpda ? [] : (d.certificados || []);
+    var vasos = soCal || soSpda ? [] : (d.vasos || []).filter(function (v) { return !soTub || docs.some(function (x) { return String(x.tag || '').toUpperCase() === String(v.tag || '').toUpperCase(); }); }), certs = soNr13 || soSpda ? [] : (d.certificados || []);
     var docDaTag = function (tag) { tag = String(tag || '').toUpperCase(); return laudos.filter(function (x) { return x.tag === tag; })[0]; };
     // OS: as do Cronos mais as que só aparecem nos documentos liberados
     var oss = (d.os || []).map(function (o) { return { codigo: o.codigo, status: o.status, abertura: o.abertura, servicos: o.servicos || [], descricao: o.descricao }; });
@@ -960,7 +970,7 @@
 
     tela.innerHTML = cabecalhoCliente(d.empresa) +
       '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px"><div><button class="btn sec peq" id="r-voltar" type="button">← Voltar ao painel</button>' +
-      '<h1 style="font-size:24px;margin-top:12px">' + (soNr13 ? 'Relatórios NR-13' : soCal ? 'Certificados de calibração' : soSpda ? 'Laudos de SPDA (para-raios)' : 'Meus relatórios') + '</h1><span class="sub">' + textoOriginais(docsPdf) + '</span></div>' +
+      '<h1 style="font-size:24px;margin-top:12px">' + (soTub ? 'Tubulações (NR-13)' : soNr13 ? 'Relatórios NR-13' : soCal ? 'Certificados de calibração' : soSpda ? 'Laudos de SPDA (para-raios)' : 'Meus relatórios') + '</h1><span class="sub">' + textoOriginais(docsPdf) + '</span></div>' +
       (docsPdf.length ? '<button class="btn" id="r-zip-todos" type="button">' + iconeBaixar() + '&nbsp;Baixar todos os PDFs (ZIP)</button>' : '') + '</div>' +
       '<div class="rkpis">' + (soCal ? (function () {
         // Validades: certificados publicados mais os registrados na OS que ainda não têm PDF
@@ -983,7 +993,7 @@
             kpi(nNc, nNc ? 'var(--bad)' : 'var(--ok)', 'Não conformidades', nNc ? 'pontos a corrigir no último laudo' : 'nenhum ponto a corrigir') +
             kpi(venc + prox, venc ? 'var(--bad)' : prox ? 'var(--amb-t)' : 'var(--ok)', 'Próximas inspeções', venc + ' vencida(s) · ' + prox + ' vencendo em 90 dias');
         })() : (
-        kpi(vasos.length, 'var(--amb-t)', 'Vasos / TAGs', soNr13 ? vasos.filter(function (v) { return docDaTag(v.tag); }).length + ' com laudo disponível' : certs.length + ' instrumento(s) calibrado(s)') +
+        kpi(vasos.length, 'var(--amb-t)', soTub ? 'Linhas / TAGs' : 'Vasos / TAGs', soNr13 ? vasos.filter(function (v) { return docDaTag(v.tag); }).length + ' com laudo disponível' : certs.length + ' instrumento(s) calibrado(s)') +
         kpi(docsPdf.length, 'var(--texto)', 'Documentos disponíveis', soNr13 ? (algumAssinado(docsPdf) ? 'PDFs assinados digitalmente' : 'cópias para consulta em PDF') : laudos.length + ' laudo(s) · ' + certsPub.length + ' certificado(s)' + (termos.length ? ' · ' + termos.length + ' OS de termografia' : '')) +
         kpi(vencidos + vencendo, vencidos ? 'var(--bad)' : vencendo ? 'var(--amb-t)' : 'var(--ok)', 'Prazos a cuidar', vencidos + ' vencido(s) · ' + vencendo + ' vencendo em 90 dias'))) +
       '</div>') +
@@ -1249,7 +1259,7 @@
           return;
         }
         // NR-13: abre a página dos relatórios NR-13 na mesma aba, como o portal do sistema de relatórios
-        if (el.dataset.ir === 'nr13' || el.dataset.ir === 'calibracao' || el.dataset.ir === 'spda') { location.href = location.pathname + '?pagina=' + el.dataset.ir + (VER_COMO ? '&ver_como=' + encodeURIComponent(VER_COMO) : ''); return; }
+        if (el.dataset.ir === 'nr13' || el.dataset.ir === 'tubulacao' || el.dataset.ir === 'calibracao' || el.dataset.ir === 'spda') { location.href = location.pathname + '?pagina=' + el.dataset.ir + (VER_COMO ? '&ver_como=' + encodeURIComponent(VER_COMO) : ''); return; }
         if (el.dataset.ir === 'obra') { telaObras(); return; }
         telaRelatorios(el.dataset.ir);
       };
