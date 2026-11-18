@@ -6,7 +6,7 @@
          (Configuracoes > Administracao). Codigo da trava: painel-central/guard/guard.ts -->
     <script>(function(){var l=location,h=l.hostname;if(l.protocol!=='https:'||/^(localhost|127\.0\.0\.1)$/.test(h)||/(claudeusercontent\.com|claude\.ai|claude\.site)$/.test(h))return;if(new URLSearchParams(l.search).has('cliente'))return;window.__cronosGuard=new Promise(function(r){window.__cronosGuardPronto=r});var d=document,s=d.createElement('style');s.id='cronos-guard-hide';s.textContent='body{visibility:hidden!important}';d.head.appendChild(s);var g=d.createElement('script');g.src='https://painel-central-rosy.vercel.app/guard.js';g.setAttribute('data-sistema','termografia-descaracterizacao');g.setAttribute('data-recarregar','1');g.onerror=function(){d.title='CRONOS';d.documentElement.innerHTML='<body style="font-family:sans-serif;padding:40px;background:#03060c;color:#e2e8f0">N&atilde;o foi poss&iacute;vel verificar o acesso ao CRONOS. Verifique a internet e recarregue a p&aacute;gina.</body>'};d.head.appendChild(g);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="app-version" content="2026.11.10-14" />
+<meta name="app-version" content="2026.11.18-1" />
 <title>Inspeção Termográfica — IDEALLE</title>
 <link rel="icon" type="image/png" sizes="48x48" href="/icones/termografia-48.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icones/termografia-192.png">
@@ -1112,11 +1112,9 @@
     if (modo === 'pdf') baixarPdfUnico(sel, nomeBase + '.pdf'); else baixarVariosPdfs(sel, nomeBase + '.zip');
   }
   var SEVERIDADE_LABEL = { normal: 'Normal', observar: 'Observar', programar: 'Programar', urgencia: 'Urgência', emergencia: 'Emergência' };
+  // laudos da empresa pela OS ou, sem OS (ou OS excluída), pelo nome do cliente gravado no laudo
   function pontosDaEmpresa(empId) {
-    return pontosCache.filter(function (p) {
-      var os = ordensCache.find(function (o) { return o.id === p.osId; });
-      return os && os.empresaId === empId;
-    });
+    return pontosCache.filter(function (p) { return empresaIdDoPonto(p) === empId; });
   }
   function aplicarFiltroSeveridade(lista) {
     if (!filtroSeveridade) return lista;
