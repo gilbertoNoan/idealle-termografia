@@ -337,6 +337,8 @@
   // Tubulação (NR-13): documento NR-13 de TAG TUB-... ou com "tubulação" no nome
   function ehTubulacao(x) {
     if (!x || (x.tipo || 'nr13') !== 'nr13') return false;
+    if (x.tubulacao === true) return true;
+    if (x.tubulacao === false) return false;
     var t = String([x.arquivo, x.equipamento, x.nomeEquipamento].join(' ')).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     return /^TUB/i.test(String(x.tag || '').trim()) || /tubula/i.test(t);
   }
