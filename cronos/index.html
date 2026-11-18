@@ -1629,6 +1629,13 @@
         g.situacao = situacaoVenc(g.venc);
         g.pend = pendenciasGrupo(g);
       });
+      // TAG "filha" (GA-37-006, tirada do nome da pasta/arquivo) com poucos documentos: parece documento da TAG-mãe (GA-37)
+      lista.forEach(function (g) {
+        if (!g.tag || g.outro || g.docs.length > 2 || g.cal.length) return;
+        var mae = lista.filter(function (m) { return m !== g && m.tag && m.nr13.length && chaveTag(g.tag).indexOf(chaveTag(m.tag)) === 0 && /^[\s_-]/.test(g.tag.slice(m.tag.length)); })
+          .sort(function (a, b) { return b.tag.length - a.tag.length; })[0];
+        if (mae) g.pend.unshift({ txt: 'tem só ' + g.docs.length + ' documento(s): parece documento do ' + mae.tag + ' (TAG tirada do nome da pasta ou do arquivo).', paraTag: mae.tag, osMae: gpSemOs(mae.ref.os) ? '' : mae.ref.os, ks: g.docs.map(function (i) { return i.k; }) });
+      });
       // equipamentos NR-13 primeiro, depois os instrumentos; sem TAG e outros serviços no fim
       var peso = function (g) { return g.outro ? 3 : g.id === 'SEM' ? 2 : g.nr13.length ? 0 : 1; };
       lista.sort(function (a, b) { return peso(a) - peso(b) || String(a.tag).localeCompare(String(b.tag), 'pt-BR', { numeric: true }); });
@@ -1784,7 +1791,8 @@
             var g = x.g, p = x.p;
             return '<div class="gp-pend">⚠ <span><b>' + esc(g.tag || (g.id === 'SEM' ? 'Sem TAG' : '')) + '</b> ' + esc(p.txt) + '</span>' +
               (p.juntar ? '<button class="btn peq" data-gp-juntar="' + esc(g.id) + '">' + (p.alvo ? 'Juntar tudo na ' + esc(p.alvo) : 'Igualar os dados') + '</button>' : '') +
-              (p.umAno ? '<button class="btn peq" data-gp-umano="' + esc(p.umAno.join('|')) + '">Calibração + 1 ano</button>' : '') +
+              (p.paraTag ? '<button class="btn peq" data-gp-paratag="' + esc(p.paraTag) + '" data-gp-ks="' + esc(p.ks.join('|')) + '" data-gp-osmae="' + esc(p.osMae || '') + '">Passar para ' + esc(p.paraTag) + '</button>' : '') +
+              (p.umAno ? '<button class="btn peq" data-gp-umano=""' + esc(p.umAno.join('|')) + '">Calibração + 1 ano</button>' : '') +
               (p.paraCal ? '<button class="btn peq" data-gp-paracal="' + esc(p.paraCal.join('|')) + '">Passar para Calibração</button>' : '') + '</div>';
           }).join('') + '</div>' : '') +
         '<div class="gp-filtros"><input id="gp-q" placeholder="Buscar TAG, equipamento, arquivo, nº…" value="' + esc(f.q) + '">' +
@@ -1853,6 +1861,13 @@
       el.querySelectorAll('[data-gp-mover]').forEach(function (b) { b.onclick = function () { telaMover([b.dataset.gpMover]); }; });
       el.querySelectorAll('[data-gp-rem]').forEach(function (b) {
         b.onclick = function () { var d = idx[b.dataset.gpRem] || {}; if (confirm('Tirar do portal do cliente o documento "' + (d.arquivo || d.equipamento) + '"?\n\nO cliente deixa de ver e baixar. Os PDFs no seu computador não são apagados.')) remover([b.dataset.gpRem]); };
+      });
+      el.querySelectorAll('[data-gp-paratag]').forEach(function (b) {
+        b.onclick = function () {
+          var tag = b.dataset.gpParatag, osM = b.dataset.gpOsmae, o = {};
+          b.dataset.gpKs.split('|').forEach(function (k) { if (idx[k]) o[k] = Object.assign({}, idx[k], { tag: tag }, osM ? { os: osM } : {}); });
+          gravar(o, Object.keys(o).length + ' documento(s) passados para ' + tag + '.');
+        };
       });
       el.querySelectorAll('[data-gp-juntar]').forEach(function (b) { b.onclick = function () { var g = gpPor[b.dataset.gpJuntar]; var p = g.pend.filter(function (x) { return x.juntar; })[0]; juntarGrupo(g, p && p.alvo); }; });
       el.querySelectorAll('[data-gp-umano]').forEach(function (b) { b.onclick = function () { umAno(b.dataset.gpUmano.split('|')); }; });
