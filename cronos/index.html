@@ -596,10 +596,18 @@
   function saldoOS(o) { return Math.max(0, Math.round((num(o.valor) - faturadoOS(o)) * 100) / 100); }
   // Status e parcela da OS depois de faturar mais v
   function aposFaturar(o, v) {
+    if (contratoAtivo(o)) return { status: 'execucao', parcela: (faturasOS(o).length + 1) + 'ª' }; // contrato não fecha por saldo
     var ja = faturasOS(o), parcial = o.valor != null && num(o.valor) > 0 && faturadoOS(o) + v < num(o.valor) - 0.01;
     return { status: parcial ? 'parcial' : 'faturada', parcela: parcial || ja.length ? (ja.length + 1) + 'ª' : '' };
   }
-  function statusOS(o) { return o.status || 'aberta'; } // OS criadas na Termografia não têm status: contam como abertas
+  // Contrato: a OS fica sempre aberta. A cada visita lança-se uma medição (quantidades × preços do contrato) e emite-se a nota;
+  // não vira "faturada" pelo saldo. Só sai de aberto com "Encerrar contrato".
+  function contratoAtivo(o) { return !!(o && o.contrato && !o.contratoEncerrado && o.status !== 'cancelada'); }
+  function statusOS(o) { // OS criadas na Termografia não têm status: contam como abertas
+    var s = o.status || 'aberta';
+    return contratoAtivo(o) && ['parcial', 'faturada', 'concluida'].indexOf(s) >= 0 ? 'execucao' : s;
+  }
+  function tagOS(o) { return contratoAtivo(o) ? '<span class="tag t-parcial">Contrato ativo</span>' : tag('os', statusOS(o)) + (o.contrato ? ' <span class="tag t-gray">Contrato encerrado</span>' : ''); }
 
   // ===================== BANCO DE DADOS =====================
   // Duas implementações com a mesma interface: Firestore (real) e local (modo de teste no navegador).
@@ -3684,7 +3692,7 @@
     $('lista-ordens').innerHTML = '<table><thead><tr><th>OS</th><th>Cliente / Serviço</th><th>Abertura</th><th>Prazo</th><th>Sistema</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>' +
       lista.map(function (o) {
         var atrasada = o.prazo && o.prazo < hoje() && ['aberta', 'execucao'].indexOf(statusOS(o)) >= 0;
-        return '<tr class="clicavel' + (statusOS(o) === 'parcial' ? ' os-parcial' : '') + '" data-os="' + o.id + '"><td><b>' + esc(codOS(o)) + '</b></td><td>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + (o.contrato ? ' <span class="tag t-parcial">Contrato</span>' : '') + '<div class="muted">' + esc(o.descricao || '') + (o.responsavel ? ' · ' + esc(o.responsavel) : '') + '</div></td><td>' + data(o.dataAbertura) + '</td><td>' + data(o.prazo) + (atrasada ? ' <span class="tag t-bad">atrasada</span>' : '') + '</td><td>' + esc(o.sistema || '—') + (o.resultados && o.resultados[o.sistema] ? '<div class="muted">' + o.resultados[o.sistema].qtdLaudos + ' laudo(s)</div>' : '') + (temServicos(o) && ['aberta', 'execucao', 'concluida', 'parcial'].indexOf(statusOS(o)) >= 0 ? (function (n) { return '<div>' + (n ? '<span class="tag t-warn">' + n + ' pendência(s)</span>' : '<span class="tag t-ok">serviços em dia</span>') + '</div>'; })(pendenciasOS(o).qtd) : '') + '</td><td class="num">' + (o.valor != null ? brl(o.valor) : '—') + (statusOS(o) === 'parcial' || (o.contrato && faturasOS(o).length) ? '<div class="muted">falta ' + brl(saldoOS(o)) + '</div>' : '') + '</td><td>' + tag('os', statusOS(o)) + '</td></tr>';
+        return '<tr class="clicavel' + (statusOS(o) === 'parcial' || contratoAtivo(o) ? ' os-parcial' : '') + '" data-os="' + o.id + '"><td><b>' + esc(codOS(o)) + '</b></td><td>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '<div class="muted">' + esc(o.descricao || '') + (o.responsavel ? ' · ' + esc(o.responsavel) : '') + '</div></td><td>' + data(o.dataAbertura) + '</td><td>' + data(o.prazo) + (atrasada ? ' <span class="tag t-bad">atrasada</span>' : '') + '</td><td>' + esc(o.sistema || '—') + (o.resultados && o.resultados[o.sistema] ? '<div class="muted">' + o.resultados[o.sistema].qtdLaudos + ' laudo(s)</div>' : '') + (temServicos(o) && ['aberta', 'execucao', 'concluida', 'parcial'].indexOf(statusOS(o)) >= 0 ? (function (n) { return '<div>' + (n ? '<span class="tag t-warn">' + n + ' pendência(s)</span>' : '<span class="tag t-ok">serviços em dia</span>') + '</div>'; })(pendenciasOS(o).qtd) : '') + '</td><td class="num">' + (o.valor != null ? brl(o.valor) : '—') + (o.contrato ? (faturasOS(o).length ? '<div class="muted">faturado ' + brl(faturadoOS(o)) + ' · ' + faturasOS(o).length + ' medição(ões)</div>' : '') : statusOS(o) === 'parcial' ? '<div class="muted">falta ' + brl(saldoOS(o)) + '</div>' : '') + '</td><td>' + tagOS(o) + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
   $('lista-ordens').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-os]'); if (tr) verOS(tr.dataset.os); });
@@ -3706,7 +3714,7 @@
       '<div class="linha"><div><label>Abertura</label><input id="o-abertura" type="date" value="' + esc(o.dataAbertura || hoje()) + '"></div><div><label>Prazo</label><input id="o-prazo" type="date" value="' + esc(o.prazo) + '"></div><div><label>Responsável</label><input id="o-resp" value="' + esc(o.responsavel) + '"></div></div>' +
       '<div class="linha"><div><label>Sistema de execução</label><select id="o-sistema">' + opcoesSistemas(o.sistema) + '</select></div><div><label>Valor (R$)</label><input id="o-valor" inputmode="decimal" value="' + esc(o.valor != null ? String(o.valor).replace('.', ',') : '') + '"></div>' +
       (temConclusao ? '<div><label>Concluída em</label><input id="o-conclusao" type="date" value="' + esc(o.dataConclusao) + '"></div>' : '') + '</div>' +
-      '<label style="display:flex;gap:6px;align-items:center;font-weight:normal"><input type="checkbox" id="o-contrato" style="width:auto"' + (o.contrato ? ' checked' : '') + '> <span><b>Contrato</b>: valor total faturado aos poucos, conforme cada serviço é entregue</span></label>' +
+      '<label style="display:flex;gap:6px;align-items:center;font-weight:normal"><input type="checkbox" id="o-contrato" style="width:auto"' + (o.contrato ? ' checked' : '') + '> <span><b>Contrato</b>: a OS fica sempre aberta; a cada visita lança-se uma medição (quantidades × preços do contrato) e emite-se a nota</span></label>' +
       (fs.length > 1 ? '<label>Faturas / parcelas desta OS</label><table><thead><tr><th>Parcela</th><th>Nº da NF</th><th>Valor (R$)</th><th>Recebimento</th><th>Status</th></tr></thead><tbody>' + fs.map(function (x, k) {
         return '<tr><td>' + esc(x.parcela || (k + 1) + 'ª') + '</td><td><input data-fnf="' + k + '" value="' + esc(x.nf) + '" placeholder="Sem NF"></td><td><input data-fval="' + k + '" inputmode="decimal" value="' + vIn(x.valor) + '"></td><td><input data-fven="' + k + '" type="date" value="' + esc(x.vencimento) + '"></td><td>' + tag('fatura', x.status, x.vencimento) + '</td></tr>';
       }).join('') + '</tbody></table><div class="muted" style="font-size:.8em">Altere a data de recebimento ou o valor de cada parcela. Se a soma ficar menor que o valor da OS, ela volta a Faturada parcial.</div>' : '') +
@@ -3754,6 +3762,7 @@
           var tot1 = $('o-fvalor').value.trim() ? num($('o-fvalor').value) : num(f.valor);
           d.status = tot1 < d.valor - 0.01 ? 'parcial' : 'faturada';
         }
+        if (d.contrato && !o.contratoEncerrado && ['parcial', 'faturada', 'concluida'].indexOf(o.status || '') >= 0) d.status = 'execucao'; // contrato não fecha por saldo
         if (f) {
           var nf = $('o-nf').value.trim(), fv = $('o-fvalor').value.trim() ? num($('o-fvalor').value) : f.valor;
           if (nf && nf !== (f.nf || '') && cache.faturas.some(function (x) { return x.nf === nf && x.id !== f.id; }) && !confirm('Já existe outra fatura com a NF ' + nf + '. Salvar mesmo assim?')) return;
@@ -3780,7 +3789,13 @@
   function verOS(id) {
     var o = porId('ordens', id); if (!o) return;
     var st = statusOS(o), p = o.propostaId ? porId('propostas', o.propostaId) : null, f = o.faturaId ? porId('faturas', o.faturaId) : null, fs = faturasOS(o);
-    var b = [];
+    var b = [], ativo = contratoAtivo(o);
+    if (ativo) {
+      var semNF = fs.filter(function (x) { return !x.nf && x.status === 'pendente'; }).sort(function (a, b) { return (b.numero || 0) - (a.numero || 0); })[0];
+      b.push('<button class="btn ok" id="ov-medicao">Lançar medição (visita)</button>');
+      if (semNF) b.push('<button class="btn" id="ov-nota-med">Preparar nota da medição ' + esc(codFatura(semNF)) + '</button>');
+      b.push('<button class="btn sec" id="ov-vincular">Notas do contrato</button>', '<button class="btn sec" id="ov-editar">Editar</button>', '<button class="btn sec" id="ov-encerrar">Encerrar contrato</button>');
+    } else {
     if (st === 'aberta') b.push('<button class="btn" id="ov-iniciar">Iniciar execução</button>');
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn ok" id="ov-concluir">Concluir serviço</button>');
     if (st === 'parcial') b.push('<button class="btn ok" id="ov-nota-saldo">Preparar nota ' + (o.contrato ? 'da entrega' : 'do saldo') + '</button>', '<button class="btn sec" id="ov-faturar">' + (o.contrato ? 'Faturar entrega' : 'Faturar saldo') + '</button>');
@@ -3790,21 +3805,25 @@
     b.push('<button class="btn sec" id="ov-editar">Editar</button>');
     if (st === 'aberta' || st === 'execucao') b.push('<button class="btn perigo" id="ov-cancelar">Cancelar OS</button>');
     if (st === 'cancelada') b.push('<button class="btn sec" id="ov-reabrir">Reabrir</button>');
+    if (o.contrato && o.contratoEncerrado && st !== 'cancelada') b.push('<button class="btn sec" id="ov-reabrir-contrato">Reabrir contrato</button>');
+    }
     b.push('<button class="btn perigo" id="ov-excluir">Excluir OS</button>', '<button class="btn sec" id="ov-fechar">Fechar</button>');
-    abrirModal('<h3>OS ' + esc(codOS(o)) + ' ' + tag('os', st) + (o.contrato ? ' <span class="tag t-parcial">Contrato</span>' : '') + '</h3>' +
+    abrirModal('<h3>OS ' + esc(codOS(o)) + ' ' + tagOS(o) + '</h3>' +
       '<div><b>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + '</b></div><div>' + esc(o.descricao || '') + '</div>' +
-      '<div class="ciclo">' + ['Proposta', 'OS aberta', 'Execução', 'Concluída', 'Faturada', 'Recebida'].map(function (e, i) {
+      (ativo ? '<div class="aviso" style="margin-top:8px">Contrato: esta OS fica sempre aberta. A cada visita clique em <b>Lançar medição</b>, informe o que foi feito (ex.: 10 calibrações, 5 inspeções) e o sistema calcula o valor pelos preços do contrato e prepara a nota.</div>' : '') +
+      (ativo ? '' : '<div class="ciclo">') + (ativo ? [] : ['Proposta', 'OS aberta', 'Execução', 'Concluída', 'Faturada', 'Recebida'].map(function (e, i) {
         var feito = [!!p, true, ['execucao', 'concluida', 'parcial', 'faturada'].indexOf(st) >= 0, ['concluida', 'parcial', 'faturada'].indexOf(st) >= 0, st === 'faturada', !!(f && f.status === 'paga')][i];
         return '<span class="tag ' + (feito ? 't-ok' : 't-gray') + '">' + (feito ? '✓ ' : '') + e + '</span>';
-      }).join('') + '</div>' +
+      }).join('')) + (ativo ? '' : '</div>') +
       '<dl class="detalhe linha">' +
       '<div><dt>Abertura</dt><dd>' + data(o.dataAbertura) + '</dd></div><div><dt>Prazo</dt><dd>' + data(o.prazo) + '</dd></div>' +
       '<div><dt>Responsável</dt><dd>' + esc(o.responsavel || '—') + '</dd></div><div><dt>Sistema</dt><dd>' + esc(o.sistema || '—') + '</dd></div>' +
       '<div><dt>Valor</dt><dd>' + (o.valor != null ? brl(o.valor) : '—') + '</dd></div>' +
       '<div><dt>Proposta</dt><dd>' + (p ? '<a href="#" id="ov-ver-proposta">' + codProposta(p) + '</a>' : (o.propostaCodigo || '—')) + '</dd></div>' +
       (o.dataConclusao ? '<div><dt>Concluída em</dt><dd>' + data(o.dataConclusao) + '</dd></div>' : '') +
-      (fs.length > 1 || st === 'parcial' || o.contrato ? '<div><dt>Faturado</dt><dd>' + brl(faturadoOS(o)) + (o.valor != null ? ' de ' + brl(o.valor) : '') + '</dd></div><div><dt>' + (o.contrato ? 'Saldo do contrato' : 'Saldo a faturar') + '</dt><dd><b>' + brl(saldoOS(o)) + '</b></dd></div>' : '') +
-      (fs.length > 1 ? '<div style="flex-basis:100%"><dt>Faturas</dt><dd>' + fs.slice().sort(function (a, b) { return String(a.vencimento || '') < String(b.vencimento || '') ? -1 : 1; }).map(function (x) { return codFatura(x) + (x.entrega ? ' · ' + esc(x.entrega) : '') + ' · ' + brl(x.valor) + ' · receber em ' + data(x.vencimento) + ' ' + tag('fatura', x.status, x.vencimento); }).join('<br>') + '</dd></div>' :
+      (o.contrato ? '<div><dt>Faturado no contrato</dt><dd><b>' + brl(faturadoOS(o)) + '</b> em ' + fs.length + ' medição(ões)</dd></div>' :
+      fs.length > 1 || st === 'parcial' ? '<div><dt>Faturado</dt><dd>' + brl(faturadoOS(o)) + (o.valor != null ? ' de ' + brl(o.valor) : '') + '</dd></div><div><dt>' + (o.contrato ? 'Saldo do contrato' : 'Saldo a faturar') + '</dt><dd><b>' + brl(saldoOS(o)) + '</b></dd></div>' : '') +
+      (fs.length > 1 || (o.contrato && fs.length) ? '<div style="flex-basis:100%"><dt>' + (o.contrato ? 'Medições / notas' : 'Faturas') + '</dt><dd>' + fs.slice().sort(function (a, b) { return String(a.vencimento || '') < String(b.vencimento || '') ? -1 : 1; }).map(function (x) { return codFatura(x) + (x.entrega ? ' · ' + esc(x.entrega) : '') + ' · ' + brl(x.valor) + ' · receber em ' + data(x.vencimento) + ' ' + tag('fatura', x.status, x.vencimento); }).join('<br>') + '</dd></div>' :
         f ? '<div><dt>Fatura</dt><dd>' + codFatura(f) + ' ' + tag('fatura', f.status, f.vencimento) + '</dd></div>' : '') +
       '</dl>' + (o.obs ? '<p class="muted">' + esc(o.obs) + '</p>' : '') +
       (resumoResultado(o) || '<p class="muted">Nenhum laudo lançado ainda nesta OS.</p>') +
@@ -3824,6 +3843,58 @@
     ligar('ov-nota', function () { prepararNota(o, f && !f.nf ? f : null); });
     ligar('ov-nota-saldo', function () { prepararNota(o, null); });
     ligar('ov-excluir', function () { excluirOS(o); });
+    ligar('ov-medicao', function () { formMedicao(o); });
+    ligar('ov-nota-med', function () { prepararNota(o, semNF); });
+    ligar('ov-encerrar', async function () {
+      if (!confirm('Encerrar o contrato ' + codOS(o) + '?\n\nA OS sai das abertas e para de receber medições. Dá para reabrir depois.')) return;
+      await salvar(function () { return banco.atualizar('ordens', o.id, { contratoEncerrado: true, status: fs.length ? 'faturada' : 'concluida', dataConclusao: o.dataConclusao || hoje(), updatedAt: agora() }); }, 'Contrato encerrado.'); verOS(o.id);
+    });
+    ligar('ov-reabrir-contrato', async function () { await salvar(function () { return banco.atualizar('ordens', o.id, { contratoEncerrado: false, status: 'execucao', updatedAt: agora() }); }, 'Contrato reaberto.'); verOS(o.id); });
+  }
+
+  // Medição do contrato: o que foi feito nesta visita × preço de cada item do contrato = valor da nota.
+  // Os preços vêm da OS (o.precos), ou da proposta de origem na primeira vez; ajustes e itens novos ficam salvos na OS.
+  function formMedicao(o) {
+    var p = o.propostaId ? porId('propostas', o.propostaId) : null;
+    var precos = (o.precos && o.precos.length ? o.precos : ((p && p.itens) || []).filter(function (i) { return i.descricao; }).map(function (i) { return { descricao: i.descricao, valor: num(i.valor) }; }));
+    var nMed = faturasOS(o).length + 1;
+    function vIn(v) { return v ? String(Math.round(v * 100) / 100).replace('.', ',') : ''; }
+    function linha(it) { return '<tr><td><input class="md-desc" value="' + esc(it.descricao || '') + '" placeholder="Ex.: Calibração de válvula de segurança"></td><td style="width:90px"><input class="md-qtd" inputmode="decimal" placeholder="0"></td><td style="width:130px"><input class="md-preco" inputmode="decimal" value="' + vIn(it.valor) + '"></td><td class="num md-sub" style="width:120px">—</td></tr>'; }
+    abrirModal('<h3>Lançar medição nº ' + nMed + ' · contrato ' + esc(codOS(o)) + '</h3><div>' + esc(nomeCliente(o.empresaId, o.empresaNome)) + ' · ' + esc(o.descricao || '') + '</div>' +
+      '<p class="muted">Digite a quantidade do que foi feito nesta visita. Deixe em branco o que não foi feito. ' + (precos.length ? 'Os preços são os do contrato e podem ser ajustados.' : 'Primeira medição: preencha os itens e preços do contrato; eles ficam guardados para as próximas.') + '</p>' +
+      '<div class="linha"><div><label>Data da visita</label><input id="md-data" type="date" value="' + hoje() + '"></div><div><label>Recebimento (vencimento)</label><input id="md-venc" type="date" value="' + somarDias(hoje(), diasPagamento(o)) + '"></div></div>' +
+      '<table><thead><tr><th>Serviço do contrato</th><th>Qtd.</th><th>Preço unit. (R$)</th><th class="num">Subtotal</th></tr></thead><tbody id="md-itens">' + (precos.length ? precos : [{}, {}]).map(linha).join('') + '</tbody></table>' +
+      '<button class="btn sec peq" id="md-mais" type="button">+ Item</button>' +
+      '<div class="aviso" style="margin-top:8px">Valor desta medição: <b id="md-total">R$ 0,00</b></div>' +
+      '<label>Observações</label><textarea id="md-obs" placeholder="Ex.: Bloco B, pedido 4500123"></textarea>' +
+      '<div class="acoes"><button class="btn ok" id="md-salvar">Salvar e preparar a nota</button><button class="btn sec" id="md-cancelar">Cancelar</button></div>');
+    function linhas() { return Array.prototype.map.call(document.querySelectorAll('#md-itens tr'), function (tr) { return { tr: tr, descricao: tr.querySelector('.md-desc').value.trim(), qtd: num(tr.querySelector('.md-qtd').value), valor: num(tr.querySelector('.md-preco').value) }; }); }
+    function calc() {
+      var t = 0;
+      linhas().forEach(function (l) { var sub = Math.round(l.qtd * l.valor * 100) / 100; t += sub; l.tr.querySelector('.md-sub').textContent = l.qtd ? brl(sub) : '—'; });
+      $('md-total').textContent = brl(t); return Math.round(t * 100) / 100;
+    }
+    $('md-itens').addEventListener('input', calc);
+    $('md-mais').onclick = function () { $('md-itens').insertAdjacentHTML('beforeend', linha({})); $('md-itens').lastElementChild.querySelector('.md-desc').focus(); };
+    $('md-cancelar').onclick = function () { verOS(o.id); };
+    $('md-salvar').onclick = async function () {
+      var ls = linhas(), feitos = ls.filter(function (l) { return l.descricao && l.qtd > 0; }), total = calc();
+      if (!feitos.length) { toast('Informe a quantidade de pelo menos um serviço.'); return; }
+      if (feitos.some(function (l) { return !l.valor; })) { toast('Falta o preço de um dos itens feitos.'); return; }
+      var dv = $('md-data').value || hoje(), obs = $('md-obs').value.trim();
+      var itens = feitos.map(function (l) { return { descricao: l.descricao, qtd: l.qtd, valor: l.valor, subtotal: Math.round(l.qtd * l.valor * 100) / 100 }; });
+      var resumo = itens.map(function (i) { return fmtN(i.qtd, i.qtd % 1 ? 2 : 0) + ' ' + i.descricao; }).join(', ');
+      var novosPrecos = ls.filter(function (l) { return l.descricao && l.valor; }).map(function (l) { return { descricao: l.descricao, valor: l.valor }; });
+      var d = { numero: proximoNumero(cache.faturas, 'numero'), clienteId: o.empresaId, clienteNome: nomeCliente(o.empresaId, o.empresaNome), osId: o.id, osNumero: o.numero, osCodigo: codOS(o),
+        descricao: (o.descricao || '') + ' — Medição nº ' + nMed + ' (' + data(dv) + ')', entrega: resumo, medicao: { numero: nMed, data: dv, itens: itens }, parcela: nMed + 'ª',
+        valor: total, emissao: hoje(), vencimento: $('md-venc').value, nf: '', forma: 'Boleto', obs: obs, status: 'pendente', createdAt: agora() };
+      var fid = await salvar(function () { return banco.criar('faturas', d); });
+      if (!fid) return;
+      await salvar(function () { return banco.atualizar('ordens', o.id, { status: 'execucao', faturaId: fid, precos: novosPrecos, ultimaMedicao: dv, updatedAt: agora() }); }, 'Medição nº ' + nMed + ' lançada: ' + brl(total) + '.');
+      d.id = fid;
+      prepararNota(porId('ordens', o.id) || o, porId('faturas', fid) || d);
+    };
+    calc();
   }
 
   // Excluir de vez (OS de teste ou duplicada). A fatura da OS vai junto para não contar no faturamento;
@@ -3862,7 +3933,7 @@
       }).join('') + '</tbody></table><div id="vn-soma" class="muted"></div>' +
       '<div class="acoes"><button class="btn ok" id="vn-salvar">Salvar</button><button class="btn sec" id="vn-voltar">Voltar</button></div>');
     function marcadas() { return l.filter(function (f, i) { return document.querySelector('[data-vn="' + i + '"]').checked; }); }
-    function soma() { var m = marcadas(), t = m.reduce(function (s, f) { return s + num(f.valor); }, 0); $('vn-soma').innerHTML = m.length + ' nota(s) · <b>' + brl(t) + '</b>' + (o.valor != null ? ' de ' + brl(o.valor) + ' do contrato' + (t > num(o.valor) + 0.01 ? ' · <span style="color:var(--bad)">passou do valor da OS: ajuste o valor do contrato no Editar</span>' : ' · saldo ' + brl(num(o.valor) - t)) : ''); }
+    function soma() { var m = marcadas(), t = m.reduce(function (s, f) { return s + num(f.valor); }, 0); $('vn-soma').innerHTML = m.length + ' nota(s) · <b>' + brl(t) + '</b>' + (o.valor != null && !o.contrato ? ' de ' + brl(o.valor) + ' do contrato' + (t > num(o.valor) + 0.01 ? ' · <span style="color:var(--bad)">passou do valor da OS: ajuste o valor do contrato no Editar</span>' : ' · saldo ' + brl(num(o.valor) - t)) : ''); }
     document.querySelectorAll('[data-vn]').forEach(function (c) { c.onchange = soma; }); soma();
     $('vn-voltar').onclick = function () { verOS(o.id); };
     $('vn-salvar').onclick = async function () {
@@ -3871,7 +3942,8 @@
         for (var i = 0; i < m.length; i++) await banco.atualizar('faturas', m[i].id, { osId: o.id, osNumero: o.numero || n, osCodigo: codOS(o), parcela: (i + 1) + 'ª', updatedAt: agora() });
         for (var j = 0; j < l.length; j++) if (nesta(l[j]) && m.indexOf(l[j]) < 0) await banco.atualizar('faturas', l[j].id, { osId: '', parcela: '', updatedAt: agora() });
         var u = { faturaId: m.length ? m[m.length - 1].id : '', updatedAt: agora() };
-        if (m.length) u.status = o.valor && t < num(o.valor) - 0.01 ? 'parcial' : 'faturada';
+        if (contratoAtivo(o)) u.status = 'execucao'; // contrato continua aberto
+        else if (m.length) u.status = o.valor && t < num(o.valor) - 0.01 ? 'parcial' : 'faturada';
         await banco.atualizar('ordens', o.id, u);
       }, m.length + ' nota(s) no contrato ' + codOS(o) + '.');
       verOS(o.id);
@@ -4075,7 +4147,8 @@
     var dias = diasPagamento(o, mod), pedido = o.pedido || (f && f.pedido) || '';
     var base = (mod && baseDiscriminacao(mod.discriminacao)) || o.descricao || (f && f.descricao) || '';
     var pag = (cfgNota().pagamento || '').replace('{dias}', dias);
-    var disc = [base, pedido ? 'Numero do Pedido: ' + pedido : '', pag].filter(Boolean).join('\n');
+    var med = f && f.medicao && f.medicao.itens && f.medicao.itens.length ? 'Medição nº ' + f.medicao.numero + ' - visita de ' + data(f.medicao.data) + ':\n' + f.medicao.itens.map(function (i) { return fmtN(i.qtd, i.qtd % 1 ? 2 : 0) + ' x ' + i.descricao + ' (R$ ' + fmtN(i.valor, 2) + ' cada) = R$ ' + fmtN(i.subtotal != null ? i.subtotal : i.qtd * i.valor, 2); }).join('\n') : '';
+    var disc = [base, med, pedido ? 'Numero do Pedido: ' + pedido : '', pag].filter(Boolean).join('\n');
     var valor = f ? f.valor : (faturasOS(o).length && o.valor != null ? saldoOS(o) : o.valor);
     var cods = codigosConhecidos(), codIdx = Math.max(0, cods.findIndex(function (c) { return c.codServico === cod.codServico && (c.codMunicipal || '') === (cod.codMunicipal || ''); }));
     var ret = mod && mod.retencoes ? Object.keys(mod.retencoes).map(function (k) { return k.toUpperCase() + ' ' + brl(mod.retencoes[k]); }).join(' · ') : '';
@@ -4158,7 +4231,7 @@
   // Atalho no Faturamento e nas OS: escolher a OS (ou a fatura sem número) e preparar a nota
   function escolherNota() {
     var ops = [];
-    cache.ordens.filter(function (o) { var st = statusOS(o), f = o.faturaId ? porId('faturas', o.faturaId) : null; return st === 'parcial' || (st !== 'cancelada' && !(f && f.nf) && !(st === 'faturada' && !f)); })
+    cache.ordens.filter(function (o) { var st = statusOS(o), f = o.faturaId ? porId('faturas', o.faturaId) : null; return contratoAtivo(o) || st === 'parcial' || (st !== 'cancelada' && !(f && f.nf) && !(st === 'faturada' && !f)); })
       .sort(function (a, b) { return ['concluida', 'parcial', 'execucao', 'aberta', 'faturada'].indexOf(statusOS(a)) - ['concluida', 'parcial', 'execucao', 'aberta', 'faturada'].indexOf(statusOS(b)) || (parseInt(b.numero, 10) || 0) - (parseInt(a.numero, 10) || 0); })
       .forEach(function (o) { ops.push(['o:' + o.id, codOS(o) + ' · ' + nomeCliente(o.empresaId, o.empresaNome) + ' · ' + (o.descricao || '').slice(0, 50) + ' · ' + (STATUS.os[statusOS(o)] || [statusOS(o)])[0] + (o.valor ? ' · ' + brl(o.valor) : '')]); });
     cache.faturas.filter(function (f) { return f.status === 'pendente' && !f.nf && !(f.osId && porId('ordens', f.osId)); })
@@ -4169,6 +4242,7 @@
     $('en-cancelar').onclick = fecharModal;
     if ($('en-ok')) $('en-ok').onclick = function () {
       var v = $('en-os').value, id = v.slice(2);
+      if (v[0] === 'o' && contratoAtivo(porId('ordens', id))) { formMedicao(porId('ordens', id)); return; }
       if (v[0] === 'o') { var o = porId('ordens', id), f = o.faturaId ? porId('faturas', o.faturaId) : null; prepararNota(o, f && !f.nf ? f : null); }
       else prepararNota(null, porId('faturas', id));
     };
