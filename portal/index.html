@@ -523,7 +523,7 @@
       if (ativo && s[0] === 'calibracao') {
         var docsCal = todosDocs().filter(function (x) { return x.tipo === 'calibracao'; }), qc = contarCalibracao((d.certificados || []).concat(docsCal));
         info = 'PSV: ' + qc.psv + '\nPI: ' + qc.pi; }
-      if (ativo && s[0] === 'desenquadramento') { var dDq = todosDocs().filter(function (x) { return x.tipo === 'desenquadramento'; }); info = 'Avaliados: ' + dDq.length + '\nNão obrigatórios: ' + dDq.filter(function (x) { return !x.enquadrado; }).length; }
+      if (ativo && s[0] === 'desenquadramento') { var dDq = todosDocs().filter(function (x) { return x.tipo === 'desenquadramento'; }); info = 'Não obrigatórios: ' + dDq.filter(function (x) { return !x.enquadrado; }).length; }
       if (ativo && s[0] === 'tubulacao') { var dTub = todosDocs().filter(ehTubulacao); info = 'Linhas: ' + tagsTubulacao(dTub.filter(function (x) { return x.tag; })).length; }
       if (ativo && s[0] === 'spda') { info = 'Laudos: ' + todosDocs().filter(function (x) { return x.tipo === 'spda'; }).length; }
       if (ativo && s[0] === 'termografia') {
@@ -902,7 +902,7 @@
     var d = estado.dados, docs = todosDocs();
     // Tubulação é a página NR-13 só com as linhas de tubulação
     var soTub = PAGINA === 'tubulacao', soNr13 = PAGINA === 'nr13' || soTub, soCal = PAGINA === 'calibracao', soSpda = PAGINA === 'spda', soDq = PAGINA === 'desenquadramento';
-    if (soDq) docs = docs.filter(function (x) { return x.tipo === 'desenquadramento'; });
+    if (soDq) docs = docs.filter(function (x) { return x.tipo === 'desenquadramento' && !x.enquadrado; });
     if (soSpda) docs = docs.filter(function (x) { return x.tipo === 'spda'; });
     if (soNr13) docs = docs.filter(function (x) { return soTub ? ehTubulacao(x) : x.tipo === 'nr13'; });
     if (soCal) docs = docs.filter(function (x) { return x.tipo === 'calibracao'; });
@@ -1015,10 +1015,7 @@
       })() :
         kpi(oss.length, 'var(--texto)', 'Ordens de serviço', andamento + ' em andamento · ' + (oss.length - andamento) + ' concluída(s)') +
         (soDq ? (function () {
-          var nao = docs.filter(function (x) { return !x.enquadrado; }).length;
-          return kpi(docs.length, 'var(--amb-t)', 'Equipamentos avaliados', 'laudos de desenquadramento (P·V)') +
-            kpi(nao, 'var(--ok)', 'Não obrigatórios', 'fora do enquadramento da NR-13') +
-            kpi(docs.length - nao, docs.length - nao ? 'var(--amb-t)' : 'var(--ok)', 'Enquadrados na NR-13', 'seguem a NR-13 (inspeções periódicas)');
+          return kpi(docs.length, 'var(--ok)', 'Não obrigatórios', 'equipamentos fora do enquadramento da NR-13');
         })() : soSpda ? (function () {
           var ult = ultimosSpda(docs), nNc = ult.reduce(function (t, x) { return t + ((x.detalhe && x.detalhe.ncs) ? x.detalhe.ncs.length : (x.naoConformidades || 0)); }, 0);
           var venc = ult.filter(function (x) { return x.proxima && x.proxima < hoje(); }).length, prox = ult.filter(function (x) { return x.proxima && x.proxima >= hoje() && dias(x.proxima) <= 90; }).length;
