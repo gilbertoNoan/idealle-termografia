@@ -214,6 +214,14 @@
   .cli-end { display: flex; align-items: flex-start; gap: 6px; color: var(--muted); font-size: 14px; text-transform: uppercase; }
   .cli-end svg { flex-shrink: 0; margin-top: 2px; }
   .pilulas { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .cli-mais { margin-top: 4px; }
+  .cli-mais > summary { list-style: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 7px 12px; border: 1px solid var(--borda, #334155); border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--texto); user-select: none; }
+  .cli-mais > summary::-webkit-details-marker { display: none; }
+  .cli-mais > summary:hover { border-color: var(--amb-t); }
+  .cli-mais > summary svg { width: 15px; height: 15px; }
+  .cli-seta { width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin: -3px 0 0 4px; transition: transform .15s; }
+  .cli-mais[open] .cli-seta { transform: rotate(-135deg); margin-top: 3px; }
+  .cli-mais-corpo { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
   .pilula { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid var(--linha); background: #0f1729; color: var(--muted); font-size: 13px; max-width: 100%; }
   .pilula b { color: var(--texto); font-weight: 700; overflow-wrap: anywhere; }
   .pilula .cnpj { font-family: ui-monospace, Menlo, Consolas, monospace; }
@@ -1168,8 +1176,13 @@
     var pilula = function (ic, rot, val, mono) { return val ? '<span class="pilula">' + ic + (rot ? '<span class="sub" style="color:var(--sub)">' + rot + '</span>' : '') + '<b' + (mono ? ' class="cnpj"' : '') + '>' + esc(val) + '</b></span>' : ''; };
     return '<section class="cliente"><div class="cli-logo">' + (e.logo ? '<img src="' + esc(e.logo) + '" alt="Logo ' + esc(e.nome) + '">' : '<span>' + esc(ini) + '</span>') + '</div>' +
       '<div class="cli-dados"><span class="cli-rot">' + IC.predio + ' CLIENTE</span><h1 class="cli-nome">' + esc(e.nome) + '</h1>' +
-      (e.endereco ? '<span class="cli-end">' + IC.local + esc(e.endereco) + '</span>' : '') +
-      '<div class="pilulas">' + pilula(IC.hash, 'CNPJ:', e.cnpj, true) + pilula(IC.pessoa, 'Contato:', e.contato) + pilula(IC.fone, '', e.telefone) + pilula(IC.mail, '', e.email) + '</div></div></section>';
+      // Endereço, CNPJ e contatos ficam guardados no botão "Dados da empresa"
+      (function () {
+        var pil = pilula(IC.hash, 'CNPJ:', e.cnpj, true) + pilula(IC.pessoa, 'Contato:', e.contato) + pilula(IC.fone, '', e.telefone) + pilula(IC.mail, '', e.email);
+        if (!e.endereco && !pil) return '';
+        return '<details class="cli-mais"><summary>' + IC.predio + ' Dados da empresa <span class="cli-seta" aria-hidden="true"></span></summary><div class="cli-mais-corpo">' +
+          (e.endereco ? '<span class="cli-end">' + IC.local + esc(e.endereco) + '</span>' : '') + (pil ? '<div class="pilulas">' + pil + '</div>' : '') + '</div></details>';
+      })() + '</div></section>';
   }
 
   // ---------- Laudos para consulta (ver e baixar) ----------
