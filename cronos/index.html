@@ -803,6 +803,7 @@
   var PORTAL_SERVICOS = [
     ['nr13', 'NR-13 (vasos, caldeiras, tubulações e tanques)'],
     ['tubulacao', 'Tubulação (linhas NR-13)'],
+    ['desenquadramento', 'NR-13 não obrigatório (desenquadramento)'],
     ['calibracao', 'Calibração de PSV e manômetros'],
     ['termografia', 'Termografia'],
     ['spda', 'SPDA (para-raios)'],
@@ -835,7 +836,8 @@
     cache.ordens.filter(function (o) { return o.empresaId === empId && statusOS(o) !== 'cancelada'; }).forEach(function (o) {
       // Vale o que está marcado na OS; os resultados dos sistemas só contam em OS antiga, que nunca teve serviços marcados
       var s = o.servicos || {}, r = (o.servicos && Object.keys(o.servicos).length) ? {} : (o.resultados || {});
-      if (s.relatorio || s.prontuario || s.pmta || s.desenquadramento || r['Relatório NR-13']) sv.nr13 = true;
+      if (s.relatorio || s.prontuario || s.pmta || r['Relatório NR-13']) sv.nr13 = true;
+      if (s.desenquadramento || r['Calculadora NR-13']) sv.desenquadramento = true;
       if (s.calibracao || r['Gerador de Certificados']) sv.calibracao = true;
       if (s.termografia || r.Termografia) sv.termografia = true;
       if (s.spda) sv.spda = true;
