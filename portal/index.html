@@ -318,7 +318,7 @@
   function dias(iso) { return Math.round((new Date(iso + 'T12:00:00') - new Date(hoje() + 'T12:00:00')) / 864e5); }
   function normal(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function digitos(s) { return String(s || '').replace(/\D/g, ''); }
-  var SIT = { vencido: ['Vencido', 'c-bad'], vencendo: ['Vence em breve', 'c-warn'], emdia: ['Em dia', 'c-ok'], sem: ['Sem data', 'c-cinza'] };
+  var SIT = { vencido: ['Vencido', 'c-bad'], vencendo: ['Vence em breve', 'c-warn'], emdia: ['Em dia', 'c-ok'], sem: ['Sem data', 'c-cinza'], nao: ['Sem validade', 'c-cinza'] };
   function chipSit(s, iso) {
     var x = SIT[s] || SIT.sem, t = x[0];
     if (s === 'vencendo' && iso) t = 'Vence em ' + dias(iso) + ' dias';
@@ -648,7 +648,7 @@
       var cc = instrumentosCalibracao((d.certificados || []).concat(todosDocs().filter(function (x) { return x.tipo === 'calibracao'; })));
       var psv = conta(cc, 'tipo', 'psv');
       var vz = [['Em dia', conta(cc, 'situacao', 'emdia'), COR.ok], ['Vence em 90 dias', conta(cc, 'situacao', 'vencendo'), COR.warn], ['Vencido', conta(cc, 'situacao', 'vencido'), COR.bad]];
-      if (conta(cc, 'situacao', 'sem')) vz.push(['Sem validade', conta(cc, 'situacao', 'sem'), COR.cinza]);
+      if (conta(cc, 'situacao', 'sem') + conta(cc, 'situacao', 'nao')) vz.push(['Sem validade', conta(cc, 'situacao', 'sem') + conta(cc, 'situacao', 'nao'), COR.cinza]);
       cards.push('<div class="cond ativo" data-ir="calibracao" tabindex="0" role="button" title="Abrir os certificados de calibração" style="cursor:pointer"><div class="cond-top"><span class="nome">Calibração</span><span class="cond-num"><b>' + cc.length + '</b> instrumento(s)</span></div>' +
         '<span class="cond-rot">' + psv + ' válvula(s) de segurança · ' + (cc.length - psv) + ' manômetro(s)</span>' +
         '<span class="cond-rot">Validade da calibração</span>' + barra(vz) + legenda(vz) + '</div>');
@@ -695,9 +695,9 @@
     var por = {};
     nr.forEach(function (x) { var t = String(x.tag || '').trim().toUpperCase(); if (t) (por[t] = por[t] || []).push(x); });
     return Object.keys(por).map(function (t) {
-      var e = dadosDoEquip(por[t]);
+      var e = dadosDoEquip(por[t]), semVal = por[t].every(function (x) { return x.semValidade; });
       return { tag: t, nome: e.nomeEquipamento || '', area: e.area || '', dataInspecao: isoDe(e.dataInspecao), externo: e.externo, interno: e.interno,
-        categoria: e.categoria || '', parecer: e.parecer || '', proximo: e.proximo, situacao: sitProx(e.proximo), os: e.os || '', doPdf: true };
+        categoria: e.categoria || '', parecer: e.parecer || '', proximo: e.proximo, situacao: semVal && !e.proximo ? 'nao' : sitProx(e.proximo), os: e.os || '', doPdf: true };
     }).filter(Boolean);
   }
   function soLiberados() {
@@ -723,7 +723,7 @@
     var codigos = {}; docs.forEach(function (x) { if (x.os) codigos[up(x.os)] = 1; });
     d.os = (d.os || []).filter(function (o) { return codigos[up(o.codigo)]; });
     var sits = d.vasos.map(function (v) { return v.situacao; }).concat(cal.map(function (x) {
-      var val = isoDe(x.validade); return !val ? 'sem' : val < hoje() ? 'vencido' : dias(val) <= 90 ? 'vencendo' : 'emdia';
+      var val = isoDe(x.validade); return x.semValidade ? 'nao' : !val ? 'sem' : val < hoje() ? 'vencido' : dias(val) <= 90 ? 'vencendo' : 'emdia';
     }));
     d.contagem = { emdia: sits.filter(function (s) { return s === 'emdia'; }).length, vencendo: sits.filter(function (s) { return s === 'vencendo'; }).length, vencidos: sits.filter(function (s) { return s === 'vencido'; }).length };
     estado.dados = d;
@@ -740,12 +740,12 @@
       var tipo = /valvula|psv|safety|valve/.test(String((c.tipo !== 'calibracao' && c.tipo) || c.equipamento || c.arquivo || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')) ? 'psv' : 'pi';
       var id = tipo + '|' + (String(c.tag || '').trim().toUpperCase() || (c.numero ? 'n:' + c.numero : 's:' + (c.os || '') + ':' + i));
       var val = isoDe(c.validade) || '';
-      if (!porId[id]) { porId[id] = { tipo: tipo, tag: c.tag || '', validade: val }; ordem.push(id); }
-      else if (val > porId[id].validade) porId[id].validade = val;
+      if (!porId[id]) { porId[id] = { tipo: tipo, tag: c.tag || '', validade: val, semVal: !!c.semValidade }; ordem.push(id); }
+      else { if (val > porId[id].validade) porId[id].validade = val; porId[id].semVal = porId[id].semVal && !!c.semValidade; }
     });
     return ordem.map(function (id) {
       var x = porId[id], v = x.validade;
-      x.situacao = !v ? 'sem' : v < hoje() ? 'vencido' : dias(v) <= 90 ? 'vencendo' : 'emdia';
+      x.situacao = !v ? (x.semVal ? 'nao' : 'sem') : v < hoje() ? 'vencido' : dias(v) <= 90 ? 'vencendo' : 'emdia';
       return x;
     });
   }
@@ -853,7 +853,7 @@
   }
   function sitDe(val) { return !val ? 'sem' : val < hoje() ? 'vencido' : dias(val) <= 90 ? 'vencendo' : 'emdia'; }
   // PDF liberado no portal
-  function docCal(x) { var val = isoDe(x.validade); return { tag: x.tag, os: x.os, nome: x.equipamento, tipo: tipoCal(x.equipamento), numero: x.numero, calib: isoDe(x.dataInspecao), val: val, sit: sitDe(val), doc: x }; }
+  function docCal(x) { var val = isoDe(x.validade); return { tag: x.tag, os: x.os, nome: x.equipamento, tipo: tipoCal(x.equipamento), numero: x.numero, calib: isoDe(x.dataInspecao), val: val, sit: x.semValidade ? 'nao' : sitDe(val), doc: x }; }
   // Certificado registrado na OS que ainda não tem PDF liberado
   function certCal(c) { return { tag: c.tag, os: c.os, nome: c.tipo, tipo: tipoCal(c.tipo), numero: c.numero, calib: c.data, val: c.validade, sit: c.validade ? (c.situacao || 'sem') : null, doc: null }; }
   function colsCal(itens) { return COLS_CAL.filter(function (c) { return c[0] !== 'outro' || itens.some(function (x) { return x.tipo === 'outro'; }); }); }
@@ -936,7 +936,7 @@
     var vencendo = vasos.filter(function (v) { return v.situacao === 'vencendo'; }).length + certs.filter(function (c) { return c.situacao === 'vencendo'; }).length;
 
     var kpi = function (n, cor, tit, sub) { return '<div class="rk"><b style="color:' + cor + '">' + n + '</b><span class="rk-t">' + tit + '</span><span class="rk-s">' + sub + '</span></div>'; };
-    var sitCert = function (x) { var val = isoDe(x.validade); return { val: val, sit: !val ? 'sem' : val < hoje() ? 'vencido' : dias(val) <= 90 ? 'vencendo' : 'emdia' }; };
+    var sitCert = function (x) { var val = isoDe(x.validade); return { val: val, sit: x.semValidade ? 'nao' : !val ? 'sem' : val < hoje() ? 'vencido' : dias(val) <= 90 ? 'vencendo' : 'emdia' }; };
     var cartoesOs = oss.map(function (o) {
       var docsOs = docs.filter(function (x) { return x.os === o.codigo; });
       var pdfsOs = docsOs.filter(function (x) { return x.tipo !== 'termografia'; });
@@ -1262,7 +1262,7 @@
     var linhas = cc.map(function (x) { var p = pdfDe(x); return '<tr><td class="mono">' + esc(x.tag || '—') + '</td><td>' + esc(x.tipo) + '</td><td>' + esc(x.numero || '—') + '</td><td>' + data(x.data) + '</td><td>' + data(x.validade) + '</td><td>' + chipSit(x.situacao, x.validade) + '</td><td style="text-align:right;white-space:nowrap">' + (p ? botoesLaudo(p) : '') + '</td></tr>'; });
     // Liberados que não estão no resumo da OS também aparecem
     pub.filter(function (p) { return !usados[p.chave]; }).forEach(function (p) {
-      var val = isoDe(p.validade), sit = !val ? 'sem' : val < hoje() ? 'vencido' : dias(val) <= 90 ? 'vencendo' : 'emdia';
+      var val = isoDe(p.validade), sit = p.semValidade ? 'nao' : !val ? 'sem' : val < hoje() ? 'vencido' : dias(val) <= 90 ? 'vencendo' : 'emdia';
       linhas.push('<tr><td class="mono">' + esc(p.tag || '—') + '</td><td>' + esc(p.equipamento || '') + '</td><td>' + esc(p.numero || '—') + '</td><td>' + data(isoDe(p.dataInspecao)) + '</td><td>' + data(val) + '</td><td>' + chipSit(sit, val) + '</td><td style="text-align:right;white-space:nowrap">' + botoesLaudo(p) + '</td></tr>');
     });
     return '<section class="card" id="sec-calibracao"><div class="tit-sec"><h2>Certificados de calibração</h2><span class="sub">' + linhas.length + ' certificado(s)</span></div><div class="tabela"><table><thead><tr><th>TAG</th><th>Instrumento</th><th>Certificado</th><th>Calibrado em</th><th>Validade</th><th>Situação</th><th></th></tr></thead><tbody>' +

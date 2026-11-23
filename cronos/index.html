@@ -1146,7 +1146,8 @@
       '<div class="grid"><div><label>Tipo (quando o nome não diz)</label><select id="pp-tipo"><option value="nr13">Relatórios NR-13</option><option value="tub">Relatórios de tubulação</option><option value="desenq">NR-13 não obrigatório (descaracterização)</option><option value="calibracao">Certificados de calibração</option></select></div>' +
       '<div><label>OS (para todos os que não tiverem no nome)</label><input id="pp-os" placeholder="ex.: ID-0123/2025"></div>' +
       '<div><label>Data da inspeção/calibração (quando não estiver no nome)</label><input id="pp-data" type="date"></div>' +
-      '<div><label>Validade da calibração (só certificados)</label><input id="pp-val" type="date"></div></div>' +
+      '<div><label>Validade da calibração (só certificados)</label><input id="pp-val" type="date">' +
+      '<label style="display:flex;gap:6px;align-items:center;margin-top:6px;font-weight:400;cursor:pointer"><input type="checkbox" id="pp-semval" style="width:auto"> Sem validade (ex.: descaracterização)</label></div></div>' +
       '<div class="acoes" style="justify-content:flex-start"><label class="btn sec" style="cursor:pointer">Escolher PDFs ou ZIP<input id="pp-arq" type="file" accept="application/pdf,.pdf,.zip,application/zip" multiple style="display:none"></label>' +
       '<label class="btn sec" style="cursor:pointer">Escolher pasta<input id="pp-pasta" type="file" webkitdirectory multiple style="display:none"></label>' +
       '<label class="btn sec" style="cursor:pointer" title="Arquivo de dados da pasta (cliente, OS, TAG, nº, calibração e validade de cada PDF), feito pela IDEALLE">Carregar dados (JSON)<input id="pp-json" type="file" accept=".json,application/json" style="display:none"></label></div>' +
@@ -1161,7 +1162,9 @@
       var padrao = $('pp-tipo').value;
       lista.forEach(function (x) { x.tipo = x.tipoAuto || (padrao === 'tub' ? 'nr13' : padrao === 'desenq' ? 'desenquadramento' : padrao);
         // tubulação = relatório NR-13 de linha; escolhido na linha ou pelo tipo acima
-        x.tub = x.tipo === 'nr13' && (x.tubEscolhido !== undefined ? x.tubEscolhido : padrao === 'tub'); x.chavePortal = x.assinantes ? noPortal(x) : null; });
+        x.tub = x.tipo === 'nr13' && (x.tubEscolhido !== undefined ? x.tubEscolhido : padrao === 'tub'); x.chavePortal = x.assinantes ? noPortal(x) : null;
+        // documento que não vence (descaracterização, laudo único...): sem validade / próxima inspeção
+        x.semVal = x.tipo === 'desenquadramento' || (x.semValidade !== undefined ? x.semValidade : $('pp-semval').checked); });
       $('pp-lista').innerHTML = '<div style="max-height:300px;overflow:auto"><table><thead><tr><th>Arquivo</th><th>Assinatura</th><th>Tipo</th><th>TAG</th><th>OS</th><th>Data</th><th>Nº / validade / próxima inspeção</th><th></th></tr></thead><tbody>' +
         lista.map(function (x, i) {
           return '<tr><td style="max-width:240px;word-break:break-all">' + esc(x.arquivo) + '</td>' +
@@ -1170,10 +1173,11 @@
             '<td><input data-i="' + i + '" data-c="tag" value="' + esc(x.tag) + '" style="width:110px"></td>' +
             '<td><input data-i="' + i + '" data-c="os" value="' + esc(x.os) + '" placeholder="da caixa acima" style="width:120px"></td>' +
             '<td><input data-i="' + i + '" data-c="data" type="date" value="' + esc(x.data) + '"></td>' +
-            '<td style="white-space:nowrap">' + (x.tipo === 'desenquadramento' ? '<span class="muted" style="font-size:12px">laudo de desenquadramento</span>' : x.tipo === 'calibracao' ? '<input data-i="' + i + '" data-c="numero" value="' + esc(x.numero || '') + '" placeholder="Nº" style="width:110px"> <input data-i="' + i + '" data-c="validade" type="date" value="' + esc(x.validade || '') + '" title="Validade">' :
+            '<td style="white-space:nowrap">' + (x.tipo === 'desenquadramento' ? '<span class="muted" style="font-size:12px">laudo de desenquadramento · sem validade</span>' : x.semVal ? '<span class="muted" style="font-size:12px">sem validade</span>' + (x.tipo === 'calibracao' ? ' <input data-i="' + i + '" data-c="numero" value="' + esc(x.numero || '') + '" placeholder="Nº" style="width:110px">' : '') : x.tipo === 'calibracao' ? '<input data-i="' + i + '" data-c="numero" value="' + esc(x.numero || '') + '" placeholder="Nº" style="width:110px"> <input data-i="' + i + '" data-c="validade" type="date" value="' + esc(x.validade || '') + '" title="Validade">' :
               (function () { var j = camposNr13(x.doJson), pr = x.proxima || [j.proxExterno, j.proxInterno, j.proximaInspecao].filter(Boolean).sort()[0] || '';
                 return '<span class="muted" style="font-size:12px">próxima inspeção</span><br><input data-i="' + i + '" data-c="proxima" type="date" value="' + esc(pr) + '" title="Próxima inspeção do equipamento (prazo da categoria ou do PH)">'; })()) +
-              (x.doJson ? '<br><span style="color:var(--ok,#4ade80);font-size:12px">dados do JSON</span>' : '') + '</td>' +
+              (x.doJson ? '<br><span style="color:var(--ok,#4ade80);font-size:12px">dados do JSON</span>' : '') +
+              (x.tipo === 'desenquadramento' ? '' : '<br><label style="font-size:12px;display:inline-flex;gap:4px;align-items:center;cursor:pointer"><input type="checkbox" data-sv="' + i + '"' + (x.semVal ? ' checked' : '') + ' style="width:auto"> sem validade</label>') + '</td>' +
             '<td><button class="btn sec" data-tirar="' + i + '" title="Tirar da lista">×</button></td></tr>';
         }).join('') + '</tbody></table></div><p class="muted">' + lista.length + ' arquivo(s), ' + lista.filter(function (x) { return x.assinantes; }).length + ' assinado(s). Confira a TAG de cada um; ela aparece para o cliente.</p>';
       $('pp-lista').querySelectorAll('[data-c]').forEach(function (el) {
@@ -1183,6 +1187,7 @@
           x[c] = el.value.trim();
         };
       });
+      $('pp-lista').querySelectorAll('[data-sv]').forEach(function (el) { el.onchange = function () { lista[+el.dataset.sv].semValidade = el.checked; desenhar(); }; });
       $('pp-lista').querySelectorAll('[data-tirar]').forEach(function (b) { b.onclick = function () { lista.splice(+b.dataset.tirar, 1); desenhar(); }; });
       $('pp-enviar').disabled = false;
     }
@@ -1302,6 +1307,7 @@
       await adicionar(lidos);
     });
     $('pp-tipo').onchange = desenhar;
+    $('pp-semval').onchange = function () { $('pp-val').disabled = this.checked; if (this.checked) $('pp-val').value = ''; desenhar(); };
     // aberto pelo Painel do portal: Voltar fecha e o painel recarrega
     $('pp-voltar').onclick = function () { if ($('gp-tela') && $('gp-tela').style.display === 'block') fecharModal(); else telaAcessoPortal(empId); };
     $('pp-enviar').onclick = async function () {
@@ -1334,9 +1340,11 @@
           var meta = { tipo: tipoX, tag: String(x.tag || '').toUpperCase(), os: x.os ? x.os.toUpperCase() : (osPadrao || 'Documentos antigos'), arquivo: x.arquivo,
             dataInspecao: x.data || dataPadrao || '', versao: versao, partes: partes, tamanho: bytes.length, publicadoEm: agora(), antigo: true,
             equipamento: tipoX === 'calibracao' ? (x.psv ? 'Válvula de segurança' : 'Manômetro') : x.arquivo.replace(/\.pdf$/i, '') };
-          if (tipoX === 'calibracao') { meta.validade = x.validade || val || ''; if (x.numero) meta.numero = x.numero; }
+          var semVal = x.semVal || tipoX === 'desenquadramento';
+          if (tipoX === 'calibracao') { meta.validade = semVal ? '' : (x.validade || val || ''); if (x.numero) meta.numero = x.numero; }
+          if (semVal) meta.semValidade = true;
           if (x.doJson) ['fluido', 'faixa', 'modelo', 'pressaoAjuste', 'pressaoAbertura', 'pressaoFechamento'].forEach(function (c) { if (x.doJson[c]) meta[c] = x.doJson[c]; });
-          var dadosEquip = tipoX === 'nr13' ? Object.assign(camposNr13(x.doJson), x.proxima ? { proximaInspecao: x.proxima } : {}) : {};
+          var dadosEquip = tipoX === 'nr13' && !semVal ? Object.assign(camposNr13(x.doJson), x.proxima ? { proximaInspecao: x.proxima } : {}) : tipoX === 'nr13' ? Object.assign(camposNr13(x.doJson), { proxExterno: '', proxInterno: '', proximaInspecao: '' }) : {};
           Object.assign(meta, dadosEquip);
           if (x.assinantes) {
             meta.antigo = false;
@@ -1389,7 +1397,7 @@
       var atual = function (d) { return d.tipo === 'desenquadramento' ? 'desenq' : (d.tipo || 'nr13') === 'calibracao' ? (/v[aá]lvula/i.test(d.equipamento || '') ? 'psv' : 'pi') : d.tubulacao ? 'tub' : 'nr13'; };
       var doJsonNoPortal = dadosJson ? ks.filter(function (k) { return jsonDoPortal(indicePortal[k]); }) : [];
       var temCal = ks.some(function (k) { return indicePortal[k].tipo === 'calibracao'; });
-      var semValidade = ks.some(function (k) { var d = indicePortal[k]; return d.tipo === 'calibracao' && (!d.validade || dataVenc(d.validade) <= dataVenc(d.dataInspecao)); });
+      var semValidade = ks.some(function (k) { var d = indicePortal[k]; return d.tipo === 'calibracao' && !d.semValidade && (!d.validade || dataVenc(d.validade) <= dataVenc(d.dataInspecao)); });
       $('pp-noportal').innerHTML = (errados.length ? '<div style="border:1px solid var(--warn,#f59e0b);border-radius:10px;padding:10px 12px;margin:10px 0"><b>' + errados.length + ' certificado(s) estão como Relatório NR-13 no portal.</b> ' +
           '<button class="btn peq" id="pp-corrigir">Passar para Calibração</button></div>' : '') +
         (semData.length ? '<div style="border:1px solid var(--warn,#f59e0b);border-radius:10px;padding:10px 12px;margin:10px 0"><b>' + semData.length + ' certificado(s) sem número ou datas no portal, mas registrados na OS pelo Gerador de Certificados.</b> ' +
@@ -1405,10 +1413,11 @@
           return '<tr><td><input type="checkbox" data-marcar="' + esc(k) + '"></td><td style="max-width:260px;word-break:break-all">' + esc(d.arquivo || d.equipamento || k) + '</td><td>' + esc(d.tag || '') + '</td><td>' + ((d.tipo || 'nr13') === 'nr13' && d.tag ? '<input data-kt="' + esc(k) + '" data-campo="os" value="' + esc(d.os || '') + '" placeholder="ID-0000/2026" style="width:110px" title="OS (vale para todos os documentos desta TAG)">' : esc(d.os || '')) + '</td><td>' + selTipo('data-k="' + esc(k) + '"', atual(d)) + '</td><td style="white-space:nowrap">' +
             ((d.tipo || 'nr13') === 'calibracao' ? '<input data-kc="' + esc(k) + '" data-campo="numero" value="' + esc(d.numero || '') + '" placeholder="Nº" style="width:70px"> ' +
               '<input type="date" data-kc="' + esc(k) + '" data-campo="dataInspecao" value="' + esc(dataVenc(d.dataInspecao)) + '" title="Calibrado em"> ' +
-              '<input type="date" data-kc="' + esc(k) + '" data-campo="validade" value="' + esc(dataVenc(d.validade)) + '" title="Prazo de notificação do cliente (vencimento no portal)"' + (d.validade ? '' : ' style="border-color:var(--warn,#f59e0b)"') + '>' :
+              '<input type="date" data-kc="' + esc(k) + '" data-campo="validade" value="' + esc(dataVenc(d.validade)) + '" title="Prazo de notificação do cliente (vencimento no portal)"' + (d.validade || d.semValidade ? '' : ' style="border-color:var(--warn,#f59e0b)"') + '>' :
               // NR-13: os dados valem para o equipamento (todos os documentos da mesma TAG)
               '<input type="date" data-kt="' + esc(k) + '" data-campo="dataInspecao" value="' + esc(dataVenc(d.dataInspecao)) + '" title="Data da inspeção (vale para todos os documentos desta TAG)"> ' +
-              '<input type="date" data-kt="' + esc(k) + '" data-campo="proximaInspecao" value="' + esc([d.proxExterno, d.proxInterno, d.proximaInspecao].filter(Boolean).map(dataVenc).sort()[0] || '') + '" title="Próxima inspeção (vale para todos os documentos desta TAG)"' + (d.tag && !(d.proxExterno || d.proxInterno || d.proximaInspecao) ? ' style="border-color:var(--warn,#f59e0b)"' : '') + '>') +
+              '<input type="date" data-kt="' + esc(k) + '" data-campo="proximaInspecao" value="' + esc([d.proxExterno, d.proxInterno, d.proximaInspecao].filter(Boolean).map(dataVenc).sort()[0] || '') + '" title="Próxima inspeção (vale para todos os documentos desta TAG)"' + (d.tag && !d.semValidade && !(d.proxExterno || d.proxInterno || d.proximaInspecao) ? ' style="border-color:var(--warn,#f59e0b)"' : '') + '>') +
+            ((d.tipo || 'nr13') === 'desenquadramento' ? '' : '<br><label style="font-size:12px;display:inline-flex;gap:4px;align-items:center;cursor:pointer"><input type="checkbox" data-semval="' + esc(k) + '"' + (d.semValidade ? ' checked' : '') + ' style="width:auto"> sem validade</label>') +
             '</td><td><button class="btn perigo peq" data-remover="' + esc(k) + '" title="Tirar este documento do portal do cliente">Remover</button></td></tr>';
         }).join('') + '</tbody></table></div></details>';
       async function trocar(mudar) {
@@ -1502,6 +1511,13 @@
         if (sem) toast(sem + ' certificado(s) sem data de calibração ficaram como estavam.');
         if (Object.keys(o).length) gravarCampos(o);
       }
+      $('pp-noportal').querySelectorAll('[data-semval]').forEach(function (el) {
+        el.onchange = function () {
+          var k = el.dataset.semval, n = Object.assign({}, indicePortal[k], { semValidade: el.checked });
+          if (el.checked) { if (n.tipo === 'calibracao') n.validade = ''; else { n.proximaInspecao = ''; n.proxExterno = ''; n.proxInterno = ''; } }
+          var o = {}; o[k] = n; gravarCampos(o).then(desenharNoPortal);
+        };
+      });
       if ($('pp-val-aplicar')) $('pp-val-aplicar').onclick = function () {
         var v = $('pp-val-lote').value; if (!v) { toast('Escolha a data do prazo de notificação.'); return; }
         validadeEmLote(function () { return v; });
