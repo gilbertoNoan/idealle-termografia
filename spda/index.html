@@ -455,8 +455,7 @@
     window.__spdaApp = Date.now();
     banco.ouvir(SPDA.COLECOES.laudos, null, function (l) { cache.laudos = l; if (!cache.pronto) registrarAbertura(); cache.pronto = true; render(); });
     banco.ouvir(SPDA.COLECOES.edificacoes, null, function (l) { cache.edificacoes = l; render(); });
-    banco.ouvir(SPDA.COLECOES.equipamentos, null, function (l) { cache.equipamentos = l; if (tela.pagina || tela.laudoId) render(); }, function () {});
-    banco.ouvirDoc(SPDA.COLECOES.config, 'geral', function (c) { cache.config = c || {}; if (tela.pagina) render(); }, function () {});
+    ouvirCadastros();
     montarLateral();
     var p = new URLSearchParams(location.search);
     tela.laudoId = p.get('laudo') || ''; tela.pagina = tela.laudoId ? '' : (p.get('pg') || '');
@@ -586,6 +585,18 @@
   var TIPOS_EQ = { terrometro: 'Terrômetro', alicate: 'Alicate terrômetro', microohmimetro: 'Microohmímetro', multimetro: 'Multímetro', outro: 'Outro' };
   function eqResumo(e) { return [TIPOS_EQ[e.tipo] || e.tipo, e.marca, e.modelo].filter(Boolean).join(' ') + (e.serie ? ' · série ' + e.serie : ''); }
   function eqParaLaudo(e) { var c = e.certificado || {}; return { equipamentoId: e.id, tipo: TIPOS_EQ[e.tipo] || e.tipo || '', marca: e.marca || '', modelo: e.modelo || '', serie: e.serie || '', certificado: c.numero || '', laboratorio: c.laboratorio || '', dataCalibracao: c.data || '', validade: c.validade || '' }; }
+  // Equipamentos e configurações: se o banco recusar a leitura (ex.: regras ainda não publicadas),
+  // tenta de novo a cada 20 s, para a lista aparecer sem precisar recarregar a página
+  function ouvirCadastros() {
+    var tentar = function (fn) { setTimeout(fn, 20000); };
+    (function eq() {
+      banco.ouvir(SPDA.COLECOES.equipamentos, null, function (l) { cache.equipamentos = l; cache.eqErro = false; if (tela.pagina || tela.laudoId) render(); },
+        function () { cache.eqErro = true; if (tela.pagina === 'equipamentos') render(); tentar(eq); });
+    })();
+    (function cf() {
+      banco.ouvirDoc(SPDA.COLECOES.config, 'geral', function (c) { cache.config = c || {}; if (tela.pagina) render(); }, function () { tentar(cf); });
+    })();
+  }
   function renderEquipamentos(v) {
     var eqs = (cache.equipamentos || []).slice().sort(function (a, b) { return (a.ativo === false) - (b.ativo === false) || eqResumo(a).localeCompare(eqResumo(b)); });
     var usos = { aterramento: 'Aterramento', continuidade: 'Continuidade', ambos: 'Aterramento e continuidade' };
@@ -596,7 +607,7 @@
           '<div class="muted" style="font-size:13px">' + esc(eqResumo(e)) + (e.uso ? ' · ' + (usos[e.uso] || '') : '') + '</div>' +
           '<div class="muted" style="font-size:13px">Certificado ' + esc(c.numero || '—') + (c.laboratorio ? ' · ' + esc(c.laboratorio) : '') + (c.data ? ' · calibrado em ' + dt(c.data) : '') + (c.validade ? ' · válido até <b>' + dt(c.validade) + '</b>' : '') + '</div></div>' +
           '<div class="eq-acoes">' + (e.certificadoPdfId ? '<button class="btn sec peq" data-eqcert="' + e.id + '">' + ic('pdf', 14) + ' Certificado</button>' : '<span class="muted" style="font-size:12px">sem PDF</span>') + '<button class="btn sec peq" data-eqed="' + e.id + '">Editar</button></div></div>';
-      }).join('') + '</div>' : '<div class="card vazio">Nenhum equipamento cadastrado. Cadastre o terrômetro e o microohmímetro com os certificados de calibração.</div>');
+      }).join('') + '</div>' : cache.eqErro ? '<div class="card vazio">Não foi possível ler os equipamentos do banco (sem permissão). Confira se as regras do banco foram publicadas; a lista tenta carregar de novo sozinha.</div>' : '<div class="card vazio">Nenhum equipamento cadastrado. Cadastre o terrômetro e o microohmímetro com os certificados de calibração.</div>');
     $('eq-novo').onclick = function () { formEquipamento(null); };
     v.querySelectorAll('[data-eqed]').forEach(function (b) { b.onclick = function () { formEquipamento(cache.equipamentos.find(function (x) { return x.id === b.dataset.eqed; })); }; });
     v.querySelectorAll('[data-eqcert]').forEach(function (b) { b.onclick = function () { verCertificado(cache.equipamentos.find(function (x) { return x.id === b.dataset.eqcert; })); }; });
@@ -647,7 +658,10 @@
         if (cid) { if (e.certificadoPdfId) banco.excluir(SPDA.COLECOES.certificados, e.certificadoPdfId).catch(function () {}); d.certificadoPdfId = cid; d.certificadoNome = arq.nome; }
       }
       await salvar(function () { return banco.atualizar(SPDA.COLECOES.equipamentos, id, d); }, novo ? 'Equipamento cadastrado.' : 'Equipamento atualizado.');
-      fecharModal();
+      // (salvar dá erro se o banco recusar) mostra na hora o que foi gravado
+      var atual = Object.assign({}, e, d, { id: id }), i = cache.equipamentos.findIndex(function (x) { return x.id === id; });
+      if (i >= 0) cache.equipamentos[i] = atual; else cache.equipamentos.push(atual);
+      fecharModal(); if (tela.pagina === 'equipamentos') render();
     };
   }
   // Tempo de abertura (para achar o que deixa lento no celular): trava do CRONOS, tela e laudos
