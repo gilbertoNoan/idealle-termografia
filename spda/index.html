@@ -1075,8 +1075,15 @@
       try {
         var full = await reduzir(files[i], 1400, .72), th = await reduzir(files[i], 220, .6);
         var fid = await banco.criar(SPDA.COLECOES.fotos, SPDA.novaFoto(l.id, 'MED', full, ''));
-        x.fotos = (x.fotos || []).concat([{ id: fid, thumb: th, legenda: '' }]);
-        await gravarLaudo(l, { medicoes: l.medicoes });
+        // o envio demora: a tela pode ter recebido uma cópia nova do laudo (e o inspetor pode ter mexido nela,
+        // ex.: "Sem medição"). A foto vai para a medição da cópia atual, senão uma gravação apagaria a outra.
+        var atual = laudoDe(l.id) || l; atual.medicoes = atual.medicoes || {};
+        var la = atual.medicoes[tipo] = atual.medicoes[tipo] || [];
+        var alvo = la[k] && (la[k].ponto || la[k].trecho || '') === (x.ponto || x.trecho || '') ? la[k] : la.find(function (y) { return (y.ponto || y.trecho || '') === (x.ponto || x.trecho || ''); });
+        if (!alvo) { alvo = Object.assign({}, x, { fotos: [] }); la.push(alvo); }
+        alvo.fotos = (alvo.fotos || []).concat([{ id: fid, thumb: th, legenda: '' }]);
+        x = alvo; l = atual; lista = la;
+        gravarDepois(l, { medicoes: l.medicoes }); await salvarPendente();
       } catch (e) { toast('Não foi possível enviar a foto ' + files[i].name); }
     }
     toast('Foto da medição ' + (x.ponto || x.trecho || '') + ' salva. Digite o valor lido.');
