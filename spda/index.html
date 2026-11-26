@@ -1500,6 +1500,12 @@
       (nc.length ? nc.map(function (x) { var pr = SPDA.PRIORIDADES[x.prioridade] || SPDA.PRIORIDADES.A; return '<div class="nc-it"><span class="cod">' + esc(x.codigo) + '</span><div style="flex:1"><b>' + esc((x.problemas || []).map(function (q) { return q.t; }).join('; ') || x.texto) + '</b>' + (x.obs ? '<div class="muted">' + esc(x.obs) + '</div>' : '') + (x.recomendacao ? '<div class="muted" style="margin-top:2px">→ ' + esc(x.recomendacao) + '</div>' : '') + '</div><span class="chip" style="background:transparent;border:1px solid ' + COR_PR[x.prioridade || 'A'] + ';color:' + COR_PR[x.prioridade || 'A'] + ';white-space:nowrap">' + pr[0] + '</span></div>'; }).join('') : '<p class="muted">Nenhuma não conformidade.</p>') + '</div>' +
       '<div class="card"><h2>Parecer</h2>' + (sug ? '<div class="muted">Sugestão pelo checklist e medições: <span class="chip ' + PARECER[sug][1] + '">' + PARECER[sug][0] + '</span></div>' : '<div class="muted">Responda todo o checklist para ver a sugestão de parecer.</div>') +
       '<div class="parecer">' + Object.keys(PARECER).map(function (k) { return '<button class="' + (c.parecer === k ? 'sel ' : '') + PARECER[k][1] + '" data-par="' + k + '"' + dis + '>' + PARECER[k][0] + '</button>'; }).join('') + '</div>' +
+      (function () {
+        // Parecer geral da capa do relatório da OS: o engenheiro escolhe; em "Automático" vale o pior das edificações
+        var irmaos = cache.laudos.filter(function (x) { return x.osId === l.osId; }), atual = (irmaos.find(function (x) { return x.parecerGeralOs; }) || {}).parecerGeralOs || '';
+        return '<label style="margin-top:12px">Parecer geral da OS (capa do relatório' + (irmaos.length > 1 ? ' das ' + irmaos.length + ' edificações' : '') + ')</label><select id="c-pgeral"' + dis + '><option value="">Automático (o pior parecer das edificações)</option>' +
+          Object.keys(PARECER).map(function (k) { return '<option value="' + k + '"' + (atual === k ? ' selected' : '') + '>' + PARECER[k][0] + '</option>'; }).join('') + '</select>';
+      })() +
       (trava ? '' : '<div class="gerar-tx"><button class="btn sec peq" id="c-gerar">' + ic('raio', 14) + ' Gerar conclusão e recomendações pelo checklist</button><span class="muted">Monta os textos com as respostas, medições e prazos. Você pode editar depois.</span></div>') +
       '<label>Conclusão</label><textarea id="c-txt" rows="3"' + dis + ' placeholder="Ex.: O SPDA inspecionado atende / não atende aos requisitos da ABNT NBR 5419...">' + esc(c.texto || '') + '</textarea>' +
       '<label>Recomendações</label><textarea id="c-rec" rows="3"' + dis + ' placeholder="Correções necessárias e prazos sugeridos">' + esc(c.recomendacoes || '') + '</textarea>' +
@@ -1518,6 +1524,10 @@
     if (l.portal) a.querySelector('.status-card h2').insertAdjacentHTML('afterend', '<p class="muted" style="margin-top:-4px">No Portal do Cliente desde ' + dt(l.portal.publicadoEm) + '.</p>');
     a.querySelectorAll('[data-st]').forEach(function (b) { b.onclick = function () { mudarStatus(l, b.dataset.st); }; });
     if (trava) return;
+    $('c-pgeral').onchange = function () {
+      var v = this.value; cache.laudos.filter(function (x) { return x.osId === l.osId; }).forEach(function (x) { gravarLaudo(x, { parecerGeralOs: v }); });
+      toast(v ? 'Parecer geral da OS: ' + PARECER[v][0] + '.' : 'Parecer geral da OS automático.');
+    };
     a.querySelectorAll('[data-par]').forEach(function (b) { b.onclick = function () { var cc = Object.assign({}, l.conclusao, { parecer: b.dataset.par }); if (!cc.texto) cc.texto = textoConclusao(b.dataset.par); gravarLaudo(l, { conclusao: cc }); render(); }; });
     var gerar = function (perguntar) {
       var tx = SPDA.textosAutomaticos(l), cc = l.conclusao || {};
@@ -1683,6 +1693,8 @@
     for (var i = 0; i < ls.length; i++) partes.push(await montarHtmlLaudo(ls[i], false, { partes: true, prefixo: (i + 1) + '.' }));
     var ORD = { nao_conforme: 3, conforme_ressalvas: 2, conforme: 1 }, pior = '';
     ls.forEach(function (x) { var p = (x.conclusao || {}).parecer; if (p && (ORD[p] || 0) > (ORD[pior] || 0)) pior = p; });
+    // parecer geral escolhido pelo engenheiro (vale mais que o pior das edificações)
+    var escolhido = (ls.find(function (x) { return x.parecerGeralOs; }) || {}).parecerGeralOs; if (escolhido && PAR[escolhido]) pior = escolhido;
     var PAR = { conforme: ['Conforme', '#15803d', '#dcfce7'], conforme_ressalvas: ['Conforme com ressalvas', '#a16207', '#fef9c3'], nao_conforme: ['Não conforme', '#b91c1c', '#fee2e2'] };
     var todosConcl = ls.every(function (x) { return x.status === 'concluido'; });
     var cnpj = String(l0.cnpj || '').replace(/\D/g, ''); cnpj = cnpj.length === 14 ? cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : (l0.cnpj || '');
