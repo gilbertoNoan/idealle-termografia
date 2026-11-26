@@ -151,8 +151,10 @@
     'DOC-02': [['Gerenciamento de risco não disponível', 'Elaborar o gerenciamento de risco conforme ABNT NBR 5419-2.', 'B']],
     'DOC-03': [['Relatórios de inspeções anteriores não disponíveis', 'Organizar e manter os registros das inspeções periódicas.', 'B']],
     'DOC-04': [['ART do projeto ou da instalação não disponível', 'Providenciar a ART do projeto ou da instalação junto ao CREA.', 'B']],
-    'MED-ATE': [['Resistência de aterramento acima da referência', 'Melhorar o aterramento (hastes adicionais, anel ou tratamento do solo) e repetir a medição até atingir a referência.', 'A']],
-    'MED-CON': [['Continuidade elétrica acima da referência', 'Localizar e corrigir o ponto de alta resistência (conexões e emendas) e repetir a medição de continuidade.', 'A']]
+    'MED-ATE': [['Resistência de aterramento acima da referência', 'Melhorar o aterramento (hastes adicionais, anel ou tratamento do solo) e repetir a medição até atingir a referência.', 'A'],
+      ['Aterramento sem medição (sem leitura no aparelho)', 'Verificar a ligação da descida ao eletrodo de aterramento (conexão rompida, corroída ou eletrodo ausente), restabelecer a ligação e repetir a medição.', 'I']],
+    'MED-CON': [['Continuidade elétrica acima da referência', 'Localizar e corrigir o ponto de alta resistência (conexões e emendas) e repetir a medição de continuidade.', 'A'],
+      ['Sem continuidade elétrica (trecho interrompido)', 'Localizar a interrupção (condutor rompido, conexão solta ou corroída), refazer a ligação e repetir a medição de continuidade.', 'I']]
   };
   function problemasDe(codigo) { return (PROBLEMAS[codigo] || []).map(function (p) { return { t: p[0], rec: p[1], pr: p[2] }; }); }
   function maisUrgente(lista) { var o = ['I', 'A', 'B']; return (lista || []).map(function (p) { return p.pr; }).sort(function (a, b) { return o.indexOf(a) - o.indexOf(b); })[0] || ''; }
@@ -205,8 +207,8 @@
       medicoes: {
         equipamento: { tipo: 'Terrômetro', marca: '', modelo: '', serie: '', certificado: '', validade: '' },
         metodo: 'Queda de potencial',
-        aterramento: [],   // { ponto, local, valorOhm, obs }
-        continuidade: [],  // { trecho, valorOhm, obs }
+        aterramento: [],   // { ponto, local, valorOhm, obs, semLeitura } — semLeitura: o aparelho não deu medição
+        continuidade: [],  // { trecho, valorOhm, obs, semLeitura } — semLeitura: não deu continuidade
         limites: { continuidadeOhm: LIMITES_PADRAO.continuidadeOhm, aterramentoOhm: LIMITES_PADRAO.aterramentoOhm },
         clima: '', soloUmido: null
       },
@@ -226,8 +228,8 @@
   // Medição fora do limite vira não conformidade automática
   function avaliarMedicoes(m) {
     var lim = (m && m.limites) || LIMITES_PADRAO, fora = [];
-    ((m && m.aterramento) || []).forEach(function (x) { var v = num(x.valorOhm); if (!isNaN(v) && v > lim.aterramentoOhm) fora.push({ tipo: 'aterramento', ref: x.ponto, valor: v, limite: lim.aterramentoOhm }); });
-    ((m && m.continuidade) || []).forEach(function (x) { var v = num(x.valorOhm); if (!isNaN(v) && v > lim.continuidadeOhm) fora.push({ tipo: 'continuidade', ref: x.trecho, valor: v, limite: lim.continuidadeOhm }); });
+    ((m && m.aterramento) || []).forEach(function (x) { var v = num(x.valorOhm); if (x.semLeitura) fora.push({ tipo: 'aterramento', ref: x.ponto, semLeitura: true, limite: lim.aterramentoOhm }); else if (!isNaN(v) && v > lim.aterramentoOhm) fora.push({ tipo: 'aterramento', ref: x.ponto, valor: v, limite: lim.aterramentoOhm }); });
+    ((m && m.continuidade) || []).forEach(function (x) { var v = num(x.valorOhm); if (x.semLeitura) fora.push({ tipo: 'continuidade', ref: x.trecho, semLeitura: true, limite: lim.continuidadeOhm }); else if (!isNaN(v) && v > lim.continuidadeOhm) fora.push({ tipo: 'continuidade', ref: x.trecho, valor: v, limite: lim.continuidadeOhm }); });
     return fora;
   }
 
@@ -239,7 +241,8 @@
         prioridade: i.prioridade || maisUrgente(ps) || 'A' };
     });
     avaliarMedicoes(laudo.medicoes).forEach(function (f) {
-      var cod = 'MED-' + (f.tipo === 'aterramento' ? 'ATE' : 'CON'), pr = PROBLEMAS[cod][0];
+      var cod = 'MED-' + (f.tipo === 'aterramento' ? 'ATE' : 'CON'), pr = PROBLEMAS[cod][f.semLeitura ? 1 : 0];
+      if (f.semLeitura) { nc.push({ codigo: cod, texto: (f.tipo === 'aterramento' ? 'Aterramento sem medição em ' + (f.ref || '—') + ': o aparelho não indicou leitura (circuito aberto ou eletrodo desconectado)' : 'Sem continuidade elétrica em ' + (f.ref || '—') + ': o trecho está interrompido'), obs: '', fotos: [], problemas: [], recomendacao: pr[1], prioridade: pr[2] }); return; }
       nc.push({ codigo: cod, texto: (f.tipo === 'aterramento' ? 'Resistência de aterramento' : 'Continuidade') + ' acima da referência em ' + (f.ref || '—') + ': ' + String(f.valor).replace('.', ',') + ' Ω (ref. ' + String(f.limite).replace('.', ',') + ' Ω)', obs: '', fotos: [],
         problemas: [], recomendacao: pr[1], prioridade: pr[2] });
     });

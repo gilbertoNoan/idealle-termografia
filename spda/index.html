@@ -161,7 +161,9 @@
   .galeria figure { margin: 0; } .galeria img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; }
   .galeria figcaption { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; } .galeria figcaption input { font-size: 13px; padding: 6px; }
   .med-linha { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; } .med-linha > input { flex: 1 1 0; min-width: 0; } .med-linha .ohm { flex: 0 0 130px; } .med-linha > .btn { flex: 0 0 36px; }
-  .med-linha.fora input { border-color: var(--bad); color: var(--bad); } .ohm { position: relative; } .ohm span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .med-linha.fora input { border-color: var(--bad); color: var(--bad); }
+  .med-linha > .bt-sem { flex: 0 0 auto; white-space: nowrap; font-size: 12px; } .bt-sem.ativo { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .ohm input.sem-leitura { color: var(--bad); font-weight: 600; font-size: 13px; opacity: 1; } .ohm { position: relative; } .ohm span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); }
   .np-info { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 12px 0 6px; }
   .np-info div, .dados-ed div { background: var(--gray-2); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; } .np-info span, .dados-ed span { color: var(--muted); font-size: 12px; }
   .dados-ed { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 10px; }
@@ -1082,7 +1084,7 @@
     setTimeout(function () { var inp = document.querySelector('[data-m="' + tipo + '|' + lista.indexOf(x) + '|valorOhm"]'); if (inp && !inp.value) inp.focus(); }, 80);
   }
   function rotuloMed(tipo, x) {
-    var v = x.valorOhm === '' || x.valorOhm == null ? '' : ': ' + String(x.valorOhm).replace('.', ',') + ' Ω';
+    var v = x.semLeitura ? (tipo === 'aterramento' ? ': sem medição' : ': sem continuidade') : x.valorOhm === '' || x.valorOhm == null ? '' : ': ' + String(x.valorOhm).replace('.', ',') + ' Ω';
     return (tipo === 'aterramento' ? 'Resistência de aterramento ' + (x.ponto || '') + (x.local ? ' (' + x.local + ')' : '') : 'Continuidade ' + (x.trecho || '')) + v;
   }
   function todasFotos(l) {
@@ -1133,10 +1135,12 @@
     var idxSemFoto = function (tipo) { var ls = m[tipo] || [], k = ls.findIndex(function (x) { return !(x.fotos || []).length; }); return k >= 0 ? k : ls.length; };
     var proxSemFoto = function (tipo) { var ls = m[tipo] || [], k = idxSemFoto(tipo); return ls[k] ? (ls[k].ponto || ls[k].trecho || 'próxima medição') : (tipo === 'aterramento' ? 'novo ponto' : 'novo trecho'); };
     var linha = function (tipo, x, k) {
-      var v = SPDA.num(x.valorOhm), max = tipo === 'aterramento' ? lim.aterramentoOhm : lim.continuidadeOhm, fora = !isNaN(v) && v > max;
+      var v = SPDA.num(x.valorOhm), max = tipo === 'aterramento' ? lim.aterramentoOhm : lim.continuidadeOhm, fora = x.semLeitura || (!isNaN(v) && v > max);
+      var rotSem = tipo === 'aterramento' ? 'Sem medição' : 'Sem continuidade';
       return '<div class="med-linha' + (fora ? ' fora' : '') + '"><input data-m="' + tipo + '|' + k + '|' + (tipo === 'aterramento' ? 'ponto' : 'trecho') + '" value="' + esc(tipo === 'aterramento' ? x.ponto : x.trecho) + '" placeholder="' + (tipo === 'aterramento' ? 'Ponto (ex.: CX-01)' : 'Trecho (ex.: Descida 1 → captação)') + '"' + dis + '>' +
         (tipo === 'aterramento' ? '<input data-m="' + tipo + '|' + k + '|local" value="' + esc(x.local || '') + '" placeholder="Local"' + dis + '>' : '') +
-        '<div class="ohm"><input data-m="' + tipo + '|' + k + '|valorOhm" inputmode="decimal" value="' + esc(numCampo(x.valorOhm)) + '" placeholder="0,00"' + dis + '><span>Ω</span></div>' +
+        (x.semLeitura ? '<div class="ohm"><input value="—" disabled class="sem-leitura" title="' + rotSem + '"></div>' : '<div class="ohm"><input data-m="' + tipo + '|' + k + '|valorOhm" inputmode="decimal" value="' + esc(numCampo(x.valorOhm)) + '" placeholder="0,00"' + dis + '><span>Ω</span></div>') +
+        (trava ? '' : '<button type="button" class="btn sec peq bt-sem' + (x.semLeitura ? ' ativo' : '') + '" data-msem="' + tipo + '|' + k + '" title="' + (tipo === 'aterramento' ? 'O aparelho não deu medição neste ponto' : 'Não deu continuidade neste trecho') + '">' + rotSem + '</button>') +
         (trava ? '' : '<label class="foto-bt med-foto" title="Tirar ou anexar fotos deste ponto (pode ser mais de uma)">' + ic('camera', 18) + ((x.fotos || []).length ? '<b>' + x.fotos.length + '</b>' : '') + '<input type="file" accept="image/*" multiple data-mfoto="' + tipo + '|' + k + '" style="display:none"></label>') +
         ((x.fotos || []).length ? '<span class="med-mini">' + x.fotos.map(function (f) { return '<img src="' + esc(f.thumb) + '" alt="Foto da medição">'; }).join('') + '</span>' : '') +
         (trava ? '' : '<button class="btn sec peq" data-mx="' + tipo + '|' + k + '" title="Excluir">×</button>') + '</div>';
@@ -1174,6 +1178,7 @@
         for (var q = 0; q < fs.length; q++) await enviarFotosMedicao(l, tp, idxSemFoto(tp), [fs[q]]);
       };
     });
+    a.querySelectorAll('[data-msem]').forEach(function (b) { b.onclick = function () { var p = b.dataset.msem.split('|'), x = m[p[0]][Number(p[1])]; x.semLeitura = !x.semLeitura; if (x.semLeitura) x.valorOhm = ''; salvarM(true); }; });
     a.querySelectorAll('[data-mx]').forEach(function (b) { b.onclick = function () { var p = b.dataset.mx.split('|'); m[p[0]].splice(Number(p[1]), 1); salvarM(true); }; });
     [['q-tipo', 'tipo'], ['q-marca', 'marca'], ['q-mod', 'modelo'], ['q-serie', 'serie'], ['q-cert', 'certificado'], ['q-val', 'validade']].forEach(function (x) { $(x[0]).oninput = function () { m.equipamento = Object.assign({}, m.equipamento, { [x[1]]: this.value }); salvarM(false); }; });
     $('q-met').oninput = function () { m.metodo = this.value; salvarM(false); };
@@ -1210,7 +1215,7 @@
       n = Math.max(0, Math.min(200, n | 0)); l.descidasEncontradas = n;
       var at = (l.medicoes.aterramento || []).slice();
       while (at.length < n) at.push({ ponto: 'CX-' + String(at.length + 1).padStart(2, '0'), local: '', valorOhm: '' });
-      while (at.length > n && String(at[at.length - 1].valorOhm == null ? '' : at[at.length - 1].valorOhm).trim() === '' && !String(at[at.length - 1].local || '').trim()) at.pop(); // só tira ponto sem medição
+      while (at.length > n && String(at[at.length - 1].valorOhm == null ? '' : at[at.length - 1].valorOhm).trim() === '' && !at[at.length - 1].semLeitura && !String(at[at.length - 1].local || '').trim()) at.pop(); // só tira ponto sem medição
       l.medicoes.aterramento = at;
       gravarLaudo(l, { descidasEncontradas: n, medicoes: l.medicoes }); render();
       if (at.length > n) toast('Ficaram ' + at.length + ' pontos de medição porque os últimos já têm valor. Exclua na aba Medições se precisar.');
@@ -1507,7 +1512,7 @@
       (x.fotos || []).slice(0, 2).forEach(function (f) { var t = String(f.thumb || ''); if (t && usado + t.length < 160000) { usado += t.length; fotos.push(t); } });
       return { codigo: x.codigo, subsistema: item.bloco ? nomeBloco[item.bloco] : 'Medições elétricas', texto: (x.problemas || []).map(function (q) { return q.t; }).join('; ') || x.texto || '', obs: x.obs || '', fotos: fotos, recomendacao: x.recomendacao || '', prazo: (SPDA.PRIORIDADES[x.prioridade] || SPDA.PRIORIDADES.A)[0], prioridade: x.prioridade || 'A' };
     });
-    var med = function (lista, campo, max) { return (lista || []).filter(function (m) { return String(m.valorOhm == null ? '' : m.valorOhm).trim() !== ''; }).map(function (m) { var v = SPDA.num(m.valorOhm); return { ref: m[campo] || '', local: m.local || '', valor: isNaN(v) ? String(m.valorOhm) : v, ok: isNaN(v) ? null : v <= max }; }); };
+    var med = function (lista, campo, max) { return (lista || []).filter(function (m) { return m.semLeitura || String(m.valorOhm == null ? '' : m.valorOhm).trim() !== ''; }).map(function (m) { if (m.semLeitura) return { ref: m[campo] || '', local: m.local || '', valor: campo === 'ponto' ? 'Sem medição' : 'Sem continuidade', ok: false, semLeitura: true }; var v = SPDA.num(m.valorOhm); return { ref: m[campo] || '', local: m.local || '', valor: isNaN(v) ? String(m.valorOhm) : v, ok: isNaN(v) ? null : v <= max }; }); };
     var c = l.conclusao || {}, rp = l.responsavel || {};
     return {
       resumo: resumo, ncs: ncs,
@@ -1666,8 +1671,8 @@
         return '<tr><td class="cod">' + esc(i.codigo) + '</td><td>' + esc(i.texto) + '</td><td class="r ' + (i.r || '') + '">' + (R[i.r] || '—') + '</td><td>' + esc(i.obs || '') + '</td></tr>';
       }));
     }).join('');
-    var medAt = (m.aterramento || []).map(function (x) { var v = SPDA.num(x.valorOhm), f = !isNaN(v) && v > lim.aterramentoOhm; return '<tr><td>' + esc(x.ponto) + '</td><td>' + esc(x.local || '') + '</td><td class="num">' + numCampo(x.valorOhm) + ' Ω</td><td class="r ' + (f ? 'NC' : 'C') + '">' + (f ? 'Acima da referência' : 'Dentro da referência') + '</td></tr>'; });
-    var medCo = (m.continuidade || []).map(function (x) { var v = SPDA.num(x.valorOhm), f = !isNaN(v) && v > lim.continuidadeOhm; return '<tr><td>' + esc(x.trecho) + '</td><td class="num">' + numCampo(x.valorOhm) + ' Ω</td><td class="r ' + (f ? 'NC' : 'C') + '">' + (f ? 'Acima da referência' : 'Dentro da referência') + '</td></tr>'; });
+    var medAt = (m.aterramento || []).map(function (x) { var v = SPDA.num(x.valorOhm), f = !isNaN(v) && v > lim.aterramentoOhm; if (x.semLeitura) return '<tr><td>' + esc(x.ponto) + '</td><td>' + esc(x.local || '') + '</td><td class="num">—</td><td class="r NC">Sem medição</td></tr>'; return '<tr><td>' + esc(x.ponto) + '</td><td>' + esc(x.local || '') + '</td><td class="num">' + numCampo(x.valorOhm) + ' Ω</td><td class="r ' + (f ? 'NC' : 'C') + '">' + (f ? 'Acima da referência' : 'Dentro da referência') + '</td></tr>'; });
+    var medCo = (m.continuidade || []).map(function (x) { var v = SPDA.num(x.valorOhm), f = !isNaN(v) && v > lim.continuidadeOhm; if (x.semLeitura) return '<tr><td>' + esc(x.trecho) + '</td><td class="num">—</td><td class="r NC">Sem continuidade</td></tr>'; return '<tr><td>' + esc(x.trecho) + '</td><td class="num">' + numCampo(x.valorOhm) + ' Ω</td><td class="r ' + (f ? 'NC' : 'C') + '">' + (f ? 'Acima da referência' : 'Dentro da referência') + '</td></tr>'; });
     var fotoFig = function (x) { return '<figure><img src="' + grandes[x.f.id] + '"><figcaption><b>' + (x.item ? esc(x.item.codigo) : x.med ? 'Medição' : 'Geral') + '</b> ' + esc(x.f.legenda || (x.item ? x.item.texto : x.med ? rotuloMed(x.med.tipo, x.med.x) : '')) + '</figcaption></figure>'; };
     // Fotos em linhas de duas (tabela): no PDF do portal cada linha vai inteira para a página seguinte, sem cortar a foto
     var gradeFotos = function (lista, cab) {

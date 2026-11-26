@@ -1092,7 +1092,7 @@
         rows = so ? (rows || []).filter(function (m) { return m.ok === false; }) : (rows || []);
         if (!rows.length) return '';
         return '<div class="sp-h4">' + tit + ' <span style="text-transform:none;letter-spacing:0;color:var(--muted)">(referência ≤ ' + String(lim).replace('.', ',') + ' Ω)</span></div><div class="tabela"><table class="sp-med"><thead><tr><th>' + col + '</th><th>Local</th><th class="v">Valor</th><th>Situação</th></tr></thead><tbody>' +
-          rows.map(function (m) { return '<tr><td>' + esc(m.ref || '—') + '</td><td>' + esc(m.local || '') + '</td><td class="v">' + ohm(m.valor) + '</td><td>' + (m.ok === false ? '<span class="chip c-bad">Acima da referência</span>' : m.ok ? '<span class="chip c-ok">Dentro da referência</span>' : '—') + '</td></tr>'; }).join('') + '</tbody></table></div>';
+          rows.map(function (m) { return '<tr><td>' + esc(m.ref || '—') + '</td><td>' + esc(m.local || '') + '</td><td class="v">' + (m.semLeitura ? '—' : ohm(m.valor)) + '</td><td>' + (m.semLeitura ? '<span class="chip c-bad">' + esc(m.valor) + '</span>' : m.ok === false ? '<span class="chip c-bad">Acima da referência</span>' : m.ok ? '<span class="chip c-ok">Dentro da referência</span>' : '—') + '</td></tr>'; }).join('') + '</tbody></table></div>';
       };
       var lim = d.limites || {};
       h += med('Resistência de aterramento', d.aterramento, 'Ponto', lim.aterramento == null ? 10 : lim.aterramento) + med('Continuidade elétrica', d.continuidade, 'Trecho', lim.continuidade == null ? 0.2 : lim.continuidade);
