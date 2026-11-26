@@ -453,7 +453,10 @@
     if (modoDemo) { $('aviso-modo').style.display = 'block'; $('aviso-modo').innerHTML = 'Modo de teste: os dados ficam só neste navegador e não vão para o banco. <a href="' + location.pathname + '">Sair do modo de teste</a>'; }
     banco.ouvir('ordens', ['servicos.spda', '==', true], function (l) { cache.ordens = l; render(); });
     window.__spdaApp = Date.now();
-    banco.ouvir(SPDA.COLECOES.laudos, null, function (l) { cache.laudos = l; if (!cache.pronto) registrarAbertura(); cache.pronto = true; render(); });
+    banco.ouvir(SPDA.COLECOES.laudos, null, function (l) {
+      // o que ainda está esperando para gravar vale mais que a cópia do banco (senão o texto digitado volta pela metade)
+      if (pendente) { var nv = l.find(function (x) { return x.id === pendente.l.id; }); if (nv) { Object.assign(nv, pendente.campos); pendente.l = nv; } }
+      cache.laudos = l; if (!cache.pronto) registrarAbertura(); cache.pronto = true; render(); });
     banco.ouvir(SPDA.COLECOES.edificacoes, null, function (l) { cache.edificacoes = l; render(); });
     ouvirCadastros();
     montarLateral();
@@ -532,7 +535,25 @@
   }
   function salvarPendente() { clearTimeout(timerSalvar); if (!pendente) return Promise.resolve(); var p0 = pendente; pendente = null; return gravarLaudo(p0.l, p0.campos); }
 
+  // Campo em que a pessoa está digitando: guardado antes de redesenhar a tela e devolvido depois
+  function chaveDoCampo(el) {
+    if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || !$('view').contains(el)) return null;
+    if (el.id) return { sel: '#' + CSS.escape(el.id) };
+    for (var i = 0; i < el.attributes.length; i++) { var at = el.attributes[i]; if (/^data-/.test(at.name)) return { sel: '[' + at.name + '="' + CSS.escape(at.value) + '"]' }; }
+    return null;
+  }
   function render() {
+    var foco = chaveDoCampo(document.activeElement), el0 = document.activeElement;
+    if (foco) { foco.valor = el0.value; try { foco.ini = el0.selectionStart; foco.fim = el0.selectionEnd; } catch (e) {} }
+    renderTela();
+    if (!foco) return;
+    var el = $('view').querySelector(foco.sel);
+    if (!el || el.disabled) return;
+    if (el.value !== foco.valor && el.tagName !== 'SELECT' && el.type !== 'file') el.value = foco.valor;
+    el.focus({ preventScroll: true });
+    try { if (foco.ini != null) el.setSelectionRange(foco.ini, foco.fim); } catch (e) {}
+  }
+  function renderTela() {
     if (!banco) return;
     var v = $('view');
     if (tela.abrirOs && cache.ordens.length) { var o = osDe(tela.abrirOs); tela.abrirOs = ''; if (o) { var l0 = cache.laudos.find(function (x) { return x.osId === o.id; }); if (l0) tela.laudoId = l0.id; else setTimeout(function () { iniciarLaudo(o); }, 50); } }
