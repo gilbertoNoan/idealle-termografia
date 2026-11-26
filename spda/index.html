@@ -1049,6 +1049,88 @@
       img.src = url;
     });
   }
+  // ----- Ver e editar foto (girar, aproximar/afastar e recortar no formato da folha do laudo) -----
+  var PROP_FOTO = 85 / 62; // moldura da foto no PDF (largura / altura)
+  async function verFoto(l, ref, src, trava) {
+    abrirModal('<div class="muted">Carregando…</div>');
+    var f = await banco.ler(SPDA.COLECOES.fotos, ref.id).catch(function () { return null; });
+    var url = f && f.dataUrl ? f.dataUrl : src;
+    abrirModal('<img src="' + esc(url) + '" alt="" style="width:100%;border-radius:8px"><div class="acoes">' +
+      (trava ? '' : '<button class="btn" id="fv-ed">' + ic('camera', 16) + ' Girar / recortar / zoom</button>') + (!trava && f && f.original ? '<button class="btn sec" id="fv-or">Voltar à original</button>' : '') + '<button class="btn sec" id="fv-x">Fechar</button></div>');
+    $('fv-x').onclick = fecharModal;
+    if ($('fv-ed')) $('fv-ed').onclick = function () { editarFoto(l, ref, url, f); };
+    if ($('fv-or')) $('fv-or').onclick = function () { gravarFotoEditada(l, ref, f.original, f, true); };
+  }
+  async function gravarFotoEditada(l, ref, dataUrl, f, original) {
+    try {
+      var img = new Image(); img.src = dataUrl; await img.decode();
+      var c = document.createElement('canvas'), k = 220 / Math.max(img.width, img.height); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      var th = c.toDataURL('image/jpeg', 0.6), campos = { dataUrl: dataUrl };
+      // guarda a original na primeira edição (se couber no documento), para poder voltar
+      if (original) campos.original = ''; else if (f && !f.original && f.dataUrl && (f.dataUrl.length + dataUrl.length) < 950000) campos.original = f.dataUrl;
+      await banco.atualizar(SPDA.COLECOES.fotos, ref.id, campos);
+      var atual = laudoDe(l.id) || l, achou = null;
+      (atual.checklist || []).forEach(function (i) { (i.fotos || []).forEach(function (x) { if (x.id === ref.id) achou = x; }); });
+      ['aterramento', 'continuidade'].forEach(function (t) { ((atual.medicoes || {})[t] || []).forEach(function (m) { (m.fotos || []).forEach(function (x) { if (x.id === ref.id) achou = x; }); }); });
+      (atual.fotosGerais || []).forEach(function (x) { if (x.id === ref.id) achou = x; });
+      (achou || ref).thumb = th;
+      gravarDepois(atual, { checklist: atual.checklist, fotosGerais: atual.fotosGerais || [], medicoes: atual.medicoes }); await salvarPendente();
+      fecharModal(); toast(original ? 'Foto original de volta.' : 'Foto editada.'); render();
+    } catch (e) { toast('Não foi possível salvar a foto editada.'); }
+  }
+  function editarFoto(l, ref, url, f) {
+    abrirModal('<h2 style="margin-top:0">Editar foto</h2><p class="muted" style="margin-top:0">Arraste para posicionar. A moldura é o espaço da foto na folha do laudo.</p>' +
+      '<div id="fe-caixa" style="position:relative;width:100%;aspect-ratio:' + PROP_FOTO + ';background:#000;border-radius:8px;overflow:hidden;touch-action:none;cursor:grab"><canvas id="fe-cv" style="width:100%;height:100%;display:block"></canvas></div>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px">' +
+      '<button class="btn sec" id="fe-ge" title="Girar para a esquerda">↺ Girar</button><button class="btn sec" id="fe-gd" title="Girar para a direita">↻ Girar</button>' +
+      '<button class="btn sec" id="fe-menos" title="Diminuir">−</button><input type="range" id="fe-zoom" min="100" max="400" value="100" style="flex:1;min-width:120px"><button class="btn sec" id="fe-mais" title="Aumentar">+</button>' +
+      '<label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:13px"><input type="checkbox" id="fe-int" style="width:auto"> Foto inteira (sem recortar)</label></div>' +
+      '<div class="acoes"><button class="btn" id="fe-ok">Salvar</button><button class="btn sec" id="fe-x">Cancelar</button></div>');
+    var img = new Image(), cv = $('fe-cv'), g = cv.getContext('2d'), rot = 0, zoom = 1, dx = 0, dy = 0;
+    var W = 1400, H = Math.round(W / PROP_FOTO);
+    // tamanho da foto já girada
+    function dims() { return rot % 180 ? { w: img.height, h: img.width } : { w: img.width, h: img.height }; }
+    function base() { var d = dims(); return $('fe-int').checked ? Math.min(W / d.w, H / d.h) : Math.max(W / d.w, H / d.h); }
+    function limitar() {
+      var d = dims(), s = base() * zoom, mx = Math.max(0, (d.w * s - W) / 2), my = Math.max(0, (d.h * s - H) / 2);
+      dx = Math.max(-mx, Math.min(mx, dx)); dy = Math.max(-my, Math.min(my, dy));
+    }
+    function desenhar(alvo, w, h) {
+      var c = alvo.getContext('2d'), k = w / W, s = base() * zoom * k;
+      c.fillStyle = '#fff'; c.fillRect(0, 0, w, h);
+      c.save(); c.translate(w / 2 + dx * k, h / 2 + dy * k); c.rotate(rot * Math.PI / 180); c.drawImage(img, -img.width * s / 2, -img.height * s / 2, img.width * s, img.height * s); c.restore();
+    }
+    function tela() { var b = $('fe-caixa').getBoundingClientRect(); cv.width = Math.round(b.width * (window.devicePixelRatio || 1)); cv.height = Math.round(cv.width / PROP_FOTO); limitar(); desenhar(cv, cv.width, cv.height); }
+    img.onload = tela; img.src = url;
+    $('fe-ge').onclick = function () { rot = (rot + 270) % 360; dx = dy = 0; tela(); };
+    $('fe-gd').onclick = function () { rot = (rot + 90) % 360; dx = dy = 0; tela(); };
+    var zoomPara = function (z) { zoom = Math.max(1, Math.min(4, z)); $('fe-zoom').value = Math.round(zoom * 100); tela(); };
+    $('fe-zoom').oninput = function () { zoomPara(this.value / 100); };
+    $('fe-menos').onclick = function () { zoomPara(zoom - 0.2); };
+    $('fe-mais').onclick = function () { zoomPara(zoom + 0.2); };
+    $('fe-int').onchange = function () { dx = dy = 0; tela(); };
+    // arrastar (mouse e dedo) e pinça para zoom
+    var caixa = $('fe-caixa'), toques = {}, ini = null;
+    caixa.onpointerdown = function (e) { caixa.setPointerCapture(e.pointerId); toques[e.pointerId] = { x: e.clientX, y: e.clientY }; ini = null; };
+    caixa.onpointermove = function (e) {
+      var t = toques[e.pointerId]; if (!t) return;
+      var k = W / caixa.getBoundingClientRect().width, ids = Object.keys(toques);
+      if (ids.length === 2) {
+        var o = toques[ids[0] == e.pointerId ? ids[1] : ids[0]], dist = Math.hypot(e.clientX - o.x, e.clientY - o.y);
+        if (ini) zoomPara(ini.z * dist / ini.d); else ini = { d: dist, z: zoom };
+      } else { dx += (e.clientX - t.x) * k; dy += (e.clientY - t.y) * k; tela(); }
+      t.x = e.clientX; t.y = e.clientY;
+    };
+    caixa.onpointerup = caixa.onpointercancel = function (e) { delete toques[e.pointerId]; ini = null; };
+    caixa.onwheel = function (e) { e.preventDefault(); zoomPara(zoom * (e.deltaY < 0 ? 1.1 : 0.9)); };
+    $('fe-x').onclick = fecharModal;
+    $('fe-ok').onclick = function () {
+      this.disabled = true; this.textContent = 'Salvando…';
+      var out = document.createElement('canvas'); out.width = W; out.height = H; desenhar(out, W, H);
+      gravarFotoEditada(l, ref, out.toDataURL('image/jpeg', 0.8), f, false);
+    };
+  }
   async function enviarFotos(l, files, codigo) {
     if (!files.length) return;
     var leg = codigo ? (l.checklist.find(function (i) { return i.codigo === codigo; }) || {}).texto || '' : '';
@@ -1108,11 +1190,17 @@
       '<p class="muted">As fotos tiradas no checklist já ficam ligadas ao item. Escreva uma legenda curta: ela sai no PDF.</p>' +
       (t.length ? '<div class="galeria">' + t.map(function (x, n) {
         return '<figure><img src="' + esc(x.f.thumb) + '" data-ver="' + x.f.id + '" alt=""><figcaption>' + (x.item ? '<span class="cod">' + esc(x.item.codigo) + '</span>' + (x.item.r === 'NC' ? ' <span class="chip bad">NC</span>' : '') : x.med ? '<span class="cod">Medição ' + esc(x.med.x.ponto || x.med.x.trecho || '') + '</span>' : '<span class="cod">Geral</span>') +
-          '<input data-leg="' + n + '" value="' + esc(x.f.legenda || '') + '" placeholder="Legenda"' + (trava ? ' disabled' : '') + '>' + (trava ? '' : '<button class="btn sec peq" data-rmf="' + n + '">Excluir</button>') + '</figcaption></figure>';
+          '<input data-leg="' + n + '" value="' + esc(x.f.legenda || '') + '" placeholder="Legenda"' + (trava ? ' disabled' : '') + '>' + (trava ? '' : '<span style="display:flex;gap:6px"><button class="btn sec peq" data-edf="' + n + '">Editar</button><button class="btn sec peq" data-rmf="' + n + '">Excluir</button></span>') + '</figcaption></figure>';
       }).join('') + '</div>' : '<div class="vazio">Nenhuma foto ainda.</div>') + '</div>';
     var g = $('f-geral'); if (g) g.onchange = function () { enviarFotos(l, Array.from(this.files || []), ''); this.value = ''; };
     function salvarRefs(msg) { gravarLaudo(l, { checklist: l.checklist, fotosGerais: l.fotosGerais || [], medicoes: l.medicoes }, msg); }
     a.querySelectorAll('[data-leg]').forEach(function (inp) { inp.onchange = function () { t[Number(inp.dataset.leg)].f.legenda = inp.value.trim(); salvarRefs(); banco.atualizar(SPDA.COLECOES.fotos, t[Number(inp.dataset.leg)].f.id, { legenda: inp.value.trim() }).catch(function () {}); }; });
+    a.querySelectorAll('[data-edf]').forEach(function (b) {
+      b.onclick = async function () {
+        var x = t[Number(b.dataset.edf)], f = await banco.ler(SPDA.COLECOES.fotos, x.f.id).catch(function () { return null; });
+        editarFoto(l, x.f, f && f.dataUrl ? f.dataUrl : x.f.thumb, f);
+      };
+    });
     a.querySelectorAll('[data-rmf]').forEach(function (b) {
       b.onclick = function () {
         if (!confirm('Excluir esta foto?')) return;
@@ -1123,12 +1211,7 @@
       };
     });
     a.querySelectorAll('[data-ver]').forEach(function (im) {
-      im.onclick = async function () {
-        abrirModal('<div class="muted">Carregando…</div>');
-        var f = await banco.ler(SPDA.COLECOES.fotos, im.dataset.ver).catch(function () { return null; });
-        abrirModal('<img src="' + esc(f ? f.dataUrl : im.src) + '" alt="" style="width:100%;border-radius:8px"><div class="acoes"><button class="btn sec" id="fv-x">Fechar</button></div>');
-        $('fv-x').onclick = fecharModal;
-      };
+      im.onclick = function () { var x = t.find(function (y) { return y.f.id === im.dataset.ver; }); verFoto(l, x ? x.f : { id: im.dataset.ver }, im.src, trava); };
     });
   }
 
@@ -1149,7 +1232,7 @@
         (x.semLeitura ? '<div class="ohm"><input value="—" disabled class="sem-leitura" title="' + rotSem + '"></div>' : '<div class="ohm"><input data-m="' + tipo + '|' + k + '|valorOhm" inputmode="decimal" value="' + esc(numCampo(x.valorOhm)) + '" placeholder="0,00"' + dis + '><span>Ω</span></div>') +
         (trava ? '' : '<button type="button" class="btn sec peq bt-sem' + (x.semLeitura ? ' ativo' : '') + '" data-msem="' + tipo + '|' + k + '" title="' + (tipo === 'aterramento' ? 'O aparelho não deu medição neste ponto' : 'Não deu continuidade neste trecho') + '">' + rotSem + '</button>') +
         (trava ? '' : '<label class="foto-bt med-foto" title="Tirar ou anexar fotos deste ponto (pode ser mais de uma)">' + ic('camera', 18) + ((x.fotos || []).length ? '<b>' + x.fotos.length + '</b>' : '') + '<input type="file" accept="image/*" multiple data-mfoto="' + tipo + '|' + k + '" style="display:none"></label>') +
-        ((x.fotos || []).length ? '<span class="med-mini">' + x.fotos.map(function (f) { return '<img src="' + esc(f.thumb) + '" alt="Foto da medição">'; }).join('') + '</span>' : '') +
+        ((x.fotos || []).length ? '<span class="med-mini">' + x.fotos.map(function (f) { return '<img src="' + esc(f.thumb) + '" data-mver="' + esc(f.id) + '" alt="Foto da medição" style="cursor:pointer">'; }).join('') + '</span>' : '') +
         (trava ? '' : '<button class="btn sec peq" data-mx="' + tipo + '|' + k + '" title="Excluir">×</button>') + '</div>';
     };
     a.innerHTML = '<div class="card"><h2>' + ic('medidor', 18) + ' Resistência de aterramento</h2><p class="muted">Referência: até ' + numCampo(lim.aterramentoOhm) + ' Ω. Valores acima entram como não conformidade.' + (nDesc ? ' Descidas encontradas: ' + nDesc + ' (altere na aba Edificação e inspeção).' : '') + '</p>' +
@@ -1169,6 +1252,9 @@
       '<div class="linha"><div><label>Método</label><input id="q-met" list="l-met" value="' + esc(m.metodo || '') + '"' + dis + '><datalist id="l-met"><option value="Queda de potencial"><option value="Alicate terrômetro"><option value="Método dos 62%"></datalist></div><div><label>Clima / solo</label><input id="q-cli" value="' + esc(m.clima || '') + '" placeholder="Ex.: tempo seco, solo seco"' + dis + '></div></div>' +
       '<div class="linha"><div><label>Referência aterramento (Ω)</label><input id="q-lat" inputmode="decimal" value="' + esc(numCampo(lim.aterramentoOhm)) + '"' + dis + '></div><div><label>Referência continuidade (Ω)</label><input id="q-lco" inputmode="decimal" value="' + esc(numCampo(lim.continuidadeOhm)) + '"' + dis + '></div></div>' +
       (eq.validade && eq.validade < l.dataInspecao ? '<div class="aviso" style="margin-top:10px">A calibração do aparelho do aterramento venceu antes da data da inspeção.</div>' : '') + ((m.equipamento2 || {}).validade && m.equipamento2.validade < l.dataInspecao ? '<div class="aviso" style="margin-top:10px">A calibração do aparelho da continuidade venceu antes da data da inspeção.</div>' : '') + '</div>';
+    a.querySelectorAll('[data-mver]').forEach(function (im) {
+      im.onclick = function () { var r = null; ['aterramento', 'continuidade'].forEach(function (tp) { (m[tp] || []).forEach(function (x) { (x.fotos || []).forEach(function (f) { if (f.id === im.dataset.mver) r = f; }); }); }); verFoto(l, r || { id: im.dataset.mver }, im.src, trava); };
+    });
     if (trava) return;
     function salvarM(re) { gravarDepois(l, { medicoes: l.medicoes }); if (re) render(); }
     $('m-add-at').onclick = function () { m.aterramento = (m.aterramento || []).concat([{ ponto: 'CX-' + String((m.aterramento || []).length + 1).padStart(2, '0'), local: '', valorOhm: '' }]); salvarM(true); };
