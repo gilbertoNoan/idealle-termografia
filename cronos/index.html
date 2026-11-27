@@ -4888,7 +4888,7 @@
     return { id: f.id, fonte: 'fatura', f: f, sentido: 1, grupo: f.grupo || GRUPO_FATURA, categoria: f.categoria || 'Serviços (OS)',
       descricao: codFatura(f) + (f.osCodigo ? ' · ' + f.osCodigo : '') + (f.descricao ? ' · ' + f.descricao : ''), pessoa: nomeCliente(f.clienteId, f.clienteNome),
       clienteId: f.clienteId || '', osId: f.osId || '', valor: num(f.valor), competencia: f.emissao || f.vencimento || '', vencimento: f.vencimento || f.emissao || '',
-      pagamento: f.status === 'paga' ? (f.dataPagamento || f.vencimento || f.emissao || '') : '', contaId: f.contaId || principal, presumido: !!f.recebimentoPresumido, codServico: codigoNota(f) };
+      pagamento: f.status === 'paga' ? (f.dataPagamento || f.vencimento || f.emissao || '') : '', contaId: (f.contaId && porId('contas', f.contaId)) ? f.contaId : principal, presumido: !!f.recebimentoPresumido, descontarAntesDe: f.descontarAntesDe || '', codServico: codigoNota(f) };
   }
   // Todos os movimentos: faturas + lançamentos. Transferência vira uma saída e uma entrada (interno: fora do resultado).
   function movimentos() {
@@ -4896,7 +4896,7 @@
     cache.faturas.forEach(function (f) { if (f.status !== 'cancelada') m.push(movFatura(f, principal)); });
     cache.lancamentos.forEach(function (l) {
       var b = { id: l.id, fonte: 'lanc', l: l, grupo: l.grupo || '', categoria: l.categoria || '', descricao: l.descricao || '', pessoa: l.pessoa || '', clienteId: l.clienteId || '', osId: l.osId || '',
-        valor: Math.abs(num(l.valor)), competencia: l.vencimento || l.dataDoc || '', vencimento: l.vencimento || l.dataDoc || '', pagamento: l.pagamento || '', contaId: l.contaId || principal };
+        valor: Math.abs(num(l.valor)), competencia: l.vencimento || l.dataDoc || '', vencimento: l.vencimento || l.dataDoc || '', pagamento: l.pagamento || '', contaId: (l.contaId && porId('contas', l.contaId)) ? l.contaId : principal, descontarAntesDe: l.descontarAntesDe || '' };
       if (l.tipo === 'transferencia') {
         m.push(Object.assign({}, b, { sentido: -1, grupo: 'Transferência', interno: true, descricao: 'Transferência para ' + nomeConta(l.contaDestinoId) + (l.descricao ? ' · ' + l.descricao : '') }));
         m.push(Object.assign({}, b, { sentido: 1, grupo: 'Transferência', interno: true, contaId: l.contaDestinoId || '', descricao: 'Transferência de ' + nomeConta(l.contaId) + (l.descricao ? ' · ' + l.descricao : '') }));
@@ -4906,14 +4906,40 @@
   }
   // O saldo de um banco é o saldo informado no início do dia "dataSaldo" mais o que entrou e saiu dali em diante.
   // Recebimento presumido (nota antiga marcada recebida sem data real) não soma: esse dinheiro já está no saldo informado.
-  function noCaixa(x) { if (!x.pagamento || !x.contaId || x.presumido) return false; var c = porId('contas', x.contaId); return !!c && x.pagamento >= (c.dataSaldo || ''); }
+  // "descontarAntesDe" = pagamento com data anterior ao saldo informado que a pessoa mandou descontar mesmo assim
+  // (o saldo informado ainda não tinha esse pagamento). Vale só enquanto o saldo do banco continuar com aquela data:
+  // ao atualizar o saldo de novo, o extrato novo já inclui o pagamento e ele deixa de ser descontado em dobro.
+  function noCaixa(x) {
+    if (!x.pagamento || !x.contaId || x.presumido) return false; var c = porId('contas', x.contaId); if (!c) return false;
+    return x.pagamento >= (c.dataSaldo || '') || (!!x.descontarAntesDe && x.descontarAntesDe === (c.dataSaldo || ''));
+  }
+  // Por que um movimento pago não mexe no saldo do banco ('' = mexe normalmente)
+  function foraDoSaldo(x) {
+    if (!x.pagamento || x.interno) return '';
+    if (x.presumido) return 'recebimento antigo marcado como já incluído no saldo do banco';
+    var c = porId('contas', x.contaId);
+    if (!c) return 'nenhum banco cadastrado';
+    if (!noCaixa(x)) return 'a data (' + data(x.pagamento) + ') é anterior ao saldo informado de ' + c.nome + ' (início de ' + data(c.dataSaldo) + '), então o sistema entende que já estava no saldo';
+    return '';
+  }
+  // Pago com data anterior ao saldo informado, mas registrado no sistema DEPOIS que esse saldo foi informado:
+  // pode ser que o extrato digitado ainda não tivesse esse valor. Só esses ganham aviso (os antigos estão certos).
+  function foraDoSaldoSuspeito(x) {
+    var c = porId('contas', x.contaId), doc = x.l || x.f || {};
+    if (!x.pagamento || x.interno || x.presumido || !c || noCaixa(x)) return false;
+    if (doc.saldoConferido && doc.saldoConferido === (c.dataSaldo || '')) return false;
+    var reg = doc.updatedAt || doc.createdAt || '', saldoEm = c.updatedAt || c.createdAt || '';
+    return !!reg && !!saldoEm && String(reg) > String(saldoEm);
+  }
   function saldoConta(c, ate, M) {
     return num(c.saldoInicial) + M.filter(function (x) { return x.contaId === c.id && noCaixa(x) && (!ate || x.pagamento <= ate); }).reduce(function (s, x) { return s + x.sentido * x.valor; }, 0);
   }
   function saldoTotal(ate, M) { return cache.contas.filter(function (c) { return !ate || (c.dataSaldo || '') <= ate; }).reduce(function (s, c) { return s + saldoConta(c, ate, M); }, 0); }
   function emAberto(x) { return !x.pagamento && !x.interno; }
   function situacao(x) {
-    if (x.pagamento) return '<span class="tag t-ok">' + (x.sentido > 0 ? 'Recebido' : 'Pago') + '</span><div class="muted">' + data(x.pagamento) + (x.presumido ? ' · presumido' : '') + '</div>';
+    if (x.pagamento) { var fora = foraDoSaldo(x);
+      return '<span class="tag t-ok">' + (x.sentido > 0 ? 'Recebido' : 'Pago') + '</span><div class="muted">' + data(x.pagamento) + (x.presumido ? ' · presumido' : '') + (x.contaId && porId('contas', x.contaId) ? ' · ' + esc(nomeConta(x.contaId)) : '') + '</div>' +
+        (fora && foraDoSaldoSuspeito(x) ? '<div class="tag t-warn" title="' + esc('Não ' + (x.sentido > 0 ? 'somou' : 'descontou') + ' do saldo: ' + fora) + '">fora do saldo</div>' : ''); }
     if (x.vencimento && x.vencimento < hoje()) return '<span class="tag t-bad">Vencido</span>';
     if (x.vencimento && x.vencimento <= somarDias(hoje(), 7)) return '<span class="tag t-warn">Vence em breve</span>';
     return '<span class="tag t-blue">Em aberto</span>';
@@ -4944,7 +4970,8 @@
     if (viewAtual !== 'financas') return;
     var M = movimentos();
     var f = { resumo: finResumo, faturamento: finFaturamento, pagar: function (M) { return finLista(M, -1); }, receber: function (M) { return finLista(M, 1); }, extrato: finExtrato, fluxo: finFluxo, dre: finDRE, impostos: finImpostos, metas: finMetas, relatorios: finRelatorios, cadastros: finCadastros }[fin.aba];
-    $('fin-conteudo').innerHTML = (!cache.contas.length && fin.aba !== 'cadastros' ? '<div class="aviso">Comece cadastrando os bancos da empresa e o saldo de hoje em <a href="#" data-aba="cadastros">Bancos e categorias</a>. As faturas do Faturamento já aparecem aqui sozinhas.</div>' : '') + f(M);
+    $('fin-conteudo').innerHTML = (!cache.contas.length && fin.aba !== 'cadastros' ? '<div class="aviso">Comece cadastrando os bancos da empresa e o saldo de hoje em <a href="#" data-aba="cadastros">Bancos e categorias</a>. As faturas do Faturamento já aparecem aqui sozinhas.</div>' : '') +
+      (function () { var n = fin.aba !== 'cadastros' ? M.filter(foraDoSaldoSuspeito).length : 0; return n ? '<div class="aviso">' + n + ' pagamento(s) ou recebimento(s) marcados depois do último saldo informado não mexeram no saldo do banco. <a href="#" data-aba="cadastros">Conferir em Bancos e categorias</a>.</div>' : ''; })() + f(M);
   }
 
   function finResumo(M) {
@@ -5193,6 +5220,13 @@
         return '<tr><td><b>' + esc(c.nome) + '</b>' + (c.principal ? ' <span class="tag t-gray">principal</span>' : '') + '</td><td>' + brl(c.saldoInicial) + '<div class="muted">no início de ' + data(c.dataSaldo) + '</div></td><td class="num">' + sinal(saldoConta(c, '', M)) + '</td><td><button class="btn sec peq" data-conta="' + c.id + '">Atualizar saldo / editar</button></td></tr>';
       }).join('') + '</tbody></table>' : '<div class="vazio">Cadastre os bancos (e o caixa, se tiver) com o saldo de hoje.</div>') +
       '<p class="muted">O banco principal é onde caem os recebimentos quando ninguém escolher outro. Ao atualizar o saldo, informe o saldo do extrato no início do dia: o que entrar e sair dali em diante soma sozinho.</p></div>';
+    var susp = M.filter(foraDoSaldoSuspeito).sort(function (a, b) { return a.pagamento < b.pagamento ? 1 : -1; });
+    if (susp.length) html += '<div class="card tabela"><h2 style="font-size:17px">Pagos que não mexeram no saldo <button class="btn peq" id="fin-descontar-todos">Descontar / somar todos</button></h2>' +
+      '<p class="muted">Foram marcados como pagos ou recebidos depois que o saldo do banco foi informado, mas com data anterior a esse saldo. Por isso o sistema entendeu que o extrato digitado já tinha esses valores. Se o saldo que você digitou ainda não tinha, clique em Descontar (ou Somar). Se já tinha, deixe como está.</p>' +
+      '<table><thead><tr><th>Pago em</th><th>Descrição</th><th>Banco</th><th class="num">Valor</th><th></th></tr></thead><tbody>' +
+      susp.map(function (x) { var c = porId('contas', x.contaId);
+        return '<tr><td>' + data(x.pagamento) + '</td><td><b>' + esc(x.pessoa || x.descricao) + '</b><div class="muted">' + esc(x.pessoa ? x.descricao : '') + '</div></td><td>' + esc(c.nome) + '<div class="muted">saldo informado no início de ' + data(c.dataSaldo) + '</div></td><td class="num ' + (x.sentido < 0 ? 'neg' : 'pos') + '">' + brl(x.sentido * x.valor) + '</td><td><button class="btn ok peq" data-descontar="' + x.fonte + ':' + x.id + '">' + (x.sentido < 0 ? 'Descontar' : 'Somar') + '</button> <button class="btn sec peq" data-ja-no-saldo="' + x.fonte + ':' + x.id + '">Já estava no saldo</button></td></tr>';
+      }).join('') + '</tbody></table></div>';
     var usados = {}; cache.lancamentos.forEach(function (l) { usados[l.grupo] = (usados[l.grupo] || 0) + 1; });
     html += '<div class="card tabela"><h2 style="font-size:17px">Categorias (plano de contas) <button class="btn peq" id="fin-novo-grupo">+ Nova categoria</button></h2><table><thead><tr><th>Categoria</th><th>Entra no DRE como</th><th>Subcategorias</th><th class="num">Lançamentos</th></tr></thead><tbody>' +
       plano().map(function (g, i) { return '<tr class="clicavel" data-grupo="' + i + '"><td><b>' + esc(g.nome) + '</b><div class="muted">' + (g.tipo === 'receita' ? 'receita' : 'gasto') + '</div></td><td>' + esc(DRE_NOMES[g.dre] || g.dre) + '</td><td class="muted">' + esc((g.itens || []).join(', ')) + '</td><td class="num">' + (usados[g.nome] || 0) + '</td></tr>'; }).join('') +
@@ -5371,15 +5405,17 @@
       '<div class="linha"><div><label>' + (ehDespesa ? 'Fornecedor' : 'De quem') + '</label><input id="fl-pessoa" list="fl-pessoas" value="' + esc(l.pessoa) + '"><datalist id="fl-pessoas">' + Object.keys(pessoas).sort().map(function (p) { return '<option value="' + esc(p) + '">'; }).join('') + '</datalist></div>' +
       '<div><label>Ligada a uma OS (opcional)</label><select id="fl-os"><option value="">—</option>' + ordens.map(function (o) { return '<option value="' + o.id + '"' + (o.id === l.osId ? ' selected' : '') + '>' + esc(codOS(o) + ' · ' + nomeCliente(o.empresaId, o.empresaNome)) + '</option>'; }).join('') + '</select></div></div>' +
       (l.id ? '' : '<div class="linha"><div><label>Repetir</label><select id="fl-rep"><option value="">Só esta vez</option><option value="parcelas">Parcelado (divide o valor)</option><option value="mensal">Todo mês (mesmo valor)</option></select></div><div><label>Quantas vezes</label><input id="fl-n" type="number" min="2" max="120" value="12"></div></div>') +
-      '<div class="linha"><div><label><input type="checkbox" id="fl-pago" style="width:auto"' + (l.pagamento ? ' checked' : '') + '> Já ' + (ehDespesa ? 'paga' : 'recebida') + ' em</label><input id="fl-pag" type="date" value="' + esc(l.pagamento || hoje()) + '"></div><div><label>' + (ehDespesa ? 'Saiu de' : 'Entrou em') + '</label><select id="fl-conta">' + opcoesContas(l.contaId) + '</select></div></div>' +
+      '<div class="linha"><div><label><input type="checkbox" id="fl-pago" style="width:auto"' + (l.pagamento ? ' checked' : '') + '> Já ' + (ehDespesa ? 'paga' : 'recebida') + ' em</label><input id="fl-pag" type="date" value="' + esc(l.pagamento || hoje()) + '"></div><div><label>' + (ehDespesa ? 'Saiu de' : 'Entrou em') + '</label><select id="fl-conta">' + opcoesContas(l.contaId) + '</select></div></div>' + avisoSaldoHtml('fl') +
       '<label>Observações</label><textarea id="fl-obs">' + esc(l.obs) + '</textarea>' +
       '<div class="acoes"><button class="btn" id="fl-salvar">Salvar</button>' + (l.id ? '<button class="btn perigo" id="fl-excluir">Excluir</button>' : '') + '<button class="btn sec" id="fl-cancelar">Cancelar</button></div>');
     function cats() { var g = grupoPlano($('fl-grupo').value); $('fl-cats').innerHTML = ((g && g.itens) || []).map(function (c) { return '<option value="' + esc(c) + '">'; }).join(''); }
     cats(); $('fl-grupo').onchange = function () { $('fl-cat').value = ''; cats(); };
     $('fl-cancelar').onclick = fecharModal;
+    if (l.descontarAntesDe && $('fl-antes')) $('fl-antes').checked = true;
+    var descontarAntes = ligarAvisoSaldo('fl', function () { return { ativo: $('fl-pago').checked, id: l.id, contaId: $('fl-conta').value, data: $('fl-pag').value, valor: num($('fl-valor').value), sentido: ehDespesa ? -1 : 1 }; });
     $('fl-salvar').onclick = async function () {
       var d = { tipo: tipo, descricao: $('fl-desc').value.trim(), valor: num($('fl-valor').value), vencimento: $('fl-venc').value, documento: $('fl-doc').value, grupo: $('fl-grupo').value, categoria: $('fl-cat').value.trim(),
-        pessoa: $('fl-pessoa').value.trim(), osId: $('fl-os').value, contaId: $('fl-conta').value, pagamento: $('fl-pago').checked ? $('fl-pag').value : '', obs: $('fl-obs').value.trim(), updatedAt: agora() };
+        pessoa: $('fl-pessoa').value.trim(), osId: $('fl-os').value, contaId: $('fl-conta').value, pagamento: $('fl-pago').checked ? $('fl-pag').value : '', descontarAntesDe: descontarAntes(), obs: $('fl-obs').value.trim(), updatedAt: agora() };
       if (!d.descricao) { toast('Informe a descrição.'); return; }
       if (!d.grupo) { toast('Escolha a categoria.'); return; }
       if (!d.valor || !d.vencimento) { toast('Informe valor e vencimento.'); return; }
@@ -5437,16 +5473,39 @@
       .sort(function (a, b) { return a.pagamento < b.pagamento ? 1 : -1; })[0];
     return ant && porId('contas', ant.contaId) ? ant.contaId : '';
   }
+  // Mostra, no formulário de pagamento/recebimento, quanto o banco escolhido fica depois e avisa quando a data
+  // é anterior ao saldo informado (aí o sistema entende que o extrato já tinha esse valor).
+  function avisoSaldoHtml(pre) {
+    return '<div class="muted" id="' + pre + '-saldo" style="margin:6px 0"></div><label id="' + pre + '-antes-l" style="display:none"><input type="checkbox" id="' + pre + '-antes" style="width:auto"> <span></span></label>';
+  }
+  function ligarAvisoSaldo(pre, dados) {
+    function atualizar() {
+      var d = dados(), el = $(pre + '-saldo'), lb = $(pre + '-antes-l'); if (!el) return;
+      var c = porId('contas', d.contaId);
+      if (!d.ativo || !c) { el.innerHTML = ''; lb.style.display = 'none'; return; }
+      var M = movimentos().filter(function (m) { return !(d.id && m.id === d.id); }), atual = saldoConta(c, '', M);
+      var antes = d.data && d.data < (c.dataSaldo || ''), conta = !antes || $(pre + '-antes').checked;
+      lb.style.display = antes ? '' : 'none';
+      lb.querySelector('span').textContent = (d.sentido > 0 ? 'Somar' : 'Descontar') + ' mesmo assim: o saldo de ' + c.nome + ' informado para o início de ' + data(c.dataSaldo) + ' ainda não tinha este valor';
+      el.innerHTML = 'Saldo de <b>' + esc(c.nome) + '</b> agora: ' + sinal(atual) + (conta ? ' · depois ' + (d.sentido > 0 ? 'deste recebimento' : 'deste pagamento') + ': <b>' + sinal(atual + d.sentido * d.valor) + '</b>'
+        : '<br><span class="neg">A data é anterior ao saldo informado desse banco (início de ' + data(c.dataSaldo) + '). Por isso o sistema entende que o extrato já tinha este valor e não ' + (d.sentido > 0 ? 'soma' : 'desconta') + ' de novo.</span>');
+    }
+    [pre + '-data', pre + '-pag', pre + '-conta', pre + '-antes', pre + '-valor', pre + '-pago'].forEach(function (id) { var e = $(id); if (e) { e.addEventListener('change', atualizar); e.addEventListener('input', atualizar); } });
+    atualizar();
+    return function () { var d = dados(), c = porId('contas', d.contaId); return d.ativo && c && d.data && d.data < (c.dataSaldo || '') && $(pre + '-antes').checked ? (c.dataSaldo || '') : ''; };
+  }
   function formBaixa(x) {
     abrirModal('<h3>' + (x.sentido > 0 ? 'Registrar recebimento' : 'Registrar pagamento') + '</h3><div>' + esc(x.pessoa) + ' · ' + esc(x.descricao) + '</div><div class="total" style="text-align:left">' + brl(x.valor) + '</div>' +
-      '<div class="linha"><div><label>Data</label><input type="date" id="bx-data" value="' + hoje() + '"></div><div><label>' + (x.sentido > 0 ? 'Entrou em' : 'Saiu de') + '</label><select id="bx-conta">' + opcoesContas((x.f && x.f.contaId) || (x.l && x.l.contaId) || ultimoBanco(x) || x.contaId) + '</select></div></div>' +
+      '<div class="linha"><div><label>Data</label><input type="date" id="bx-data" value="' + hoje() + '"></div><div><label>' + (x.sentido > 0 ? 'Entrou em' : 'Saiu de') + '</label><select id="bx-conta">' + opcoesContas((x.f && x.f.contaId) || (x.l && x.l.contaId) || ultimoBanco(x) || x.contaId) + '</select></div></div>' + avisoSaldoHtml('bx') +
       (x.fonte === 'fatura' ? '<label><input type="checkbox" id="bx-antigo" style="width:auto"> Recebimento antigo: o dinheiro já está no saldo do banco (não somar no caixa)</label>' : '') +
       '<div class="acoes"><button class="btn ok" id="bx-ok">Confirmar</button><button class="btn sec" id="bx-cancelar">Cancelar</button></div>');
     $('bx-cancelar').onclick = fecharModal;
+    var descontarAntes = ligarAvisoSaldo('bx', function () { return { ativo: !($('bx-antigo') && $('bx-antigo').checked), id: x.id, contaId: $('bx-conta').value, data: $('bx-data').value || hoje(), valor: x.valor, sentido: x.sentido }; });
+    if ($('bx-antigo')) $('bx-antigo').addEventListener('change', function () { $('bx-data').dispatchEvent(new Event('change')); });
     $('bx-ok').onclick = async function () {
-      var dt = $('bx-data').value || hoje(), conta = $('bx-conta').value;
-      if (x.fonte === 'fatura') await salvar(function () { return banco.atualizar('faturas', x.id, { status: 'paga', dataPagamento: dt, contaId: conta, recebimentoPresumido: !!($('bx-antigo') && $('bx-antigo').checked) }); }, 'Recebimento registrado.');
-      else await salvar(function () { return banco.atualizar('lancamentos', x.id, { pagamento: dt, contaId: conta, updatedAt: agora() }); }, x.sentido > 0 ? 'Recebimento registrado.' : 'Pagamento registrado.');
+      var dt = $('bx-data').value || hoje(), conta = $('bx-conta').value, ant = descontarAntes();
+      if (x.fonte === 'fatura') await salvar(function () { return banco.atualizar('faturas', x.id, { status: 'paga', dataPagamento: dt, contaId: conta, recebimentoPresumido: !!($('bx-antigo') && $('bx-antigo').checked), descontarAntesDe: ant }); }, 'Recebimento registrado.');
+      else await salvar(function () { return banco.atualizar('lancamentos', x.id, { pagamento: dt, contaId: conta, descontarAntesDe: ant, updatedAt: agora() }); }, x.sentido > 0 ? 'Recebimento registrado.' : 'Pagamento registrado.');
       fecharModal();
     };
   }
@@ -5540,6 +5599,18 @@
     };
   }
 
+  // Passa a descontar (ou somar) no saldo do banco um pagamento com data anterior ao saldo informado
+  async function descontarNoSaldo(lista) {
+    lista = lista.filter(function (x) { return x && porId('contas', x.contaId); }); if (!lista.length) return;
+    await salvar(async function () {
+      for (var i = 0; i < lista.length; i++) {
+        var x = lista[i], d = { descontarAntesDe: porId('contas', x.contaId).dataSaldo || '' };
+        if (x.fonte === 'fatura') await banco.atualizar('faturas', x.id, d);
+        else { if (x.l && !x.l.contaId) d.contaId = x.contaId; await banco.atualizar('lancamentos', x.id, d); }
+      }
+    }, lista.length === 1 ? 'Saldo do banco atualizado.' : lista.length + ' valores lançados no saldo dos bancos.');
+  }
+
   // ---------- eventos ----------
   function acharMov(ref) { var p = ref.split(':'); return movimentos().find(function (x) { return x.fonte === p[0] && x.id === p[1]; }); }
   $('v-financas').addEventListener('click', function (e) {
@@ -5549,6 +5620,8 @@
     if (b && b.dataset.baixa) { var x = acharMov(b.dataset.baixa); if (x) formBaixa(x); return; }
     if (b && b.dataset.novo) { if (b.dataset.novo === 'transferencia') formTransferencia(); else formLanc(b.dataset.novo); return; }
     if (b && b.dataset.conta) { formConta(porId('contas', b.dataset.conta)); return; }
+    if (b && b.dataset.jaNoSaldo) { var xj = acharMov(b.dataset.jaNoSaldo), cj = xj && porId('contas', xj.contaId); if (cj) salvar(function () { return banco.atualizar(xj.fonte === 'fatura' ? 'faturas' : 'lancamentos', xj.id, { saldoConferido: cj.dataSaldo || '' }); }, 'Ok, fica como está.'); return; }
+    if (b && (b.dataset.descontar || b.id === 'fin-descontar-todos')) { descontarNoSaldo(b.dataset.descontar ? [acharMov(b.dataset.descontar)] : movimentos().filter(foraDoSaldoSuspeito)); return; }
     if (b && b.id === 'fin-nova-conta') { formConta(); return; }
     if (b && b.id === 'fin-novo-grupo') { formGrupo(); return; }
     if (b && b.id === 'fin-editar-metas') { formMetas(); return; }
