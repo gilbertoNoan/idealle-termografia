@@ -1011,7 +1011,7 @@
     var abas = [['checklist', 'Checklist', 'lista'], ['medicoes', 'Medições', 'medidor'], ['fotos', 'Fotos', 'fotos'], ['dados', 'Edificação e inspeção', 'predio'], ['docs', 'Documentação técnica', 'pdf'], ['conclusao', 'Conclusão e ART', 'selo']];
     v.innerHTML = '<button class="voltar" id="b-voltar">← Laudos</button>' +
       '<div class="cab-laudo"><div><h1>' + esc(l.edificacaoNome || 'Edificação') + (trava ? '' : ' <button class="rn-bt" id="b-renomear" title="Corrigir o nome da edificação" aria-label="Corrigir o nome da edificação">' + ic('lapis', 16) + '</button>') + '</h1><div class="muted">' + esc(l.empresaNome || '') + ' · ' + esc(l.osCodigo || '') + (l.numero ? ' · <b>' + esc(l.numero) + '</b>' : '') + ' · NP ' + esc(l.nivelProtecao || '—') + '</div></div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="chip ' + st[1] + '" style="font-size:13px;padding:4px 12px">' + st[0] + '</span><button class="btn sec" id="b-pdf">' + ic('pdf', 16) + ' Ver PDF</button></div></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="chip ' + st[1] + '" style="font-size:13px;padding:4px 12px">' + st[0] + '</span><button class="btn sec" id="b-pdf">' + ic('pdf', 16) + ' Ver PDF</button><button class="btn sec" id="b-pdf-baixar">' + ic('pdf', 16) + ' Baixar PDF</button></div></div>' +
       (function () {
         var irmaos = laudosDaOs(l);
         return '<div class="os-eds"><span class="os-eds-t">' + ic('predio', 15) + ' Edificações da OS ' + esc(l.osCodigo || '') + '</span>' + irmaos.map(function (x) {
@@ -1030,6 +1030,11 @@
       '<div class="abas">' + abas.map(function (a) { return '<button data-aba="' + a[0] + '"' + (tela.aba === a[0] ? ' class="ativo"' : '') + '>' + ic(a[2], 16) + a[1] + '</button>'; }).join('') + '</div><div id="aba"' + (trava ? ' class="travado"' : '') + '></div>';
     $('b-voltar').onclick = function () { irPara(''); };
     $('b-pdf').onclick = function () { gerarPdf(l); };
+    $('b-pdf-baixar').onclick = async function () {
+      var bt = this; bt.disabled = true; bt.textContent = 'Gerando PDF…';
+      try { var html = await montarHtmlLaudo(l); await baixarPdf(html, 'Laudo SPDA ' + (l.numero || 'rascunho') + ' - ' + (l.edificacaoNome || '') + ' - ' + (l.empresaNome || ''), 'Laudo SPDA ' + (l.numero || '(rascunho)') + ' · ' + (l.empresaNome || '') + ' · IDEALLE Inspeções e Serviços'); }
+      finally { bt.disabled = false; bt.innerHTML = ic('pdf', 16) + ' Baixar PDF'; }
+    };
     if ($('b-renomear')) $('b-renomear').onclick = function () { renomearEdificacao(l); };
     v.querySelectorAll('[data-irlaudo]').forEach(function (b) { b.onclick = function () { if (b.dataset.irlaudo !== l.id) irPara(b.dataset.irlaudo, tela.aba); }; });
     if ($('b-outra-ed')) $('b-outra-ed').onclick = function () { iniciarLaudo(osDe(l.osId) || { id: l.osId, codigo: l.osCodigo, empresaId: l.empresaId, empresaNome: l.empresaNome }); };
@@ -1764,7 +1769,7 @@
   function abrirVisualizador(l) {
     var v = $('pdf-viewer');
     if (!v) { v = document.createElement('div'); v.id = 'pdf-viewer'; document.body.appendChild(v); }
-    v.innerHTML = '<div class="pdf-barra"><div style="display:flex;align-items:center;gap:12px;min-width:0"><button class="btn sec" id="pdf-x">← Voltar</button><b class="pdf-tit">Laudo ' + esc(l.numero || '(rascunho)') + ' · ' + esc(l.edificacaoNome || '') + '</b></div><div style="display:flex;gap:8px;align-items:center"><span class="muted pdf-dica">Páginas numeradas no PDF</span><button class="btn" id="pdf-imp">' + ic('pdf', 16) + ' Imprimir / salvar PDF</button></div></div>' +
+    v.innerHTML = '<div class="pdf-barra"><div style="display:flex;align-items:center;gap:12px;min-width:0"><button class="btn sec" id="pdf-x">← Voltar</button><b class="pdf-tit">Laudo ' + esc(l.numero || '(rascunho)') + ' · ' + esc(l.edificacaoNome || '') + '</b></div><div style="display:flex;gap:8px;align-items:center"><span class="muted pdf-dica">Páginas numeradas no PDF</span><button class="btn" id="pdf-baixar" disabled>' + ic('pdf', 16) + ' Baixar PDF</button><button class="btn sec" id="pdf-imp">Imprimir</button></div></div>' +
       '<button class="pdf-voltar-flut" id="pdf-x2" aria-label="Voltar ao laudo">← Voltar</button><iframe id="pdf-frame" title="Laudo SPDA" srcdoc="<p style=&quot;font-family:sans-serif;padding:30px;color:#555&quot;>Montando o laudo…</p>"></iframe>';
     v.style.display = 'flex'; document.body.style.overflow = 'hidden';
     function fechar() { v.style.display = 'none'; v.innerHTML = ''; document.body.style.overflow = ''; window.removeEventListener('keydown', esc1); window.removeEventListener('popstate', fechar); }
@@ -1772,6 +1777,7 @@
     history.pushState({ pdf: 1 }, ''); // o "voltar" do celular / navegador fecha o laudo
     window.addEventListener('popstate', fechar); window.addEventListener('keydown', esc1);
     $('pdf-x').onclick = $('pdf-x2').onclick = function () { history.back(); };
+    $('pdf-baixar').onclick = function () { if (pdfAtual.html) baixarPdf(pdfAtual.html, pdfAtual.nome, pdfAtual.rodape); };
     $('pdf-imp').onclick = function () { var f = $('pdf-frame'); try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast('Não foi possível imprimir: ' + e.message); } };
   }
   // Laudo de todas as edificações da OS num documento só: capa da planta, resumo, uma parte por edificação e assinatura
@@ -1781,6 +1787,7 @@
     abrirVisualizador({ numero: 'OS ' + (l.osCodigo || ''), edificacaoNome: ls.length + ' edificações' });
     var html = await montarHtmlOs(ls);
     var fr = $('pdf-frame'); if (fr) fr.srcdoc = html;
+    prontoParaBaixar(html, 'Laudo SPDA OS ' + (l.osCodigo || '') + ' - ' + (l.empresaNome || ''), 'Laudo SPDA OS ' + (l.osCodigo || '') + ' · ' + (l.empresaNome || '') + ' · IDEALLE Inspeções e Serviços');
   }
   async function montarHtmlOs(ls) {
     var l0 = ls[0], partes = [];
@@ -1828,6 +1835,40 @@
     abrirVisualizador(l);
     var html = await montarHtmlLaudo(l);
     var fr = $('pdf-frame'); if (fr) fr.srcdoc = html;
+    prontoParaBaixar(html, 'Laudo SPDA ' + (l.numero || 'rascunho') + ' - ' + (l.edificacaoNome || '') + ' - ' + (l.empresaNome || ''), 'Laudo SPDA ' + (l.numero || '(rascunho)') + ' · ' + (l.empresaNome || '') + ' · IDEALLE Inspeções e Serviços');
+  }
+  // ----- Baixar o laudo como arquivo PDF (mesmo conteúdo da tela, gerado no navegador) -----
+  var pdfAtual = {};
+  function prontoParaBaixar(html, nome, rodape) {
+    pdfAtual = { html: html, nome: nome, rodape: rodape };
+    var b = $('pdf-baixar'); if (b) b.disabled = false;
+  }
+  async function baixarPdf(html, nome, rodape) {
+    var b = $('pdf-baixar'), txt = b ? b.innerHTML : '';
+    if (b) { b.disabled = true; b.textContent = 'Gerando PDF…'; }
+    var box = null, rolagem = window.scrollY;
+    try {
+      if (!window.html2pdf) await carregarScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
+      var d = new DOMParser().parseFromString(html, 'text/html');
+      var css = Array.prototype.map.call(d.querySelectorAll('style'), function (st) { return st.textContent; }).join('\n');
+      css = css.replace(/@page[^{]*\{[^{}]*(\{[^{}]*\}[^{}]*)*\}/g, '').replace(/@media screen\{[^{}]*(\{[^{}]*\}[^{}]*)*\}/g, '').replace(/body::before\{[^}]*\}/g, '').replace(/body\{/g, '.lpdf{');
+      box = document.createElement('div'); box.style.cssText = 'position:absolute;left:-10000px;top:0;width:182mm;background:#fff;color:#111';
+      box.innerHTML = '<style>' + css + '.lpdf .capa{height:235mm;page-break-after:always}.lpdf h2{page-break-after:avoid}.lpdf section.pg{page-break-before:auto}</style><div class="lpdf">' + d.body.innerHTML + '</div>';
+      box.querySelectorAll('.pdf-voltar-flut').forEach(function (x) { x.remove(); });
+      document.body.appendChild(box); window.scrollTo(0, 0);
+      var rascunho = /content:"RASCUNHO"/.test(html);
+      var pdf = await window.html2pdf().set({ margin: [14, 14, 16, 14], image: { type: 'jpeg', quality: 0.92 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'], after: '.capa', avoid: ['.cab-fotos', 'tr', '.ass', '.parecer', 'h3', '.ed-cab'] } }).from(box.querySelector('.lpdf')).toPdf().get('pdf');
+      var n = pdf.internal.getNumberOfPages();
+      for (var i = 2; i <= n; i++) {
+        pdf.setPage(i); pdf.setFontSize(7.5); pdf.setTextColor(110);
+        pdf.text(rodape, 14, 290); pdf.text('Página ' + i + ' de ' + n, 196, 290, { align: 'right' });
+        if (rascunho) { pdf.setTextColor(180, 0, 0); pdf.text('RASCUNHO', 196, 9, { align: 'right' }); }
+      }
+      pdf.save(String(nome).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim() + '.pdf');
+      toast('PDF baixado.');
+    } catch (e) { toast('Não foi possível gerar o PDF: ' + (e.message || e)); }
+    finally { if (box) box.remove(); window.scrollTo(0, rolagem); if (b) { b.disabled = false; b.innerHTML = txt; } }
   }
   function baseRisco(l, ed) { return l.gerenciamentoRisco ? Object.assign({}, ed, { dimensoes: l.gerenciamentoRisco.dimensoes, risco: l.gerenciamentoRisco.risco }) : ed; }
   function temRisco(l, ed) { var b = baseRisco(l, ed); return !!(b && b.risco && (b.risco.zonas || []).length); }
