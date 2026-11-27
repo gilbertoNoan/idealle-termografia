@@ -443,6 +443,16 @@
   function edDe(id) { return cache.edificacoes.find(function (e) { return e.id === id; }); }
   function respondidos(l) { var c = l.checklist || []; return c.length ? c.filter(function (i) { return i.r; }).length / c.length * 100 : 0; }
   var ST = { rascunho: ['Rascunho', 'warn'], revisao: ['Em revisão', 'azul'], concluido: ['Concluído', 'ok'] };
+  // Opções do parecer geral da capa (além dos três pareceres): [texto, cor do texto, fundo]
+  var PARECER_GERAL = {
+    conforme: ['Conforme', '#15803d', '#dcfce7'],
+    conforme_ressalvas: ['Conforme com ressalvas', '#a16207', '#fef9c3'],
+    conforme_melhorias: ['Conforme com pontos de melhoria', '#15803d', '#dcfce7'],
+    conforme_pontual: ['Conforme (não conformidades pontuais)', '#15803d', '#dcfce7'],
+    parcial: ['Parcialmente conforme', '#a16207', '#fef9c3'],
+    em_adequacao: ['Em adequação', '#a16207', '#fef9c3'],
+    nao_conforme: ['Não conforme', '#b91c1c', '#fee2e2']
+  };
   var PARECER = { conforme: ['Conforme', 'ok'], conforme_ressalvas: ['Conforme com ressalvas', 'warn'], nao_conforme: ['Não conforme', 'bad'] };
 
   // ===================== INICIALIZAÇÃO =====================
@@ -1503,8 +1513,13 @@
       (function () {
         // Parecer geral da capa do relatório da OS: o engenheiro escolhe; em "Automático" vale o pior das edificações
         var irmaos = cache.laudos.filter(function (x) { return x.osId === l.osId; }), atual = (irmaos.find(function (x) { return x.parecerGeralOs; }) || {}).parecerGeralOs || '';
-        return '<label style="margin-top:12px">Parecer geral da OS (capa do relatório' + (irmaos.length > 1 ? ' das ' + irmaos.length + ' edificações' : '') + ')</label><select id="c-pgeral"' + dis + '><option value="">Automático (o pior parecer das edificações)</option>' +
-          Object.keys(PARECER).map(function (k) { return '<option value="' + k + '"' + (atual === k ? ' selected' : '') + '>' + PARECER[k][0] + '</option>'; }).join('') + '</select>';
+        var outro = atual && !PARECER_GERAL[atual];
+        return '<div style="margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:10px"><label style="margin-top:0">Parecer geral (capa do relatório' + (irmaos.length > 1 ? ' da OS, ' + irmaos.length + ' edificações' : '') + ')</label>' +
+          '<div class="muted" style="font-size:13px;margin-bottom:6px">Pode ser diferente do parecer acima: ex.: alguns pontos não conformes, mas no geral o SPDA está conforme.</div>' +
+          '<select id="c-pgeral"' + dis + '><option value="">Automático (o pior parecer das edificações)</option>' +
+          Object.keys(PARECER_GERAL).map(function (k) { return '<option value="' + k + '"' + (atual === k ? ' selected' : '') + '>' + PARECER_GERAL[k][0] + '</option>'; }).join('') +
+          '<option value="__outro"' + (outro ? ' selected' : '') + '>Outro (escrever)…</option></select>' +
+          '<input id="c-pgeral-tx" placeholder="Escreva o parecer geral (ex.: Conforme, com adequações em andamento)" value="' + esc(outro ? atual : '') + '" style="margin-top:6px;' + (outro ? '' : 'display:none') + '"' + dis + '></div>';
       })() +
       (trava ? '' : '<div class="gerar-tx"><button class="btn sec peq" id="c-gerar">' + ic('raio', 14) + ' Gerar conclusão e recomendações pelo checklist</button><span class="muted">Monta os textos com as respostas, medições e prazos. Você pode editar depois.</span></div>') +
       '<label>Conclusão</label><textarea id="c-txt" rows="3"' + dis + ' placeholder="Ex.: O SPDA inspecionado atende / não atende aos requisitos da ABNT NBR 5419...">' + esc(c.texto || '') + '</textarea>' +
@@ -1524,10 +1539,15 @@
     if (l.portal) a.querySelector('.status-card h2').insertAdjacentHTML('afterend', '<p class="muted" style="margin-top:-4px">No Portal do Cliente desde ' + dt(l.portal.publicadoEm) + '.</p>');
     a.querySelectorAll('[data-st]').forEach(function (b) { b.onclick = function () { mudarStatus(l, b.dataset.st); }; });
     if (trava) return;
-    $('c-pgeral').onchange = function () {
-      var v = this.value; cache.laudos.filter(function (x) { return x.osId === l.osId; }).forEach(function (x) { gravarLaudo(x, { parecerGeralOs: v }); });
-      toast(v ? 'Parecer geral da OS: ' + PARECER[v][0] + '.' : 'Parecer geral da OS automático.');
+    var gravarGeral = function (v) {
+      cache.laudos.filter(function (x) { return x.osId === l.osId; }).forEach(function (x) { gravarLaudo(x, { parecerGeralOs: v }); });
+      toast(v ? 'Parecer geral: ' + (PARECER_GERAL[v] ? PARECER_GERAL[v][0] : v) + '.' : 'Parecer geral automático.');
     };
+    $('c-pgeral').onchange = function () {
+      if (this.value === '__outro') { $('c-pgeral-tx').style.display = ''; $('c-pgeral-tx').focus(); return; }
+      $('c-pgeral-tx').style.display = 'none'; gravarGeral(this.value);
+    };
+    $('c-pgeral-tx').onchange = function () { var t = this.value.trim(); if (t) gravarGeral(t); };
     a.querySelectorAll('[data-par]').forEach(function (b) { b.onclick = function () { var cc = Object.assign({}, l.conclusao, { parecer: b.dataset.par }); if (!cc.texto) cc.texto = textoConclusao(b.dataset.par); gravarLaudo(l, { conclusao: cc }); render(); }; });
     var gerar = function (perguntar) {
       var tx = SPDA.textosAutomaticos(l), cc = l.conclusao || {};
@@ -1694,8 +1714,10 @@
     var ORD = { nao_conforme: 3, conforme_ressalvas: 2, conforme: 1 }, pior = '';
     ls.forEach(function (x) { var p = (x.conclusao || {}).parecer; if (p && (ORD[p] || 0) > (ORD[pior] || 0)) pior = p; });
     // parecer geral escolhido pelo engenheiro (vale mais que o pior das edificações)
-    var escolhido = (ls.find(function (x) { return x.parecerGeralOs; }) || {}).parecerGeralOs; if (escolhido && PAR[escolhido]) pior = escolhido;
+    var escolhido = (ls.find(function (x) { return x.parecerGeralOs; }) || {}).parecerGeralOs;
     var PAR = { conforme: ['Conforme', '#15803d', '#dcfce7'], conforme_ressalvas: ['Conforme com ressalvas', '#a16207', '#fef9c3'], nao_conforme: ['Não conforme', '#b91c1c', '#fee2e2'] };
+    // parecer geral escolhido pelo engenheiro vale mais que o pior das edificações
+    if (escolhido) { PAR = Object.assign({}, PAR, PARECER_GERAL); if (!PAR[escolhido]) PAR[escolhido] = [escolhido, '#0b4f8a', '#e0f2fe']; pior = escolhido; }
     var todosConcl = ls.every(function (x) { return x.status === 'concluido'; });
     var cnpj = String(l0.cnpj || '').replace(/\D/g, ''); cnpj = cnpj.length === 14 ? cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : (l0.cnpj || '');
     var ed0 = edDe(l0.edificacaoId) || {}, en = ed0.endereco || {};
@@ -1720,7 +1742,7 @@
           partes[i].secoes.replace(/<h2>(\d+\.)(\d+)\. /g, function (m0, a, b) { return '<h2>' + (i + 2) + '.' + b + '. '; }) + '</section>';
       }).join('') +
       '<section class="pg"><h2>' + (ls.length + 2) + '. Conclusão geral e responsável técnico</h2>' + resumo +
-      '<p>' + (PAR[pior] ? 'Situação geral da planta: <b style="color:' + PAR[pior][1] + '">' + PAR[pior][0] + '</b> (a pior situação entre as edificações). ' : '') + 'As recomendações de cada edificação estão na parte correspondente.</p>' +
+      '<p>' + (PAR[pior] ? 'Situação geral da planta: <b style="color:' + PAR[pior][1] + '">' + PAR[pior][0] + '</b>' + (escolhido ? '. ' : ' (a pior situação entre as edificações). ') : '') + 'As recomendações de cada edificação estão na parte correspondente.</p>' +
       partes[0].ass.replace(/<b>[^<]*<\/b><br>[^<]* · CREA [^<]*<br>ART nº [^<]*/, '<b>' + esc(rp.nome || '') + '</b><br>' + esc(cfg().responsavel.titulo) + ' · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '')) + '</section>';
     var rod = 'Laudo SPDA OS ' + (l0.osCodigo || '') + ' · ' + (l0.empresaNome || '') + ' · IDEALLE Inspeções e Serviços';
     var css = partes[0].css.replace(/@bottom-left\{content:"[^"]*"/, '@bottom-left{content:"' + rod.replace(/["\\]/g, '') + '"').replace(/body::before\{content:"RASCUNHO"[^}]*\}/, '') + (todosConcl ? '' : 'body::before{content:"RASCUNHO";position:fixed;top:40%;left:15%;font-size:110pt;color:rgba(200,0,0,.08);transform:rotate(-30deg);z-index:-1}') +
