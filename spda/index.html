@@ -1018,7 +1018,12 @@
           var s2 = ST[x.status] || ST.rascunho;
           return '<button class="os-ed' + (x.id === l.id ? ' sel' : '') + '" data-irlaudo="' + x.id + '"><i class="' + s2[1] + '"></i>' + esc(x.edificacaoNome || 'Edificação') + '</button>';
         }).join('') + (l.status !== 'concluido' || dono ? '<button class="os-ed mais" id="b-outra-ed">' + ic('mais', 14) + ' Outra edificação</button>' : '') +
-          '<span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">' + botaoParecerGeral(irmaos) + (irmaos.length > 1 ? '<button class="btn sec peq" id="b-pdf-os">' + ic('pdf', 14) + ' PDF de todas (' + irmaos.length + ')</button>' : '') + '</span></div>';
+          '<span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">' +
+          (function () {
+            var nR = irmaos.filter(function (x) { return x.status === 'rascunho'; }).length, nV = irmaos.filter(function (x) { return x.status === 'revisao'; }).length;
+            return (irmaos.length > 1 && nR ? '<button class="btn peq" id="b-todas-rev">' + ic('selo', 14) + ' Enviar todas para revisão (' + nR + ')</button>' : '') +
+              (irmaos.length > 1 && nV && dono ? '<button class="btn ok peq" id="b-todas-conc">' + ic('selo', 14) + ' Concluir todas (' + nV + ')</button>' : '');
+          })() + botaoParecerGeral(irmaos) + (irmaos.length > 1 ? '<button class="btn sec peq" id="b-pdf-os">' + ic('pdf', 14) + ' PDF de todas (' + irmaos.length + ')</button>' : '') + '</span></div>';
       })() +
       '<div class="progresso"><div class="barra"><div style="width:' + r.toFixed(0) + '%"></div></div><span>' + pct(r) + ' do checklist · ' + plural(nc.length, 'não conformidade', 'não conformidades') + '</span></div>' +
       (trava ? '<div class="aviso" style="background:var(--ok-2);color:var(--ok)">Laudo concluído: só leitura. ' + (dono ? 'Para alterar, volte para revisão em Conclusão e ART.' : '') + '</div>' : '') +
@@ -1029,6 +1034,8 @@
     v.querySelectorAll('[data-irlaudo]').forEach(function (b) { b.onclick = function () { if (b.dataset.irlaudo !== l.id) irPara(b.dataset.irlaudo, tela.aba); }; });
     if ($('b-outra-ed')) $('b-outra-ed').onclick = function () { iniciarLaudo(osDe(l.osId) || { id: l.osId, codigo: l.osCodigo, empresaId: l.empresaId, empresaNome: l.empresaNome }); };
     if ($('b-pdf-os')) $('b-pdf-os').onclick = function () { gerarPdfOs(l); };
+    if ($('b-todas-rev')) $('b-todas-rev').onclick = function () { mudarTodas(l, 'revisao'); };
+    if ($('b-todas-conc')) $('b-todas-conc').onclick = function () { mudarTodas(l, 'concluido'); };
     v.querySelectorAll('[data-pgeral]').forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); modalParecerGeral(l); }; });
     v.querySelectorAll('[data-aba]').forEach(function (b) { b.onclick = function () { tela.aba = b.dataset.aba; render(); }; });
     ({ checklist: abaChecklist, medicoes: abaMedicoes, fotos: abaFotos, dados: abaDados, docs: abaDocumentacao, conclusao: abaConclusao })[tela.aba]($('aba'), l, trava);
@@ -1618,11 +1625,12 @@
       conforme_ressalvas: 'O SPDA inspecionado atende aos requisitos essenciais da ABNT NBR 5419, com as ressalvas listadas nas não conformidades, que devem ser corrigidas.',
       nao_conforme: 'O SPDA inspecionado NÃO atende aos requisitos da ABNT NBR 5419. As não conformidades listadas devem ser corrigidas e o sistema reinspecionado.' })[p] || '';
   }
-  async function mudarStatus(l, para) {
+  async function mudarStatus(l, para, lote) {
     await salvarPendente();
     if (para === 'concluido') { var nt = textosAtualizados(l); if (nt) await gravarLaudo(l, { conclusao: nt }); }
-    var erro = SPDA.podeMudarStatus(l, para);
-    if (erro && para !== 'rascunho') {
+    var erro = SPDA.podeMudarStatus(l, para, !!lote);
+    if (lote) { if (erro) return erro; }
+    else if (erro && para !== 'rascunho') {
       // o que falta e não é obrigatório: pergunta e segue se o engenheiro confirmar
       var faltam = SPDA.pendencias(l, para === 'concluido'), obrig = faltam.filter(SPDA.pendenciaObrigatoria);
       if (!obrig.length && faltam.length && confirm('Ainda aparece na lista:\n\n- ' + faltam.slice(0, 12).join('\n- ') + (faltam.length > 12 ? '\n- … e mais ' + (faltam.length - 12) : '') + '\n\n' + (para === 'concluido' ? 'Concluir o laudo' : 'Enviar para revisão') + ' mesmo assim?')) erro = SPDA.podeMudarStatus(l, para, true);
@@ -1638,9 +1646,29 @@
     }
     // salva tudo que está na tela junto com o status
     Object.assign(campos, { checklist: l.checklist, medicoes: l.medicoes, conclusao: l.conclusao, responsavel: l.responsavel });
-    await gravarLaudo(l, campos, para === 'concluido' ? 'Laudo concluído: ' + (campos.numero || l.numero) : para === 'revisao' ? 'Enviado para revisão.' : 'Laudo voltou para o campo.');
+    await gravarLaudo(l, campos, lote ? null : para === 'concluido' ? 'Laudo concluído: ' + (campos.numero || l.numero) : para === 'revisao' ? 'Enviado para revisão.' : 'Laudo voltou para o campo.');
+    if (lote) return '';
     if (para === 'concluido' || l.status === 'concluido') resumoNaOS(l.osId);
     render();
+  }
+  // Todas as edificações da OS de uma vez: enviar para revisão (rascunhos) ou concluir (as em revisão, só sócios)
+  async function mudarTodas(l0, para) {
+    var de = para === 'concluido' ? 'revisao' : 'rascunho';
+    var ls = cache.laudos.filter(function (x) { return x.osId === l0.osId && x.status === de; });
+    if (!ls.length) return;
+    var comPend = ls.filter(function (x) { return SPDA.pendencias(x, para === 'concluido').length; }).length;
+    if (!confirm((para === 'concluido' ? 'Concluir' : 'Enviar para revisão') + ' ' + plural(ls.length, 'edificação', 'edificações') + ' da OS ' + (l0.osCodigo || '') + '?' +
+      (comPend ? '\n\n' + comPend + ' ainda têm itens na lista de pendências; seguem mesmo assim (menos as que faltarem itens obrigatórios).' : ''))) return;
+    var ok = 0, falhas = [];
+    for (var i = 0; i < ls.length; i++) {
+      toast('Salvando ' + (i + 1) + ' de ' + ls.length + '…');
+      try { var e = await mudarStatus(laudoDe(ls[i].id) || ls[i], para, true); if (e) falhas.push((ls[i].edificacaoNome || 'Edificação') + ': ' + e.replace(/^Falta: /, 'falta ')); else ok++; }
+      catch (err) { falhas.push((ls[i].edificacaoNome || 'Edificação') + ': erro ao salvar'); }
+    }
+    if (para === 'concluido' && ok) resumoNaOS(l0.osId);
+    render();
+    if (falhas.length) alert(ok + ' de ' + ls.length + ' ' + (para === 'concluido' ? 'concluída(s)' : 'enviada(s) para revisão') + '.\n\nNão foram:\n- ' + falhas.join('\n- '));
+    else toast(plural(ok, 'edificação', 'edificações') + ' ' + (para === 'concluido' ? 'concluída(s).' : 'enviada(s) para revisão.'));
   }
   // ===================== PORTAL DO CLIENTE =====================
   // PDF de consulta (sem assinatura, com "CÓPIA PARA CONSULTA") gerado no navegador com html2pdf e gravado como os
