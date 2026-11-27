@@ -623,7 +623,8 @@
   function assinaturasHtml(rp, art) {
     var c = cfg(), umaAss = function (nome, l2, l3) { return '<div class="ass-it"><div class="linha-ass"></div><b>' + esc(nome || '') + '</b>' + (l2 ? '<br>' + l2 : '') + (l3 ? '<br>' + l3 : '') + '</div>'; };
     var soc = c.sociosNoLaudo ? (c.socios || []).filter(function (x) { return x && x.nome; }) : [];
-    return '<div class="ass">' + (soc.length ? '<div class="ass-socios">' + soc.map(function (x) { return umaAss(x.nome, esc(x.cargo || 'Sócio') + (x.crea ? ' · CREA ' + esc(x.crea) : ''), 'IDEALLE Inspeções e Serviços'); }).join('') + '</div>' : '') +
+    // tabela centralizada (o html2pdf respeita melhor que flex)
+    return '<div class="ass">' + (soc.length ? '<table class="ass-socios"><tr>' + soc.map(function (x) { return '<td>' + umaAss(x.nome, esc(x.cargo || 'Sócio') + (x.crea ? ' · CREA ' + esc(x.crea) : ''), 'IDEALLE Inspeções e Serviços') + '</td>'; }).join('') + '</tr></table>' : '') +
       '<div class="ass-rt">' + umaAss(rp.nome, esc(c.responsavel.titulo) + ' · CREA ' + esc(rp.crea || ''), 'ART nº ' + esc((art || {}).numero || '—') + ((art || {}).data ? ' de ' + dt(art.data) : '') + '<br>IDEALLE Inspeções e Serviços') + '</div></div>';
   }
   function montarLateral() {
@@ -1893,7 +1894,7 @@
       'table.fotos{table-layout:fixed;border-collapse:separate;border-spacing:0}table.fotos td{border:0;padding:0 5px 10px;width:50%;vertical-align:top}table.fotos tr,.cab-fotos{page-break-inside:avoid}.fotos figure{margin:0}.fotos img{display:block;width:100%;height:62mm;object-fit:cover;border:1px solid #ccc;box-sizing:border-box}.fotos figcaption{font-size:9pt;margin-top:3px;overflow-wrap:anywhere}' +
       '.pr-I{color:#b91c1c;font-weight:700;white-space:nowrap}.pr-A{color:#a16207;font-weight:700;white-space:nowrap}.pr-B{color:#0b5c99;font-weight:700;white-space:nowrap}' +
       '.parecer{font-weight:700;font-size:12pt;padding:8px 10px;border-radius:4px}.parecer.conforme{background:#dcfce7;color:#15803d}.parecer.conforme_ressalvas{background:#fef3c7;color:#92400e}.parecer.nao_conforme{background:#fee2e2;color:#b91c1c}.pre{white-space:pre-line}' +
-      '.ass{margin-top:50px;text-align:center;line-height:1.5}.ass-socios{display:flex;gap:30px;justify-content:center;margin-bottom:55px}.ass-socios .ass-it{flex:1;max-width:46%}.ass-rt .ass-it{width:70%;margin:0 auto}.linha-ass{width:90%;margin:0 auto 6px;border-top:1px solid #000}.ass-rt .linha-ass{width:100%}' +
+      '.ass{margin-top:50px;text-align:center;line-height:1.5}table.ass-socios{font-size:inherit;width:84%;margin:0 auto 55px;border:0;border-collapse:collapse;table-layout:fixed}table.ass-socios td{border:0;padding:0 12px;font-size:inherit;background:none;text-align:center;vertical-align:top}.ass-it{text-align:center}.ass-rt .ass-it{width:60%;margin:0 auto}.linha-ass{width:90%;margin:0 auto 6px;border-top:1px solid #000}.ass-rt .linha-ass{width:100%}' +
       (l.status !== 'concluido' ? 'body::before{content:"RASCUNHO";position:fixed;top:40%;left:15%;font-size:110pt;color:rgba(200,0,0,.08);transform:rotate(-30deg);z-index:-1}' : '');
     if (opt.partes) return { secoes: secoesHtml, ass: assHtml, css: css, logo: logo };
     if (paraPortal) return { corpo: corpo, css: css };
