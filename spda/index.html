@@ -613,8 +613,18 @@
       periodicidadeMeses: Number(c.periodicidadeMeses) || SPDA.PERIODICIDADE_PADRAO_MESES,
       ngPadrao: c.ngPadrao || '', metodoPadrao: c.metodoPadrao || '',
       equipAt: c.equipAt || '', equipCo: c.equipCo || '', avisoDias: Number(c.avisoDias) || 30,
-      escopo: c.escopo == null ? ESCOPO_PADRAO : c.escopo, escopoNoLaudo: c.escopoNoLaudo !== false
+      escopo: c.escopo == null ? ESCOPO_PADRAO : c.escopo, escopoNoLaudo: c.escopoNoLaudo !== false,
+      // assinaturas dos sócios (lado a lado, acima do responsável técnico)
+      socios: Array.isArray(c.socios) ? c.socios : SOCIOS_PADRAO, sociosNoLaudo: c.sociosNoLaudo !== false
     };
+  }
+  var SOCIOS_PADRAO = [{ nome: 'Gilberto Barnabe da Luz', cargo: 'Sócio', crea: '' }, { nome: 'Rodrigo Santos da Cunha', cargo: 'Sócio', crea: '' }];
+  // Bloco de assinaturas do PDF: sócios lado a lado e, abaixo, o responsável técnico com a ART
+  function assinaturasHtml(rp, art) {
+    var c = cfg(), umaAss = function (nome, l2, l3) { return '<div class="ass-it"><div class="linha-ass"></div><b>' + esc(nome || '') + '</b>' + (l2 ? '<br>' + l2 : '') + (l3 ? '<br>' + l3 : '') + '</div>'; };
+    var soc = c.sociosNoLaudo ? (c.socios || []).filter(function (x) { return x && x.nome; }) : [];
+    return '<div class="ass">' + (soc.length ? '<div class="ass-socios">' + soc.map(function (x) { return umaAss(x.nome, esc(x.cargo || 'Sócio') + (x.crea ? ' · CREA ' + esc(x.crea) : ''), 'IDEALLE Inspeções e Serviços'); }).join('') + '</div>' : '') +
+      '<div class="ass-rt">' + umaAss(rp.nome, esc(c.responsavel.titulo) + ' · CREA ' + esc(rp.crea || ''), 'ART nº ' + esc((art || {}).numero || '—') + ((art || {}).data ? ' de ' + dt(art.data) : '') + '<br>IDEALLE Inspeções e Serviços') + '</div></div>';
   }
   function montarLateral() {
     ['lateral', 'cabecalho'].forEach(function (id) { var el = $(id); el.innerHTML = el.innerHTML.replace(/__IC_(\w+)__/g, function (m0, n) { return ic(n, 18); }); });
@@ -731,6 +741,9 @@
     var selEq = function (id, val, uso) { return '<select id="' + id + '"' + dis + '><option value="">— nenhum —</option>' + eqs.filter(function (e) { return e.uso === uso || e.uso === 'ambos'; }).map(function (e) { return '<option value="' + e.id + '"' + (e.id === val ? ' selected' : '') + '>' + esc(e.descricao || eqResumo(e)) + '</option>'; }).join('') + '</select>'; };
     v.innerHTML = '<div class="pg-cab"><div><h1>Configurações</h1><p class="muted">Valores usados ao abrir cada laudo novo. ' + (dono ? 'As mudanças valem para os próximos laudos; os já abertos não mudam.' : 'Só os sócios alteram.') + '</p></div></div>' +
       '<div class="card"><h2>Responsável técnico padrão</h2><div class="linha"><div style="flex:2"><label>Nome</label><input id="cf-nome" value="' + esc(c.responsavel.nome) + '"' + dis + '></div><div><label>CREA</label><input id="cf-crea" value="' + esc(c.responsavel.crea) + '"' + dis + '></div><div><label>Título profissional</label><input id="cf-tit" value="' + esc(c.responsavel.titulo) + '"' + dis + '></div></div></div>' +
+      '<div class="card"><h2>Assinaturas dos sócios no laudo</h2><p class="muted" style="font-size:13px;margin-top:0">Saem lado a lado no fim do laudo, acima da assinatura do responsável técnico.</p>' +
+      '<label class="z-check"><input type="checkbox" id="cf-socon"' + (c.sociosNoLaudo ? ' checked' : '') + dis + '> Incluir as assinaturas dos sócios</label>' +
+      [0, 1].map(function (i) { var x = c.socios[i] || {}; return '<div class="linha"><div style="flex:2"><label>Sócio ' + (i + 1) + ' — nome</label><input id="cf-sn' + i + '" value="' + esc(x.nome || '') + '"' + dis + '></div><div><label>Cargo / título</label><input id="cf-sc' + i + '" value="' + esc(x.cargo || '') + '" placeholder="Sócio"' + dis + '></div><div><label>CREA (opcional)</label><input id="cf-sr' + i + '" value="' + esc(x.crea || '') + '"' + dis + '></div></div>'; }).join('') + '</div>' +
       '<div class="card"><h2>Medições</h2><div class="linha"><div><label>Referência de aterramento (Ω)</label><input id="cf-at" inputmode="decimal" value="' + esc(numCampo(c.limites.aterramentoOhm)) + '"' + dis + '></div><div><label>Referência de continuidade (Ω)</label><input id="cf-co" inputmode="decimal" value="' + esc(numCampo(c.limites.continuidadeOhm)) + '"' + dis + '></div></div>' +
       '<div class="linha"><div><label>Aparelho padrão — aterramento</label>' + selEq('cf-eqat', c.equipAt, 'aterramento') + '</div><div><label>Aparelho padrão — continuidade</label>' + selEq('cf-eqco', c.equipCo, 'continuidade') + '</div></div>' +
       '<div class="linha"><div><label>Método de medição padrão</label><input id="cf-met" list="l-met2" value="' + esc(c.metodoPadrao) + '"' + dis + '><datalist id="l-met2"><option value="Queda de potencial"><option value="Alicate terrômetro"><option value="Método dos 62%"></datalist></div><div><label>Avisar o vencimento da calibração com (dias)</label><input id="cf-av" inputmode="numeric" value="' + c.avisoDias + '"' + dis + '></div></div></div>' +
@@ -753,7 +766,8 @@
       var d = { responsavel: { nome: g('cf-nome'), crea: g('cf-crea'), titulo: g('cf-tit') || 'Engenheiro Eletricista' },
         limites: { aterramentoOhm: num(g('cf-at')) || SPDA.LIMITES_PADRAO.aterramentoOhm, continuidadeOhm: num(g('cf-co')) || SPDA.LIMITES_PADRAO.continuidadeOhm },
         periodicidadeMeses: Number(g('cf-per')) || SPDA.PERIODICIDADE_PADRAO_MESES, ngPadrao: g('cf-ng'), metodoPadrao: g('cf-met'), avisoDias: Number(g('cf-av')) || 30,
-        equipAt: $('cf-eqat').value, equipCo: $('cf-eqco').value, escopo: $('cf-escopo').value, escopoNoLaudo: $('cf-esc').checked, atualizadoEm: agora(), atualizadoPor: usuario };
+        equipAt: $('cf-eqat').value, equipCo: $('cf-eqco').value, escopo: $('cf-escopo').value, escopoNoLaudo: $('cf-esc').checked, atualizadoEm: agora(), atualizadoPor: usuario,
+        sociosNoLaudo: $('cf-socon').checked, socios: [0, 1].map(function (i) { return { nome: g('cf-sn' + i), cargo: g('cf-sc' + i) || 'Sócio', crea: g('cf-sr' + i) }; }).filter(function (x) { return x.nome; }) };
       salvar(function () { return banco.atualizar(SPDA.COLECOES.config, 'geral', d); }, 'Configurações salvas.');
     };
   }
@@ -1767,7 +1781,7 @@
       }).join('') +
       '<section class="pg"><h2>' + (ls.length + 2) + '. Conclusão geral e responsável técnico</h2>' + resumo +
       '<p>' + (PAR[pior] ? 'Situação geral da planta: <b style="color:' + PAR[pior][1] + '">' + PAR[pior][0] + '</b>' + (escolhido ? '. ' : ' (a pior situação entre as edificações). ') : '') + 'As recomendações de cada edificação estão na parte correspondente.</p>' +
-      partes[0].ass.replace(/<b>[^<]*<\/b><br>[^<]* · CREA [^<]*<br>ART nº [^<]*/, '<b>' + esc(rp.nome || '') + '</b><br>' + esc(cfg().responsavel.titulo) + ' · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '')) + '</section>';
+      assinaturasHtml(rp, art) + '</section>';
     var rod = 'Laudo SPDA OS ' + (l0.osCodigo || '') + ' · ' + (l0.empresaNome || '') + ' · IDEALLE Inspeções e Serviços';
     var css = partes[0].css.replace(/@bottom-left\{content:"[^"]*"/, '@bottom-left{content:"' + rod.replace(/["\\]/g, '') + '"').replace(/body::before\{content:"RASCUNHO"[^}]*\}/, '') + (todosConcl ? '' : 'body::before{content:"RASCUNHO";position:fixed;top:40%;left:15%;font-size:110pt;color:rgba(200,0,0,.08);transform:rotate(-30deg);z-index:-1}') +
       '.ed-parte{page-break-before:always}.ed-cab{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#0b5c99;color:#fff;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;flex-direction:column}.ed-cab span{font-size:8pt;letter-spacing:.14em;color:#cfe9fb}.ed-cab b{font-size:16pt}.ed-cab small{font-size:9pt;color:#e0f2fe}';
@@ -1869,7 +1883,7 @@
       (fotos.length ? gradeFotos(fotos, titulo('Registro fotográfico')) : titulo('Registro fotográfico') + '<p>Sem fotos.</p>') +
       titulo('Conclusão e recomendações') + (par ? '<p class="parecer ' + c.parecer + '">PARECER: ' + par[0].toUpperCase() + '</p>' : '') + '<p class="pre">' + esc(c.texto || '') + '</p>' + (c.recomendacoes ? '<h3>Recomendações</h3><p class="pre">' + esc(c.recomendacoes) + '</p>' : '') +
       '<p>Próxima inspeção recomendada: <b>' + (l.proximaInspecao ? dt(l.proximaInspecao) : 'em ' + (l.periodicidadeMeses || 12) + ' meses') + '</b>.</p>';
-    var assHtml = '<div class="ass"><div class="linha-ass"></div><b>' + esc(rp.nome || '') + '</b><br>' + esc(cfg().responsavel.titulo) + ' · CREA ' + esc(rp.crea || '') + '<br>ART nº ' + esc(art.numero || '—') + (art.data ? ' de ' + dt(art.data) : '') + '<br>IDEALLE Inspeções e Serviços</div>';
+    var assHtml = assinaturasHtml(rp, art);
     var corpo = capaHtml + '<section class="pg">' + sumarioHtml + secoesHtml + titulo('Responsável técnico') + assHtml + '</section>';
     var rodape = 'Laudo SPDA ' + (l.numero || '(rascunho)') + ' · ' + (l.empresaNome || '') + ' · IDEALLE Inspeções e Serviços';
     var css = '@page{size:A4;margin:16mm 14mm 18mm;@bottom-right{content:"Página " counter(page) " de " counter(pages);font:8pt Arial,sans-serif;color:#555}@bottom-left{content:"' + rodape.replace(/["\\]/g, '') + '";font:8pt Arial,sans-serif;color:#555}}@page:first{@bottom-right{content:none}@bottom-left{content:none}}body{font:11pt Arial,sans-serif;color:#111;margin:0}h1{font-size:24pt;margin:8px 0}h2{font-size:13pt;color:#0b5c99;border-bottom:2px solid #4db6ef;padding-bottom:4px;margin:22px 0 10px}h3{font-size:11pt;margin:14px 0 6px}' +
@@ -1879,7 +1893,7 @@
       'table.fotos{table-layout:fixed;border-collapse:separate;border-spacing:0}table.fotos td{border:0;padding:0 5px 10px;width:50%;vertical-align:top}table.fotos tr,.cab-fotos{page-break-inside:avoid}.fotos figure{margin:0}.fotos img{display:block;width:100%;height:62mm;object-fit:cover;border:1px solid #ccc;box-sizing:border-box}.fotos figcaption{font-size:9pt;margin-top:3px;overflow-wrap:anywhere}' +
       '.pr-I{color:#b91c1c;font-weight:700;white-space:nowrap}.pr-A{color:#a16207;font-weight:700;white-space:nowrap}.pr-B{color:#0b5c99;font-weight:700;white-space:nowrap}' +
       '.parecer{font-weight:700;font-size:12pt;padding:8px 10px;border-radius:4px}.parecer.conforme{background:#dcfce7;color:#15803d}.parecer.conforme_ressalvas{background:#fef3c7;color:#92400e}.parecer.nao_conforme{background:#fee2e2;color:#b91c1c}.pre{white-space:pre-line}' +
-      '.ass{margin-top:60px;text-align:center;line-height:1.5}.linha-ass{width:70%;margin:0 auto 6px;border-top:1px solid #000}' +
+      '.ass{margin-top:50px;text-align:center;line-height:1.5}.ass-socios{display:flex;gap:30px;justify-content:center;margin-bottom:55px}.ass-socios .ass-it{flex:1;max-width:46%}.ass-rt .ass-it{width:70%;margin:0 auto}.linha-ass{width:90%;margin:0 auto 6px;border-top:1px solid #000}.ass-rt .linha-ass{width:100%}' +
       (l.status !== 'concluido' ? 'body::before{content:"RASCUNHO";position:fixed;top:40%;left:15%;font-size:110pt;color:rgba(200,0,0,.08);transform:rotate(-30deg);z-index:-1}' : '');
     if (opt.partes) return { secoes: secoesHtml, ass: assHtml, css: css, logo: logo };
     if (paraPortal) return { corpo: corpo, css: css };
