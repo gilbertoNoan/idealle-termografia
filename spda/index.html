@@ -1690,17 +1690,35 @@
   // outros laudos: portal_laudos/<empresaId>.laudos.s_<id> + portal_laudos_partes/<chave>__<versão>__<n> (700 mil car.)
   var PARTE = 700000;
   function carregarScript(src) { return new Promise(function (ok, erro) { var sc = document.createElement('script'); sc.src = src; sc.onload = ok; sc.onerror = function () { erro(new Error('não foi possível carregar o gerador de PDF')); }; document.head.appendChild(sc); }); }
+  // Gera o PDF uma parte (capa / seção) por vez. Com o laudo inteiro numa imagem só, o navegador passa do
+  // tamanho máximo de imagem (laudos grandes, ex.: 10 edificações = 60 folhas) e as folhas saíam em branco.
+  async function pdfPorPartes(raiz, qualidade) {
+    var filhos = Array.prototype.filter.call(raiz.children, function (x) { return x.tagName !== 'STYLE' && x.tagName !== 'SCRIPT'; });
+    // cada parte vai num envoltório com a mesma classe da raiz, para manter as cores, letras e regras ".lpdf ..."
+    var partes = filhos.length ? filhos.map(function (x) { var w = document.createElement('div'); w.className = raiz.className; raiz.parentNode.appendChild(w); w.appendChild(x); return w; }) : [raiz];
+    var base = { margin: [14, 14, 16, 14], image: { type: 'jpeg', quality: qualidade }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['.cab-fotos', 'tr', '.ass', '.bloco-ass', '.parecer', 'h3', '.ed-cab'] } };
+    var opcoes = function (el) {
+      // altura da imagem abaixo do limite do navegador (~32 mil px): parte muito longa sai com menos resolução
+      var esc = Math.max(1, Math.min(2, 28000 / Math.max(1, el.scrollHeight)));
+      return Object.assign({}, base, { html2canvas: { scale: esc, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 } });
+    };
+    var w = window.html2pdf().set(opcoes(partes[0])).from(partes[0]).toPdf();
+    partes.slice(1).forEach(function (el) {
+      w = w.get('pdf').then(function (pdf) { pdf.addPage(); }).set(opcoes(el)).from(el).toContainer().toCanvas().toPdf();
+    });
+    return w.get('pdf');
+  }
   async function pdfDeConsulta(l) {
     if (!window.html2pdf) await carregarScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
     var m = await montarHtmlLaudo(l, true);
     var box = document.createElement('div'); box.style.cssText = 'position:absolute;left:-10000px;top:0;width:182mm;background:#fff;color:#111';
-    box.innerHTML = '<style>' + m.css.replace(/@page[^{]*\{[^{}]*(\{[^{}]*\}[^{}]*)*\}/g, '').replace(/body::before[^}]*\}/, '').replace(/body\{/g, '.lpdf{') + '.lpdf .capa{height:235mm;page-break-after:always}.lpdf h2{page-break-after:avoid}</style><div class="lpdf">' + m.corpo + '</div>';
+    box.innerHTML = '<style>' + m.css.replace(/@page[^{]*\{[^{}]*(\{[^{}]*\}[^{}]*)*\}/g, '').replace(/body::before[^}]*\}/, '').replace(/body\{/g, '.lpdf{') + '.lpdf .capa{height:235mm;page-break-after:always}.lpdf h2{page-break-after:avoid}.lpdf>*{page-break-before:auto!important;page-break-after:auto!important}.lpdf .capa{height:250mm}</style><div class="lpdf">' + m.corpo + '</div>';
     document.body.appendChild(box);
     var rolagem = window.scrollY; window.scrollTo(0, 0); // o html2canvas corta o conteúdo se a página estiver rolada
     try {
       var rod = 'Laudo SPDA ' + (l.numero || '') + ' · ' + (l.empresaNome || '') + ' · IDEALLE Inspeções e Serviços';
-      var pdf = await window.html2pdf().set({ margin: [14, 14, 16, 14], image: { type: 'jpeg', quality: 0.9 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'], after: '.capa', avoid: ['.cab-fotos', 'tr', '.ass', '.bloco-ass', '.parecer', 'h3'] } }).from(box.querySelector('.lpdf')).toPdf().get('pdf');
+      var pdf = await pdfPorPartes(box.querySelector('.lpdf'), 0.9);
       var n = pdf.internal.getNumberOfPages();
       for (var i = 2; i <= n; i++) {
         pdf.setPage(i); pdf.setFontSize(7.5); pdf.setTextColor(110);
@@ -1863,12 +1881,11 @@
       var css = Array.prototype.map.call(d.querySelectorAll('style'), function (st) { return st.textContent; }).join('\n');
       css = css.replace(/@page[^{]*\{[^{}]*(\{[^{}]*\}[^{}]*)*\}/g, '').replace(/@media screen\{[^{}]*(\{[^{}]*\}[^{}]*)*\}/g, '').replace(/body::before\{[^}]*\}/g, '').replace(/body\{/g, '.lpdf{');
       box = document.createElement('div'); box.style.cssText = 'position:absolute;left:-10000px;top:0;width:182mm;background:#fff;color:#111';
-      box.innerHTML = '<style>' + css + '.lpdf .capa{height:235mm;page-break-after:always}.lpdf h2{page-break-after:avoid}.lpdf section.pg{page-break-before:auto}</style><div class="lpdf">' + d.body.innerHTML + '</div>';
+      box.innerHTML = '<style>' + css + '.lpdf .capa{height:235mm;page-break-after:always}.lpdf h2{page-break-after:avoid}.lpdf section.pg{page-break-before:auto}.lpdf>*{page-break-before:auto!important;page-break-after:auto!important}.lpdf .capa{height:250mm}</style><div class="lpdf">' + d.body.innerHTML + '</div>';
       box.querySelectorAll('.pdf-voltar-flut').forEach(function (x) { x.remove(); });
       document.body.appendChild(box); window.scrollTo(0, 0);
       var rascunho = /content:"RASCUNHO"/.test(html);
-      var pdf = await window.html2pdf().set({ margin: [14, 14, 16, 14], image: { type: 'jpeg', quality: 0.92 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'], after: '.capa', avoid: ['.cab-fotos', 'tr', '.ass', '.bloco-ass', '.parecer', 'h3', '.ed-cab'] } }).from(box.querySelector('.lpdf')).toPdf().get('pdf');
+      var pdf = await pdfPorPartes(box.querySelector('.lpdf'), 0.92);
       var n = pdf.internal.getNumberOfPages();
       for (var i = 2; i <= n; i++) {
         pdf.setPage(i); pdf.setFontSize(7.5); pdf.setTextColor(110);
