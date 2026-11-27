@@ -1567,7 +1567,8 @@
       '<div class="card"><h2>' + ic('selo', 18) + ' Responsável técnico e ART</h2><div class="linha"><div style="flex:2"><label>Engenheiro responsável</label><input id="c-nome" value="' + esc(rp.nome || '') + '"' + dis + '></div><div><label>CREA</label><input id="c-crea" value="' + esc(rp.crea || '') + '"' + dis + '></div></div>' +
       '<div class="linha"><div><label>Nº da ART</label><input id="c-art" value="' + esc(art.numero || '') + '"' + dis + '></div><div><label>Data da ART</label><input type="date" id="c-artd" value="' + esc(art.data || '') + '"' + dis + '></div></div></div>' +
       '<div class="card status-card"><h2>Situação do laudo: <span class="chip ' + (ST[l.status] || ST.rascunho)[1] + '">' + (ST[l.status] || ST.rascunho)[0] + '</span></h2>' +
-      (pend.length && l.status !== 'concluido' ? '<div class="pend"><b>Falta para ' + (l.status === 'rascunho' ? 'enviar para revisão' : 'concluir') + ':</b><ul>' + pend.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul></div>' : '') +
+      (pend.length && l.status !== 'concluido' ? '<div class="pend"><b>Falta para ' + (l.status === 'rascunho' ? 'enviar para revisão' : 'concluir') + ':</b><ul>' + pend.map(function (p) { return '<li>' + esc(p) + (SPDA.pendenciaObrigatoria(p) ? ' <b>(obrigatório)</b>' : '') + '</li>'; }).join('') + '</ul>' +
+        (pend.some(function (p) { return !SPDA.pendenciaObrigatoria(p); }) ? '<div style="margin-top:6px;font-size:13px">Os itens sem "(obrigatório)" não impedem: ao clicar no botão abaixo o sistema pergunta e segue mesmo assim.</div>' : '') + '</div>' : '') +
       '<div class="acoes">' +
       (l.status === 'rascunho' ? '<button class="btn" data-st="revisao">Enviar para revisão</button>' : '') +
       (l.status === 'revisao' ? (dono ? '<button class="btn ok" data-st="concluido">' + ic('selo', 16) + ' Concluir laudo</button>' : '<span class="muted">Um sócio revisa e conclui.</span>') + '<button class="btn sec" data-st="rascunho">Voltar para o campo</button>' : '') +
@@ -1621,6 +1622,12 @@
     await salvarPendente();
     if (para === 'concluido') { var nt = textosAtualizados(l); if (nt) await gravarLaudo(l, { conclusao: nt }); }
     var erro = SPDA.podeMudarStatus(l, para);
+    if (erro && para !== 'rascunho') {
+      // o que falta e não é obrigatório: pergunta e segue se o engenheiro confirmar
+      var faltam = SPDA.pendencias(l, para === 'concluido'), obrig = faltam.filter(SPDA.pendenciaObrigatoria);
+      if (!obrig.length && faltam.length && confirm('Ainda aparece na lista:\n\n- ' + faltam.slice(0, 12).join('\n- ') + (faltam.length > 12 ? '\n- … e mais ' + (faltam.length - 12) : '') + '\n\n' + (para === 'concluido' ? 'Concluir o laudo' : 'Enviar para revisão') + ' mesmo assim?')) erro = SPDA.podeMudarStatus(l, para, true);
+      else if (obrig.length) erro = 'Falta: ' + obrig.join('; ');
+    }
     if (erro) { toast(erro.length > 140 ? 'Ainda falta preencher itens (veja a lista).' : erro); render(); return; }
     var campos = { status: para, historico: (l.historico || []).concat([{ quando: agora(), quem: usuario, o: para }]) };
     if (para === 'concluido') {

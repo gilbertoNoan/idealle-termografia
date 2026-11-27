@@ -277,9 +277,14 @@
 
   // Fluxo: rascunho -> revisao -> concluido (sócio/PH conclui; concluído pode voltar para revisão)
   var TRANSICOES = { rascunho: ['revisao'], revisao: ['rascunho', 'concluido'], concluido: ['revisao'] };
-  function podeMudarStatus(laudo, para) {
+  // Pendências que não impedem o laudo de seguir: o engenheiro pode confirmar e seguir mesmo assim
+  // (ex.: NC sem problema escolhido, nível de proteção, checklist ou medições incompletos).
+  // Impedem: edificação, parecer final, responsável/CREA e ART (para concluir).
+  function pendenciaObrigatoria(t) { return /^Escolher a edificação|^Escolher o parecer final|^Responsável técnico|^Número da ART/.test(t); }
+  function podeMudarStatus(laudo, para, mesmoAssim) {
     if ((TRANSICOES[laudo.status] || []).indexOf(para) < 0) return 'Mudança de status não permitida.';
     var p = pendencias(laudo, para === 'concluido');
+    if (mesmoAssim) p = p.filter(pendenciaObrigatoria);
     if (para !== 'rascunho' && p.length) return 'Falta: ' + p.join('; ');
     return '';
   }
@@ -477,7 +482,7 @@
     RESPOSTAS: RESPOSTAS, LIMITES_PADRAO: LIMITES_PADRAO, PERIODICIDADE_PADRAO_MESES: PERIODICIDADE_PADRAO_MESES, CHECKLIST: CHECKLIST,
     novaEdificacao: novaEdificacao, novoLaudo: novoLaudo, novaFoto: novaFoto, checklistEmBranco: checklistEmBranco,
     avaliarMedicoes: avaliarMedicoes, naoConformidades: naoConformidades, parecerSugerido: parecerSugerido,
-    pendencias: pendencias, podeMudarStatus: podeMudarStatus, aoConcluir: aoConcluir, proximoNumero: proximoNumero, num: num,
+    pendencias: pendencias, podeMudarStatus: podeMudarStatus, pendenciaObrigatoria: pendenciaObrigatoria, aoConcluir: aoConcluir, proximoNumero: proximoNumero, num: num,
     DOC: DOC, documentacaoVazia: documentacaoVazia, respostasDocChecklist: respostasDocChecklist, aplicarDocNoChecklist: aplicarDocNoChecklist,
     PROBLEMAS: PROBLEMAS, PRIORIDADES: PRIORIDADES, problemasDe: problemasDe, textosAutomaticos: textosAutomaticos,
     RISCO: RISCO, novaZona: novaZona, calcularRisco: calcularRisco, areaColeta: areaColeta, sugerirNivelProtecao: sugerirNivelProtecao
