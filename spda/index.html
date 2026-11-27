@@ -615,17 +615,27 @@
       equipAt: c.equipAt || '', equipCo: c.equipCo || '', avisoDias: Number(c.avisoDias) || 30,
       escopo: c.escopo == null ? ESCOPO_PADRAO : c.escopo, escopoNoLaudo: c.escopoNoLaudo !== false,
       // assinaturas dos sócios (lado a lado, acima do responsável técnico)
-      socios: Array.isArray(c.socios) ? c.socios : SOCIOS_PADRAO, sociosNoLaudo: c.sociosNoLaudo !== false
+      socios: sociosAtuais(Array.isArray(c.socios) ? c.socios : SOCIOS_PADRAO), sociosNoLaudo: c.sociosNoLaudo !== false
     };
   }
-  var SOCIOS_PADRAO = [{ nome: 'Gilberto Barnabe da Luz', cargo: 'Sócio', crea: '' }, { nome: 'Rodrigo Santos da Cunha', cargo: 'Sócio', crea: '' }];
+  var SOCIOS_PADRAO = [{ nome: 'Rodrigo S. Cunha', cargo: 'Diretor Comercial', crea: '' }, { nome: 'Engº. Gilberto B. Luz', cargo: 'Diretor Operacional', crea: '' }];
+  // configurações antigas (nomes completos e "Sócio") passam para o modelo novo de assinatura
+  function sociosAtuais(lista) {
+    var antigo = { 'gilberto barnabe da luz': SOCIOS_PADRAO[1], 'rodrigo santos da cunha': SOCIOS_PADRAO[0] };
+    var l = (lista || []).map(function (x) { var a = antigo[String(x.nome || '').trim().toLowerCase()]; return a && (!x.cargo || x.cargo === 'Sócio') ? Object.assign({}, a, { crea: x.crea || '' }) : x; });
+    // Rodrigo à esquerda e Gilberto à direita, como no modelo
+    return l.sort(function (a, b) { return /rodrigo/i.test(b.nome) - /rodrigo/i.test(a.nome); });
+  }
+  // "Engº. Gilberto B. Luz" → "Engº. GILBERTO B. LUZ"
+  function nomeAss(n) { var m = String(n || '').trim().match(/^(Eng[ºo°ª]?\.?\s*)(.*)$/i); return m ? m[1] + m[2].toUpperCase() : String(n || '').toUpperCase(); }
   // Bloco de assinaturas do PDF: sócios lado a lado e, abaixo, o responsável técnico com a ART
   function assinaturasHtml(rp, art) {
-    var c = cfg(), umaAss = function (nome, l2, l3) { return '<div class="ass-it"><div class="linha-ass"></div><b>' + esc(nome || '') + '</b>' + (l2 ? '<br>' + l2 : '') + (l3 ? '<br>' + l3 : '') + '</div>'; };
+    var c = cfg(), umaAss = function (nome, linhas) { return '<div class="ass-it"><div class="linha-ass"></div><b>' + esc(nomeAss(nome)) + '</b>' + linhas.filter(Boolean).map(function (x) { return '<br>' + x; }).join('') + '</div>'; };
     var soc = c.sociosNoLaudo ? (c.socios || []).filter(function (x) { return x && x.nome; }) : [];
+    var nomeRt = String(rp.nome || '').trim(); if (nomeRt && !/^Eng/i.test(nomeRt)) nomeRt = 'Engº. ' + nomeRt;
     // tabela centralizada (o html2pdf respeita melhor que flex)
-    return '<div class="ass">' + (soc.length ? '<table class="ass-socios"><tr>' + soc.map(function (x) { return '<td>' + umaAss(x.nome, esc(x.cargo || 'Sócio') + (x.crea ? ' · CREA ' + esc(x.crea) : ''), 'IDEALLE Inspeções e Serviços') + '</td>'; }).join('') + '</tr></table>' : '') +
-      '<div class="ass-rt">' + umaAss(rp.nome, esc(c.responsavel.titulo) + ' · CREA ' + esc(rp.crea || ''), 'ART nº ' + esc((art || {}).numero || '—') + ((art || {}).data ? ' de ' + dt(art.data) : '') + '<br>IDEALLE Inspeções e Serviços') + '</div></div>';
+    return '<div class="ass">' + (soc.length ? '<table class="ass-socios"><tr>' + soc.map(function (x) { return '<td>' + umaAss(x.nome, ['<i>' + esc(x.cargo || '') + (x.crea ? ' · CREA ' + esc(x.crea) : '') + '</i>', '<i>IDEALLE Inspeções e Serviços</i>']) + '</td>'; }).join('') + '</tr></table>' : '') +
+      '<div class="ass-rt">' + umaAss(nomeRt, ['Profissional Habilitado (PH)', '<span class="ass-pq">CREA ' + esc(rp.crea || '—') + ' · ART nº ' + esc((art || {}).numero || '—') + ((art || {}).data ? ' de ' + dt(art.data) : '') + '</span>']) + '</div></div>';
   }
   function montarLateral() {
     ['lateral', 'cabecalho'].forEach(function (id) { var el = $(id); el.innerHTML = el.innerHTML.replace(/__IC_(\w+)__/g, function (m0, n) { return ic(n, 18); }); });
@@ -1970,7 +1980,7 @@
       'table.fotos{table-layout:fixed;border-collapse:separate;border-spacing:0}table.fotos td{border:0;padding:0 5px 10px;width:50%;vertical-align:top}table.fotos tr,.cab-fotos{page-break-inside:avoid}.fotos figure{margin:0}.fotos img{display:block;width:100%;height:62mm;object-fit:cover;border:1px solid #ccc;box-sizing:border-box}.fotos figcaption{font-size:9pt;margin-top:3px;overflow-wrap:anywhere}' +
       '.pr-I{color:#b91c1c;font-weight:700;white-space:nowrap}.pr-A{color:#a16207;font-weight:700;white-space:nowrap}.pr-B{color:#0b5c99;font-weight:700;white-space:nowrap}' +
       '.parecer{font-weight:700;font-size:12pt;padding:8px 10px;border-radius:4px}.parecer.conforme{background:#dcfce7;color:#15803d}.parecer.conforme_ressalvas{background:#fef3c7;color:#92400e}.parecer.nao_conforme{background:#fee2e2;color:#b91c1c}.pre{white-space:pre-line}' +
-      '.ass{margin-top:50px;text-align:center;line-height:1.5}table.ass-socios{font-size:inherit;width:84%;margin:0 auto 55px;border:0;border-collapse:collapse;table-layout:fixed}table.ass-socios td{border:0;padding:0 12px;font-size:inherit;background:none;text-align:center;vertical-align:top}.ass-it{text-align:center}.ass-rt .ass-it{width:60%;margin:0 auto;font-size:10pt}.ass-rt b{font-size:10pt}.linha-ass{width:90%;margin:0 auto 6px;border-top:1px solid #000}.ass-rt .linha-ass{width:100%}' +
+      '.ass{margin-top:50px;text-align:center;line-height:1.5}table.ass-socios{font-size:inherit;width:84%;margin:0 auto 55px;border:0;border-collapse:collapse;table-layout:fixed}table.ass-socios td{border:0;padding:0 12px;font-size:inherit;background:none;text-align:center;vertical-align:top}.ass-it{text-align:center}.ass-rt .ass-it{width:60%;margin:0 auto;font-size:10pt}.ass-rt b{font-size:10pt}.linha-ass{width:90%;margin:0 auto 6px;border-top:1px solid #000}.ass-rt .linha-ass{width:100%}.ass b{font-size:10.5pt}.ass-it{font-size:10pt}.ass-pq{font-size:8.5pt;color:#444}' +
       (l.status !== 'concluido' ? 'body::before{content:"RASCUNHO";position:fixed;top:40%;left:15%;font-size:110pt;color:rgba(200,0,0,.08);transform:rotate(-30deg);z-index:-1}' : '');
     if (opt.partes) return { secoes: secoesHtml, ass: assHtml, css: css, logo: logo };
     if (paraPortal) return { corpo: corpo, css: css };
